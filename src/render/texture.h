@@ -14,6 +14,7 @@ struct Texture
 struct Texture_List
 {
     Texture player;
+    Texture skybox;
 };
 
 inline Texture_List textures;

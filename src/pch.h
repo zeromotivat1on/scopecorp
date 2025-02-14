@@ -25,6 +25,14 @@ using f64 = double;
 #define GB(n) (MB(n) * 1024ULL)
 #define TB(n) (GB(n) * 1024ULL)
 
+#if DEBUG
+inline const char* build_type_name = "DEBUG";
+#elif RELEASE
+inline const char* build_type_name = "RELEASE";
+#else
+inline const char* build_type_name = "UNKNOWN";
+#endif
+
 // Preallocate base root of application memory.
 // All other memory operations will be done using this block.
 void prealloc_root();
@@ -82,7 +90,6 @@ void    free_all_temp();
 //void* alloc_arb(u64 size);
 //void  free_arb(void* ptr);
 
-// Logging and messaging
 void log(const char* format, ...);
 
 // Globals

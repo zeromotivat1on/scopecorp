@@ -11,7 +11,6 @@ enum Entity_Type
     E_PLAYER
 };
 
-// Store world pointer in entity?
 struct Entity
 {
     Entity_Type type = E_UNKNOWN;
@@ -30,7 +29,9 @@ struct Player : Entity
     f32 ed_camera_speed = 4.0f;
     f32 mouse_sensitivity = 16.0f;
     
-    vec3 camera_offset;
+    vec3 camera_offset = vec3(0.0f, 1.0f, -3.0f);
+    vec3 camera_dead_zone = vec3(2.0f);
+    
     vec3 velocity;
 
     // Shader will be obtained from global shader list.

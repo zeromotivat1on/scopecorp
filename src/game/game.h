@@ -8,21 +8,22 @@ enum Game_Mode
 
 enum Camera_Behavior
 {
-    IGNORE_PLAYER,
-    STICK_TO_PLAYER,
+    IGNORE_PLAYER,   // static position
+    STICK_TO_PLAYER, // immediate position update
+    FOLLOW_PLAYER,   // smooth following
 };
 
 enum Player_Movement_Behavior
 {
-    INDEPENDENT,
-    RELATIVE_TO_CAMERA,
+    MOVE_INDEPENDENT,
+    MOVE_RELATIVE_TO_CAMERA,
 };
 
 struct Game_State
 {
     Game_Mode mode = MODE_GAME;
-    Camera_Behavior camera_behavior = IGNORE_PLAYER;
-    Player_Movement_Behavior player_movement_behavior = INDEPENDENT;
+    Camera_Behavior camera_behavior = FOLLOW_PLAYER;
+    Player_Movement_Behavior player_movement_behavior = MOVE_RELATIVE_TO_CAMERA;
 };
 
 inline Game_State game_state;

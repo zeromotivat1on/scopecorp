@@ -153,6 +153,8 @@ struct vec4
 // Uses static 2d buffer internally, for debug purposes only.
 const char* to_string(const vec3& v);
 
-vec3 vec3_forward(const vec3& start, const vec3& end);
-vec3 vec3_forward(f32 yaw, f32 pitch);
-vec3 vec3_right(const vec3& start, const vec3& end, const vec3& up);
+vec3 forward(const vec3& start, const vec3& end);
+vec3 forward(f32 yaw, f32 pitch);
+vec3 right(const vec3& start, const vec3& end, const vec3& up);
+
+vec3 lerp(const vec3& a, const vec3& b, f32 alpha);

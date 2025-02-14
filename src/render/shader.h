@@ -8,14 +8,13 @@ struct Shader
 
     // @Todo: make shader parser, so this will collapse to 1 shader file.
     const char* path;
-    const char* vertex_path;
-    const char* fragment_path;
 };
 
 struct Shader_List
 {
     Shader player;
     Shader text;
+    Shader skybox;
 };
 
 // Only 1 shader can be changed at time, are we fine with it?
@@ -27,6 +26,7 @@ void compile_game_shaders(Shader_List* list);
 Shader create_shader(const char* shader_path);
 Shader* find_shader_by_file(Shader_List* list, const char* path);
 
+// @Cleanup: current hot-reload implementation is not actually thread-safe!
 void hot_reload_shader(Shader* shader);
 void on_shader_changed_externally(const char* relative_path);
 void check_shader_to_hot_reload();

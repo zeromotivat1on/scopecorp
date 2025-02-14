@@ -6,6 +6,7 @@
 #include "time.h"
 #include "render/gl.h"
 #include "render/shader.h"
+#include "render/vertex.h"
 #include "render/texture.h"
 #include "font.h"
 #include "thread.h"
@@ -28,7 +29,7 @@ static void on_window_event(Window* window, Window_Event* event)
         world->camera.top = (f32)window_h;
 
         world->ed_camera = world->camera;
-        
+    
         glViewport(0, 0, window_w, window_h);
         on_framebuffer_resize(font_render_ctx, window_w, window_h);
     }
@@ -62,7 +63,8 @@ int main()
 
     glEnable(GL_CULL_FACE);  
     glCullFace(GL_BACK);  
-
+    glFrontFace(GL_CCW);
+    
     compile_game_shaders(&shaders);
     load_game_textures(&textures);
     
@@ -74,22 +76,20 @@ int main()
     Font_Atlas* atlas = bake_font_atlas(font, 0, 128, 16);
 
     world = create_world();
-
-    Player& player = world->player;
-    player.location = vec3(0.0f, 0.0f, 0.0f);
-    player.camera_offset = vec3(0.0f, 1.0f, -3.0f);
     
     const f32 player_scale_aspect = (f32)textures.player.width / textures.player.height;
     const f32 player_y_scale = 1.0f * player_scale_aspect;
     const f32 player_x_scale = player_y_scale * player_scale_aspect;
+
+    Player& player = world->player;
     player.scale = vec3(player_x_scale, player_y_scale, 1.0f);
     
     Camera& camera = world->camera;
     camera.mode = MODE_PERSPECTIVE;
     camera.yaw = 90.0f;
 	camera.pitch = 0.0f;
-	camera.eye = player.camera_offset;
-	camera.at = camera.eye + vec3_forward(camera.yaw, camera.pitch);
+	camera.eye = player.location + player.camera_offset;
+	camera.at = camera.eye + forward(camera.yaw, camera.pitch);
 	camera.up = vec3(0.0f, 1.0f, 0.0f);
 	camera.fov = 60.0f;
 	camera.aspect = (f32)window->width / window->height;
@@ -102,28 +102,72 @@ int main()
 
     world->ed_camera = camera;
     
-    {
+    {   // Create player
         glGenVertexArrays(1, &player.vao);
         glGenBuffers(1, &player.vbo);
+        glGenBuffers(1, &player.ibo);
     
         glBindVertexArray(player.vao);
+        
         glBindBuffer(GL_ARRAY_BUFFER, player.vbo);
-
-        f32 vertices[4 * 3] = {
-            0.0f, 1.0f, 0.0f,
-            0.0f, 0.0f, 0.0f,
-            1.0f, 1.0f, 0.0f,
-            1.0f, 0.0f, 0.0f,
+        Vertex_Pos_Tex vertices[4] = { // center in bottom mid point of quad
+            { vec3( 0.5f,  1.0f, 0.0f), vec2(1.0f, 1.0f) },
+            { vec3( 0.5f,  0.0f, 0.0f), vec2(1.0f, 0.0f) },
+            { vec3(-0.5f,  0.0f, 0.0f), vec2(0.0f, 0.0f) },
+            { vec3(-0.5f,  1.0f, 0.0f), vec2(0.0f, 1.0f) },
         };
-    
         glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, player.ibo);
+        u32 indices[6] = { 0, 2, 1, 2, 0, 3 };  
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW); 
+
         glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(f32), (void*)0);
-    
+        glVertexAttribPointer(0, vertices->pos.dimension(), GL_FLOAT, GL_FALSE, sizeof(*vertices), (void*)0);
+
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, vertices->tex.dimension(), GL_FLOAT, GL_FALSE, sizeof(*vertices), (void*)(sizeof(vertices->pos)));
+        
         glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
     }
 
+    u32 skybox_vao;
+    u32 skybox_vbo;
+    u32 skybox_ibo;
+
+    {   // Create skybox
+        glGenVertexArrays(1, &skybox_vao);
+        glGenBuffers(1, &skybox_vbo);
+        glGenBuffers(1, &skybox_ibo);
+    
+        glBindVertexArray(skybox_vao);
+        
+        glBindBuffer(GL_ARRAY_BUFFER, skybox_vbo);
+        Vertex_Pos_Tex vertices[4] = {
+            { vec3( 1.0f,  1.0f, 0.0f), vec2(1.0f, 1.0f) },
+            { vec3( 1.0f, -1.0f, 0.0f), vec2(1.0f, 0.0f) },
+            { vec3(-1.0f, -1.0f, 0.0f), vec2(0.0f, 0.0f) },
+            { vec3(-1.0f,  1.0f, 0.0f), vec2(0.0f, 1.0f) },
+        };
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, skybox_ibo);
+        u32 indices[6] = { 0, 2, 1, 2, 0, 3 };  
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW); 
+
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, vertices->pos.dimension(), GL_FLOAT, GL_FALSE, sizeof(*vertices), (void*)0);
+
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, vertices->tex.dimension(), GL_FLOAT, GL_FALSE, sizeof(*vertices), (void*)(sizeof(vertices->pos)));
+        
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+    }
+    
     f32 dt = 0.0f;
     s64 begin_counter = performance_counter();
     const f32 frequency = (f32)performance_frequency();
@@ -135,15 +179,36 @@ int main()
 
         check_shader_to_hot_reload();
         
-        glClearColor(0.0f, 0.1f, 0.1f, 1.0f);
+        glClearColor(0.9f, 0.4f, 0.5f, 1.0f); // ugly bright pink
         glClear(GL_COLOR_BUFFER_BIT);
 
         const Camera* current_camera = desired_camera(world);
-        
-        {
+
+        {   // Draw skybox
+            glUseProgram(shaders.skybox.id);
+            glBindVertexArray(skybox_vao);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, skybox_ibo);
+            glBindTexture(GL_TEXTURE_2D, (GLuint)textures.skybox.id);
+
+            glActiveTexture(GL_TEXTURE0);
+
+            const u32 id = shaders.skybox.id;
+            const vec2 scale = vec2(8.0f, 3.0f);
+            const vec3 offset = camera.eye;
+            glUniform2f(glGetUniformLocation(id, "u_scale"), scale.x, scale.y);
+            glUniform3f(glGetUniformLocation(id, "u_offset"), offset.x, offset.y, offset.z);
+            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+            glBindTexture(GL_TEXTURE_2D, 0);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+            glBindVertexArray(0);
+            glUseProgram(0);
+        }
+
+        {   // Draw player
             glUseProgram(shaders.player.id);
             glBindVertexArray(player.vao);
-            glBindBuffer(GL_ARRAY_BUFFER, player.vbo);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, player.ibo);
             glBindTexture(GL_TEXTURE_2D, (GLuint)textures.player.id);
 
             glActiveTexture(GL_TEXTURE0);
@@ -154,50 +219,62 @@ int main()
             const mat4 mvp = m * v * p;
             
             glUniformMatrix4fv(glGetUniformLocation(shaders.player.id, "u_mvp"), 1, GL_FALSE, mvp.ptr());             
-            glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
             glBindTexture(GL_TEXTURE_2D, 0);
-            glBindBuffer(GL_ARRAY_BUFFER, 0);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
             glBindVertexArray(0);
             glUseProgram(0);
         }
-
+        
         static char text[256];
         const vec3 text_color = vec3(1.0f);
-        const f32 hor_padding = atlas->font_size * 0.5f;
+        const f32 padding = atlas->font_size * 0.5f;
         s32 text_size = 0;
         f32 x, y;
 
         {
             text_size = (s32)sprintf_s(text, sizeof(text), "player location %s velocity %s", to_string(player.location), to_string(player.velocity));
-            x = hor_padding;
+            x = padding;
             y = (f32)window->height - atlas->font_size;
             render_text(font_render_ctx, atlas, text, text_size, vec2(x, y), text_color);
 
             text_size = (s32)sprintf_s(text, sizeof(text), "camera eye %s at %s", to_string(current_camera->eye), to_string(current_camera->at));
-            x = hor_padding;
+            x = padding;
             y -= atlas->font_size;
             render_text(font_render_ctx, atlas, text, text_size, vec2(x, y), text_color);
         }
         
         {
-            text_size = (s32)sprintf_s(text, sizeof(text), "%.2fms %.ffps %dx%d", dt * 1000.0f, 1 / dt, window->width, window->height);
-            x = window->width - line_width_px(atlas, text, (s32)strlen(text)) - hor_padding;
+            text_size = (s32)sprintf_s(text, sizeof(text), "%.2fms %.ffps %dx%d %s", dt * 1000.0f, 1 / dt, window->width, window->height, build_type_name);
+            x = window->width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
             y = window->height - (f32)atlas->font_size;
             render_text(font_render_ctx, atlas, text, text_size, vec2(x, y), text_color);
+        }
 
-            text_size = (s32)sprintf_s(text, sizeof(text), "%s %s %s", to_string(game_state.mode), to_string(game_state.camera_behavior), to_string(game_state.player_movement_behavior));
-            x = window->width - line_width_px(atlas, text, (s32)strlen(text)) - hor_padding;
-            y -= atlas->font_size;
+        {
+            text_size = (s32)sprintf_s(text, sizeof(text), "F1 %s F2 %s F3 %s", to_string(game_state.mode), to_string(game_state.camera_behavior), to_string(game_state.player_movement_behavior));
+            x = window->width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
+            y = padding;
+            render_text(font_render_ctx, atlas, text, text_size, vec2(x, y), text_color);
+
+            text_size = (s32)sprintf_s(text, sizeof(text), "Shift/Control + Arrows - force move/rotate game camera");
+            x = window->width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
+            y += atlas->font_size;
             render_text(font_render_ctx, atlas, text, text_size, vec2(x, y), text_color);
         }
-        
+    
         gl_swap_buffers(window);
         free_all_frame();
         
         const s64 end_counter = performance_counter();
         dt = (end_counter - begin_counter) / frequency;
 		begin_counter = end_counter;
+
+#if DEBUG
+        // If dt is too large, we could have resumed from a breakpoint.
+        if (dt > 1.0f) dt = 0.16f;
+#endif
     }
 
     destroy(window);

@@ -42,6 +42,7 @@ void compile_game_shaders(Shader_List* list)
 {
     list->player = create_shader(DIR_SHADERS "player.glsl");
     list->text   = create_shader(DIR_SHADERS "text.glsl");
+    list->skybox = create_shader(DIR_SHADERS "skybox.glsl");
 }
 
 Shader create_shader(const char* shader_path)

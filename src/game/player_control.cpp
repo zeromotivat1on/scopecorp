@@ -12,26 +12,30 @@ void press(s32 key, bool pressed)
 
 void tick(Player* player, f32 dt)
 {
+    // Force game camera movement/rotation.
     if (input_table.key_states[KEY_SHIFT])
     {
+        Camera& camera = world->camera;
+        const vec3 camera_forward = forward(camera.yaw, camera.pitch);
+        const vec3 camera_right = camera.up.cross(camera_forward).normalize();
+        
         const f32 speed = player->ed_camera_speed * dt;
         vec3 velocity;
 
         if (input_table.key_states[KEY_RIGHT])
-            velocity.x = speed;
+            velocity += speed * camera_right;
     
         if (input_table.key_states[KEY_LEFT])
-            velocity.x = -speed;
+            velocity -= speed * camera_right;
     
         if (input_table.key_states[KEY_UP])
-            velocity.y = speed;
+            velocity += speed * camera.up;
     
         if (input_table.key_states[KEY_DOWN])
-            velocity.y = -speed;
+            velocity -= speed * camera.up;
 
-        Camera& camera = world->camera;
         camera.eye += velocity.truncate(speed);
-        camera.at = camera.eye + vec3_forward(camera.yaw, camera.pitch);
+        camera.at = camera.eye + camera_forward;
     }
     else if (input_table.key_states[KEY_CTRL])
     {
@@ -51,7 +55,7 @@ void tick(Player* player, f32 dt)
             camera.pitch -= speed;
 
         camera.pitch = clamp(camera.pitch, -89.0f, 89.0f);
-        camera.at = camera.eye + vec3_forward(camera.yaw, camera.pitch);
+        camera.at = camera.eye + forward(camera.yaw, camera.pitch);
     }
     
     if (game_state.mode == MODE_GAME)
@@ -60,7 +64,7 @@ void tick(Player* player, f32 dt)
         vec3 velocity;
     
         // @Todo: use input action instead of direct key state.
-        if (game_state.player_movement_behavior == INDEPENDENT)
+        if (game_state.player_movement_behavior == MOVE_INDEPENDENT)
         {
             if (input_table.key_states[KEY_D])
                 velocity.x = speed;
@@ -74,10 +78,10 @@ void tick(Player* player, f32 dt)
             if (input_table.key_states[KEY_S])
                 velocity.z = -speed;        
         }
-        else if (game_state.player_movement_behavior == RELATIVE_TO_CAMERA)
+        else if (game_state.player_movement_behavior == MOVE_RELATIVE_TO_CAMERA)
         {
             Camera& camera = world->camera;
-            const vec3 camera_forward = vec3_forward(camera.yaw, camera.pitch);
+            const vec3 camera_forward = forward(camera.yaw, camera.pitch);
             const vec3 camera_right = camera.up.cross(camera_forward).normalize();
 
             if (input_table.key_states[KEY_D])
@@ -93,14 +97,47 @@ void tick(Player* player, f32 dt)
                 velocity -= speed * camera_forward;
         }
         
-        player->velocity = velocity.truncate(speed);
+        player->velocity  = velocity.truncate(speed);
         player->location += player->velocity;
 
         if (game_state.camera_behavior == STICK_TO_PLAYER)
         {
             Camera& camera = world->camera;
             camera.eye = player->location + player->camera_offset;
-            camera.at = camera.eye + vec3_forward(camera.yaw, camera.pitch);
+            camera.at = camera.eye + forward(camera.yaw, camera.pitch);
+        }
+        else if (game_state.camera_behavior == FOLLOW_PLAYER)
+        {
+            Camera& camera = world->camera;
+            const vec3 camera_dead_zone = player->camera_dead_zone;
+            const vec3 dead_zone_min = camera.eye - camera_dead_zone * 0.5f;
+            const vec3 dead_zone_max = camera.eye + camera_dead_zone * 0.5f;
+            const vec3 desired_camera_eye = player->location + player->camera_offset;
+            
+            vec3 target_eye;
+            if (desired_camera_eye.x < dead_zone_min.x) 
+                target_eye.x = desired_camera_eye.x + camera_dead_zone.x * 0.5f;
+            else if (desired_camera_eye.x > dead_zone_max.x) 
+                target_eye.x = desired_camera_eye.x - camera_dead_zone.x * 0.5f;
+            else
+                target_eye.x = camera.eye.x;
+                    
+            if (desired_camera_eye.y < dead_zone_min.y) 
+                target_eye.y = desired_camera_eye.y + camera_dead_zone.y * 0.5f;
+            else if (desired_camera_eye.y > dead_zone_max.y) 
+                target_eye.y = desired_camera_eye.y - camera_dead_zone.y * 0.5f;
+            else
+                target_eye.y = camera.eye.y;
+            
+            if (desired_camera_eye.z < dead_zone_min.z) 
+                target_eye.z = desired_camera_eye.z + camera_dead_zone.z * 0.5f;
+            else if (desired_camera_eye.z > dead_zone_max.z) 
+                target_eye.z = desired_camera_eye.z - camera_dead_zone.z * 0.5f;
+            else
+                target_eye.z = camera.eye.z;
+            
+            camera.eye = lerp(camera.eye, target_eye, 8.0f * dt);
+            camera.at = camera.eye + forward(camera.yaw, camera.pitch);
         }
     }
     else if (game_state.mode == MODE_EDITOR)
@@ -113,7 +150,7 @@ void tick(Player* player, f32 dt)
         camera.pitch  = clamp(camera.pitch, -89.0f, 89.0f);
         
         const f32 speed = player->ed_camera_speed * dt;
-        const vec3 camera_forward = vec3_forward(camera.yaw, camera.pitch);
+        const vec3 camera_forward = forward(camera.yaw, camera.pitch);
         const vec3 camera_right = camera.up.cross(camera_forward).normalize();
 
         vec3 velocity;

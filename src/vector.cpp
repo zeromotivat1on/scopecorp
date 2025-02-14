@@ -655,12 +655,12 @@ const char* to_string(const vec3& v)
     return buffer;
 }
 
-vec3 vec3_forward(const vec3& start, const vec3& end)
+vec3 forward(const vec3& start, const vec3& end)
 {
     return (end - start).normalize();
 }
 
-vec3 vec3_forward(f32 yaw, f32 pitch)
+vec3 forward(f32 yaw, f32 pitch)
 {
     const f32 ycos = cos(rad(yaw));
     const f32 ysin = sin(rad(yaw));
@@ -669,7 +669,14 @@ vec3 vec3_forward(f32 yaw, f32 pitch)
     return vec3(ycos * pcos, psin, ysin * pcos).normalize();
 }
 
-vec3 vec3_right(const vec3& start, const vec3& end, const vec3& up)
+vec3 right(const vec3& start, const vec3& end, const vec3& up)
 {
     return up.cross(end - start).normalize();
+}
+
+vec3 lerp(const vec3& a, const vec3& b, f32 alpha)
+{
+    if (alpha <= 0.0f) return a;
+    else if (alpha >= 1.0f) return b;
+    return a + alpha * (b - a);
 }

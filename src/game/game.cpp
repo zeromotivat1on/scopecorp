@@ -16,7 +16,7 @@ void handle_event(Window* window, Window_Event* event)
         if (pressed && key == KEY_ESCAPE)
             close(window);
 
-        if (pressed && key == KEY_F9)
+        if (pressed && key == KEY_F1)
         {
             if (game_state.mode == MODE_GAME)
             {
@@ -30,16 +30,24 @@ void handle_event(Window* window, Window_Event* event)
             }
         }
 
-        if (pressed && key == KEY_1)
-            game_state.camera_behavior = IGNORE_PLAYER;
-        else if (pressed && key == KEY_2)
-            game_state.camera_behavior = STICK_TO_PLAYER;
+        if (pressed && key == KEY_F2)
+        {
+            if (game_state.camera_behavior == IGNORE_PLAYER)
+                game_state.camera_behavior = STICK_TO_PLAYER;
+            else if (game_state.camera_behavior == STICK_TO_PLAYER)
+                game_state.camera_behavior = FOLLOW_PLAYER;
+            else
+                game_state.camera_behavior = IGNORE_PLAYER;
+        }
 
-        if (pressed && key == KEY_3)
-            game_state.player_movement_behavior = INDEPENDENT;
-        else if (pressed && key == KEY_4)
-            game_state.player_movement_behavior = RELATIVE_TO_CAMERA;
-        
+        if (pressed && key == KEY_F3)
+        {
+            if (game_state.player_movement_behavior == MOVE_INDEPENDENT)
+                game_state.player_movement_behavior = MOVE_RELATIVE_TO_CAMERA;
+            else
+                game_state.player_movement_behavior = MOVE_INDEPENDENT;
+        }
+
         press(key, pressed);
     }
     
@@ -75,6 +83,7 @@ const char* to_string(Camera_Behavior behavior)
     {
     case IGNORE_PLAYER: return "IGNORE_PLAYER";
     case STICK_TO_PLAYER: return "STICK_TO_PLAYER";
+    case FOLLOW_PLAYER: return "FOLLOW_PLAYER";
     default: return "UNKNOWN";
     }
 }
@@ -83,8 +92,8 @@ const char* to_string(Player_Movement_Behavior behavior)
 {
     switch (behavior)
     {
-    case INDEPENDENT: return "INDEPENDENT";
-    case RELATIVE_TO_CAMERA: return "RELATIVE_TO_CAMERA";
+    case MOVE_INDEPENDENT: return "MOVE_INDEPENDENT";
+    case MOVE_RELATIVE_TO_CAMERA: return "MOVE_RELATIVE_TO_CAMERA";
     default: return "UNKNOWN";
     }
 }

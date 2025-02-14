@@ -10,6 +10,7 @@
 void load_game_textures(Texture_List* list)
 {
     list->player = create_texture(DIR_TEXTURES "player.png");
+    list->skybox = create_texture(DIR_TEXTURES "skybox.png");
 }
 
 Texture create_texture(const char* path)
