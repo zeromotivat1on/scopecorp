@@ -63,6 +63,12 @@ void free_all_persistent()
     persistent_storage.used = 0;
 }
 
+void usage_persistent(u64* size, u64* used)
+{
+    if (size) *size = persistent_storage.size;
+    if (used) *used = persistent_storage.used;
+}
+
 void prealloc_frame(u64 size)
 {
     frame_storage.data = (u8*)vm_commit((u8*)root_memory + prealloc_offset, size);
@@ -91,6 +97,12 @@ void free_all_frame()
     frame_storage.used = 0;    
 }
 
+void usage_frame(u64* size, u64* used)
+{
+    if (size) *size = frame_storage.size;
+    if (used) *used = frame_storage.used;
+}
+
 void prealloc_temp(u64 size)
 {
     temp_storage.data = (u8*)vm_commit((u8*)root_memory + prealloc_offset, size);
@@ -117,6 +129,12 @@ void free_temp(u64 size)
 void free_all_temp()
 {
     temp_storage.used = 0;    
+}
+
+void usage_temp(u64* size, u64* used)
+{
+    if (size) *size = temp_storage.size;
+    if (used) *used = temp_storage.used;
 }
 
 static void log_va(const char* format, va_list args)

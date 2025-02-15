@@ -54,7 +54,8 @@ Font* create_font(const char* path)
     u8* buffer = alloc_buffer_persistent(buffer_size);
 
     u64 data_size = 0;
-    if (!read_entire_file(path, buffer, buffer_size, &data_size))
+    // @Cleanup: make and use read file persistent overload.
+    if (!read_file(path, buffer, buffer_size, &data_size))
     {
         free_buffer_persistent(buffer_size);
         return null;

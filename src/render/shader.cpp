@@ -49,10 +49,11 @@ Shader create_shader(const char* shader_path)
 {
     Shader shader;
     shader.path = shader_path;
-    
+
     u64 shader_size = 0;
     u8* shader_src = alloc_buffer_temp(MAX_SHADER_SIZE);
-    if (!read_entire_file(shader_path, shader_src, MAX_SHADER_SIZE, &shader_size))
+    // @Cleanup: use read file temp overload.
+    if (!read_file(shader_path, shader_src, MAX_SHADER_SIZE, &shader_size))
     {
         free_buffer_temp(MAX_SHADER_SIZE);
         return {0};

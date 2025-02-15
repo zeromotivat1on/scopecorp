@@ -57,6 +57,7 @@ void    prealloc_persistent(u64 size);
 void*   alloc_persistent(u64 size);
 void    free_persistent(u64 size);
 void    free_all_persistent();
+void    usage_persistent(u64* size, u64* used);
 #define alloc_struct_persistent(t)   (t*)alloc_persistent(sizeof(t))
 #define alloc_array_persistent(n, t) (t*)alloc_persistent(sizeof(t) * (n))
 #define alloc_buffer_persistent(n)   (u8*)alloc_persistent(sizeof(u8) * (n))
@@ -68,6 +69,7 @@ void    prealloc_frame(u64 size);
 void*   alloc_frame(u64 size);
 void    free_frame(u64 size);
 void    free_all_frame();
+void    usage_frame(u64* size, u64* used);
 #define alloc_struct_frame(t)   (t*)alloc_frame(sizeof(t))
 #define alloc_array_frame(n, t) (t*)alloc_frame(sizeof(t) * (n))
 #define alloc_buffer_frame(n)   (u8*)alloc_frame(sizeof(u8) * (n))
@@ -79,6 +81,7 @@ void    prealloc_temp(u64 size);
 void*   alloc_temp(u64 size);
 void    free_temp(u64 size);
 void    free_all_temp();
+void    usage_temp(u64* size, u64* used);
 #define alloc_struct_temp(t)   (t*)alloc_temp(sizeof(t))
 #define alloc_array_temp(n, t) (t*)alloc_temp(sizeof(t) * (n))
 #define alloc_buffer_temp(n)   (u8*)alloc_temp(sizeof(u8) * (n))

@@ -19,9 +19,10 @@ Texture create_texture(const char* path)
     texture.path = path;
     
     stbi_set_flip_vertically_on_load(true);
-    
+
     u8* buffer = alloc_buffer_temp(MAX_TEXTURE_SIZE);
-    if (!read_entire_file(path, buffer, MAX_TEXTURE_SIZE, null))
+    // @Cleanup: use read file temp overload.
+    if (!read_file(path, buffer, MAX_TEXTURE_SIZE, null))
     {
         stbi_set_flip_vertically_on_load(false);
         return {0};

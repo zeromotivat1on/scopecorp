@@ -1,5 +1,5 @@
 #include "pch.h"
-#include "time.h"
+#include "my_time.h"
 
 #define VC_EXTRALEAN
 #define WIN32_LEAN_AND_MEAN

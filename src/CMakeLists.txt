@@ -1,6 +1,7 @@
 add_executable(${PROJECT_NAME}
-                array.h camera.cpp camera.h file.cpp file.h font.cpp font.h input.h main.cpp matrix.cpp matrix.h memory.h my_math.cpp my_math.h pch.cpp profile.h quat.cpp quat.h stb_image.h stb_truetype.h thread.h time.h vector.cpp vector.h window.h
+                array.h camera.cpp camera.h file.cpp file.h font.cpp font.h input.h main.cpp matrix.cpp matrix.h memory.h my_math.cpp my_math.h pch.cpp profile.h quat.cpp quat.h stb_image.h stb_truetype.h thread.h my_time.h vector.cpp vector.h window.h
                 # work_queue.cpp work_queue.h
+                audio/al.h audio/alc.h audio/alext.h
                 editor/hot_reload.h
                 game/entities.h game/game.cpp game/game.h game/player_control.cpp game/player_control.h game/world.cpp game/world.h
                 editor/hot_reload.h
@@ -8,6 +9,7 @@ add_executable(${PROJECT_NAME}
 
 if (WIN32)
    target_link_libraries(${PROJECT_NAME} PRIVATE opengl32.lib)
+   target_link_libraries(${PROJECT_NAME} PRIVATE ${RUN_TREE_DIR}/openal32.lib)
    target_sources(${PROJECT_NAME} PRIVATE os/wglext.h os/win32_gl.cpp os/win32_hot_reload.cpp os/win32_input.cpp os/win32_memory.cpp os/win32_thread.cpp os/win32_time.cpp os/win32_window.cpp os/win32_window.h)
 endif()
 
@@ -32,4 +34,5 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
                                $<$<CONFIG:Release>:RELEASE>
                                # Directories
                                DIR_SHADERS="${RUN_TREE_DIR}/data/shaders/"
-                               DIR_TEXTURES="${RUN_TREE_DIR}/data/textures/")
+                               DIR_TEXTURES="${RUN_TREE_DIR}/data/textures/"
+                               DIR_SOUNDS="${RUN_TREE_DIR}/data/sounds/")

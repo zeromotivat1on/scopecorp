@@ -3,13 +3,17 @@
 #include "arena.h"
 #include "input.h"
 #include "window.h"
-#include "time.h"
+#include "my_time.h"
 #include "render/gl.h"
 #include "render/shader.h"
 #include "render/vertex.h"
 #include "render/texture.h"
+#include "audio/al.h"
+#include "audio/alc.h"
 #include "font.h"
+#include "file.h"
 #include "thread.h"
+#include "profile.h"
 #include "game/world.h"
 #include "game/game.h"
 #include "editor/hot_reload.h"
@@ -41,8 +45,8 @@ int main()
 {
     prealloc_root();
     prealloc_persistent(MB(64));
-    prealloc_frame(MB(4));
-    prealloc_temp(MB(2));
+    prealloc_frame(MB(16));
+    prealloc_temp(MB(64));
     
     init_input_table();
     
@@ -64,6 +68,94 @@ int main()
     glEnable(GL_CULL_FACE);  
     glCullFace(GL_BACK);  
     glFrontFace(GL_CCW);
+
+    ALCdevice* audio_device = alcOpenDevice(null);
+    if (!audio_device)
+    {
+        log("Failed to open default audio device");
+        return 1;
+    }
+
+    ALCcontext* audio_context = alcCreateContext(audio_device, null);
+    if (!audio_context)
+    {
+        log("Failed to create alc context");
+        return 1;
+    }
+
+    if (!alcMakeContextCurrent(audio_context))
+    {
+        log("Failed to make alc context current");
+        return 1;
+    }
+
+    s32 channel_count;
+    s32 sample_rate;
+    s32 bit_depth;
+    char* sound_data;
+    ALsizei sound_data_size;
+    
+    {
+        SCOPE_TIMER("wave file load");
+
+        u64 file_size;
+        sound_data = (char*)read_entire_file_temp(DIR_SOUNDS "2814_Recovery.wav", &file_size);
+        log("%llu", file_size);
+        
+        sound_data = (char*)extract_wav(sound_data, &channel_count, &sample_rate, &bit_depth, &sound_data_size);
+        //sound_data = load_wav(DIR_SOUNDS "2814_Recovery.wav", channel_count, sample_rate, bit_depth, sound_data_size);
+
+        if (!sound_data)
+        {
+            log("Could not load wave file");
+            return 1;
+        }
+        
+    }
+ 
+    u32 audio_buffer;
+    alGenBuffers(1, &audio_buffer);
+
+    ALenum audio_format;
+    if (channel_count == 1 && bit_depth == 8)       audio_format = AL_FORMAT_MONO8;
+    else if (channel_count == 1 && bit_depth == 16) audio_format = AL_FORMAT_MONO16;
+    else if (channel_count == 2 && bit_depth == 8)  audio_format = AL_FORMAT_STEREO8;
+    else if (channel_count == 2 && bit_depth == 16) audio_format = AL_FORMAT_STEREO16;
+    else
+    {
+        log("Unknown wave format");
+        return 1;
+    }
+
+    ALenum al_error;
+    // @Cleanup: loading whole data is bad if its size is big, stream in such case.
+    alBufferData(audio_buffer, audio_format, sound_data, sound_data_size, sample_rate);
+
+    if ((al_error = alGetError()) != AL_NO_ERROR) log("al_error (0x%X)", al_error);
+
+    alListener3f(AL_POSITION, 0, 0, 0);
+    
+    ALuint source;
+    alGenSources(1, &source);
+    alSourcef(source, AL_PITCH, 1);
+    alSourcef(source, AL_GAIN, 0.02f);
+    alSource3f(source, AL_POSITION, 0, 0, 0);
+    alSource3f(source, AL_VELOCITY, 0, 0, 0);
+    alSourcei(source, AL_LOOPING, AL_FALSE);
+    alSourcei(source, AL_BUFFER, audio_buffer);
+
+    if ((al_error = alGetError()) != AL_NO_ERROR) log("al_error (0x%X)", al_error);
+    
+    alSourcePlay(source);
+    log("Started playing wave sound");
+    
+    /* 
+    ALint state = AL_PLAYING;
+    while (state == AL_PLAYING)
+    {
+        alGetSourcei(source, AL_SOURCE_STATE, &state);
+    }
+    */
     
     compile_game_shaders(&shaders);
     load_game_textures(&textures);
@@ -102,7 +194,7 @@ int main()
 
     world->ed_camera = camera;
     
-    {   // Create player
+    {   // Create player.
         glGenVertexArrays(1, &player.vao);
         glGenBuffers(1, &player.vbo);
         glGenBuffers(1, &player.ibo);
@@ -137,7 +229,7 @@ int main()
     u32 skybox_vbo;
     u32 skybox_ibo;
 
-    {   // Create skybox
+    {   // Create skybox.
         glGenVertexArrays(1, &skybox_vao);
         glGenBuffers(1, &skybox_vbo);
         glGenBuffers(1, &skybox_ibo);
@@ -177,6 +269,9 @@ int main()
         poll_events(window);
         tick(world, dt);
 
+        // @Cleanup: temp listener position update here.
+        alListener3f(AL_POSITION, player.location.x, player.location.y, player.location.z);
+        
         check_shader_to_hot_reload();
         
         glClearColor(0.9f, 0.4f, 0.5f, 1.0f); // ugly bright pink
@@ -184,7 +279,7 @@ int main()
 
         const Camera* current_camera = desired_camera(world);
 
-        {   // Draw skybox
+        {   // Draw skybox.
             glUseProgram(shaders.skybox.id);
             glBindVertexArray(skybox_vao);
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, skybox_ibo);
@@ -205,7 +300,7 @@ int main()
             glUseProgram(0);
         }
 
-        {   // Draw player
+        {   // Draw player.
             glUseProgram(shaders.player.id);
             glBindVertexArray(player.vao);
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, player.ibo);
@@ -233,7 +328,7 @@ int main()
         s32 text_size = 0;
         f32 x, y;
 
-        {
+        {   // Entity data.
             text_size = (s32)sprintf_s(text, sizeof(text), "player location %s velocity %s", to_string(player.location), to_string(player.velocity));
             x = padding;
             y = (f32)window->height - atlas->font_size;
@@ -245,14 +340,14 @@ int main()
             render_text(font_render_ctx, atlas, text, text_size, vec2(x, y), text_color);
         }
         
-        {
+        {   // Runtime stats.
             text_size = (s32)sprintf_s(text, sizeof(text), "%.2fms %.ffps %dx%d %s", dt * 1000.0f, 1 / dt, window->width, window->height, build_type_name);
             x = window->width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
             y = window->height - (f32)atlas->font_size;
             render_text(font_render_ctx, atlas, text, text_size, vec2(x, y), text_color);
         }
 
-        {
+        {   // Controls.
             text_size = (s32)sprintf_s(text, sizeof(text), "F1 %s F2 %s F3 %s", to_string(game_state.mode), to_string(game_state.camera_behavior), to_string(game_state.player_movement_behavior));
             x = window->width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
             y = padding;
@@ -263,7 +358,40 @@ int main()
             y += atlas->font_size;
             render_text(font_render_ctx, atlas, text, text_size, vec2(x, y), text_color);
         }
-    
+
+        
+        {   // Memory stats.
+            u64 persistent_size;
+            u64 persistent_used;
+            usage_persistent(&persistent_size, &persistent_used);
+            f32 persistent_part = (f32)persistent_used / persistent_size * 100.0f;
+
+            text_size = (s32)sprintf_s(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Persistent)", (f32)persistent_used / 1024 / 1024, (f32)persistent_size / 1024 / 1024, (f32)persistent_part / 1024 / 1024);
+            x = padding;
+            y = padding;
+            render_text(font_render_ctx, atlas, text, text_size, vec2(x, y), text_color);
+            
+            u64 frame_size;
+            u64 frame_used;
+            usage_frame(&frame_size, &frame_used);
+            f32 frame_part = (f32)frame_used / frame_size * 100.0f;
+
+            text_size = (s32)sprintf_s(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Frame)", (f32)frame_used / 1024 / 1024, (f32)frame_size / 1024 / 1024, (f32)frame_part / 1024 / 1024);
+            x = padding;
+            y += atlas->font_size;
+            render_text(font_render_ctx, atlas, text, text_size, vec2(x, y), text_color);
+            
+            u64 temp_size;
+            u64 temp_used;
+            usage_temp(&temp_size, &temp_used);
+            f32 temp_part = (f32)temp_used / temp_size * 100.0f;
+            
+            text_size = (s32)sprintf_s(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Temp)", (f32)temp_used / 1024 / 1024, (f32)temp_size / 1024 / 1024, (f32)temp_part / 1024 / 1024);
+            x = padding;
+            y += atlas->font_size;
+            render_text(font_render_ctx, atlas, text, text_size, vec2(x, y), text_color);
+        }
+
         gl_swap_buffers(window);
         free_all_frame();
         
