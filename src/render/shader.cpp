@@ -3,6 +3,8 @@
 #include "thread.h"
 #include "file.h"
 #include "gl.h"
+#include "profile.h"
+#include <stdio.h>
 #include <string.h>
 
 const char* vertex_region_name = "[vertex]";
@@ -35,7 +37,10 @@ static void parse_shader_source(const char* path, const char* shader_src, char* 
     const s32 fragment_src_size = (s32)(end_pos - fragment_region);
     
     memcpy(vertex_src, vertex_region, vertex_src_size);
+    vertex_src[vertex_src_size] = '\0';
+    
     memcpy(fragment_src, fragment_region, fragment_src_size);
+    fragment_src[fragment_src_size] = '\0';
 }
 
 void compile_game_shaders(Shader_List* list)
@@ -45,15 +50,19 @@ void compile_game_shaders(Shader_List* list)
     list->skybox = create_shader(DIR_SHADERS "skybox.glsl");
 }
 
-Shader create_shader(const char* shader_path)
+Shader create_shader(const char* path)
 {
+    char timer_string[256];
+    sprintf_s(timer_string, sizeof(timer_string), "%s from %s took", __FUNCTION__, path);
+    SCOPE_TIMER(timer_string);
+    
     Shader shader;
-    shader.path = shader_path;
+    shader.path = path;
 
     u64 shader_size = 0;
     u8* shader_src = alloc_buffer_temp(MAX_SHADER_SIZE);
     // @Cleanup: use read file temp overload.
-    if (!read_file(shader_path, shader_src, MAX_SHADER_SIZE, &shader_size))
+    if (!read_file(path, shader_src, MAX_SHADER_SIZE, &shader_size))
     {
         free_buffer_temp(MAX_SHADER_SIZE);
         return {0};
@@ -62,12 +71,16 @@ Shader create_shader(const char* shader_path)
 
     char* vertex_src = (char*)alloc_buffer_temp(MAX_SHADER_SIZE);
     char* fragment_src = (char*)alloc_buffer_temp(MAX_SHADER_SIZE);
-    parse_shader_source(shader_path, (char*)shader_src, vertex_src, fragment_src);
-
+    parse_shader_source(path, (char*)shader_src, vertex_src, fragment_src);
+    free_temp(MAX_SHADER_SIZE); // free shader source
+    
     const u32 vertex_shader = gl_create_shader(GL_VERTEX_SHADER, vertex_src);
     const u32 fragment_shader = gl_create_shader(GL_FRAGMENT_SHADER, fragment_src);
     shader.id = gl_link_program(vertex_shader, fragment_shader);
 
+    free_temp(MAX_SHADER_SIZE); // free vertex source
+    free_temp(MAX_SHADER_SIZE); // free fragment source
+    
     return shader;
 }
 

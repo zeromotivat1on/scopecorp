@@ -1,7 +1,7 @@
 add_executable(${PROJECT_NAME}
                 array.h camera.cpp camera.h file.cpp file.h font.cpp font.h input.h main.cpp matrix.cpp matrix.h memory.h my_math.cpp my_math.h pch.cpp profile.h quat.cpp quat.h stb_image.h stb_truetype.h thread.h my_time.h vector.cpp vector.h window.h
                 # work_queue.cpp work_queue.h
-                audio/al.h audio/alc.h audio/alext.h
+                audio/al.h audio/alc.h audio/alext.h audio/sound.cpp audio/sound.h
                 editor/hot_reload.h
                 game/entities.h game/game.cpp game/game.h game/player_control.cpp game/player_control.h game/world.cpp game/world.h
                 editor/hot_reload.h

@@ -2,6 +2,8 @@
 #include "texture.h"
 #include "file.h"
 #include "render/gl.h"
+#include "profile.h"
+#include <stdio.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_NO_STDIO
@@ -15,6 +17,10 @@ void load_game_textures(Texture_List* list)
 
 Texture create_texture(const char* path)
 {
+    char timer_string[256];
+    sprintf_s(timer_string, sizeof(timer_string), "%s from %s took", __FUNCTION__, path);
+    SCOPE_TIMER(timer_string);
+    
     Texture texture = {0};
     texture.path = path;
     

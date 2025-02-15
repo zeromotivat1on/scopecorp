@@ -10,10 +10,10 @@
 #include "render/texture.h"
 #include "audio/al.h"
 #include "audio/alc.h"
+#include "audio/sound.h"
 #include "font.h"
 #include "file.h"
 #include "thread.h"
-#include "profile.h"
 #include "game/world.h"
 #include "game/game.h"
 #include "editor/hot_reload.h"
@@ -44,9 +44,18 @@ static void on_window_event(Window* window, Window_Event* event)
 int main()
 {
     prealloc_root();
-    prealloc_persistent(MB(64));
-    prealloc_frame(MB(16));
-    prealloc_temp(MB(64));
+
+    constexpr u64 persistent_memory_size = MB(64);
+    constexpr u64 frame_memory_size = MB(16);
+    constexpr u64 temp_memory_size = MB(64);
+    prealloc_persistent(persistent_memory_size);
+    prealloc_frame(frame_memory_size);
+    prealloc_temp(temp_memory_size);
+
+    log("Preallocated memory sizes:");
+    log("Persistent %.fmb", (f32)persistent_memory_size / 1024 / 1024);
+    log("Frame      %.fmb", (f32)frame_memory_size / 1024 / 1024);
+    log("Temp       %.fmb", (f32)temp_memory_size / 1024 / 1024);
     
     init_input_table();
     
@@ -58,7 +67,8 @@ int main()
     }
 
     register_event_callback(window, on_window_event);
-    
+
+    // @Cleanup: not sure if its a good idea to pass gl major/minor version here.
     gl_init(window, 4, 6);
     gl_vsync(true);
 
@@ -89,73 +99,8 @@ int main()
         return 1;
     }
 
-    s32 channel_count;
-    s32 sample_rate;
-    s32 bit_depth;
-    char* sound_data;
-    ALsizei sound_data_size;
-    
-    {
-        SCOPE_TIMER("wave file load");
-
-        u64 file_size;
-        sound_data = (char*)read_entire_file_temp(DIR_SOUNDS "2814_Recovery.wav", &file_size);
-        log("%llu", file_size);
-        
-        sound_data = (char*)extract_wav(sound_data, &channel_count, &sample_rate, &bit_depth, &sound_data_size);
-        //sound_data = load_wav(DIR_SOUNDS "2814_Recovery.wav", channel_count, sample_rate, bit_depth, sound_data_size);
-
-        if (!sound_data)
-        {
-            log("Could not load wave file");
-            return 1;
-        }
-        
-    }
- 
-    u32 audio_buffer;
-    alGenBuffers(1, &audio_buffer);
-
-    ALenum audio_format;
-    if (channel_count == 1 && bit_depth == 8)       audio_format = AL_FORMAT_MONO8;
-    else if (channel_count == 1 && bit_depth == 16) audio_format = AL_FORMAT_MONO16;
-    else if (channel_count == 2 && bit_depth == 8)  audio_format = AL_FORMAT_STEREO8;
-    else if (channel_count == 2 && bit_depth == 16) audio_format = AL_FORMAT_STEREO16;
-    else
-    {
-        log("Unknown wave format");
-        return 1;
-    }
-
-    ALenum al_error;
-    // @Cleanup: loading whole data is bad if its size is big, stream in such case.
-    alBufferData(audio_buffer, audio_format, sound_data, sound_data_size, sample_rate);
-
-    if ((al_error = alGetError()) != AL_NO_ERROR) log("al_error (0x%X)", al_error);
-
-    alListener3f(AL_POSITION, 0, 0, 0);
-    
-    ALuint source;
-    alGenSources(1, &source);
-    alSourcef(source, AL_PITCH, 1);
-    alSourcef(source, AL_GAIN, 0.02f);
-    alSource3f(source, AL_POSITION, 0, 0, 0);
-    alSource3f(source, AL_VELOCITY, 0, 0, 0);
-    alSourcei(source, AL_LOOPING, AL_FALSE);
-    alSourcei(source, AL_BUFFER, audio_buffer);
-
-    if ((al_error = alGetError()) != AL_NO_ERROR) log("al_error (0x%X)", al_error);
-    
-    alSourcePlay(source);
-    log("Started playing wave sound");
-    
-    /* 
-    ALint state = AL_PLAYING;
-    while (state == AL_PLAYING)
-    {
-        alGetSourcei(source, AL_SOURCE_STATE, &state);
-    }
-    */
+    load_game_sounds(&sounds);
+    alSourcePlay(sounds.world.source);
     
     compile_game_shaders(&shaders);
     load_game_textures(&textures);
@@ -165,7 +110,7 @@ int main()
 
     font_render_ctx = create_font_render_context(window->width, window->height);
     Font* font = create_font("C:/Windows/Fonts/Consola.ttf");
-    Font_Atlas* atlas = bake_font_atlas(font, 0, 128, 16);
+    Font_Atlas* atlas = bake_font_atlas(font, 32, 128, 16);
 
     world = create_world();
     
@@ -366,7 +311,7 @@ int main()
             usage_persistent(&persistent_size, &persistent_used);
             f32 persistent_part = (f32)persistent_used / persistent_size * 100.0f;
 
-            text_size = (s32)sprintf_s(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Persistent)", (f32)persistent_used / 1024 / 1024, (f32)persistent_size / 1024 / 1024, (f32)persistent_part / 1024 / 1024);
+            text_size = (s32)sprintf_s(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Persistent)", (f32)persistent_used / 1024 / 1024, (f32)persistent_size / 1024 / 1024, persistent_part);
             x = padding;
             y = padding;
             render_text(font_render_ctx, atlas, text, text_size, vec2(x, y), text_color);
@@ -376,7 +321,7 @@ int main()
             usage_frame(&frame_size, &frame_used);
             f32 frame_part = (f32)frame_used / frame_size * 100.0f;
 
-            text_size = (s32)sprintf_s(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Frame)", (f32)frame_used / 1024 / 1024, (f32)frame_size / 1024 / 1024, (f32)frame_part / 1024 / 1024);
+            text_size = (s32)sprintf_s(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Frame)", (f32)frame_used / 1024 / 1024, (f32)frame_size / 1024 / 1024, frame_part);
             x = padding;
             y += atlas->font_size;
             render_text(font_render_ctx, atlas, text, text_size, vec2(x, y), text_color);
@@ -386,7 +331,7 @@ int main()
             usage_temp(&temp_size, &temp_used);
             f32 temp_part = (f32)temp_used / temp_size * 100.0f;
             
-            text_size = (s32)sprintf_s(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Temp)", (f32)temp_used / 1024 / 1024, (f32)temp_size / 1024 / 1024, (f32)temp_part / 1024 / 1024);
+            text_size = (s32)sprintf_s(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Temp)", (f32)temp_used / 1024 / 1024, (f32)temp_size / 1024 / 1024, temp_part);
             x = padding;
             y += atlas->font_size;
             render_text(font_render_ctx, atlas, text, text_size, vec2(x, y), text_color);

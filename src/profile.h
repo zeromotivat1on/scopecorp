@@ -9,7 +9,7 @@
 
 struct Scope_Timer
 {
-    Scope_Timer(const char* name) : name(name)
+    Scope_Timer(const char* info) : info(info)
     {
         start = performance_counter();
     }
@@ -17,10 +17,10 @@ struct Scope_Timer
     ~Scope_Timer()
     {
         const f32 seconds = (performance_counter() - start) / (f32)performance_frequency();
-        log("Timer (%s) took %.2fms", name, seconds * 1000.0f);
+        log("%s %.2fms", info, seconds * 1000.0f);
     }
 
-	const char*	name;
+	const char*	info;
 	s64 start;
 };
 #endif

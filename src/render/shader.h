@@ -23,7 +23,7 @@ inline Shader* shader_to_hot_reload = null;
 inline Shader_List shaders;
 
 void compile_game_shaders(Shader_List* list);
-Shader create_shader(const char* shader_path);
+Shader create_shader(const char* path);
 Shader* find_shader_by_file(Shader_List* list, const char* path);
 
 // @Cleanup: current hot-reload implementation is not actually thread-safe!
