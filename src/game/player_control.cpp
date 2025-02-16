@@ -4,6 +4,10 @@
 #include "game.h"
 #include "world.h"
 #include "my_math.h"
+#include "audio/al.h"
+#include "audio/sound.h"
+#include "render/texture.h"
+#include "flip_book.h"
 
 void press(s32 key, bool pressed)
 {
@@ -85,21 +89,49 @@ void tick(Player* player, f32 dt)
             const vec3 camera_right = camera.up.cross(camera_forward).normalize();
 
             if (input_table.key_states[KEY_D])
+            {
                 velocity += speed * camera_right;
-    
+                player->move_direction = RIGHT;
+            }
+            
             if (input_table.key_states[KEY_A])
+            {
                 velocity -= speed * camera_right;
+                player->move_direction = LEFT;
+            }
     
             if (input_table.key_states[KEY_W])
+            {
                 velocity += speed * camera_forward;
+                player->move_direction = FORWARD;
+            }
     
             if (input_table.key_states[KEY_S])
+            {
                 velocity -= speed * camera_forward;
+                player->move_direction = BACK;
+            }
         }
         
         player->velocity  = velocity.truncate(speed);
         player->location += player->velocity;
 
+        if (player->velocity != vec3(0.0f))
+        {
+            player->flip_book = &flip_books.player_move[player->move_direction];
+        }
+        else
+        {
+            player->flip_book = null;
+            player->texture_id = textures.player_idle[player->move_direction].id;
+        }
+
+        if (player->flip_book)
+        {
+            tick(player->flip_book, dt);
+            player->texture_id = current_frame(player->flip_book);
+        }
+        
         if (game_state.camera_behavior == STICK_TO_PLAYER)
         {
             Camera& camera = world->camera;
@@ -175,5 +207,20 @@ void tick(Player* player, f32 dt)
         
         camera.eye += velocity.truncate(speed);
         camera.at = camera.eye + camera_forward;
+    }
+
+    // @Cleanup: this condition may trigger in case of direction change.
+    // But as we pause and resume the step sound, its fine.
+    if (player->velocity == vec3(0.0f))
+    {
+        s32 state;
+        alGetSourcei(sounds.player_steps.source, AL_SOURCE_STATE, &state);
+        if (state != AL_PAUSED) alSourcePause(sounds.player_steps.source);
+    }
+    else
+    {
+        s32 state;
+        alGetSourcei(sounds.player_steps.source, AL_SOURCE_STATE, &state);
+        if (state == AL_PAUSED || state == AL_INITIAL) alSourcePlay(sounds.player_steps.source);
     }
 }

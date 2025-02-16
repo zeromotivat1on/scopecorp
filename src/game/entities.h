@@ -33,9 +33,11 @@ struct Player : Entity
     vec3 camera_dead_zone = vec3(2.0f);
     
     vec3 velocity;
-
-    // Shader will be obtained from global shader list.
-    // These should not be here as well?
+    Direction move_direction;
+    
+    struct Flip_Book* flip_book; // desired flip book to use
+    u32 texture_id; // desired texture to draw
+    
     u32 vao;
     u32 vbo;
     u32 ibo;

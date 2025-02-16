@@ -8,6 +8,7 @@
 #include "render/shader.h"
 #include "render/vertex.h"
 #include "render/texture.h"
+#include "flip_book.h"
 #include "audio/al.h"
 #include "audio/alc.h"
 #include "audio/sound.h"
@@ -52,10 +53,7 @@ int main()
     prealloc_frame(frame_memory_size);
     prealloc_temp(temp_memory_size);
 
-    log("Preallocated memory sizes:");
-    log("Persistent %.fmb", (f32)persistent_memory_size / 1024 / 1024);
-    log("Frame      %.fmb", (f32)frame_memory_size / 1024 / 1024);
-    log("Temp       %.fmb", (f32)temp_memory_size / 1024 / 1024);
+    log("Preallocated memory storages: Persistent %.fmb | Frame %.fmb | Temp %.fmb", (f32)persistent_memory_size / 1024 / 1024, (f32)frame_memory_size / 1024 / 1024, (f32)temp_memory_size / 1024 / 1024);
     
     init_input_table();
     
@@ -70,7 +68,7 @@ int main()
 
     // @Cleanup: not sure if its a good idea to pass gl major/minor version here.
     gl_init(window, 4, 6);
-    gl_vsync(true);
+    gl_vsync(false);
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -100,10 +98,11 @@ int main()
     }
 
     load_game_sounds(&sounds);
-    alSourcePlay(sounds.world.source);
-    
     compile_game_shaders(&shaders);
     load_game_textures(&textures);
+    create_game_flip_books(&flip_books);
+
+    //alSourcePlay(sounds.world.source);
     
     Hot_Reload_List hot_reload_list = {0};
     register_hot_reload_dir(&hot_reload_list, DIR_SHADERS, on_shader_changed_externally);
@@ -114,7 +113,7 @@ int main()
 
     world = create_world();
     
-    const f32 player_scale_aspect = (f32)textures.player.width / textures.player.height;
+    const f32 player_scale_aspect = (f32)textures.player_idle[BACK].width / textures.player_idle[BACK].height;
     const f32 player_y_scale = 1.0f * player_scale_aspect;
     const f32 player_x_scale = player_y_scale * player_scale_aspect;
 
@@ -249,7 +248,7 @@ int main()
             glUseProgram(shaders.player.id);
             glBindVertexArray(player.vao);
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, player.ibo);
-            glBindTexture(GL_TEXTURE_2D, (GLuint)textures.player.id);
+            glBindTexture(GL_TEXTURE_2D, player.texture_id);
 
             glActiveTexture(GL_TEXTURE0);
 

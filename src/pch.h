@@ -25,13 +25,24 @@ using f64 = double;
 #define GB(n) (MB(n) * 1024ULL)
 #define TB(n) (GB(n) * 1024ULL)
 
+#define c_array_count(a) sizeof(a) / sizeof(a[0])
+
 #if DEBUG
 inline const char* build_type_name = "DEBUG";
 #elif RELEASE
 inline const char* build_type_name = "RELEASE";
 #else
-inline const char* build_type_name = "UNKNOWN";
+#error "Unknown build type"
 #endif
+
+enum Direction
+{
+    BACK,
+    RIGHT,
+    LEFT,
+    FORWARD,
+    DIRECTION_COUNT
+};
 
 // Preallocate base root of application memory.
 // All other memory operations will be done using this block.

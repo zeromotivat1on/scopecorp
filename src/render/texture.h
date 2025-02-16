@@ -4,17 +4,21 @@ inline constexpr s32 MAX_TEXTURE_SIZE = KB(256);
 
 struct Texture
 {
-    u64 id;
+    u32 id;
     s32 width;
     s32 height;
-    s32 color_count;
+    s32 color_channel_count;
     const char* path;
 };
 
 struct Texture_List
 {
-    Texture player;
     Texture skybox;
+
+    // @Cleanup: make texture array on gpu?
+    // @Cleanup: do we really need Flip_Book if these arrays already look like it?
+    Texture player_idle[DIRECTION_COUNT];
+    Texture player_move[DIRECTION_COUNT][4];
 };
 
 inline Texture_List textures;

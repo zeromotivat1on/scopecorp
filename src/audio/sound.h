@@ -14,9 +14,10 @@ struct Sound
 struct Sound_List
 {
     Sound world;
+    Sound player_steps;
 };
 
 inline Sound_List sounds;
 
 void load_game_sounds(Sound_List* list);
-Sound create_sound(const char* path);
+Sound create_sound(const char* path, bool loop);
