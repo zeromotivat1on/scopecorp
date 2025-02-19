@@ -12,7 +12,8 @@
 void load_game_textures(Texture_List* list)
 {
     list->skybox = create_texture(DIR_TEXTURES "skybox.png");
-
+    list->stone  = create_texture(DIR_TEXTURES "stone.png");
+    
     list->player_idle[BACK] = create_texture(DIR_TEXTURES "player_idle_back.png");
     list->player_idle[RIGHT] = create_texture(DIR_TEXTURES "player_idle_right.png");
     list->player_idle[LEFT] = create_texture(DIR_TEXTURES "player_idle_left.png");

@@ -14,9 +14,7 @@ struct Texture
 struct Texture_List
 {
     Texture skybox;
-
-    // @Cleanup: make texture array on gpu?
-    // @Cleanup: do we really need Flip_Book if these arrays already look like it?
+    Texture stone;
     Texture player_idle[DIRECTION_COUNT];
     Texture player_move[DIRECTION_COUNT][4];
 };

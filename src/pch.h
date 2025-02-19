@@ -25,7 +25,7 @@ using f64 = double;
 #define GB(n) (MB(n) * 1024ULL)
 #define TB(n) (GB(n) * 1024ULL)
 
-#define c_array_count(a) sizeof(a) / sizeof(a[0])
+#define c_array_count(a) sizeof(a) / sizeof((a)[0])
 
 #if DEBUG
 inline const char* build_type_name = "DEBUG";
@@ -62,7 +62,7 @@ void free_root();
 // Memory operations within blocks are done in linear way.
 // Before usage, block must be preallocated with desired size.
 // Free operations within block are merely changing their internal pointer to
-// topmost available memory. Free all is as simple as setting pointer to zero.
+// topmost available memory. Free all is as simple as setting pointer to start.
 
 void    prealloc_persistent(u64 size);
 void*   alloc_persistent(u64 size);

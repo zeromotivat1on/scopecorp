@@ -13,6 +13,7 @@ void load_game_sounds(Sound_List* list)
     
     list->world = create_sound(DIR_SOUNDS "C418_Shuniji.wav", false);
     list->player_steps = create_sound(DIR_SOUNDS "player_steps.wav", true);
+    list->player_steps_cute = create_sound(DIR_SOUNDS "player_steps_cute.wav", true);
 }
 
 s32 al_determine_audio_format(s32 channel_count, s32 bit_depth)

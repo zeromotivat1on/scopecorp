@@ -1,6 +1,5 @@
 #include "pch.h"
 #include "memory.h"
-#include "arena.h"
 #include "input.h"
 #include "window.h"
 #include "my_time.h"
@@ -15,10 +14,12 @@
 #include "font.h"
 #include "file.h"
 #include "thread.h"
+#include "viewport.h"
 #include "game/world.h"
 #include "game/game.h"
 #include "editor/hot_reload.h"
 #include <stdio.h>
+#include <string.h>
 
 static void on_window_event(Window* window, Window_Event* event)
 {
@@ -27,16 +28,19 @@ static void on_window_event(Window* window, Window_Event* event)
         const s16 window_w = window->width;
         const s16 window_h = window->height;
 
-        world->camera.aspect = (f32)window_w / window_h;
-        world->camera.left = 0.0f;
-        world->camera.right = (f32)window_w;
-        world->camera.bottom = 0.0f;
-        world->camera.top = (f32)window_h;
+        viewport_4x3(&viewport, window_w, window_h);
+        glViewport(viewport.x, viewport.y, viewport.width, viewport.height);
+        glScissor(viewport.x, viewport.y, viewport.width, viewport.height);
+
+        world->camera.aspect = (f32)viewport.width / viewport.height;
+        world->camera.left = viewport.x;
+        world->camera.right = (f32)viewport.x + viewport.width;
+        world->camera.bottom = viewport.y;
+        world->camera.top = (f32)viewport.y + viewport.height;
 
         world->ed_camera = world->camera;
-    
-        glViewport(0, 0, window_w, window_h);
-        on_framebuffer_resize(font_render_ctx, window_w, window_h);
+
+        on_framebuffer_resize(font_render_ctx, viewport.width, viewport.height);
     }
     
     handle_event(window, event);
@@ -53,7 +57,8 @@ int main()
     prealloc_frame(frame_memory_size);
     prealloc_temp(temp_memory_size);
 
-    log("Preallocated memory storages: Persistent %.fmb | Frame %.fmb | Temp %.fmb", (f32)persistent_memory_size / 1024 / 1024, (f32)frame_memory_size / 1024 / 1024, (f32)temp_memory_size / 1024 / 1024);
+    log("Preallocated memory storages: Persistent %.fmb | Frame %.fmb | Temp %.fmb",
+        (f32)persistent_memory_size / 1024 / 1024, (f32)frame_memory_size / 1024 / 1024, (f32)temp_memory_size / 1024 / 1024);
     
     init_input_table();
     
@@ -73,10 +78,16 @@ int main()
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    glEnable(GL_CULL_FACE);  
+    glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);  
     glFrontFace(GL_CCW);
 
+    glEnable(GL_SCISSOR_TEST);
+
+    glEnable(GL_DEPTH_TEST);
+    //glDepthMask(GL_FALSE);
+    glDepthFunc(GL_LESS);
+    
     ALCdevice* audio_device = alcOpenDevice(null);
     if (!audio_device)
     {
@@ -98,8 +109,8 @@ int main()
     }
 
     load_game_sounds(&sounds);
-    compile_game_shaders(&shaders);
     load_game_textures(&textures);
+    compile_game_shaders(&shaders);
     create_game_flip_books(&flip_books);
 
     //alSourcePlay(sounds.world.source);
@@ -128,7 +139,8 @@ int main()
 	camera.at = camera.eye + forward(camera.yaw, camera.pitch);
 	camera.up = vec3(0.0f, 1.0f, 0.0f);
 	camera.fov = 60.0f;
-	camera.aspect = (f32)window->width / window->height;
+	//camera.aspect = window->width / window->height;
+	//camera.aspect = 4.0f / 3.0f;
 	camera.near = 0.1f;
 	camera.far = 1000.0f;
 	camera.left = 0.0f;
@@ -168,7 +180,87 @@ int main()
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
     }
+       
+    u32 cube_vao;
+    u32 cube_vbo;
+    u32 cube_ibo;
+    
+    {   // Create cube.
+        glGenVertexArrays(1, &cube_vao);
+        glGenBuffers(1, &cube_vbo);
+        glGenBuffers(1, &cube_ibo);
+    
+        glBindVertexArray(cube_vao);
+        
+        glBindBuffer(GL_ARRAY_BUFFER, cube_vbo);
+        Vertex_Pos_Tex vertices[36] = {
+            // Front face
+            { vec3(-0.5f,  0.5f,  0.5f), vec2(0.0f, 0.0f) },
+            { vec3( 0.5f,  0.5f,  0.5f), vec2(1.0f, 0.0f) },
+            { vec3(-0.5f, -0.5f,  0.5f), vec2(0.0f, 1.0f) },
+            { vec3( 0.5f, -0.5f,  0.5f), vec2(1.0f, 1.0f) },
 
+            // Back face
+            { vec3(-0.5f,  0.5f, -0.5f), vec2(0.0f, 0.0f) },
+            { vec3( 0.5f,  0.5f, -0.5f), vec2(1.0f, 0.0f) },
+            { vec3(-0.5f, -0.5f, -0.5f), vec2(0.0f, 1.0f) },
+            { vec3( 0.5f, -0.5f, -0.5f), vec2(1.0f, 1.0f) },
+
+            // Left face
+            { vec3(-0.5f,  0.5f, -0.5f), vec2(0.0f, 0.0f) },
+            { vec3(-0.5f,  0.5f,  0.5f), vec2(1.0f, 0.0f) },
+            { vec3(-0.5f, -0.5f, -0.5f), vec2(0.0f, 1.0f) },
+            { vec3(-0.5f, -0.5f,  0.5f), vec2(1.0f, 1.0f) },
+
+            // Right face
+            { vec3( 0.5f,  0.5f, -0.5f), vec2(0.0f, 0.0f) },
+            { vec3( 0.5f,  0.5f,  0.5f), vec2(1.0f, 0.0f) },
+            { vec3( 0.5f, -0.5f, -0.5f), vec2(0.0f, 1.0f) },
+            { vec3( 0.5f, -0.5f,  0.5f), vec2(1.0f, 1.0f) },
+
+            // Top face
+            { vec3(-0.5f,  0.5f, -0.5f), vec2(0.0f, 0.0f) },
+            { vec3( 0.5f,  0.5f, -0.5f), vec2(1.0f, 0.0f) },
+            { vec3(-0.5f,  0.5f,  0.5f), vec2(0.0f, 1.0f) },
+            { vec3( 0.5f,  0.5f,  0.5f), vec2(1.0f, 1.0f) },
+
+            // Bottom face
+            { vec3(-0.5f, -0.5f, -0.5f), vec2(0.0f, 0.0f) },
+            { vec3( 0.5f, -0.5f, -0.5f), vec2(1.0f, 0.0f) },
+            { vec3(-0.5f, -0.5f,  0.5f), vec2(0.0f, 1.0f) },
+            { vec3( 0.5f, -0.5f,  0.5f), vec2(1.0f, 1.0f) },
+        };
+        
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cube_ibo);
+        u32 indices[36] = {
+            // Front face
+             0,  1,  2,  1,  3,  2,
+            // Back face
+             4,  6,  5,  5,  6,  7,
+            // Left face
+             8,  9, 10,  9, 11, 10,
+            // Right face
+            12, 14, 13, 13, 14, 15,
+            // Bottom face
+            16, 17, 18, 17, 19, 18,
+            // Top face
+            20, 22, 21, 21, 22, 23
+        };
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW); 
+
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, vertices->pos.dimension(), GL_FLOAT, GL_FALSE, sizeof(*vertices), (void*)0);
+
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, vertices->tex.dimension(), GL_FLOAT, GL_FALSE, sizeof(*vertices), (void*)(sizeof(vertices->pos)));
+        
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+    }
+       
     u32 skybox_vao;
     u32 skybox_vbo;
     u32 skybox_ibo;
@@ -219,11 +311,14 @@ int main()
         check_shader_to_hot_reload();
         
         glClearColor(0.9f, 0.4f, 0.5f, 1.0f); // ugly bright pink
-        glClear(GL_COLOR_BUFFER_BIT);
-
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        
         const Camera* current_camera = desired_camera(world);
 
+#if 1
         {   // Draw skybox.
+            glDepthMask(GL_FALSE);
+
             glUseProgram(shaders.skybox.id);
             glBindVertexArray(skybox_vao);
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, skybox_ibo);
@@ -242,8 +337,11 @@ int main()
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
             glBindVertexArray(0);
             glUseProgram(0);
-        }
 
+            glDepthMask(GL_TRUE);
+        }
+#endif
+        
         {   // Draw player.
             glUseProgram(shaders.player.id);
             glBindVertexArray(player.vao);
@@ -265,6 +363,28 @@ int main()
             glBindVertexArray(0);
             glUseProgram(0);
         }
+
+        {   // Draw cube.
+            glUseProgram(shaders.pos_tex.id);
+            glBindVertexArray(cube_vao);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cube_ibo);
+            glBindTexture(GL_TEXTURE_2D, textures.stone.id);
+
+            glActiveTexture(GL_TEXTURE0);
+
+            const mat4 m = mat4_transform(vec3(3.0f, 0.5f, 4.0f), quat(), vec3(1.0f));
+            const mat4 v = camera_view(current_camera);
+            const mat4 p = camera_projection(current_camera);
+            const mat4 mvp = m * v * p;
+            
+            glUniformMatrix4fv(glGetUniformLocation(shaders.pos_tex.id, "u_mvp"), 1, GL_FALSE, mvp.ptr());             
+            glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+
+            glBindTexture(GL_TEXTURE_2D, 0);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+            glBindVertexArray(0);
+            glUseProgram(0);
+        }
         
         static char text[256];
         const vec3 text_color = vec3(1.0f);
@@ -272,10 +392,12 @@ int main()
         s32 text_size = 0;
         f32 x, y;
 
+        glDepthMask(GL_FALSE); // ignore depth test for debug text
+        
         {   // Entity data.
             text_size = (s32)sprintf_s(text, sizeof(text), "player location %s velocity %s", to_string(player.location), to_string(player.velocity));
             x = padding;
-            y = (f32)window->height - atlas->font_size;
+            y = (f32)viewport.height - atlas->font_size;
             render_text(font_render_ctx, atlas, text, text_size, vec2(x, y), text_color);
 
             text_size = (s32)sprintf_s(text, sizeof(text), "camera eye %s at %s", to_string(current_camera->eye), to_string(current_camera->at));
@@ -286,19 +408,19 @@ int main()
         
         {   // Runtime stats.
             text_size = (s32)sprintf_s(text, sizeof(text), "%.2fms %.ffps %dx%d %s", dt * 1000.0f, 1 / dt, window->width, window->height, build_type_name);
-            x = window->width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
-            y = window->height - (f32)atlas->font_size;
+            x = viewport.width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
+            y = viewport.height - (f32)atlas->font_size;
             render_text(font_render_ctx, atlas, text, text_size, vec2(x, y), text_color);
         }
 
         {   // Controls.
             text_size = (s32)sprintf_s(text, sizeof(text), "F1 %s F2 %s F3 %s", to_string(game_state.mode), to_string(game_state.camera_behavior), to_string(game_state.player_movement_behavior));
-            x = window->width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
+            x = viewport.width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
             y = padding;
             render_text(font_render_ctx, atlas, text, text_size, vec2(x, y), text_color);
 
             text_size = (s32)sprintf_s(text, sizeof(text), "Shift/Control + Arrows - force move/rotate game camera");
-            x = window->width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
+            x = viewport.width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
             y += atlas->font_size;
             render_text(font_render_ctx, atlas, text, text_size, vec2(x, y), text_color);
         }
@@ -336,6 +458,8 @@ int main()
             render_text(font_render_ctx, atlas, text, text_size, vec2(x, y), text_color);
         }
 
+        glDepthMask(GL_TRUE);
+                
         gl_swap_buffers(window);
         free_all_frame();
         

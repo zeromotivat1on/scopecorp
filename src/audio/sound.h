@@ -15,6 +15,7 @@ struct Sound_List
 {
     Sound world;
     Sound player_steps;
+    Sound player_steps_cute;
 };
 
 inline Sound_List sounds;

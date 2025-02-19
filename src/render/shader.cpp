@@ -10,6 +10,16 @@
 const char* vertex_region_name = "[vertex]";
 const char* fragment_region_name = "[fragment]";
 
+void compile_game_shaders(Shader_List* list)
+{
+    list->pos_col = create_shader(DIR_SHADERS "pos_col.glsl");
+    list->pos_tex = create_shader(DIR_SHADERS "pos_tex.glsl");
+    
+    list->player = create_shader(DIR_SHADERS "player.glsl");
+    list->text   = create_shader(DIR_SHADERS "text.glsl");
+    list->skybox = create_shader(DIR_SHADERS "skybox.glsl");
+}
+
 static void parse_shader_source(const char* path, const char* shader_src, char* vertex_src, char* fragment_src)
 {
     static u64 vertex_region_name_size = strlen(vertex_region_name);
@@ -41,13 +51,6 @@ static void parse_shader_source(const char* path, const char* shader_src, char* 
     
     memcpy(fragment_src, fragment_region, fragment_src_size);
     fragment_src[fragment_src_size] = '\0';
-}
-
-void compile_game_shaders(Shader_List* list)
-{
-    list->player = create_shader(DIR_SHADERS "player.glsl");
-    list->text   = create_shader(DIR_SHADERS "text.glsl");
-    list->skybox = create_shader(DIR_SHADERS "skybox.glsl");
 }
 
 Shader create_shader(const char* path)

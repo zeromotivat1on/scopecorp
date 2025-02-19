@@ -71,16 +71,28 @@ void tick(Player* player, f32 dt)
         if (game_state.player_movement_behavior == MOVE_INDEPENDENT)
         {
             if (input_table.key_states[KEY_D])
+            {
                 velocity.x = speed;
-    
+                player->move_direction = RIGHT;
+            }
+            
             if (input_table.key_states[KEY_A])
+            {
                 velocity.x = -speed;
+                player->move_direction = LEFT;
+            }
     
             if (input_table.key_states[KEY_W])
+            {
                 velocity.z = speed;
+                player->move_direction = FORWARD;
+            }
     
             if (input_table.key_states[KEY_S])
-                velocity.z = -speed;        
+            {
+                velocity.z = -speed;
+                player->move_direction = BACK;
+            }      
         }
         else if (game_state.player_movement_behavior == MOVE_RELATIVE_TO_CAMERA)
         {
@@ -161,14 +173,14 @@ void tick(Player* player, f32 dt)
             else
                 target_eye.y = camera.eye.y;
             
-            if (desired_camera_eye.z < dead_zone_min.z) 
+            if (desired_camera_eye.z < dead_zone_min.z)
                 target_eye.z = desired_camera_eye.z + camera_dead_zone.z * 0.5f;
-            else if (desired_camera_eye.z > dead_zone_max.z) 
+            else if (desired_camera_eye.z > dead_zone_max.z)
                 target_eye.z = desired_camera_eye.z - camera_dead_zone.z * 0.5f;
             else
                 target_eye.z = camera.eye.z;
             
-            camera.eye = lerp(camera.eye, target_eye, 8.0f * dt);
+            camera.eye = lerp(camera.eye, target_eye, player->camera_follow_speed * dt);
             camera.at = camera.eye + forward(camera.yaw, camera.pitch);
         }
     }
@@ -209,18 +221,17 @@ void tick(Player* player, f32 dt)
         camera.at = camera.eye + camera_forward;
     }
 
-    // @Cleanup: this condition may trigger in case of direction change.
-    // But as we pause and resume the step sound, its fine.
+    const Sound& steps_sound = sounds.player_steps_cute;
     if (player->velocity == vec3(0.0f))
     {
         s32 state;
-        alGetSourcei(sounds.player_steps.source, AL_SOURCE_STATE, &state);
-        if (state != AL_PAUSED) alSourcePause(sounds.player_steps.source);
+        alGetSourcei(steps_sound.source, AL_SOURCE_STATE, &state);
+        if (state == AL_PLAYING) alSourceStop(steps_sound.source);
     }
     else
     {
         s32 state;
-        alGetSourcei(sounds.player_steps.source, AL_SOURCE_STATE, &state);
-        if (state == AL_PAUSED || state == AL_INITIAL) alSourcePlay(sounds.player_steps.source);
+        alGetSourcei(steps_sound.source, AL_SOURCE_STATE, &state);
+        if (state != AL_PLAYING) alSourcePlay(steps_sound.source);
     }
 }

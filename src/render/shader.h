@@ -12,6 +12,11 @@ struct Shader
 
 struct Shader_List
 {
+    // General shaders.
+    Shader pos_col;
+    Shader pos_tex;
+
+    // Specific shaders.
     Shader player;
     Shader text;
     Shader skybox;
