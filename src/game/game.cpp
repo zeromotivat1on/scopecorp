@@ -1,7 +1,8 @@
 #include "pch.h"
 #include "game.h"
-#include "input.h"
-#include "window.h"
+#include "log.h"
+#include "os/input.h"
+#include "os/window.h"
 #include "player_control.h"
 
 void handle_event(Window* window, Window_Event* event)

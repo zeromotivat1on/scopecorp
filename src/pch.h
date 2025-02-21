@@ -104,8 +104,6 @@ void    usage_temp(u64* size, u64* used);
 //void* alloc_arb(u64 size);
 //void  free_arb(void* ptr);
 
-void log(const char* format, ...);
-
 // Globals
 // @Cleanup: is it really worth to have them here?
 inline struct Window* window = null;

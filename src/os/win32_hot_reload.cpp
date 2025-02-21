@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "editor/hot_reload.h"
+#include "log.h"
 
 #define VC_EXTRALEAN
 #define WIN32_LEAN_AND_MEAN

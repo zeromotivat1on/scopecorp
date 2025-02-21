@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "shader.h"
-#include "thread.h"
-#include "file.h"
+#include "os/thread.h"
+#include "os/file.h"
 #include "gl.h"
 #include "profile.h"
 #include <stdio.h>
@@ -28,14 +28,14 @@ static void parse_shader_source(const char* path, const char* shader_src, char* 
     const char* vertex_region = strstr(shader_src, vertex_region_name);
     if (!vertex_region)
     {
-        log("Failed to find vertex region in shader (%s)", path);
+        error("Failed to find vertex region in shader %s", path);
         return;
     }
     
     const char* fragment_region = strstr(shader_src, fragment_region_name);
     if (!fragment_region)
     {
-        log("Failed to find fragment region in shader (%s)", path);
+        error("Failed to find fragment region in shader %s", path);
         return;
     }
     
@@ -64,7 +64,6 @@ Shader create_shader(const char* path)
 
     u64 shader_size = 0;
     u8* shader_src = alloc_buffer_temp(MAX_SHADER_SIZE);
-    // @Cleanup: use read file temp overload.
     if (!read_file(path, shader_src, MAX_SHADER_SIZE, &shader_size))
     {
         free_buffer_temp(MAX_SHADER_SIZE);
@@ -109,8 +108,6 @@ Shader* find_shader_by_file(Shader_List* list, const char* path)
 void init_shader_hot_reload(Shader_Hot_Reload_Queue* queue)
 {
     *queue = {0};
-    //queue->cs = (Critical_Section)alloc_persistent(CRITICAL_SECTION_SIZE);
-    //init_critical_section(queue->cs, 0); // @Cleanup: use spin lock?
 }
 
 bool hot_reload_shader(Shader* shader)
@@ -121,10 +118,7 @@ bool hot_reload_shader(Shader* shader)
     Shader new_shader = create_shader(shader->path);
     if (new_shader.id == 0)
     {
-        log("Failed shader hot reload for %s, see errors above", shader->path);
-        // @Cleanup: it works, but this is sooo bad.
-        //sleep_thread(10);
-        //hot_reload_shader(shader);
+        error("Failed shader hot reload for %s, see errors above", shader->path);
         return false;
     }
 
@@ -137,8 +131,6 @@ bool hot_reload_shader(Shader* shader)
 
 void on_shader_changed_externally(const char* path)
 {
-    //log("%s: %s", __FUNCTION__, path);
-    
     Shader* shader = find_shader_by_file(&shaders, path);
     if (!shader) return;
 
@@ -151,31 +143,20 @@ void on_shader_changed_externally(const char* path)
     
     if (!shader_already_in_queue)
     {
-        //enter_critical_section(shader_hot_reload_queue.cs);
         assert(shader_hot_reload_queue.count < MAX_SHADER_HOT_RELOAD_QUEUE_SIZE);
         shader_hot_reload_queue.shaders[shader_hot_reload_queue.count] = shader;
         shader_hot_reload_queue.count++;        
-        //leave_critical_section(shader_hot_reload_queue.cs);   
-    }
-    else
-    {
-        //log("Ignoring hot reload shader %s as its already in queue");
     }
 }
 
 void check_shader_hot_reload_queue(Shader_Hot_Reload_Queue* queue)
 {
-    //if (!try_enter_critical_section(queue->cs)) return;
     if (queue->count == 0) return;
-
-    //enter_critical_section(shader_hot_reload_queue.cs);
     
     for (s32 i = 0; i < queue->count; ++i)
     {
         Shader* shader = queue->shaders[i];
         // @Cleanup: not correct in case of success of not last shader in queue.
         if (hot_reload_shader(shader)) queue->count--;
-    }
-    
-    //leave_critical_section(queue->cs);
+    }    
 }

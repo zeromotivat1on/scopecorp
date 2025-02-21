@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "player_control.h"
-#include "input.h"
+#include "log.h"
+#include "os/input.h"
 #include "game.h"
 #include "world.h"
 #include "my_math.h"

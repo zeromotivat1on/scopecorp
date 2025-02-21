@@ -1,5 +1,5 @@
 #include "pch.h"
-#include "memory.h"
+#include "os/memory.h"
 #include <stdio.h>
 #include <stdarg.h>
 
@@ -128,16 +128,4 @@ void usage_temp(u64* size, u64* used)
 {
     if (size) *size = temp_storage.size;
     if (used) *used = temp_storage.used;
-}
-
-void log(const char* format, ...)
-{   
-    char buffer[4096] = {0};
-    
-    va_list args;
-    va_start(args, format);
-    vsnprintf(buffer, sizeof(buffer), format, args);
-    va_end(args);
-
-    puts(buffer);
 }

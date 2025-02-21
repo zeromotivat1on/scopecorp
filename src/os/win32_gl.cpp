@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "render/gl.h"
+#include "log.h"
 #include "window.h"
 #include "win32_window.h"
 #include "wglext.h"
@@ -48,20 +49,20 @@ static void gl_create_dummy_context(Win32_Window* window)
     const s32 pf = ChoosePixelFormat(window->hdc, &pfd);
     if (pf == 0)
     {
-        log("gl_create_dummy_context: Failed to choose pixel format.");
+        error("Failed to choose dummy pixel format");
         return;
     }
         
     if (SetPixelFormat(window->hdc, pf, &pfd) == FALSE)
     {
-        log("gl_create_dummy_context: Failed to set pixel format.");
+        error("Failed to set dummy pixel format");
         return;
     }
     
     window->hglrc = wglCreateContext(window->hdc);
     if (wglMakeCurrent(window->hdc, window->hglrc) == FALSE)
     {
-        log("gl_create_dummy_context: Failed to make context current.");
+        error("Failed to make dummy context current");
         return;
     }
 }
@@ -132,7 +133,7 @@ void gl_init(Window* window, s32 major_version, s32 minor_version)
     
     if (dummy_window.hglrc == NULL)
     {
-        log("gl_init: Failed to create dummy opengl context.");
+        error("Failed to create dummy opengl context.");
         return;
     }
     
@@ -141,7 +142,7 @@ void gl_init(Window* window, s32 major_version, s32 minor_version)
     const s32 pf = gl_choose_pixel_format(&dummy_window);
     if (pf == 0)
     {
-        log("gl_init: Failed to choose pixel format.");
+        error("Failed to choose pixel format.");
         return;
     }
 
@@ -150,7 +151,7 @@ void gl_init(Window* window, s32 major_version, s32 minor_version)
     PIXELFORMATDESCRIPTOR pfd = {0};
     if (SetPixelFormat(window->win32->hdc, pf, &pfd) == FALSE)
     {
-        log("gl_init: Failed to set pixel format.");
+        error("Failed to set pixel format.");
         return;
     }
 
@@ -166,13 +167,13 @@ void gl_init(Window* window, s32 major_version, s32 minor_version)
     window->win32->hglrc = wglCreateContextAttribsARB(window->win32->hdc, 0, context_attributes);
     if (window->win32->hglrc == NULL)
     {
-        log("gl_init: Failed to create opengl context.");
+        error("Failed to create opengl context.");
         return;
     }
 
     if (wglMakeCurrent(window->win32->hdc, window->win32->hglrc) == FALSE)
     {
-        log("gl_init: Failed to make context current.\n");
+        error("Failed to make context current.\n");
         return;
     }
     
@@ -180,7 +181,7 @@ void gl_init(Window* window, s32 major_version, s32 minor_version)
     // maybe change and move glad source to own gl.h later.
     if (!gladLoadGLLoader((GLADloadproc)gl_get_proc_address))
     {
-        log("gl_init: Failed to init GLAD.");
+        error("Failed to init GLAD.");
         return;
     }
 

@@ -1,6 +1,6 @@
 #include "pch.h"
 #include "texture.h"
-#include "file.h"
+#include "os/file.h"
 #include "render/gl.h"
 #include "profile.h"
 #include <stdio.h>
@@ -64,7 +64,7 @@ Texture create_texture(const char* path)
     u8* data = stbi_load_from_memory(buffer, (s32)buffer_size, &texture.width, &texture.height, &texture.color_channel_count, 4);
     if (!data)
     {
-        log("Failed to load texture %s, stbi reason %s", path, stbi_failure_reason());
+        error("Failed to load texture %s, stbi reason %s", path, stbi_failure_reason());
         stbi_set_flip_vertically_on_load(false);
         return {0};
     }

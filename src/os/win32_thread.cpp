@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "thread.h"
+#include "log.h"
 #include <intrin.h>
 
 #define VC_EXTRALEAN
@@ -20,19 +21,19 @@ static BOOL win32_wait_res_check(void* handle, DWORD res)
             return true;
 
         case WAIT_ABANDONED:
-            log("Mutex (%p) was not released before owning thread termination\n", handle);
+            warn("Object %p was not released before owning thread termination", handle);
             return false;
             
         case WAIT_TIMEOUT:
-            log("Wait time for object (%p) elapsed\n", handle);
+            log("Wait time for object %p elapsed", handle);
             return false;
             
         case WAIT_FAILED:
-            log("Failed to wait for object (%p) with error code (%u)\n", handle, GetLastError());
+            error("Failed to wait for object %p with error code %u", handle, GetLastError());
             return false;
                         
         default:
-            log("Unknown wait result (%u) for object (%p)\n", res, handle);
+            error("Unknown wait result %u for object %p", res, handle);
             return false;
     }
 }

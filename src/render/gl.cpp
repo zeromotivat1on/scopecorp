@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "gl.h"
+#include "log.h"
 
 u32 gl_create_shader(GLenum type, const char* src)
 {    
@@ -17,7 +18,7 @@ u32 gl_create_shader(GLenum type, const char* src)
 
         char info_log[512];
         glGetShaderInfoLog(shader, sizeof(info_log), null, info_log);
-        log("Failed to compile shader (%s), gl reason (%s)", shader_name, info_log);
+        error("Failed to compile shader %s, gl reason %s", shader_name, info_log);
         return INVALID_INDEX;
     }
 
@@ -38,7 +39,7 @@ u32 gl_link_program(u32 vertex_shader, u32 fragment_shader)
     {
         char info_log[512];
         glGetProgramInfoLog(program, sizeof(info_log), null, info_log);
-        log("Failed to link shader program, gl reason (%s)", info_log);
+        error("Failed to link shader program, gl reason %s", info_log);
         return INVALID_INDEX;
     }
 

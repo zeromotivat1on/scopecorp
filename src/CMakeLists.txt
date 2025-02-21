@@ -1,5 +1,5 @@
 add_executable(${PROJECT_NAME}
-                array.h camera.cpp camera.h file.cpp file.h flip_book.cpp flip_book.h font.cpp font.h input.h main.cpp matrix.cpp matrix.h memory.h my_math.cpp my_math.h pch.cpp profile.h quat.cpp quat.h stb_image.h stb_truetype.h thread.h my_time.h vector.cpp vector.h window.h
+                array.h camera.cpp camera.h os/file.cpp os/file.h flip_book.cpp flip_book.h font.cpp font.h os/input.h main.cpp matrix.cpp matrix.h os/memory.h my_math.cpp my_math.h pch.cpp profile.h quat.cpp quat.h stb_image.h stb_truetype.h os/thread.h my_time.h vector.cpp vector.h os/window.h log.h log.cpp
                 # work_queue.cpp work_queue.h
                 audio/al.h audio/alc.h audio/alext.h audio/sound.cpp audio/sound.h
                 editor/hot_reload.h

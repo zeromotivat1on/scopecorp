@@ -1,7 +1,5 @@
 #pragma once
 
-#include "thread.h"
-
 inline constexpr s32 MAX_SHADER_SIZE = KB(8);
 inline constexpr s32 MAX_SHADER_HOT_RELOAD_QUEUE_SIZE = 4;
 
@@ -29,7 +27,6 @@ struct Shader_Hot_Reload_Queue
 {
     Shader* shaders[MAX_SHADER_HOT_RELOAD_QUEUE_SIZE];
     s32 count;
-    Critical_Section cs;
 };
 
 inline Shader_List shaders;

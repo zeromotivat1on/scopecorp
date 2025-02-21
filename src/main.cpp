@@ -1,7 +1,7 @@
 #include "pch.h"
-#include "memory.h"
-#include "input.h"
-#include "window.h"
+#include "log.h"
+#include "os/input.h"
+#include "os/window.h"
 #include "my_time.h"
 #include "render/gl.h"
 #include "render/shader.h"
@@ -12,8 +12,8 @@
 #include "audio/alc.h"
 #include "audio/sound.h"
 #include "font.h"
-#include "file.h"
-#include "thread.h"
+#include "os/file.h"
+#include "os/thread.h"
 #include "viewport.h"
 #include "game/world.h"
 #include "game/game.h"
@@ -65,7 +65,7 @@ int main()
     window = create_window(1280, 720, "Scopecorp", 32, 32);
     if (!window)
     {
-        log("Failed to create window");
+        error("Failed to create window");
         return 1;
     }
 
@@ -91,20 +91,20 @@ int main()
     ALCdevice* audio_device = alcOpenDevice(null);
     if (!audio_device)
     {
-        log("Failed to open default audio device");
+        error("Failed to open default audio device");
         return 1;
     }
 
     ALCcontext* audio_context = alcCreateContext(audio_device, null);
     if (!audio_context)
     {
-        log("Failed to create alc context");
+        error("Failed to create alc context");
         return 1;
     }
 
     if (!alcMakeContextCurrent(audio_context))
     {
-        log("Failed to make alc context current");
+        error("Failed to make alc context current");
         return 1;
     }
 
