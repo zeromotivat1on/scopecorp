@@ -1,7 +1,7 @@
 ﻿#pragma once
 
-#include "vector.h"
-#include "matrix.h"
+#include "math/vector.h"
+#include "math/matrix.h"
 
 enum Camera_Mode
 {

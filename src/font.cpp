@@ -1,8 +1,8 @@
 #include "pch.h"
 #include "font.h"
 #include "os/file.h"
-#include "vector.h"
-#include "matrix.h"
+#include "math/vector.h"
+#include "math/matrix.h"
 #include "render/gl.h"
 #include "render/shader.h"
 

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "vector.h"
-#include "quat.h"
+#include "math/vector.h"
+#include "math/quat.h"
 
 inline constexpr s32 INVALID_ENTITY_ID = -1;
 

@@ -1,6 +1,6 @@
 #include "pch.h"
 #include "camera.h"
-#include "my_math.h"
+#include "math/math.h"
 
 mat4 camera_view(const Camera* c)
 {

@@ -2,7 +2,7 @@
 #include "log.h"
 #include "os/input.h"
 #include "os/window.h"
-#include "my_time.h"
+#include "os/time.h"
 #include "render/gl.h"
 #include "render/shader.h"
 #include "render/vertex.h"

@@ -1,7 +1,7 @@
 #include "pch.h"
-#include "matrix.h"
-#include "quat.h"
-#include "my_math.h"
+#include "math/matrix.h"
+#include "math/quat.h"
+#include "math/math.h"
 #include <string.h>
 
 // Matrix2

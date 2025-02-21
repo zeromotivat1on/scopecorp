@@ -1,6 +1,6 @@
 #pragma once
 
-#include "vector.h"
+#include "math/vector.h"
 
 struct Vertex_Pos_Col
 {

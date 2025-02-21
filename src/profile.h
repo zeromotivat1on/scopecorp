@@ -5,7 +5,7 @@
 #else
 
 #include "log.h"
-#include "my_time.h"
+#include "os/time.h"
 
 #define SCOPE_TIMER(Name) Scope_Timer (scope_timer##__LINE__)(Name)
 

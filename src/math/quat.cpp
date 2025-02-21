@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "quat.h"
 #include "matrix.h"
-#include "my_math.h"
+#include "math/math.h"
 
 quat::quat()
 	: x(0.0f), y(0.0f), z(0.0f), w(0.0f)
