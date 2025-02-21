@@ -3,13 +3,6 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-struct Memory_Storage
-{
-    u8* data;
-    u64 size;
-    u64 used;
-};
-
 constexpr u64 root_size = GB(1);
 static void*  root_memory = null;
 
@@ -137,17 +130,14 @@ void usage_temp(u64* size, u64* used)
     if (used) *used = temp_storage.used;
 }
 
-static void log_va(const char* format, va_list args)
-{
-    char buffer[1024];
-    vsnprintf(buffer, sizeof(buffer), format, args);
-    puts(buffer);
-}
-
 void log(const char* format, ...)
-{
+{   
+    char buffer[4096] = {0};
+    
     va_list args;
     va_start(args, format);
-    log_va(format, args);
+    vsnprintf(buffer, sizeof(buffer), format, args);
     va_end(args);
+
+    puts(buffer);
 }

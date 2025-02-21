@@ -1,6 +1,9 @@
 #pragma once
 
+#include "thread.h"
+
 inline constexpr s32 MAX_SHADER_SIZE = KB(8);
+inline constexpr s32 MAX_SHADER_HOT_RELOAD_QUEUE_SIZE = 4;
 
 struct Shader
 {
@@ -22,16 +25,22 @@ struct Shader_List
     Shader skybox;
 };
 
-// Only 1 shader can be changed at time, are we fine with it?
-// @Cleanup: its better to make queue of hot reload shaders.
-inline Shader* shader_to_hot_reload = null;
+struct Shader_Hot_Reload_Queue
+{
+    Shader* shaders[MAX_SHADER_HOT_RELOAD_QUEUE_SIZE];
+    s32 count;
+    Critical_Section cs;
+};
+
 inline Shader_List shaders;
+inline Shader_Hot_Reload_Queue shader_hot_reload_queue;
 
 void compile_game_shaders(Shader_List* list);
 Shader create_shader(const char* path);
 Shader* find_shader_by_file(Shader_List* list, const char* path);
 
 // @Cleanup: current hot-reload implementation is not actually thread-safe!
-void hot_reload_shader(Shader* shader);
-void on_shader_changed_externally(const char* relative_path);
-void check_shader_to_hot_reload();
+void init_shader_hot_reload(Shader_Hot_Reload_Queue* queue);
+bool hot_reload_shader(Shader* shader);
+void on_shader_changed_externally(const char* path);
+void check_shader_hot_reload_queue(Shader_Hot_Reload_Queue* queue);

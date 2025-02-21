@@ -70,12 +70,13 @@ Shader create_shader(const char* path)
         free_buffer_temp(MAX_SHADER_SIZE);
         return {0};
     }
+    
     shader_src[shader_size] = '\0';
 
     char* vertex_src = (char*)alloc_buffer_temp(MAX_SHADER_SIZE);
     char* fragment_src = (char*)alloc_buffer_temp(MAX_SHADER_SIZE);
     parse_shader_source(path, (char*)shader_src, vertex_src, fragment_src);
-    free_temp(MAX_SHADER_SIZE); // free shader source
+    free_buffer_temp(MAX_SHADER_SIZE); // free shader source
     
     const u32 vertex_shader = gl_create_shader(GL_VERTEX_SHADER, vertex_src);
     const u32 fragment_shader = gl_create_shader(GL_FRAGMENT_SHADER, fragment_src);
@@ -105,30 +106,76 @@ Shader* find_shader_by_file(Shader_List* list, const char* path)
     return null;
 }
 
-void hot_reload_shader(Shader* shader)
+void init_shader_hot_reload(Shader_Hot_Reload_Queue* queue)
 {
-    log("Hot reloading shader (%u) (%s)", shader->id, shader->path);
+    *queue = {0};
+    //queue->cs = (Critical_Section)alloc_persistent(CRITICAL_SECTION_SIZE);
+    //init_critical_section(queue->cs, 0); // @Cleanup: use spin lock?
+}
 
+bool hot_reload_shader(Shader* shader)
+{
     assert(shader->id);
-    glDeleteProgram(shader->id); // @Cleanup: render api layer here
+    u32 old_id = shader->id;
 
-    *shader = create_shader(shader->path);
+    Shader new_shader = create_shader(shader->path);
+    if (new_shader.id == 0)
+    {
+        log("Failed shader hot reload for %s, see errors above", shader->path);
+        // @Cleanup: it works, but this is sooo bad.
+        //sleep_thread(10);
+        //hot_reload_shader(shader);
+        return false;
+    }
+
+    log("Hot reloaded shader %s", shader->path);
+
+    glDeleteProgram(old_id);
+    *shader = new_shader;
+    return true;
 }
 
-void on_shader_changed_externally(const char* relative_path)
+void on_shader_changed_externally(const char* path)
 {
-    // File change notification sends path relative to registered hot reload directory,
-    // so we need to make full path out of it.
-    char full_path[128];
-    strcpy_s(full_path, sizeof(full_path), DIR_SHADERS);
-    strcat_s(full_path, sizeof(full_path), relative_path);
+    //log("%s: %s", __FUNCTION__, path);
     
-    Shader* shader = find_shader_by_file(&shaders, full_path);
-    if (shader) atomic_swap((void**)&shader_to_hot_reload, shader);
+    Shader* shader = find_shader_by_file(&shaders, path);
+    if (!shader) return;
+
+    bool shader_already_in_queue = false;
+    for (s32 i = 0; i < shader_hot_reload_queue.count; ++i)
+    {
+        if (shader == shader_hot_reload_queue.shaders[i])
+            shader_already_in_queue = true;
+    }
+    
+    if (!shader_already_in_queue)
+    {
+        //enter_critical_section(shader_hot_reload_queue.cs);
+        assert(shader_hot_reload_queue.count < MAX_SHADER_HOT_RELOAD_QUEUE_SIZE);
+        shader_hot_reload_queue.shaders[shader_hot_reload_queue.count] = shader;
+        shader_hot_reload_queue.count++;        
+        //leave_critical_section(shader_hot_reload_queue.cs);   
+    }
+    else
+    {
+        //log("Ignoring hot reload shader %s as its already in queue");
+    }
 }
 
-void check_shader_to_hot_reload()
+void check_shader_hot_reload_queue(Shader_Hot_Reload_Queue* queue)
 {
-    Shader* shader = (Shader*)atomic_swap((void**)&shader_to_hot_reload, null);
-    if (shader) hot_reload_shader(shader);
+    //if (!try_enter_critical_section(queue->cs)) return;
+    if (queue->count == 0) return;
+
+    //enter_critical_section(shader_hot_reload_queue.cs);
+    
+    for (s32 i = 0; i < queue->count; ++i)
+    {
+        Shader* shader = queue->shaders[i];
+        // @Cleanup: not correct in case of success of not last shader in queue.
+        if (hot_reload_shader(shader)) queue->count--;
+    }
+    
+    //leave_critical_section(queue->cs);
 }

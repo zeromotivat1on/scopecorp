@@ -1,0 +1,2 @@
+- Logging from other threads cause crashes even log implementation is synchronized.
+  This problem is observed in shader hot reload system.

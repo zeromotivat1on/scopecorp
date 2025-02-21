@@ -114,10 +114,13 @@ int main()
     create_game_flip_books(&flip_books);
 
     //alSourcePlay(sounds.world.source);
+
+    init_shader_hot_reload(&shader_hot_reload_queue);
     
     Hot_Reload_List hot_reload_list = {0};
     register_hot_reload_dir(&hot_reload_list, DIR_SHADERS, on_shader_changed_externally);
-
+    start_hot_reload_thread(&hot_reload_list);
+    
     font_render_ctx = create_font_render_context(window->width, window->height);
     Font* font = create_font("C:/Windows/Fonts/Consola.ttf");
     Font_Atlas* atlas = bake_font_atlas(font, 32, 128, 16);
@@ -307,8 +310,8 @@ int main()
 
         // @Cleanup: temp listener position update here.
         alListener3f(AL_POSITION, player.location.x, player.location.y, player.location.z);
-        
-        check_shader_to_hot_reload();
+
+        check_shader_hot_reload_queue(&shader_hot_reload_queue);
         
         glClearColor(0.9f, 0.4f, 0.5f, 1.0f); // ugly bright pink
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -473,6 +476,7 @@ int main()
 #endif
     }
 
+    stop_hot_reload_thread(&hot_reload_list);
     destroy(window);
     free_root();
     

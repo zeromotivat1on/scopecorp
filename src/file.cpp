@@ -17,7 +17,7 @@ bool read_file(const char* path, void* buffer, u64 buffer_size, u64* bytes_read)
         if (error == 0) return true;
     }
 
-    log("Failed to read file %s", path);
+    log("Failed to read file %s with error %d %s", path, error, strerror(error));
     if (bytes_read) *bytes_read = 0;
     
     return false;
@@ -44,7 +44,7 @@ void* read_entire_file_temp(const char* path, u64* bytes_read)
         free_temp(size);
     }
 
-    log("Failed to read file %s", path);
+    log("Failed to read entire file temp %s with error %d %s", path, error, strerror(error));
     if (bytes_read) *bytes_read = 0;
     
     return null;

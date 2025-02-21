@@ -1,10 +1,11 @@
 #pragma once
 
-#if DEBUG
-    #define vm_base_addr_val (void*)TB(2);
-#else
-    #define vm_base_addr_val nullptr;
-#endif
+struct Memory_Storage
+{
+    u8* data;
+    u64 size;
+    u64 used;
+};
 
 void* vm_reserve(void* addr, u64 size);
 void* vm_commit(void* vm, u64 size);
