@@ -20,6 +20,11 @@ vec2::vec2(f32 a, f32 b)
 {
 }
 
+vec2::vec2(const f32 src[2])
+    : x(src[0]), y(src[1])
+{
+}
+
 f32 vec2::operator[](s32 index) const
 {
     return (&x)[index];
@@ -209,6 +214,11 @@ vec3::vec3(f32 a)
 
 vec3::vec3(f32 a, f32 b, f32 c)
     : x(a), y(b), z(c)
+{
+}
+
+vec3::vec3(const f32 src[3])
+    : x(src[0]), y(src[1]), z(src[2])
 {
 }
 
@@ -426,6 +436,11 @@ vec4::vec4(f32 a)
 
 vec4::vec4(f32 a, f32 b, f32 c, f32 d)
     : x(a), y(b), z(c), w(d)
+{
+}
+
+vec4::vec4(const f32 src[4])
+    : x(src[0]), y(src[1]), z(src[2]), w(src[3])
 {
 }
 

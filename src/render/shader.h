@@ -1,43 +1,48 @@
 #pragma once
 
+#include "uniform.h"
+
 inline constexpr s32 MAX_SHADER_SIZE = KB(8);
+inline constexpr s32 MAX_SHADER_UNIFORMS = 4;
 inline constexpr s32 MAX_SHADER_HOT_RELOAD_QUEUE_SIZE = 4;
 
 struct Shader
-{
+{   
     u32 id;
-
-    // @Todo: make shader parser, so this will collapse to 1 shader file.
     const char* path;
+    Uniform uniforms[MAX_SHADER_UNIFORMS];
+    s32 uniform_count = 0;
 };
 
-struct Shader_List
+struct Shader_Index_List
 {
     // General shaders.
-    Shader pos_col;
-    Shader pos_tex;
+    s32 pos_col;
+    s32 pos_tex;
 
     // Specific shaders.
-    Shader player;
-    Shader text;
-    Shader skybox;
+    s32 player;
+    s32 text;
+    s32 skybox;
 };
 
 struct Shader_Hot_Reload_Queue
 {
-    Shader* shaders[MAX_SHADER_HOT_RELOAD_QUEUE_SIZE];
-    s32 count;
+    s32 indices[MAX_SHADER_HOT_RELOAD_QUEUE_SIZE];
+    s32 count = 0;
 };
 
-inline Shader_List shaders;
+inline Shader_Index_List shader_index_list;
 inline Shader_Hot_Reload_Queue shader_hot_reload_queue;
 
-void compile_game_shaders(Shader_List* list);
-Shader create_shader(const char* path);
-Shader* find_shader_by_file(Shader_List* list, const char* path);
+void compile_game_shaders(Shader_Index_List* list);
+s32 create_shader(const char* path);
+s32 find_shader_by_file(Shader_Index_List* list, const char* path);
+void add_shader_uniforms(s32 shader_idx, Uniform* uniforms, s32 count);
+void set_shader_uniform_value(s32 shader_idx, const char* name, const void* data);
 
 // @Cleanup: current hot-reload implementation is not actually thread-safe!
 void init_shader_hot_reload(Shader_Hot_Reload_Queue* queue);
-bool hot_reload_shader(Shader* shader);
+bool hot_reload_shader(s32 shader_idx);
 void on_shader_changed_externally(const char* path);
 void check_shader_hot_reload_queue(Shader_Hot_Reload_Queue* queue);

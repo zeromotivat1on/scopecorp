@@ -37,6 +37,7 @@ struct Font_Atlas
     s16 font_size; // size of glyph square bitmap
 };
 
+// @Cleanup: use indices to render resources.
 struct Font_Render_Context
 {
     u32 program;

@@ -136,13 +136,13 @@ void tick(Player* player, f32 dt)
         else
         {
             player->flip_book = null;
-            player->texture_id = textures.player_idle[player->move_direction].id;
+            player->texture_idx = texture_index_list.player_idle[player->move_direction];
         }
 
         if (player->flip_book)
         {
             tick(player->flip_book, dt);
-            player->texture_id = current_frame(player->flip_book);
+            player->texture_idx = current_frame(player->flip_book);
         }
         
         if (game_state.camera_behavior == STICK_TO_PLAYER)

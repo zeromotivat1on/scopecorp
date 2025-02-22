@@ -5,6 +5,7 @@
 #include "math/matrix.h"
 #include "render/gl.h"
 #include "render/shader.h"
+#include "render/render_registry.h"
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
@@ -12,7 +13,7 @@
 Font_Render_Context* create_font_render_context(s32 window_w, s32 window_h)
 {
     Font_Render_Context* ctx = alloc_struct_persistent(Font_Render_Context);
-    ctx->program = shaders.text.id;
+    ctx->program = (render_registry.shaders + shader_index_list.text)->id;
     on_framebuffer_resize(ctx, window_w, window_h);
     
     ctx->u_charmap = glGetUniformLocation(ctx->program, "u_charmap");

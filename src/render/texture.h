@@ -11,15 +11,15 @@ struct Texture
     const char* path;
 };
 
-struct Texture_List
+struct Texture_Index_List
 {
-    Texture skybox;
-    Texture stone;
-    Texture player_idle[DIRECTION_COUNT];
-    Texture player_move[DIRECTION_COUNT][4];
+    s32 skybox;
+    s32 stone;
+    s32 player_idle[DIRECTION_COUNT];
+    s32 player_move[DIRECTION_COUNT][4];
 };
 
-inline Texture_List textures;
+inline Texture_Index_List texture_index_list;
 
-void load_game_textures(Texture_List* list);
-Texture create_texture(const char* path);
+void load_game_textures(Texture_Index_List* list);
+s32 create_texture(const char* path);

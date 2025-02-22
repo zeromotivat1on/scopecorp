@@ -10,47 +10,47 @@ void create_game_flip_books(Flip_Book_List* list)
 
     constexpr f32 frame_time = 0.15f;
     
-    const s32 move_back_id_count = c_array_count(textures.player_move[BACK]);
-    u32* move_back_ids = (u32*)alloca(move_back_id_count * sizeof(u32));
+    const s32 move_back_id_count = c_array_count(texture_index_list.player_move[BACK]);
+    s32* move_back_indices = (s32*)alloca(move_back_id_count * sizeof(s32));
     for (s32 i = 0; i < move_back_id_count; ++i)
-        move_back_ids[i] = textures.player_move[BACK][i].id;
-    list->player_move[BACK] = create_flip_book(move_back_ids, move_back_id_count, frame_time);
+        move_back_indices[i] = texture_index_list.player_move[BACK][i];
+    list->player_move[BACK] = create_flip_book(move_back_indices, move_back_id_count, frame_time);
 
-    const s32 move_right_id_count = c_array_count(textures.player_move[RIGHT]);
-    u32* move_right_ids = (u32*)alloca(move_right_id_count * sizeof(u32));
+    const s32 move_right_id_count = c_array_count(texture_index_list.player_move[RIGHT]);
+    s32* move_right_indices = (s32*)alloca(move_right_id_count * sizeof(s32));
     for (s32 i = 0; i < move_right_id_count; ++i)
-        move_right_ids[i] = textures.player_move[RIGHT][i].id;
-    list->player_move[RIGHT] = create_flip_book(move_right_ids, move_right_id_count, frame_time);
+        move_right_indices[i] = texture_index_list.player_move[RIGHT][i];
+    list->player_move[RIGHT] = create_flip_book(move_right_indices, move_right_id_count, frame_time);
 
-    const s32 move_left_id_count = c_array_count(textures.player_move[LEFT]);
-    u32* move_left_ids = (u32*)alloca(move_left_id_count * sizeof(u32));
+    const s32 move_left_id_count = c_array_count(texture_index_list.player_move[LEFT]);
+    s32* move_left_indices = (s32*)alloca(move_left_id_count * sizeof(s32));
     for (s32 i = 0; i < move_left_id_count; ++i)
-        move_left_ids[i] = textures.player_move[LEFT][i].id;
-    list->player_move[LEFT] = create_flip_book(move_left_ids, move_left_id_count, frame_time);
+        move_left_indices[i] = texture_index_list.player_move[LEFT][i];
+    list->player_move[LEFT] = create_flip_book(move_left_indices, move_left_id_count, frame_time);
 
-    const s32 move_forward_id_count = c_array_count(textures.player_move[FORWARD]);
-    u32* move_forward_ids = (u32*)alloca(move_forward_id_count * sizeof(u32));
+    const s32 move_forward_id_count = c_array_count(texture_index_list.player_move[FORWARD]);
+    s32* move_forward_indices = (s32*)alloca(move_forward_id_count * sizeof(s32));
     for (s32 i = 0; i < move_forward_id_count; ++i)
-        move_forward_ids[i] = textures.player_move[FORWARD][i].id;
-    list->player_move[FORWARD] = create_flip_book(move_forward_ids, move_forward_id_count, frame_time);
+        move_forward_indices[i] = texture_index_list.player_move[FORWARD][i];
+    list->player_move[FORWARD] = create_flip_book(move_forward_indices, move_forward_id_count, frame_time);
 }
 
-Flip_Book create_flip_book(u32* texture_ids, s32 count, f32 frame_time)
+Flip_Book create_flip_book(s32* texture_indices, s32 count, f32 frame_time)
 {    
     Flip_Book book = {0};
     book.frame_count = count;
     book.switch_frame_time = frame_time;
-    memcpy(book.frames, texture_ids, count * sizeof(u32));
+    memcpy(book.frames, texture_indices, count * sizeof(s32));
     return book;
 }
 
-u32 current_frame(Flip_Book* book)
+s32 current_frame(Flip_Book* book)
 {
     assert(book->current_frame_idx < book->frame_count);
     return book->frames[book->current_frame_idx];
 }
 
-u32 advance_frame(Flip_Book* book)
+s32 advance_frame(Flip_Book* book)
 {
     assert(book->current_frame_idx < book->frame_count);
     const u32 frame = book->frames[book->current_frame_idx];

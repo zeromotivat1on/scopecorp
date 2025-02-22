@@ -43,6 +43,9 @@ u32 gl_link_program(u32 vertex_shader, u32 fragment_shader)
         return INVALID_INDEX;
     }
 
+    glDeleteShader(vertex_shader);
+    glDeleteShader(fragment_shader);
+
     return program;
 }
 

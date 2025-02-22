@@ -8,6 +8,7 @@ struct vec2
              vec2();
     explicit vec2(f32 a);
     explicit vec2(f32 a, f32 b);
+    explicit vec2(const f32 src[2]);
 
     f32	  operator[](s32 index) const;
     f32&  operator[](s32 index);
@@ -55,7 +56,8 @@ struct vec3
              vec3();
     explicit vec3(f32 a);
     explicit vec3(f32 a, f32 b, f32 c);
-
+    explicit vec3(const f32 src[3]);
+    
     f32	  operator[](s32 index) const;
     f32&  operator[](s32 index);
     vec3  operator-() const;
@@ -107,7 +109,8 @@ struct vec4
              vec4();
     explicit vec4(f32 a);
     explicit vec4(f32 a, f32 b, f32 c, f32 d);
-
+    explicit vec4(const f32 src[4]);
+    
     f32	  operator[](s32 index) const;
     f32&  operator[](s32 index);
     vec4  operator-() const;

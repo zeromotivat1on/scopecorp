@@ -7,7 +7,7 @@ add_executable(${PROJECT_NAME}
                 editor/hot_reload.h
                 game/entities.h game/game.cpp game/game.h game/player_control.cpp game/player_control.h game/world.cpp game/world.h
                 editor/hot_reload.h
-                render/gl.cpp render/gl.h render/glad.cpp render/glad.h render/khrplatform.h render/shader.h render/shader.cpp render/texture.h render/texture.cpp)
+                render/draw.cpp render/gl.cpp render/gl.h render/glad.cpp render/glad.h render/khrplatform.h render/render_registry.cpp render/shader.h render/shader.cpp render/texture.h render/texture.cpp render/vertex.cpp render/vertex_buffer.cpp render/index_buffer.cpp render/uniform.cpp)
 
 if (WIN32)
    target_link_libraries(${PROJECT_NAME} PRIVATE opengl32.lib)

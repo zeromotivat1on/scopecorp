@@ -7,6 +7,10 @@
 #include "render/shader.h"
 #include "render/vertex.h"
 #include "render/texture.h"
+#include "render/index_buffer.h"
+#include "render/vertex_buffer.h"
+#include "render/render_registry.h"
+#include "render/draw.h"
 #include "flip_book.h"
 #include "audio/al.h"
 #include "audio/alc.h"
@@ -85,7 +89,6 @@ int main()
     glEnable(GL_SCISSOR_TEST);
 
     glEnable(GL_DEPTH_TEST);
-    //glDepthMask(GL_FALSE);
     glDepthFunc(GL_LESS);
     
     ALCdevice* audio_device = alcOpenDevice(null);
@@ -108,9 +111,11 @@ int main()
         return 1;
     }
 
+    init_render_registry(&render_registry);
+    
     load_game_sounds(&sounds);
-    load_game_textures(&textures);
-    compile_game_shaders(&shaders);
+    load_game_textures(&texture_index_list);
+    compile_game_shaders(&shader_index_list);
     create_game_flip_books(&flip_books);
 
     //alSourcePlay(sounds.world.source);
@@ -126,8 +131,9 @@ int main()
     Font_Atlas* atlas = bake_font_atlas(font, 32, 128, 16);
 
     world = create_world();
-    
-    const f32 player_scale_aspect = (f32)textures.player_idle[BACK].width / textures.player_idle[BACK].height;
+
+    const Texture* player_idle_texture = render_registry.textures + texture_index_list.player_idle[BACK];
+    const f32 player_scale_aspect = (f32)player_idle_texture->width / player_idle_texture->height;
     const f32 player_y_scale = 1.0f * player_scale_aspect;
     const f32 player_x_scale = player_y_scale * player_scale_aspect;
 
@@ -152,51 +158,30 @@ int main()
 	camera.top = (f32)window->height;
 
     world->ed_camera = camera;
-    
+
+    Draw_Command player_draw_cmd = {0};
     {   // Create player.
-        glGenVertexArrays(1, &player.vao);
-        glGenBuffers(1, &player.vbo);
-        glGenBuffers(1, &player.ibo);
-    
-        glBindVertexArray(player.vao);
-        
-        glBindBuffer(GL_ARRAY_BUFFER, player.vbo);
-        Vertex_Pos_Tex vertices[4] = { // center in bottom mid point of quad
+        player_draw_cmd.shader_idx  = shader_index_list.player;
+
+        Vertex_PU vertices[4] = { // center in bottom mid point of quad
             { vec3( 0.5f,  1.0f, 0.0f), vec2(1.0f, 1.0f) },
             { vec3( 0.5f,  0.0f, 0.0f), vec2(1.0f, 0.0f) },
             { vec3(-0.5f,  0.0f, 0.0f), vec2(0.0f, 0.0f) },
             { vec3(-0.5f,  1.0f, 0.0f), vec2(0.0f, 1.0f) },
         };
-        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+        Vertex_Attrib_Type attrib_types[] = { VERTEX_ATTRIB_F32_V3, VERTEX_ATTRIB_F32_V2 };
+        player_draw_cmd.vertex_buffer_idx = create_vertex_buffer(attrib_types, c_array_count(attrib_types), (f32*)vertices, 5 * c_array_count(vertices), BUFFER_USAGE_STATIC);
 
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, player.ibo);
-        u32 indices[6] = { 0, 2, 1, 2, 0, 3 };  
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW); 
-
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, vertices->pos.dimension(), GL_FLOAT, GL_FALSE, sizeof(*vertices), (void*)0);
-
-        glEnableVertexAttribArray(1);
-        glVertexAttribPointer(1, vertices->tex.dimension(), GL_FLOAT, GL_FALSE, sizeof(*vertices), (void*)(sizeof(vertices->pos)));
-        
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-        glBindVertexArray(0);
+        u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
+        player_draw_cmd.index_buffer_idx = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
     }
-       
-    u32 cube_vao;
-    u32 cube_vbo;
-    u32 cube_ibo;
-    
+
+    Draw_Command cube_draw_cmd = {0};
     {   // Create cube.
-        glGenVertexArrays(1, &cube_vao);
-        glGenBuffers(1, &cube_vbo);
-        glGenBuffers(1, &cube_ibo);
-    
-        glBindVertexArray(cube_vao);
-        
-        glBindBuffer(GL_ARRAY_BUFFER, cube_vbo);
-        Vertex_Pos_Tex vertices[36] = {
+        cube_draw_cmd.shader_idx  = shader_index_list.pos_tex;
+        cube_draw_cmd.texture_idx = texture_index_list.stone;
+
+        Vertex_PU vertices[] = {
             // Front face
             { vec3(-0.5f,  0.5f,  0.5f), vec2(0.0f, 0.0f) },
             { vec3( 0.5f,  0.5f,  0.5f), vec2(1.0f, 0.0f) },
@@ -233,11 +218,10 @@ int main()
             { vec3(-0.5f, -0.5f,  0.5f), vec2(0.0f, 1.0f) },
             { vec3( 0.5f, -0.5f,  0.5f), vec2(1.0f, 1.0f) },
         };
-        
-        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+        Vertex_Attrib_Type attrib_types[] = { VERTEX_ATTRIB_F32_V3, VERTEX_ATTRIB_F32_V2 };
+        cube_draw_cmd.vertex_buffer_idx = create_vertex_buffer(attrib_types, c_array_count(attrib_types), (f32*)vertices, 5 * c_array_count(vertices), BUFFER_USAGE_STATIC);
 
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cube_ibo);
-        u32 indices[36] = {
+        u32 indices[] = {
             // Front face
              0,  1,  2,  1,  3,  2,
             // Back face
@@ -251,58 +235,32 @@ int main()
             // Top face
             20, 22, 21, 21, 22, 23
         };
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW); 
-
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, vertices->pos.dimension(), GL_FLOAT, GL_FALSE, sizeof(*vertices), (void*)0);
-
-        glEnableVertexAttribArray(1);
-        glVertexAttribPointer(1, vertices->tex.dimension(), GL_FLOAT, GL_FALSE, sizeof(*vertices), (void*)(sizeof(vertices->pos)));
-        
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-        glBindVertexArray(0);
+        cube_draw_cmd.index_buffer_idx = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
     }
-       
-    u32 skybox_vao;
-    u32 skybox_vbo;
-    u32 skybox_ibo;
 
+    Draw_Command skybox_draw_cmd = {0};
     {   // Create skybox.
-        glGenVertexArrays(1, &skybox_vao);
-        glGenBuffers(1, &skybox_vbo);
-        glGenBuffers(1, &skybox_ibo);
-    
-        glBindVertexArray(skybox_vao);
-        
-        glBindBuffer(GL_ARRAY_BUFFER, skybox_vbo);
-        Vertex_Pos_Tex vertices[4] = {
+        skybox_draw_cmd.flags |= DRAW_FLAG_IGNORE_DEPTH;
+        skybox_draw_cmd.shader_idx = shader_index_list.skybox;
+        skybox_draw_cmd.texture_idx = texture_index_list.skybox;
+
+        Vertex_PU vertices[] = {
             { vec3( 1.0f,  1.0f, 0.0f), vec2(1.0f, 1.0f) },
             { vec3( 1.0f, -1.0f, 0.0f), vec2(1.0f, 0.0f) },
             { vec3(-1.0f, -1.0f, 0.0f), vec2(0.0f, 0.0f) },
             { vec3(-1.0f,  1.0f, 0.0f), vec2(0.0f, 1.0f) },
         };
-        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, skybox_ibo);
-        u32 indices[6] = { 0, 2, 1, 2, 0, 3 };  
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW); 
-
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, vertices->pos.dimension(), GL_FLOAT, GL_FALSE, sizeof(*vertices), (void*)0);
-
-        glEnableVertexAttribArray(1);
-        glVertexAttribPointer(1, vertices->tex.dimension(), GL_FLOAT, GL_FALSE, sizeof(*vertices), (void*)(sizeof(vertices->pos)));
+        Vertex_Attrib_Type attrib_types[] = { VERTEX_ATTRIB_F32_V3, VERTEX_ATTRIB_F32_V2 };
+        skybox_draw_cmd.vertex_buffer_idx = create_vertex_buffer(attrib_types, c_array_count(attrib_types), (f32*)vertices, 5 * c_array_count(vertices), BUFFER_USAGE_STATIC);
         
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-        glBindVertexArray(0);
+        u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
+        skybox_draw_cmd.index_buffer_idx = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
     }
     
     f32 dt = 0.0f;
     s64 begin_counter = performance_counter();
     const f32 frequency = (f32)performance_frequency();
-    
+
     while (alive(window))
     {   
         poll_events(window);
@@ -318,75 +276,31 @@ int main()
         
         const Camera* current_camera = desired_camera(world);
 
-#if 1
         {   // Draw skybox.
-            glDepthMask(GL_FALSE);
-
-            glUseProgram(shaders.skybox.id);
-            glBindVertexArray(skybox_vao);
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, skybox_ibo);
-            glBindTexture(GL_TEXTURE_2D, (GLuint)textures.skybox.id);
-
-            glActiveTexture(GL_TEXTURE0);
-
-            const u32 id = shaders.skybox.id;
             const vec2 scale = vec2(8.0f, 3.0f);
-            const vec3 offset = camera.eye;
-            glUniform2f(glGetUniformLocation(id, "u_scale"), scale.x, scale.y);
-            glUniform3f(glGetUniformLocation(id, "u_offset"), offset.x, offset.y, offset.z);
-            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-
-            glBindTexture(GL_TEXTURE_2D, 0);
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-            glBindVertexArray(0);
-            glUseProgram(0);
-
-            glDepthMask(GL_TRUE);
+            set_shader_uniform_value(skybox_draw_cmd.shader_idx, "u_scale", &scale);
+            set_shader_uniform_value(skybox_draw_cmd.shader_idx, "u_offset", &camera.eye);
+            draw(&skybox_draw_cmd);
         }
-#endif
-        
-        {   // Draw player.
-            glUseProgram(shaders.player.id);
-            glBindVertexArray(player.vao);
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, player.ibo);
-            glBindTexture(GL_TEXTURE_2D, player.texture_id);
 
-            glActiveTexture(GL_TEXTURE0);
-
+        {   // Draw player.        
             const mat4 m = mat4_transform(player.location, player.rotation, player.scale);
             const mat4 v = camera_view(current_camera);
             const mat4 p = camera_projection(current_camera);
             const mat4 mvp = m * v * p;
-            
-            glUniformMatrix4fv(glGetUniformLocation(shaders.player.id, "u_mvp"), 1, GL_FALSE, mvp.ptr());             
-            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+            set_shader_uniform_value(player_draw_cmd.shader_idx, "u_mvp", mvp.ptr());
 
-            glBindTexture(GL_TEXTURE_2D, 0);
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-            glBindVertexArray(0);
-            glUseProgram(0);
+            player_draw_cmd.texture_idx = player.texture_idx;
+            draw(&player_draw_cmd);
         }
 
         {   // Draw cube.
-            glUseProgram(shaders.pos_tex.id);
-            glBindVertexArray(cube_vao);
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cube_ibo);
-            glBindTexture(GL_TEXTURE_2D, textures.stone.id);
-
-            glActiveTexture(GL_TEXTURE0);
-
             const mat4 m = mat4_transform(vec3(3.0f, 0.5f, 4.0f), quat(), vec3(1.0f));
             const mat4 v = camera_view(current_camera);
             const mat4 p = camera_projection(current_camera);
             const mat4 mvp = m * v * p;
-            
-            glUniformMatrix4fv(glGetUniformLocation(shaders.pos_tex.id, "u_mvp"), 1, GL_FALSE, mvp.ptr());             
-            glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
-
-            glBindTexture(GL_TEXTURE_2D, 0);
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-            glBindVertexArray(0);
-            glUseProgram(0);
+            set_shader_uniform_value(cube_draw_cmd.shader_idx, "u_mvp", mvp.ptr());
+            draw(&cube_draw_cmd);
         }
         
         static char text[256];

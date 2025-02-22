@@ -36,8 +36,8 @@ struct Player : Entity
     vec3 velocity;
     Direction move_direction;
     
-    struct Flip_Book* flip_book; // desired flip book to use
-    u32 texture_id; // desired texture to draw
+    struct Flip_Book* flip_book;
+    s32 texture_idx;
     
     u32 vao;
     u32 vbo;
