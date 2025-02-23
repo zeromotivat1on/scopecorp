@@ -44,7 +44,7 @@ static void on_window_event(Window* window, Window_Event* event)
 
         world->ed_camera = world->camera;
 
-        on_framebuffer_resize(font_render_ctx, viewport.width, viewport.height);
+        on_framebuffer_resize(viewport.width, viewport.height);
     }
     
     handle_event(window, event);
@@ -125,8 +125,10 @@ int main()
     Hot_Reload_List hot_reload_list = {0};
     register_hot_reload_dir(&hot_reload_list, DIR_SHADERS, on_shader_changed_externally);
     start_hot_reload_thread(&hot_reload_list);
-    
-    font_render_ctx = create_font_render_context(window->width, window->height);
+
+    init_draw_queue(&draw_queue);
+    init_default_text_draw_command(default_text_draw_cmd);
+
     Font* font = create_font("C:/Windows/Fonts/Consola.ttf");
     Font_Atlas* atlas = bake_font_atlas(font, 32, 128, 16);
 
@@ -262,7 +264,7 @@ int main()
     const f32 frequency = (f32)performance_frequency();
 
     while (alive(window))
-    {   
+    {
         poll_events(window);
         tick(world, dt);
 
@@ -276,73 +278,70 @@ int main()
         
         const Camera* current_camera = desired_camera(world);
 
-        {   // Draw skybox.
-            const vec2 scale = vec2(8.0f, 3.0f);
-            set_shader_uniform_value(skybox_draw_cmd.shader_idx, "u_scale", &scale);
-            set_shader_uniform_value(skybox_draw_cmd.shader_idx, "u_offset", &camera.eye);
-            draw(&skybox_draw_cmd);
-        }
+        // Draw skybox.
+        const vec2 scale = vec2(8.0f, 3.0f);
+        set_shader_uniform_value(skybox_draw_cmd.shader_idx, "u_scale", &scale);
+        set_shader_uniform_value(skybox_draw_cmd.shader_idx, "u_offset", &camera.eye);
+        enqueue_draw_command(&draw_queue, &skybox_draw_cmd);
 
-        {   // Draw player.        
-            const mat4 m = mat4_transform(player.location, player.rotation, player.scale);
-            const mat4 v = camera_view(current_camera);
-            const mat4 p = camera_projection(current_camera);
-            const mat4 mvp = m * v * p;
-            set_shader_uniform_value(player_draw_cmd.shader_idx, "u_mvp", mvp.ptr());
+        // Draw player.        
+        const mat4 player_m = mat4_transform(player.location, player.rotation, player.scale);
+        const mat4 player_v = camera_view(current_camera);
+        const mat4 player_p = camera_projection(current_camera);
+        const mat4 player_mvp = player_m * player_v * player_p;
+        set_shader_uniform_value(player_draw_cmd.shader_idx, "u_mvp", player_mvp.ptr());
+        player_draw_cmd.texture_idx = player.texture_idx;
+        enqueue_draw_command(&draw_queue, &player_draw_cmd);
 
-            player_draw_cmd.texture_idx = player.texture_idx;
-            draw(&player_draw_cmd);
-        }
-
-        {   // Draw cube.
-            const mat4 m = mat4_transform(vec3(3.0f, 0.5f, 4.0f), quat(), vec3(1.0f));
-            const mat4 v = camera_view(current_camera);
-            const mat4 p = camera_projection(current_camera);
-            const mat4 mvp = m * v * p;
-            set_shader_uniform_value(cube_draw_cmd.shader_idx, "u_mvp", mvp.ptr());
-            draw(&cube_draw_cmd);
-        }
-        
+        // Draw cube.
+        const mat4 cube_m = mat4_transform(vec3(3.0f, 0.5f, 4.0f), quat(), vec3(1.0f));
+        const mat4 cube_v = camera_view(current_camera);
+        const mat4 cube_p = camera_projection(current_camera);
+        const mat4 cube_mvp = cube_m * cube_v * cube_p;
+        set_shader_uniform_value(cube_draw_cmd.shader_idx, "u_mvp", cube_mvp.ptr());
+        enqueue_draw_command(&draw_queue, &cube_draw_cmd);
+              
         static char text[256];
         const vec3 text_color = vec3(1.0f);
         const f32 padding = atlas->font_size * 0.5f;
         s32 text_size = 0;
         f32 x, y;
 
-        glDepthMask(GL_FALSE); // ignore depth test for debug text
+        // @Cleanup: flush before text draw as its overwritten by skybox, fix.
+        flush_draw_commands(&draw_queue);
         
         {   // Entity data.
             text_size = (s32)sprintf_s(text, sizeof(text), "player location %s velocity %s", to_string(player.location), to_string(player.velocity));
             x = padding;
             y = (f32)viewport.height - atlas->font_size;
-            render_text(font_render_ctx, atlas, text, text_size, vec2(x, y), text_color);
+            //render_text(font_render_ctx, atlas, text, text_size, vec2(x, y), text_color);
+            draw_text_immediate(default_text_draw_cmd, atlas, text, text_size, vec2(x, y), text_color);
 
             text_size = (s32)sprintf_s(text, sizeof(text), "camera eye %s at %s", to_string(current_camera->eye), to_string(current_camera->at));
             x = padding;
             y -= atlas->font_size;
-            render_text(font_render_ctx, atlas, text, text_size, vec2(x, y), text_color);
+            draw_text_immediate(default_text_draw_cmd, atlas, text, text_size, vec2(x, y), text_color);
         }
         
         {   // Runtime stats.
             text_size = (s32)sprintf_s(text, sizeof(text), "%.2fms %.ffps %dx%d %s", dt * 1000.0f, 1 / dt, window->width, window->height, build_type_name);
             x = viewport.width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
             y = viewport.height - (f32)atlas->font_size;
-            render_text(font_render_ctx, atlas, text, text_size, vec2(x, y), text_color);
+            draw_text_immediate(default_text_draw_cmd, atlas, text, text_size, vec2(x, y), text_color);
         }
 
         {   // Controls.
             text_size = (s32)sprintf_s(text, sizeof(text), "F1 %s F2 %s F3 %s", to_string(game_state.mode), to_string(game_state.camera_behavior), to_string(game_state.player_movement_behavior));
             x = viewport.width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
             y = padding;
-            render_text(font_render_ctx, atlas, text, text_size, vec2(x, y), text_color);
+            draw_text_immediate(default_text_draw_cmd, atlas, text, text_size, vec2(x, y), text_color);
 
             text_size = (s32)sprintf_s(text, sizeof(text), "Shift/Control + Arrows - force move/rotate game camera");
             x = viewport.width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
             y += atlas->font_size;
-            render_text(font_render_ctx, atlas, text, text_size, vec2(x, y), text_color);
+            draw_text_immediate(default_text_draw_cmd, atlas, text, text_size, vec2(x, y), text_color);
         }
 
-        
         {   // Memory stats.
             u64 persistent_size;
             u64 persistent_used;
@@ -352,7 +351,7 @@ int main()
             text_size = (s32)sprintf_s(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Persistent)", (f32)persistent_used / 1024 / 1024, (f32)persistent_size / 1024 / 1024, persistent_part);
             x = padding;
             y = padding;
-            render_text(font_render_ctx, atlas, text, text_size, vec2(x, y), text_color);
+            draw_text_immediate(default_text_draw_cmd, atlas, text, text_size, vec2(x, y), text_color);
             
             u64 frame_size;
             u64 frame_used;
@@ -362,7 +361,7 @@ int main()
             text_size = (s32)sprintf_s(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Frame)", (f32)frame_used / 1024 / 1024, (f32)frame_size / 1024 / 1024, frame_part);
             x = padding;
             y += atlas->font_size;
-            render_text(font_render_ctx, atlas, text, text_size, vec2(x, y), text_color);
+            draw_text_immediate(default_text_draw_cmd, atlas, text, text_size, vec2(x, y), text_color);
             
             u64 temp_size;
             u64 temp_used;
@@ -372,11 +371,9 @@ int main()
             text_size = (s32)sprintf_s(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Temp)", (f32)temp_used / 1024 / 1024, (f32)temp_size / 1024 / 1024, temp_part);
             x = padding;
             y += atlas->font_size;
-            render_text(font_render_ctx, atlas, text, text_size, vec2(x, y), text_color);
+            draw_text_immediate(default_text_draw_cmd, atlas, text, text_size, vec2(x, y), text_color);
         }
 
-        glDepthMask(GL_TRUE);
-                
         gl_swap_buffers(window);
         free_all_frame();
         

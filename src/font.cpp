@@ -4,46 +4,43 @@
 #include "math/vector.h"
 #include "math/matrix.h"
 #include "render/gl.h"
+#include "render/draw.h"
 #include "render/shader.h"
+#include "render/texture.h"
+#include "render/vertex_buffer.h"
 #include "render/render_registry.h"
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
 
-Font_Render_Context* create_font_render_context(s32 window_w, s32 window_h)
-{
-    Font_Render_Context* ctx = alloc_struct_persistent(Font_Render_Context);
-    ctx->program = (render_registry.shaders + shader_index_list.text)->id;
-    on_framebuffer_resize(ctx, window_w, window_h);
-    
-    ctx->u_charmap = glGetUniformLocation(ctx->program, "u_charmap");
-    ctx->u_transforms = glGetUniformLocation(ctx->program, "u_transforms");
-    ctx->u_text_color = glGetUniformLocation(ctx->program, "u_text_color");
-    
-    ctx->charmap = alloc_array_persistent(FONT_RENDER_BATCH_SIZE, u32);
-    ctx->transforms = alloc_array_persistent(FONT_RENDER_BATCH_SIZE, mat4);
-    
-    glGenVertexArrays(1, &ctx->vao);
-    glGenBuffers(1, &ctx->vbo);
-    
-    glBindVertexArray(ctx->vao);
-    glBindBuffer(GL_ARRAY_BUFFER, ctx->vbo);
+static u32* charmap = null;
+static mat4* transforms = null;
+static mat4 text_projection;
+static s32 glyph_texture_idx = INVALID_INDEX;
+static Texture glyph_texture;
 
-    f32 vertices[4 * 2] = {
+void init_default_text_draw_command(Draw_Command*& cmd)
+{
+    if (!cmd)        cmd        = alloc_struct_persistent(Draw_Command);
+    if (!charmap)    charmap    = alloc_array_persistent(FONT_RENDER_BATCH_SIZE, u32);
+    if (!transforms) transforms = alloc_array_persistent(FONT_RENDER_BATCH_SIZE, mat4);
+
+    *cmd = Draw_Command();
+    cmd->flags |= DRAW_FLAG_IGNORE_DEPTH;
+    cmd->draw_mode = DRAW_TRIANGLE_STRIP;
+    cmd->shader_idx = shader_index_list.text;
+    set_shader_uniform_value(cmd->shader_idx, "u_charmap", charmap);
+    set_shader_uniform_value(cmd->shader_idx, "u_transforms", transforms);
+    set_shader_uniform_value(cmd->shader_idx, "u_projection", &text_projection);
+
+    f32 vertices[] = {
         0.0f, 1.0f,
         0.0f, 0.0f,
         1.0f, 1.0f,
         1.0f, 0.0f,
     };
-    
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(f32), (void*)0);
-    
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
-
-    return ctx;
+    Vertex_Attrib_Type attrib_types[] = { VERTEX_ATTRIB_F32_V2 };
+    cmd->vertex_buffer_idx = create_vertex_buffer(attrib_types, c_array_count(attrib_types), vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
 }
 
 Font* create_font(const char* path)
@@ -161,24 +158,29 @@ void rescale_font_atlas(Font_Atlas* atlas, s16 font_size)
     
     glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 4); // restore default color channel size
+
+    glyph_texture.id = atlas->texture_array;
+    glyph_texture.flags |= TEXTURE_FLAG_2D_ARRAY;
+    glyph_texture.width = font_size;
+    glyph_texture.height = font_size;
+    glyph_texture.color_channel_count = 4;
+    glyph_texture.path = "this is texture array for glyph rendering";
+
+    if (glyph_texture_idx == INVALID_INDEX)
+       glyph_texture_idx = add_texture(&render_registry, &glyph_texture);
 }
 
-static void render_glyphs(const Font_Render_Context* render_ctx, s32 count)
+void draw_text_immediate(Draw_Command* cmd, const Font_Atlas* atlas, const char* text, u32 text_size, vec2 pos, vec3 color)
 {
-    glUniformMatrix4fv(render_ctx->u_transforms, count, GL_FALSE, (f32*)render_ctx->transforms);
-    glUniform1uiv(render_ctx->u_charmap, count, render_ctx->charmap);
-    glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, count);
-}
+    // @Cleanup: get rid of hardcode.
+    cmd->texture_idx = glyph_texture_idx;
 
-void render_text(const Font_Render_Context* ctx, const Font_Atlas* atlas, const char* text, u32 text_size, vec2 pos, vec3 color)
-{
-    glUseProgram(ctx->program);
-    glBindVertexArray(ctx->vao);
-    glBindBuffer(GL_ARRAY_BUFFER, ctx->vbo);
-    glBindTexture(GL_TEXTURE_2D_ARRAY, atlas->texture_array);
-    
-    glActiveTexture(GL_TEXTURE0);
-    glUniform3f(glGetUniformLocation(ctx->program, "u_text_color"), color.x, color.y, color.z);
+    set_shader_uniform_value(cmd->shader_idx, "u_text_color", &color);
+
+    // As charmap and transforms array are static arrays and won't be moved,
+    // we can just make uniforms dirty, so they will be synced with gpu later.
+    find_shader_uniform(cmd->shader_idx, "u_charmap")->flags |= UNIFORM_FLAG_DIRTY;
+    find_shader_uniform(cmd->shader_idx, "u_transforms")->flags |= UNIFORM_FLAG_DIRTY;
 
     s32 work_idx = 0;
     f32 x = pos.x;
@@ -212,35 +214,34 @@ void render_text(const Font_Render_Context* ctx, const Font_Atlas* atlas, const 
         const f32 gx = x + metric->offset_x;
         const f32 gy = y - (gh + metric->offset_y);
         
-        mat4* transform = ctx->transforms + work_idx;
+        mat4* transform = transforms + work_idx;
         transform->identity().translate(vec3(gx, gy, 0.0f)).scale(vec3(gw, gh, 0.0f));
 
-        ctx->charmap[work_idx] = ci;
+        charmap[work_idx] = ci;
 
         if (++work_idx >= FONT_RENDER_BATCH_SIZE)
         {
-            render_glyphs(ctx, work_idx);
+            cmd->instance_count = work_idx;
+            draw(cmd);
+            //enqueue_draw_command(&draw_queue, cmd);
             work_idx = 0;
         }
 
         x += metric->advance_width;
     }
 
-    if (work_idx > 0) render_glyphs(ctx, work_idx);
-    
-    glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
-    glUseProgram(0);
+    if (work_idx > 0)
+    {
+        cmd->instance_count = work_idx; 
+        draw(cmd);
+        //enqueue_draw_command(&draw_queue, cmd);
+    }
 }
 
-
-void on_framebuffer_resize(const Font_Render_Context* ctx, s32 w, s32 h)
+void on_framebuffer_resize(s32 w, s32 h)
 {
-    glUseProgram(ctx->program);
-    const mat4 projection = mat4_orthographic(0.0f, (f32)w, 0.0f, (f32)h, -1.0f, 1.0f);
-    glUniformMatrix4fv(glGetUniformLocation(ctx->program, "u_projection"), 1, GL_FALSE, (f32*)&projection);
-    glUseProgram(0);
+    text_projection = mat4_orthographic(0.0f, (f32)w, 0.0f, (f32)h, -1.0f, 1.0f);
+    find_shader_uniform(default_text_draw_cmd->shader_idx, "u_text_color")->flags |= UNIFORM_FLAG_DIRTY;
 }
 
 s32 line_width_px(const Font_Atlas* atlas, const char* text, s32 text_size)

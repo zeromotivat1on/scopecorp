@@ -16,4 +16,4 @@ struct Vertex_Buffer
     Vertex_Layout layout;
 };
 
-s32 create_vertex_buffer(Vertex_Attrib_Type* attribs, s32 attrib_count, f32* vertices, s32 vertex_count, Buffer_Usage_Type usage_type);
+s32 create_vertex_buffer(Vertex_Attrib_Type* attribs, s32 attrib_count, const f32* vertices, s32 vertex_count, Buffer_Usage_Type usage_type);

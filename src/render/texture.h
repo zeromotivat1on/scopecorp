@@ -2,9 +2,15 @@
 
 inline constexpr s32 MAX_TEXTURE_SIZE = KB(256);
 
+enum Texture_Flags : u32
+{
+    TEXTURE_FLAG_2D_ARRAY = 0x1,
+};
+
 struct Texture
 {
     u32 id;
+    u32 flags;
     s32 width;
     s32 height;
     s32 color_channel_count;

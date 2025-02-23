@@ -39,6 +39,13 @@ void compile_game_shaders(Shader_Index_List* list);
 s32 create_shader(const char* path);
 s32 find_shader_by_file(Shader_Index_List* list, const char* path);
 void add_shader_uniforms(s32 shader_idx, Uniform* uniforms, s32 count);
+
+Uniform* find_shader_uniform(s32 shader_idx, const char* name);
+
+// Given data is not copied to uniform, it just stores a reference to it.
+// Caller should know value type in uniform to avoid possible read access violations.
+// For now its ok to link local variables as long as they live till draw queue flush,
+// where all uniforms are synced with gpu.
 void set_shader_uniform_value(s32 shader_idx, const char* name, const void* data);
 
 // @Cleanup: current hot-reload implementation is not actually thread-safe!

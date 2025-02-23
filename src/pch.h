@@ -107,5 +107,4 @@ void    usage_temp(u64* size, u64* used);
 // Globals
 // @Cleanup: is it really worth to have them here?
 inline struct Window* window = null;
-inline struct Font_Render_Context* font_render_ctx = null;
 inline struct World* world = null;

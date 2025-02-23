@@ -25,10 +25,13 @@ void compile_game_shaders(Shader_Index_List* list)
     add_shader_uniforms(list->player, &u_mvp, 1);
     
     list->text = create_shader(DIR_SHADERS "text.glsl");
-    Uniform u_transforms = create_uniform("u_transforms", UNIFORM_F32_MAT4, 128);
-    Uniform u_projection = create_uniform("u_projection", UNIFORM_F32_MAT4, 1);  
-    add_shader_uniforms(list->text, &u_transforms, 1);
-    add_shader_uniforms(list->text, &u_projection, 1);
+    Uniform text_uniforms[] = {
+        create_uniform("u_charmap",    UNIFORM_U32,      128),
+        create_uniform("u_transforms", UNIFORM_F32_MAT4, 128),
+        create_uniform("u_projection", UNIFORM_F32_MAT4, 1),
+        create_uniform("u_text_color", UNIFORM_F32_VEC3, 1),
+    };
+    add_shader_uniforms(list->text, text_uniforms, c_array_count(text_uniforms));
     
     list->skybox = create_shader(DIR_SHADERS "skybox.glsl");
     Uniform u_scale = create_uniform("u_scale", UNIFORM_F32_VEC2, 1);
@@ -177,7 +180,7 @@ void add_shader_uniforms(s32 shader_idx, Uniform* uniforms, s32 count)
     shader->uniform_count += count;
 }
 
-void set_shader_uniform_value(s32 shader_idx, const char* name, const void* data)
+Uniform* find_shader_uniform(s32 shader_idx, const char* name)
 {
     assert(shader_idx < MAX_SHADERS);
     Shader* shader = render_registry.shaders + shader_idx;
@@ -186,24 +189,23 @@ void set_shader_uniform_value(s32 shader_idx, const char* name, const void* data
     for (s32 i = 0; i < shader->uniform_count; ++i)
     {
         if (strcmp(shader->uniforms[i].name, name) == 0)
-           uniform = shader->uniforms + i;
+           return shader->uniforms + i;
     }
 
+    return null;
+}
+
+void set_shader_uniform_value(s32 shader_idx, const char* name, const void* data)
+{
+    Uniform* uniform = find_shader_uniform(shader_idx, name);
     if (!uniform)
     {
-        error("Failed to set shader uniform value as its name not found %s", name);
+        error("Failed to set shader uniform %s value as its not found", name);
         return;
     }
 
-    switch(uniform->type)
-    {
-    case UNIFORM_F32_VEC2: uniform->_vec2 = vec2((f32*)data); break;
-    case UNIFORM_F32_VEC3: uniform->_vec3 = vec3((f32*)data); break;
-    case UNIFORM_F32_MAT4: uniform->_mat4 = mat4((f32*)data); break;
-    default:
-        error("Failed to update shader uniform value of unknown type %d", uniform->type);
-        break;
-    }
+    uniform->value = data;
+    uniform->flags |= UNIFORM_FLAG_DIRTY;
 }
 
 void init_shader_hot_reload(Shader_Hot_Reload_Queue* queue)
