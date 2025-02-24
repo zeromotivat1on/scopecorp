@@ -208,6 +208,18 @@ void set_shader_uniform_value(s32 shader_idx, const char* name, const void* data
     uniform->flags |= UNIFORM_FLAG_DIRTY;
 }
 
+void mark_shader_uniform_dirty(s32 shader_idx, const char* name)
+{
+    Uniform* uniform = find_shader_uniform(shader_idx, name);
+    if (!uniform)
+    {
+        error("Failed to mark shader uniform %s dirty as its not found", name);
+        return;
+    }
+
+    uniform->flags |= UNIFORM_FLAG_DIRTY;
+}
+
 void init_shader_hot_reload(Shader_Hot_Reload_Queue* queue)
 {
     *queue = {0};

@@ -6,7 +6,7 @@
 
 static void log_output_va(Log_Level log_level, const char* format, va_list args)
 {
-    const char* prefixes[] = {"\x1b[37m[LOG]:   ", "\x1b[93m[WARN]:  ", "\x1b[91m[ERROR]: "};
+    const char* prefixes[] = {"\x1b[37m", "\x1b[93m", "\x1b[91m"};
     
     char buffer[1024] = {0};
     vsnprintf(buffer, sizeof(buffer), format, args);

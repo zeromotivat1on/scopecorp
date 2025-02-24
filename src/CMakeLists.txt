@@ -1,5 +1,5 @@
 add_executable(${PROJECT_NAME}
-                array.h camera.cpp camera.h flip_book.cpp flip_book.h font.cpp font.h main.cpp pch.cpp profile.h stb_image.h stb_truetype.h log.h log.cpp
+                camera.cpp camera.h flip_book.cpp flip_book.h font.cpp main.cpp pch.cpp profile.h stb_image.h stb_truetype.h log.h log.cpp
                 # work_queue.cpp work_queue.h
                 os/file.cpp os/file.h os/input.h os/memory.h os/thread.h os/time.h os/window.h
                 math/matrix.cpp math/matrix.h math/math.cpp math/math.h math/quat.cpp math/quat.h math/vector.cpp math/vector.h
@@ -7,7 +7,7 @@ add_executable(${PROJECT_NAME}
                 editor/hot_reload.h
                 game/entities.h game/game.cpp game/game.h game/player_control.cpp game/player_control.h game/world.cpp game/world.h
                 editor/hot_reload.h
-                render/draw.cpp render/gl.cpp render/gl.h render/glad.cpp render/glad.h render/khrplatform.h render/render_registry.cpp render/shader.h render/shader.cpp render/texture.h render/texture.cpp render/vertex.cpp render/vertex_buffer.cpp render/index_buffer.cpp render/uniform.cpp)
+                render/draw.cpp render/gl.cpp render/gl.h render/glad.cpp render/glad.h render/khrplatform.h render/render_registry.cpp render/shader.h render/shader.cpp render/text.cpp render/texture.h render/texture.cpp render/vertex.cpp render/vertex_buffer.cpp render/index_buffer.cpp render/uniform.cpp)
 
 if (WIN32)
    target_link_libraries(${PROJECT_NAME} PRIVATE opengl32.lib)

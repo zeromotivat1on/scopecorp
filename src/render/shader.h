@@ -47,6 +47,7 @@ Uniform* find_shader_uniform(s32 shader_idx, const char* name);
 // For now its ok to link local variables as long as they live till draw queue flush,
 // where all uniforms are synced with gpu.
 void set_shader_uniform_value(s32 shader_idx, const char* name, const void* data);
+void mark_shader_uniform_dirty(s32 shader_idx, const char* name);
 
 // @Cleanup: current hot-reload implementation is not actually thread-safe!
 void init_shader_hot_reload(Shader_Hot_Reload_Queue* queue);

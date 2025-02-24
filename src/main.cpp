@@ -1,9 +1,11 @@
 #include "pch.h"
 #include "log.h"
+#include "font.h"
 #include "os/input.h"
 #include "os/window.h"
 #include "os/time.h"
 #include "render/gl.h"
+#include "render/text.h"
 #include "render/shader.h"
 #include "render/vertex.h"
 #include "render/texture.h"
@@ -15,7 +17,6 @@
 #include "audio/al.h"
 #include "audio/alc.h"
 #include "audio/sound.h"
-#include "font.h"
 #include "os/file.h"
 #include "os/thread.h"
 #include "viewport.h"
@@ -111,11 +112,11 @@ int main()
         return 1;
     }
 
-    init_render_registry(&render_registry);
-    
-    load_game_sounds(&sounds);
+    init_render_registry(&render_registry);    
     load_game_textures(&texture_index_list);
     compile_game_shaders(&shader_index_list);
+
+    load_game_sounds(&sounds);
     create_game_flip_books(&flip_books);
 
     //alSourcePlay(sounds.world.source);
@@ -126,12 +127,11 @@ int main()
     register_hot_reload_dir(&hot_reload_list, DIR_SHADERS, on_shader_changed_externally);
     start_hot_reload_thread(&hot_reload_list);
 
-    init_draw_queue(&draw_queue);
-    init_default_text_draw_command(default_text_draw_cmd);
-
     Font* font = create_font("C:/Windows/Fonts/Consola.ttf");
     Font_Atlas* atlas = bake_font_atlas(font, 32, 128, 16);
 
+    init_draw_queue(&draw_queue);
+    
     world = create_world();
 
     const Texture* player_idle_texture = render_registry.textures + texture_index_list.player_idle[BACK];
@@ -314,32 +314,31 @@ int main()
             text_size = (s32)sprintf_s(text, sizeof(text), "player location %s velocity %s", to_string(player.location), to_string(player.velocity));
             x = padding;
             y = (f32)viewport.height - atlas->font_size;
-            //render_text(font_render_ctx, atlas, text, text_size, vec2(x, y), text_color);
-            draw_text_immediate(default_text_draw_cmd, atlas, text, text_size, vec2(x, y), text_color);
+            draw_text_immediate(atlas, text, text_size, vec2(x, y), text_color);
 
             text_size = (s32)sprintf_s(text, sizeof(text), "camera eye %s at %s", to_string(current_camera->eye), to_string(current_camera->at));
             x = padding;
             y -= atlas->font_size;
-            draw_text_immediate(default_text_draw_cmd, atlas, text, text_size, vec2(x, y), text_color);
+            draw_text_immediate(atlas, text, text_size, vec2(x, y), text_color);
         }
         
         {   // Runtime stats.
             text_size = (s32)sprintf_s(text, sizeof(text), "%.2fms %.ffps %dx%d %s", dt * 1000.0f, 1 / dt, window->width, window->height, build_type_name);
             x = viewport.width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
             y = viewport.height - (f32)atlas->font_size;
-            draw_text_immediate(default_text_draw_cmd, atlas, text, text_size, vec2(x, y), text_color);
+            draw_text_immediate(atlas, text, text_size, vec2(x, y), text_color);
         }
 
         {   // Controls.
             text_size = (s32)sprintf_s(text, sizeof(text), "F1 %s F2 %s F3 %s", to_string(game_state.mode), to_string(game_state.camera_behavior), to_string(game_state.player_movement_behavior));
             x = viewport.width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
             y = padding;
-            draw_text_immediate(default_text_draw_cmd, atlas, text, text_size, vec2(x, y), text_color);
+            draw_text_immediate(atlas, text, text_size, vec2(x, y), text_color);
 
             text_size = (s32)sprintf_s(text, sizeof(text), "Shift/Control + Arrows - force move/rotate game camera");
             x = viewport.width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
             y += atlas->font_size;
-            draw_text_immediate(default_text_draw_cmd, atlas, text, text_size, vec2(x, y), text_color);
+            draw_text_immediate(atlas, text, text_size, vec2(x, y), text_color);
         }
 
         {   // Memory stats.
@@ -351,7 +350,7 @@ int main()
             text_size = (s32)sprintf_s(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Persistent)", (f32)persistent_used / 1024 / 1024, (f32)persistent_size / 1024 / 1024, persistent_part);
             x = padding;
             y = padding;
-            draw_text_immediate(default_text_draw_cmd, atlas, text, text_size, vec2(x, y), text_color);
+            draw_text_immediate(atlas, text, text_size, vec2(x, y), text_color);
             
             u64 frame_size;
             u64 frame_used;
@@ -361,7 +360,7 @@ int main()
             text_size = (s32)sprintf_s(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Frame)", (f32)frame_used / 1024 / 1024, (f32)frame_size / 1024 / 1024, frame_part);
             x = padding;
             y += atlas->font_size;
-            draw_text_immediate(default_text_draw_cmd, atlas, text, text_size, vec2(x, y), text_color);
+            draw_text_immediate(atlas, text, text_size, vec2(x, y), text_color);
             
             u64 temp_size;
             u64 temp_used;
@@ -371,7 +370,7 @@ int main()
             text_size = (s32)sprintf_s(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Temp)", (f32)temp_used / 1024 / 1024, (f32)temp_size / 1024 / 1024, temp_part);
             x = padding;
             y += atlas->font_size;
-            draw_text_immediate(default_text_draw_cmd, atlas, text, text_size, vec2(x, y), text_color);
+            draw_text_immediate(atlas, text, text_size, vec2(x, y), text_color);
         }
 
         gl_swap_buffers(window);
