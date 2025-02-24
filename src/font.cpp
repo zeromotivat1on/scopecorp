@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "font.h"
+#include "log.h"
 #include "os/file.h"
 #include "render/gl.h"
 #include "render/texture.h"
@@ -8,9 +9,6 @@
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
-
-s32 glyph_texture_idx = INVALID_INDEX;
-Texture glyph_texture;
 
 Font* create_font(const char* path)
 {
@@ -44,13 +42,23 @@ Font_Atlas* bake_font_atlas(const Font* font, u32 start_charcode, u32 end_charco
 {
     Font_Atlas* atlas = alloc_struct_persistent(Font_Atlas);
     atlas->font = font;
-        
+    atlas->texture_idx = INVALID_INDEX;
+
     const u32 charcode_count = end_charcode - start_charcode + 1;
     atlas->metrics = alloc_array_persistent(charcode_count, Font_Glyph_Metric);
     atlas->start_charcode = start_charcode;
     atlas->end_charcode = end_charcode;
     
-    glGenTextures(1, &atlas->texture_array);
+    Texture texture;
+    glGenTextures(1, &texture.id);
+    texture.flags |= TEXTURE_FLAG_2D_ARRAY;
+    texture.width = font_size;
+    texture.height = font_size;
+    texture.color_channel_count = 4;
+    texture.path = "texture for glyph batch rendering";
+
+    atlas->texture_idx = add_texture(&render_registry, &texture);
+        
     rescale_font_atlas(atlas, font_size);
 
     return atlas;
@@ -58,8 +66,19 @@ Font_Atlas* bake_font_atlas(const Font* font, u32 start_charcode, u32 end_charco
 
 void rescale_font_atlas(Font_Atlas* atlas, s16 font_size)
 {
-    const Font* font = atlas->font;
+    if (atlas->texture_idx == INVALID_INDEX)
+    {
+        error("Failed to rescale font atlas as texture is not valid");
+        return;
+    }
+
+    assert(atlas->texture_idx < MAX_TEXTURES);
+    Texture* texture = render_registry.textures + atlas->texture_idx;
+    assert(texture->flags & TEXTURE_FLAG_2D_ARRAY);
+    texture->width = font_size;
+    texture->height = font_size;
     
+    const Font* font = atlas->font;
     atlas->font_size = font_size;
 
     const u32 charcode_count = atlas->end_charcode - atlas->start_charcode + 1;
@@ -74,7 +93,7 @@ void rescale_font_atlas(Font_Atlas* atlas, s16 font_size)
     // stbtt rasterizes glyphs as 8bpp, so tell open gl to use 1 byte per color channel.
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
-    glBindTexture(GL_TEXTURE_2D_ARRAY, atlas->texture_array);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, texture->id);
     glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_R8, atlas->font_size, atlas->font_size, charcode_count, 0, GL_RED, GL_UNSIGNED_BYTE, null);
     
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -128,16 +147,6 @@ void rescale_font_atlas(Font_Atlas* atlas, s16 font_size)
     
     glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 4); // restore default color channel size
-
-    glyph_texture.id = atlas->texture_array;
-    glyph_texture.flags |= TEXTURE_FLAG_2D_ARRAY;
-    glyph_texture.width = font_size;
-    glyph_texture.height = font_size;
-    glyph_texture.color_channel_count = 4;
-    glyph_texture.path = "this is texture array for glyph rendering";
-
-    if (glyph_texture_idx == INVALID_INDEX)
-       glyph_texture_idx = add_texture(&render_registry, &glyph_texture);
 }
 
 s32 line_width_px(const Font_Atlas* atlas, const char* text, s32 text_size)

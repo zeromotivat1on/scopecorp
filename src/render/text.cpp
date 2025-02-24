@@ -11,9 +11,6 @@
 #include "render/vertex_buffer.h"
 #include "render/render_registry.h"
 
-// From font.cpp
-extern s32 glyph_texture_idx;
-
 // @Cleanup: expose to header?
 struct Text_Draw_Command : Draw_Command
 {
@@ -53,9 +50,7 @@ void draw_text_immediate(const Font_Atlas* atlas, const char* text, u32 text_siz
     if (!text_draw_cmd_immediate) text_draw_cmd_immediate = create_text_draw_command();
 
     auto* cmd = text_draw_cmd_immediate;
-    
-    // @Cleanup: get rid of hardcode.
-    cmd->texture_idx = glyph_texture_idx; // @Cleanup: texture index should be in atlas
+    cmd->texture_idx = atlas->texture_idx;
 
     set_shader_uniform_value(cmd->shader_idx, "u_text_color", &color);
 

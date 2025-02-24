@@ -21,7 +21,7 @@ struct Font_Atlas
 {
     const Font* font; // font this atlas was baked from
     Font_Glyph_Metric* metrics;
-    u32 texture_array; // @Todo: this should be an index to texture array in registry
+    s32 texture_idx;
     u32 start_charcode;
     u32 end_charcode;
     f32 px_h_scale;
