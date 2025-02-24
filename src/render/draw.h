@@ -1,10 +1,5 @@
 #pragma once
 
-struct Shader;
-struct Texture;
-struct Vertex_Buffer;
-struct Index_Buffer;
-
 inline constexpr s32 MAX_DRAW_QUEUE_SIZE = 64;
 
 enum Draw_Mode
@@ -15,8 +10,7 @@ enum Draw_Mode
 
 enum Draw_Command_Flags : u32
 {
-    DRAW_FLAG_INSTANCED    = 0x1,
-    DRAW_FLAG_IGNORE_DEPTH = 0x2,
+    DRAW_FLAG_IGNORE_DEPTH = 0x1,
 };
 
 // @Cleanup: use handles to render primitives instead of pointers.
