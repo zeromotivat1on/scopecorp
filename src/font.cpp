@@ -10,8 +10,7 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
 
-Font* create_font(const char* path)
-{
+Font* create_font(const char* path) {
     Font* font = alloc_struct_persistent(Font);
     font->info = alloc_struct_persistent(stbtt_fontinfo);
     strcpy_s(font->path, sizeof(font->path), path);
@@ -21,8 +20,7 @@ Font* create_font(const char* path)
 
     u64 data_size = 0;
     // @Cleanup: make and use read file persistent overload.
-    if (!read_file(path, buffer, buffer_size, &data_size))
-    {
+    if (!read_file(path, buffer, buffer_size, &data_size)) {
         free_buffer_persistent(buffer_size);
         return null;
     }
@@ -38,8 +36,7 @@ Font* create_font(const char* path)
     return font;
 }
 
-Font_Atlas* bake_font_atlas(const Font* font, u32 start_charcode, u32 end_charcode, s16 font_size)
-{
+Font_Atlas* bake_font_atlas(const Font* font, u32 start_charcode, u32 end_charcode, s16 font_size) {
     Font_Atlas* atlas = alloc_struct_persistent(Font_Atlas);
     atlas->font = font;
     atlas->texture_idx = INVALID_INDEX;
@@ -57,26 +54,24 @@ Font_Atlas* bake_font_atlas(const Font* font, u32 start_charcode, u32 end_charco
     texture.color_channel_count = 4;
     texture.path = "texture for glyph batch rendering";
 
-    atlas->texture_idx = add_texture(&render_registry, &texture);
-        
+    atlas->texture_idx = render_registry.textures.add(texture);
+    
     rescale_font_atlas(atlas, font_size);
 
     return atlas;
 }
 
-void rescale_font_atlas(Font_Atlas* atlas, s16 font_size)
-{
-    if (atlas->texture_idx == INVALID_INDEX)
-    {
+void rescale_font_atlas(Font_Atlas* atlas, s16 font_size) {
+    if (atlas->texture_idx == INVALID_INDEX) {
         error("Failed to rescale font atlas as texture is not valid");
         return;
     }
 
-    assert(atlas->texture_idx < MAX_TEXTURES);
-    Texture* texture = render_registry.textures + atlas->texture_idx;
-    assert(texture->flags & TEXTURE_FLAG_2D_ARRAY);
-    texture->width = font_size;
-    texture->height = font_size;
+    auto& texture = render_registry.textures[atlas->texture_idx];
+    assert(texture.flags & TEXTURE_FLAG_2D_ARRAY);
+    
+    texture.width = font_size;
+    texture.height = font_size;
     
     const Font* font = atlas->font;
     atlas->font_size = font_size;
@@ -93,7 +88,7 @@ void rescale_font_atlas(Font_Atlas* atlas, s16 font_size)
     // stbtt rasterizes glyphs as 8bpp, so tell open gl to use 1 byte per color channel.
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
-    glBindTexture(GL_TEXTURE_2D_ARRAY, texture->id);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, texture.id);
     glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_R8, atlas->font_size, atlas->font_size, charcode_count, 0, GL_RED, GL_UNSIGNED_BYTE, null);
     
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -102,8 +97,7 @@ void rescale_font_atlas(Font_Atlas* atlas, s16 font_size)
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     
     u8* bitmap = alloc_buffer_temp(font_size * font_size);    
-    for (u32 i = 0; i < charcode_count; ++i)
-    {
+    for (u32 i = 0; i < charcode_count; ++i) {
         const u32 c = i + atlas->start_charcode;
         Font_Glyph_Metric* metric = atlas->metrics + i;
         
@@ -123,10 +117,8 @@ void rescale_font_atlas(Font_Atlas* atlas, s16 font_size)
         // @Cleanup: looks nasty, should come up with better solution.
         // Now we bake bitmap using stbtt and 'rescale' it to font size square one.
         // Maybe use stbtt_MakeGlyphBitmap at least?
-        for (int y = 0; y < h; ++y)
-        {
-            for (int x = 0; x < w; ++x)
-            {
+        for (int y = 0; y < h; ++y) {
+            for (int x = 0; x < w; ++x) {
                 int src_index = y * w + x;
                 int dest_index = (y + y_offset) * font_size + (x + x_offset);
                 if (dest_index >= 0 && dest_index < font_size * font_size)
@@ -149,11 +141,9 @@ void rescale_font_atlas(Font_Atlas* atlas, s16 font_size)
     glPixelStorei(GL_UNPACK_ALIGNMENT, 4); // restore default color channel size
 }
 
-s32 line_width_px(const Font_Atlas* atlas, const char* text, s32 text_size)
-{
+s32 line_width_px(const Font_Atlas* atlas, const char* text, s32 text_size) {
     s32 width = 0;
-    for (s32 i = 0; i < text_size; ++i)
-    {
+    for (s32 i = 0; i < text_size; ++i) {
         const u32 ci = text[i] - atlas->start_charcode;
         const Font_Glyph_Metric* metric = atlas->metrics + ci;
         width += metric->advance_width;

@@ -1,9 +1,16 @@
 #include "pch.h"
 #include "log.h"
 #include "font.h"
+#include "flip_book.h"
+#include "viewport.h"
+
+#include "os/file.h"
+#include "os/thread.h"
 #include "os/input.h"
 #include "os/window.h"
 #include "os/time.h"
+#include "os/wgl.h"
+
 #include "render/gl.h"
 #include "render/text.h"
 #include "render/shader.h"
@@ -13,23 +20,20 @@
 #include "render/vertex_buffer.h"
 #include "render/render_registry.h"
 #include "render/draw.h"
-#include "flip_book.h"
+
 #include "audio/al.h"
 #include "audio/alc.h"
 #include "audio/sound.h"
-#include "os/file.h"
-#include "os/thread.h"
-#include "viewport.h"
+
 #include "game/world.h"
 #include "game/game.h"
 #include "editor/hot_reload.h"
+
 #include <stdio.h>
 #include <string.h>
 
-static void on_window_event(Window* window, Window_Event* event)
-{
-    if (event->type == EVENT_RESIZE)
-    {
+static void on_window_event(Window* window, Window_Event* event) {
+    if (event->type == EVENT_RESIZE) {
         const s16 window_w = window->width;
         const s16 window_h = window->height;
 
@@ -51,8 +55,7 @@ static void on_window_event(Window* window, Window_Event* event)
     handle_event(window, event);
 }
 
-int main()
-{
+int main() {
     prealloc_root();
 
     constexpr u64 persistent_memory_size = MB(64);
@@ -68,8 +71,7 @@ int main()
     init_input_table();
     
     window = create_window(1280, 720, "Scopecorp", 32, 32);
-    if (!window)
-    {
+    if (!window) {
         error("Failed to create window");
         return 1;
     }
@@ -77,8 +79,8 @@ int main()
     register_event_callback(window, on_window_event);
 
     // @Cleanup: not sure if its a good idea to pass gl major/minor version here.
-    gl_init(window, 4, 6);
-    gl_vsync(false);
+    wgl_init(window, 4, 6);
+    wgl_vsync(false);
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -93,21 +95,18 @@ int main()
     glDepthFunc(GL_LESS);
     
     ALCdevice* audio_device = alcOpenDevice(null);
-    if (!audio_device)
-    {
+    if (!audio_device) {
         error("Failed to open default audio device");
         return 1;
     }
 
     ALCcontext* audio_context = alcCreateContext(audio_device, null);
-    if (!audio_context)
-    {
+    if (!audio_context) {
         error("Failed to create alc context");
         return 1;
     }
 
-    if (!alcMakeContextCurrent(audio_context))
-    {
+    if (!alcMakeContextCurrent(audio_context)) {
         error("Failed to make alc context current");
         return 1;
     }
@@ -134,8 +133,8 @@ int main()
     
     world = create_world();
 
-    const Texture* player_idle_texture = render_registry.textures + texture_index_list.player_idle[BACK];
-    const f32 player_scale_aspect = (f32)player_idle_texture->width / player_idle_texture->height;
+    const auto& player_idle_texture = render_registry.textures[texture_index_list.player_idle[BACK]];
+    const f32 player_scale_aspect = (f32)player_idle_texture.width / player_idle_texture.height;
     const f32 player_y_scale = 1.0f * player_scale_aspect;
     const f32 player_x_scale = player_y_scale * player_scale_aspect;
 
@@ -161,7 +160,25 @@ int main()
 
     world->ed_camera = camera;
 
-    Draw_Command player_draw_cmd = {0};
+    Draw_Command ground_draw_cmd;
+    {   // Create ground.
+        ground_draw_cmd.shader_idx  = shader_index_list.pos_tex;
+        ground_draw_cmd.texture_idx = texture_index_list.stone;
+
+        Vertex_PU vertices[] = {
+            { vec3( 0.5f,  0.5f, 0.0f), vec2(1.0f, 1.0f) },
+            { vec3( 0.5f, -0.5f, 0.0f), vec2(1.0f, 0.0f) },
+            { vec3(-0.5f, -0.5f, 0.0f), vec2(0.0f, 0.0f) },
+            { vec3(-0.5f,  0.5f, 0.0f), vec2(0.0f, 1.0f) },
+        };
+        Vertex_Attrib_Type attribs[] = { VERTEX_ATTRIB_F32_V3, VERTEX_ATTRIB_F32_V2 };
+        ground_draw_cmd.vertex_buffer_idx = create_vertex_buffer(attribs, c_array_count(attribs), (f32*)vertices, 5 * c_array_count(vertices), BUFFER_USAGE_STATIC);
+        
+        u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
+        ground_draw_cmd.index_buffer_idx = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
+    }
+    
+    Draw_Command player_draw_cmd;
     {   // Create player.
         player_draw_cmd.shader_idx  = shader_index_list.player;
 
@@ -171,14 +188,14 @@ int main()
             { vec3(-0.5f,  0.0f, 0.0f), vec2(0.0f, 0.0f) },
             { vec3(-0.5f,  1.0f, 0.0f), vec2(0.0f, 1.0f) },
         };
-        Vertex_Attrib_Type attrib_types[] = { VERTEX_ATTRIB_F32_V3, VERTEX_ATTRIB_F32_V2 };
-        player_draw_cmd.vertex_buffer_idx = create_vertex_buffer(attrib_types, c_array_count(attrib_types), (f32*)vertices, 5 * c_array_count(vertices), BUFFER_USAGE_STATIC);
+        Vertex_Attrib_Type attribs[] = { VERTEX_ATTRIB_F32_V3, VERTEX_ATTRIB_F32_V2 };
+        player_draw_cmd.vertex_buffer_idx = create_vertex_buffer(attribs, c_array_count(attribs), (f32*)vertices, 5 * c_array_count(vertices), BUFFER_USAGE_STATIC);
 
         u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
         player_draw_cmd.index_buffer_idx = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
     }
 
-    Draw_Command cube_draw_cmd = {0};
+    Draw_Command cube_draw_cmd;
     {   // Create cube.
         cube_draw_cmd.shader_idx  = shader_index_list.pos_tex;
         cube_draw_cmd.texture_idx = texture_index_list.stone;
@@ -220,8 +237,8 @@ int main()
             { vec3(-0.5f, -0.5f,  0.5f), vec2(0.0f, 1.0f) },
             { vec3( 0.5f, -0.5f,  0.5f), vec2(1.0f, 1.0f) },
         };
-        Vertex_Attrib_Type attrib_types[] = { VERTEX_ATTRIB_F32_V3, VERTEX_ATTRIB_F32_V2 };
-        cube_draw_cmd.vertex_buffer_idx = create_vertex_buffer(attrib_types, c_array_count(attrib_types), (f32*)vertices, 5 * c_array_count(vertices), BUFFER_USAGE_STATIC);
+        Vertex_Attrib_Type attribs[] = { VERTEX_ATTRIB_F32_V3, VERTEX_ATTRIB_F32_V2 };
+        cube_draw_cmd.vertex_buffer_idx = create_vertex_buffer(attribs, c_array_count(attribs), (f32*)vertices, 5 * c_array_count(vertices), BUFFER_USAGE_STATIC);
 
         u32 indices[] = {
             // Front face
@@ -240,7 +257,7 @@ int main()
         cube_draw_cmd.index_buffer_idx = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
     }
 
-    Draw_Command skybox_draw_cmd = {0};
+    Draw_Command skybox_draw_cmd;
     {   // Create skybox.
         skybox_draw_cmd.flags |= DRAW_FLAG_IGNORE_DEPTH;
         skybox_draw_cmd.shader_idx = shader_index_list.skybox;
@@ -252,8 +269,8 @@ int main()
             { vec3(-1.0f, -1.0f, 0.0f), vec2(0.0f, 0.0f) },
             { vec3(-1.0f,  1.0f, 0.0f), vec2(0.0f, 1.0f) },
         };
-        Vertex_Attrib_Type attrib_types[] = { VERTEX_ATTRIB_F32_V3, VERTEX_ATTRIB_F32_V2 };
-        skybox_draw_cmd.vertex_buffer_idx = create_vertex_buffer(attrib_types, c_array_count(attrib_types), (f32*)vertices, 5 * c_array_count(vertices), BUFFER_USAGE_STATIC);
+        Vertex_Attrib_Type attribs[] = { VERTEX_ATTRIB_F32_V3, VERTEX_ATTRIB_F32_V2 };
+        skybox_draw_cmd.vertex_buffer_idx = create_vertex_buffer(attribs, c_array_count(attribs), (f32*)vertices, 5 * c_array_count(vertices), BUFFER_USAGE_STATIC);
         
         u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
         skybox_draw_cmd.index_buffer_idx = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
@@ -263,8 +280,7 @@ int main()
     s64 begin_counter = performance_counter();
     const f32 frequency = (f32)performance_frequency();
 
-    while (alive(window))
-    {
+    while (alive(window)) {
         poll_events(window);
         tick(world, dt);
 
@@ -309,7 +325,15 @@ int main()
 
         // @Cleanup: flush before text draw as its overwritten by skybox, fix.
         flush_draw_commands(&draw_queue);
-        
+
+        // Draw ground.
+        const mat4 ground_m = mat4_transform(vec3(0.0f, 0.0f, 0.0f), quat(), vec3(1.0f));
+        const mat4 ground_v = camera_view(current_camera);
+        const mat4 ground_p = camera_projection(current_camera);
+        const mat4 ground_mvp = ground_m * ground_v * ground_p;
+        set_shader_uniform_value(ground_draw_cmd.shader_idx, "u_mvp", ground_mvp.ptr());
+        draw(&ground_draw_cmd);
+
         {   // Entity data.
             text_size = (s32)sprintf_s(text, sizeof(text), "player location %s velocity %s", to_string(player.location), to_string(player.velocity));
             x = padding;
@@ -373,7 +397,7 @@ int main()
             draw_text_immediate(atlas, text, text_size, vec2(x, y), text_color);
         }
 
-        gl_swap_buffers(window);
+        wgl_swap_buffers(window);
         free_all_frame();
         
         const s64 end_counter = performance_counter();

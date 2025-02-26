@@ -1,5 +1,7 @@
 #include "pch.h"
 #include "os/memory.h"
+#include "memory_storage.h"
+
 #include <stdio.h>
 #include <stdarg.h>
 

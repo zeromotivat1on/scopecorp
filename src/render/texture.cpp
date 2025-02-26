@@ -1,14 +1,11 @@
 #include "pch.h"
 #include "texture.h"
+#include "log.h"
 #include "os/file.h"
 #include "render/gl.h"
 #include "render/render_registry.h"
 #include "profile.h"
 #include <stdio.h>
-
-#define STB_IMAGE_IMPLEMENTATION
-#define STBI_NO_STDIO
-#include <stb_image.h>
 
 void load_game_textures(Texture_Index_List* list)
 {
@@ -39,40 +36,4 @@ void load_game_textures(Texture_Index_List* list)
     list->player_move[FORWARD][1] = create_texture(DIR_TEXTURES "player_move_forward_2.png");
     list->player_move[FORWARD][2] = create_texture(DIR_TEXTURES "player_move_forward_3.png");
     list->player_move[FORWARD][3] = create_texture(DIR_TEXTURES "player_move_forward_4.png");
-}
-
-s32 create_texture(const char* path)
-{
-    char timer_string[256];
-    sprintf_s(timer_string, sizeof(timer_string), "%s from %s took", __FUNCTION__, path);
-    SCOPE_TIMER(timer_string);
-    
-    Texture texture = {0};
-    texture.path = path;
-    
-    stbi_set_flip_vertically_on_load(true);
-
-    u64 buffer_size = 0;
-    u8* buffer = alloc_buffer_temp(MAX_TEXTURE_SIZE);
-    if (!read_file(path, buffer, MAX_TEXTURE_SIZE, &buffer_size))
-    {
-        free_buffer_temp(MAX_TEXTURE_SIZE);
-        stbi_set_flip_vertically_on_load(false);
-        return INVALID_INDEX;
-    }
-    
-    u8* data = stbi_load_from_memory(buffer, (s32)buffer_size, &texture.width, &texture.height, &texture.color_channel_count, 4);
-    if (!data)
-    {
-        error("Failed to load texture %s, stbi reason %s", path, stbi_failure_reason());
-        stbi_set_flip_vertically_on_load(false);
-        return INVALID_INDEX;
-    }
-    
-    stbi_set_flip_vertically_on_load(false);
-
-    texture.id = gl_create_texture(data, texture.width, texture.height);
-    free_buffer_temp(MAX_TEXTURE_SIZE);
-    
-    return add_texture(&render_registry, &texture);
 }

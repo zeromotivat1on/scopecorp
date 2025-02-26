@@ -7,12 +7,12 @@ add_executable(${PROJECT_NAME}
                 editor/hot_reload.h
                 game/entities.h game/game.cpp game/game.h game/player_control.cpp game/player_control.h game/world.cpp game/world.h
                 editor/hot_reload.h
-                render/draw.cpp render/gl.cpp render/gl.h render/glad.cpp render/glad.h render/khrplatform.h render/render_registry.cpp render/shader.h render/shader.cpp render/text.cpp render/texture.h render/texture.cpp render/vertex.cpp render/vertex_buffer.cpp render/index_buffer.cpp render/uniform.cpp)
+                render/gl.cpp render/glad.cpp render/render_registry.cpp render/shader.cpp render/text.cpp render/texture.cpp render/vertex.cpp)
 
 if (WIN32)
    target_link_libraries(${PROJECT_NAME} PRIVATE opengl32.lib)
    target_link_libraries(${PROJECT_NAME} PRIVATE ${RUN_TREE_DIR}/openal32.lib)
-   target_sources(${PROJECT_NAME} PRIVATE os/wglext.h os/win32_gl.cpp os/win32_hot_reload.cpp os/win32_input.cpp os/win32_memory.cpp os/win32_thread.cpp os/win32_time.cpp os/win32_window.cpp os/win32_window.h)
+   target_sources(${PROJECT_NAME} PRIVATE os/win32.cpp)
 endif()
 
 set_target_properties(${PROJECT_NAME} PROPERTIES
@@ -29,6 +29,7 @@ if(MSVC)
 endif()
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
+                               _CRT_SECURE_NO_WARNINGS
                                # Platform
                                $<$<PLATFORM_ID:Windows>:WIN32>
                                # Configuration

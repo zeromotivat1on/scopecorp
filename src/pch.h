@@ -27,6 +27,14 @@ using f64 = double;
 
 #define c_array_count(a) sizeof(a) / sizeof((a)[0])
 
+#define _CONCAT(a, b) a ## b 
+#define  CONCAT(a, b) _CONCAT(a, b)
+
+struct Defer_Ref {};
+template <class F> struct Defer { F f; ~Defer() { f(); } };
+template <class F> Defer<F> operator+(Defer_Ref, F f) { return {f}; }
+#define defer const auto CONCAT(deferrer, __LINE__) = Defer_Ref{} + [&]()
+
 #if DEBUG
 inline const char* build_type_name = "DEBUG";
 #elif RELEASE

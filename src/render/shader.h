@@ -6,6 +6,9 @@ inline constexpr s32 MAX_SHADER_SIZE = KB(8);
 inline constexpr s32 MAX_SHADER_UNIFORMS = 4;
 inline constexpr s32 MAX_SHADER_HOT_RELOAD_QUEUE_SIZE = 4;
 
+inline const char* vertex_region_name   = "[vertex]";
+inline const char* fragment_region_name = "[fragment]";
+
 struct Shader
 {   
     u32 id;
@@ -35,9 +38,12 @@ struct Shader_Hot_Reload_Queue
 inline Shader_Index_List shader_index_list;
 inline Shader_Hot_Reload_Queue shader_hot_reload_queue;
 
+// @Cleanup: move such inits (textures, uniforms etc.) to render registry.
 void compile_game_shaders(Shader_Index_List* list);
-s32 create_shader(const char* path);
-s32 find_shader_by_file(Shader_Index_List* list, const char* path);
+
+s32  create_shader(const char* path);
+bool recreate_shader(Shader* shader);
+s32  find_shader_by_file(Shader_Index_List* list, const char* path);
 void add_shader_uniforms(s32 shader_idx, Uniform* uniforms, s32 count);
 
 Uniform* find_shader_uniform(s32 shader_idx, const char* name);
