@@ -43,8 +43,7 @@ inline const char* build_type_name = "RELEASE";
 #error "Unknown build type"
 #endif
 
-enum Direction
-{
+enum Direction {
     BACK,
     RIGHT,
     LEFT,
@@ -116,3 +115,5 @@ void    usage_temp(u64* size, u64* used);
 // @Cleanup: is it really worth to have them here?
 inline struct Window* window = null;
 inline struct World* world = null;
+
+inline constexpr s32 MAX_PATH_SIZE = 256;

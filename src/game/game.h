@@ -1,26 +1,22 @@
 #pragma once
 
-enum Game_Mode
-{
+enum Game_Mode {
     MODE_GAME,
     MODE_EDITOR
 };
 
-enum Camera_Behavior
-{
+enum Camera_Behavior {
     IGNORE_PLAYER,   // static position
     STICK_TO_PLAYER, // immediate position update
     FOLLOW_PLAYER,   // smooth following
 };
 
-enum Player_Movement_Behavior
-{
+enum Player_Movement_Behavior {
     MOVE_INDEPENDENT,
     MOVE_RELATIVE_TO_CAMERA,
 };
 
-struct Game_State
-{
+struct Game_State {
     Game_Mode mode = MODE_GAME;
     Camera_Behavior camera_behavior = FOLLOW_PLAYER;
     Player_Movement_Behavior player_movement_behavior = MOVE_RELATIVE_TO_CAMERA;

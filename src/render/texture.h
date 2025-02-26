@@ -2,13 +2,11 @@
 
 inline constexpr s32 MAX_TEXTURE_SIZE = KB(256);
 
-enum Texture_Flags : u32
-{
+enum Texture_Flags : u32 {
     TEXTURE_FLAG_2D_ARRAY = 0x1,
 };
 
-struct Texture
-{
+struct Texture {
     u32 id;
     u32 flags;
     s32 width;
@@ -17,8 +15,7 @@ struct Texture
     const char* path;
 };
 
-struct Texture_Index_List
-{
+struct Texture_Index_List {
     s32 skybox;
     s32 stone;
     s32 player_idle[DIRECTION_COUNT];

@@ -9,16 +9,14 @@ inline constexpr s32 MAX_SHADER_HOT_RELOAD_QUEUE_SIZE = 4;
 inline const char* vertex_region_name   = "[vertex]";
 inline const char* fragment_region_name = "[fragment]";
 
-struct Shader
-{   
+struct Shader {
     u32 id;
     const char* path;
     Uniform uniforms[MAX_SHADER_UNIFORMS];
     s32 uniform_count = 0;
 };
 
-struct Shader_Index_List
-{
+struct Shader_Index_List {
     // General shaders.
     s32 pos_col;
     s32 pos_tex;
@@ -29,8 +27,7 @@ struct Shader_Index_List
     s32 skybox;
 };
 
-struct Shader_Hot_Reload_Queue
-{
+struct Shader_Hot_Reload_Queue {
     s32 indices[MAX_SHADER_HOT_RELOAD_QUEUE_SIZE];
     s32 count = 0;
 };

@@ -3,14 +3,12 @@
 #include "math/vector.h"
 #include "math/matrix.h"
 
-enum Camera_Mode
-{
+enum Camera_Mode {
     MODE_PERSPECTIVE,
     MODE_ORTHOGRAPHIC
 };
 
-struct Camera
-{
+struct Camera {
     Camera_Mode mode;
     
     vec3 at; // view point location

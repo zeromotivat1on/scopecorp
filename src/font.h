@@ -1,7 +1,6 @@
 #pragma once
 
-struct Font
-{
+struct Font {
     char path[256];
     struct stbtt_fontinfo* info;
     // Unscaled font vertical params, scale by px_h_scale from Font_Atlas.
@@ -10,15 +9,13 @@ struct Font
     s32 line_gap;
 };
 
-struct Font_Glyph_Metric
-{
+struct Font_Glyph_Metric {
     s32 offset_x;
     s32 offset_y;
     s32 advance_width; // already scaled
 };
 
-struct Font_Atlas
-{
+struct Font_Atlas {
     const Font* font; // font this atlas was baked from
     Font_Glyph_Metric* metrics;
     s32 texture_idx;

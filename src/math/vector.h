@@ -1,9 +1,7 @@
 #pragma once
 
-struct vec2
-{
-    f32 x;
-    f32 y;
+struct vec2 {
+    f32 x, y;
 
              vec2();
     explicit vec2(f32 a);
@@ -47,11 +45,8 @@ struct vec2
     const f32* ptr() const;
 };
 
-struct vec3
-{
-    f32 x;
-    f32 y;
-    f32 z;
+struct vec3 {
+    f32 x, y, z;
 
              vec3();
     explicit vec3(f32 a);
@@ -99,12 +94,8 @@ struct vec3
     const f32* ptr() const;
 };
 
-struct vec4
-{
-    f32 x;
-    f32 y;
-    f32 z;
-    f32 w;
+struct vec4 {
+    f32 x, y, z, w;
 
              vec4();
     explicit vec4(f32 a);

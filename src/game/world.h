@@ -5,8 +5,7 @@
 
 inline constexpr s32 MAX_ENTITIES = 1024;
 
-struct World
-{
+struct World {
     f32 dt;
     
     Player player;

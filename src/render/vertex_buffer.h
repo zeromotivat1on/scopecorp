@@ -2,14 +2,12 @@
 
 #include "vertex.h"
 
-enum Buffer_Usage_Type
-{
+enum Buffer_Usage_Type {
     BUFFER_USAGE_STATIC,
     BUFFER_USAGE_DYNAMIC,
 };
 
-struct Vertex_Buffer
-{
+struct Vertex_Buffer {
     u32 id; // vertex array for opengl
     s32 component_count;
     Buffer_Usage_Type usage_type;

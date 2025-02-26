@@ -2,8 +2,7 @@
 
 typedef void(*Window_Event_Callback)(struct Window* window, struct Window_Event* event);
 
-struct Window
-{
+struct Window {
     Window_Event_Callback event_callback;
     
     s16 width;
@@ -16,8 +15,7 @@ struct Window
 #endif
 };
 
-enum Event_Type : u8
-{
+enum Event_Type : u8 {
     EVENT_UNKNOWN,
     EVENT_RESIZE,
     EVENT_KEYBOARD,
@@ -26,8 +24,7 @@ enum Event_Type : u8
     EVENT_QUIT,
 };
 
-struct Window_Event
-{
+struct Window_Event {
     Event_Type type;
     bool key_pressed;
     s16 key_code;

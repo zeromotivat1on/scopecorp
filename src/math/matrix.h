@@ -10,8 +10,7 @@ struct quat;
 inline constexpr f32 MATRIX_EPSILON	= 1e-06f;
 inline constexpr f32 MATRIX_INV_EPSILON	= 1e-14f;
 
-struct mat2
-{
+struct mat2 {
     vec2 mat[2];
 
        		 mat2();
@@ -58,8 +57,7 @@ struct mat2
 	f32* ptr();
 };
 
-struct mat3
-{
+struct mat3 {
 	vec3 mat[3];
 
 			 mat3();
@@ -109,8 +107,7 @@ struct mat3
 	f32* ptr();
 };
 
-struct mat4
-{
+struct mat4 {
 	vec4 mat[4];
 
 			 mat4();

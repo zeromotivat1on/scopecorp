@@ -12,8 +12,7 @@
 #include "render/render_registry.h"
 
 // @Cleanup: expose to header?
-struct Text_Draw_Command : Draw_Command
-{
+struct Text_Draw_Command : Draw_Command {
     mat4 projection;
     mat4 transforms[TEXT_RENDER_BATCH_SIZE];
     u32  charmap[TEXT_RENDER_BATCH_SIZE];
@@ -21,8 +20,7 @@ struct Text_Draw_Command : Draw_Command
 
 static Text_Draw_Command* text_draw_cmd_immediate = null;
 
-Text_Draw_Command* create_text_draw_command()
-{
+Text_Draw_Command* create_text_draw_command() {
     Text_Draw_Command* cmd = alloc_struct_persistent(Text_Draw_Command);
     *cmd = Text_Draw_Command();
 
@@ -45,8 +43,7 @@ Text_Draw_Command* create_text_draw_command()
     return cmd;
 }
 
-void draw_text_immediate(const Font_Atlas* atlas, const char* text, u32 text_size, vec2 pos, vec3 color)
-{
+void draw_text_immediate(const Font_Atlas* atlas, const char* text, u32 text_size, vec2 pos, vec3 color) {
     if (!text_draw_cmd_immediate) text_draw_cmd_immediate = create_text_draw_command();
 
     auto* cmd = text_draw_cmd_immediate;
@@ -63,12 +60,10 @@ void draw_text_immediate(const Font_Atlas* atlas, const char* text, u32 text_siz
     f32 x = pos.x;
     f32 y = pos.y;
     
-    for (u32 i = 0; i < text_size; ++i)
-    {
+    for (u32 i = 0; i < text_size; ++i) {
         const char c = text[i];
         
-        if (c == '\n')
-        {
+        if (c == '\n') {
             x = pos.x;
             y -= atlas->line_height;
             continue;
@@ -80,8 +75,7 @@ void draw_text_immediate(const Font_Atlas* atlas, const char* text, u32 text_siz
         const u32 ci = c - atlas->start_charcode; // correctly shifted index
         const Font_Glyph_Metric* metric = atlas->metrics + ci;
         
-        if (c == ' ')
-        {
+        if (c == ' ') {
             x += metric->advance_width;
             continue;
         }
@@ -96,8 +90,7 @@ void draw_text_immediate(const Font_Atlas* atlas, const char* text, u32 text_siz
 
         cmd->charmap[work_idx] = ci;
 
-        if (++work_idx >= TEXT_RENDER_BATCH_SIZE)
-        {
+        if (++work_idx >= TEXT_RENDER_BATCH_SIZE) {
             cmd->instance_count = work_idx;
             draw(cmd);
             work_idx = 0;
@@ -106,15 +99,13 @@ void draw_text_immediate(const Font_Atlas* atlas, const char* text, u32 text_siz
         x += metric->advance_width;
     }
 
-    if (work_idx > 0)
-    {
+    if (work_idx > 0) {
         cmd->instance_count = work_idx; 
         draw(cmd);
     }
 }
 
-void on_framebuffer_resize(s32 w, s32 h)
-{
+void on_framebuffer_resize(s32 w, s32 h) {
     if (!text_draw_cmd_immediate) text_draw_cmd_immediate = create_text_draw_command();
 
     text_draw_cmd_immediate->projection = mat4_orthographic(0.0f, (f32)w, 0.0f, (f32)h, -1.0f, 1.0f);

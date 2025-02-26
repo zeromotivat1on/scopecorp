@@ -1,7 +1,6 @@
 #pragma once
 
-enum Log_Level
-{
+enum Log_Level {
     LOG_LOG,
     LOG_WARN,
     LOG_ERROR,

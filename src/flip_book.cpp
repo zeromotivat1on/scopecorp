@@ -4,8 +4,7 @@
 #include <string.h>
 #include <malloc.h>
 
-void create_game_flip_books(Flip_Book_List* list)
-{
+void create_game_flip_books(Flip_Book_List* list) {
     // @Cleanup: looks like we should automate this.
 
     constexpr f32 frame_time = 0.15f;
@@ -35,8 +34,7 @@ void create_game_flip_books(Flip_Book_List* list)
     list->player_move[FORWARD] = create_flip_book(move_forward_indices, move_forward_id_count, frame_time);
 }
 
-Flip_Book create_flip_book(s32* texture_indices, s32 count, f32 frame_time)
-{    
+Flip_Book create_flip_book(s32* texture_indices, s32 count, f32 frame_time) {
     Flip_Book book = {0};
     book.frame_count = count;
     book.switch_frame_time = frame_time;
@@ -44,25 +42,21 @@ Flip_Book create_flip_book(s32* texture_indices, s32 count, f32 frame_time)
     return book;
 }
 
-s32 current_frame(Flip_Book* book)
-{
+s32 current_frame(Flip_Book* book) {
     assert(book->current_frame_idx < book->frame_count);
     return book->frames[book->current_frame_idx];
 }
 
-s32 advance_frame(Flip_Book* book)
-{
+s32 advance_frame(Flip_Book* book) {
     assert(book->current_frame_idx < book->frame_count);
     const u32 frame = book->frames[book->current_frame_idx];
     book->current_frame_idx = (book->current_frame_idx + 1) % book->frame_count;
     return frame;
 }
 
-void tick(Flip_Book* book, f32 dt)
-{
+void tick(Flip_Book* book, f32 dt) {
     book->frame_time += dt;
-    if (book->frame_time > book->switch_frame_time)
-    {
+    if (book->frame_time > book->switch_frame_time) {
         advance_frame(book);
         book->frame_time = 0.0f;
     }

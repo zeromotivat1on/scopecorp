@@ -10,16 +10,13 @@
 #include "render/texture.h"
 #include "flip_book.h"
 
-void press(s32 key, bool pressed)
-{
+void press(s32 key, bool pressed) {
     
 }
 
-void tick(Player* player, f32 dt)
-{
+void tick(Player* player, f32 dt) {
     // Force game camera movement/rotation.
-    if (input_table.key_states[KEY_SHIFT])
-    {
+    if (input_table.key_states[KEY_SHIFT]) {
         Camera& camera = world->camera;
         const vec3 camera_forward = forward(camera.yaw, camera.pitch);
         const vec3 camera_right = camera.up.cross(camera_forward).normalize();
@@ -41,9 +38,7 @@ void tick(Player* player, f32 dt)
 
         camera.eye += velocity.truncate(speed);
         camera.at = camera.eye + camera_forward;
-    }
-    else if (input_table.key_states[KEY_CTRL])
-    {
+    } else if (input_table.key_states[KEY_CTRL]) {
         Camera& camera = world->camera;
         const f32 speed = 4.0f * player->mouse_sensitivity * dt;
 
@@ -63,64 +58,52 @@ void tick(Player* player, f32 dt)
         camera.at = camera.eye + forward(camera.yaw, camera.pitch);
     }
     
-    if (game_state.mode == MODE_GAME)
-    {
+    if (game_state.mode == MODE_GAME) {
         const f32 speed = player->move_speed * dt;
         vec3 velocity;
     
         // @Todo: use input action instead of direct key state.
-        if (game_state.player_movement_behavior == MOVE_INDEPENDENT)
-        {
-            if (input_table.key_states[KEY_D])
-            {
+        if (game_state.player_movement_behavior == MOVE_INDEPENDENT) {
+            if (input_table.key_states[KEY_D]) {
                 velocity.x = speed;
                 player->move_direction = RIGHT;
             }
             
-            if (input_table.key_states[KEY_A])
-            {
+            if (input_table.key_states[KEY_A]) {
                 velocity.x = -speed;
                 player->move_direction = LEFT;
             }
     
-            if (input_table.key_states[KEY_W])
-            {
+            if (input_table.key_states[KEY_W]) {
                 velocity.z = speed;
                 player->move_direction = FORWARD;
             }
     
-            if (input_table.key_states[KEY_S])
-            {
+            if (input_table.key_states[KEY_S]) {
                 velocity.z = -speed;
                 player->move_direction = BACK;
             }      
-        }
-        else if (game_state.player_movement_behavior == MOVE_RELATIVE_TO_CAMERA)
-        {
+        } else if (game_state.player_movement_behavior == MOVE_RELATIVE_TO_CAMERA) {
             Camera& camera = world->camera;
             const vec3 camera_forward = forward(camera.yaw, camera.pitch);
             const vec3 camera_right = camera.up.cross(camera_forward).normalize();
 
-            if (input_table.key_states[KEY_D])
-            {
+            if (input_table.key_states[KEY_D]) {
                 velocity += speed * camera_right;
                 player->move_direction = RIGHT;
             }
             
-            if (input_table.key_states[KEY_A])
-            {
+            if (input_table.key_states[KEY_A]) {
                 velocity -= speed * camera_right;
                 player->move_direction = LEFT;
             }
     
-            if (input_table.key_states[KEY_W])
-            {
+            if (input_table.key_states[KEY_W]) {
                 velocity += speed * camera_forward;
                 player->move_direction = FORWARD;
             }
     
-            if (input_table.key_states[KEY_S])
-            {
+            if (input_table.key_states[KEY_S]) {
                 velocity -= speed * camera_forward;
                 player->move_direction = BACK;
             }
@@ -129,30 +112,23 @@ void tick(Player* player, f32 dt)
         player->velocity  = velocity.truncate(speed);
         player->location += player->velocity;
 
-        if (player->velocity != vec3(0.0f))
-        {
+        if (player->velocity != vec3(0.0f)) {
             player->flip_book = &flip_books.player_move[player->move_direction];
-        }
-        else
-        {
+        } else {
             player->flip_book = null;
             player->texture_idx = texture_index_list.player_idle[player->move_direction];
         }
 
-        if (player->flip_book)
-        {
+        if (player->flip_book) {
             tick(player->flip_book, dt);
             player->texture_idx = current_frame(player->flip_book);
         }
         
-        if (game_state.camera_behavior == STICK_TO_PLAYER)
-        {
+        if (game_state.camera_behavior == STICK_TO_PLAYER) {
             Camera& camera = world->camera;
             camera.eye = player->location + player->camera_offset;
             camera.at = camera.eye + forward(camera.yaw, camera.pitch);
-        }
-        else if (game_state.camera_behavior == FOLLOW_PLAYER)
-        {
+        } else if (game_state.camera_behavior == FOLLOW_PLAYER) {
             Camera& camera = world->camera;
             const vec3 camera_dead_zone = player->camera_dead_zone;
             const vec3 dead_zone_min = camera.eye - camera_dead_zone * 0.5f;
@@ -184,9 +160,7 @@ void tick(Player* player, f32 dt)
             camera.eye = lerp(camera.eye, target_eye, player->camera_follow_speed * dt);
             camera.at = camera.eye + forward(camera.yaw, camera.pitch);
         }
-    }
-    else if (game_state.mode == MODE_EDITOR)
-    {
+    } else if (game_state.mode == MODE_EDITOR) {
         const f32 mouse_sensitivity = player->mouse_sensitivity;
         Camera& camera = world->ed_camera;
 
@@ -223,14 +197,11 @@ void tick(Player* player, f32 dt)
     }
 
     const Sound& steps_sound = sounds.player_steps_cute;
-    if (player->velocity == vec3(0.0f))
-    {
+    if (player->velocity == vec3(0.0f)) {
         s32 state;
         alGetSourcei(steps_sound.source, AL_SOURCE_STATE, &state);
         if (state == AL_PLAYING) alSourceStop(steps_sound.source);
-    }
-    else
-    {
+    } else {
         s32 state;
         alGetSourcei(steps_sound.source, AL_SOURCE_STATE, &state);
         if (state != AL_PLAYING) alSourcePlay(steps_sound.source);

@@ -1,7 +1,6 @@
 #pragma once
 
-struct Viewport
-{
+struct Viewport {
     s16 x;
     s16 y;
     s16 width;

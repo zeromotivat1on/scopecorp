@@ -1,18 +1,15 @@
 #pragma once
 
 inline constexpr s32 MAX_HOT_RELOAD_LIST_SIZE = 16;
-inline constexpr s32 MAX_PATH_SIZE = 256; // @Cleanup: move to pch or filesystem
 
 typedef void (*Hot_Reload_Callback)(const char* filename);
 
-struct Hot_Reload_Directory
-{
+struct Hot_Reload_Directory {
     const char* path;
     Hot_Reload_Callback callback;
 };
 
-struct Hot_Reload_List
-{
+struct Hot_Reload_List {
     Hot_Reload_Directory dirs[MAX_HOT_RELOAD_LIST_SIZE];
     s32 watch_count = 0;
 };

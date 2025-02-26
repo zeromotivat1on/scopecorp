@@ -1,7 +1,6 @@
 #pragma once
 
-struct Sound
-{
+struct Sound {
     u32 buffer;
     u32 source;
     s32 channel_count;
@@ -11,8 +10,7 @@ struct Sound
     const char* path;
 };
 
-struct Sound_List
-{
+struct Sound_List {
     Sound world;
     Sound player_steps;
     Sound player_steps_cute;

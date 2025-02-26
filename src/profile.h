@@ -9,15 +9,11 @@
 
 #define SCOPE_TIMER(Name) Scope_Timer (scope_timer##__LINE__)(Name)
 
-struct Scope_Timer
-{
-    Scope_Timer(const char* info) : info(info)
-    {
-        start = performance_counter();
-    }
-    
-    ~Scope_Timer()
-    {
+struct Scope_Timer {
+    Scope_Timer(const char* info)
+        : info(info), start(performance_counter()) {}
+
+    ~Scope_Timer() {
         const f32 seconds = (performance_counter() - start) / (f32)performance_frequency();
         log("%s %.2fms", info, seconds * 1000.0f);
     }

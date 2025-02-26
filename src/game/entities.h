@@ -5,14 +5,12 @@
 
 inline constexpr s32 INVALID_ENTITY_ID = -1;
 
-enum Entity_Type
-{
+enum Entity_Type {
     E_UNKNOWN,
     E_PLAYER
 };
 
-struct Entity
-{
+struct Entity {
     Entity_Type type = E_UNKNOWN;
     s32 id = INVALID_ENTITY_ID;
     
@@ -21,8 +19,7 @@ struct Entity
     vec3 scale = vec3(1.0f);
 };
 
-struct Player : Entity
-{
+struct Player : Entity {
     Player() { type = E_PLAYER; }
     
     f32 move_speed = 3.0f;
