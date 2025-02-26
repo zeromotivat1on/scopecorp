@@ -5,19 +5,24 @@
 #include "render/text.h"
 #include "render/shader.h"
 #include "render/uniform.h"
+#include "render/material.h"
 #include "render/texture.h"
 #include "render/index_buffer.h"
 #include "render/vertex_buffer.h"
 #include "render/render_registry.h"
 
 #include "log.h"
+#include "font.h"
 #include "profile.h"
 #include "os/file.h"
 
 #include <stdio.h>
 
 #define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
+#include "stb_image.h"
+
+// Implementation is defined in font.cpp
+#include "stb_truetype.h"
 
 static s32 gl_draw_mode(Draw_Mode mode) {
     switch(mode) {
@@ -29,24 +34,20 @@ static s32 gl_draw_mode(Draw_Mode mode) {
     }
 }
 
-void draw(Draw_Command* cmd) {
-    assert(cmd->vertex_buffer_idx < MAX_VERTEX_BUFFERS);
-    assert(cmd->index_buffer_idx < MAX_INDEX_BUFFERS);
-    assert(cmd->shader_idx < MAX_SHADERS);
-    assert(cmd->texture_idx < MAX_TEXTURES);
-
-    const s32 draw_mode = gl_draw_mode(cmd->draw_mode);
-    
+void draw(const Draw_Command* cmd) {
     if (cmd->flags & DRAW_FLAG_IGNORE_DEPTH) glDepthMask(GL_FALSE);
+    
+    const s32 draw_mode = gl_draw_mode(cmd->draw_mode);
 
-    const auto& shader = render_registry.shaders[cmd->shader_idx];
+    const auto& material = render_registry.materials[cmd->material_idx];
+    const auto& shader = render_registry.shaders[material.shader_idx];
     glUseProgram(shader.id);
 
-    for (s32 i = 0; i < shader.uniform_count; ++i)
-        sync_uniform(shader.uniforms + i);
+    for (s32 i = 0; i < material.uniform_count; ++i)
+        sync_uniform(material.uniforms + i);
     
-    if (cmd->texture_idx != INVALID_INDEX) {
-        const auto& texture = render_registry.textures[cmd->texture_idx];
+    if (material.texture_idx != INVALID_INDEX) {
+        const auto& texture = render_registry.textures[material.texture_idx];
         if (texture.flags & TEXTURE_FLAG_2D_ARRAY) glBindTexture(GL_TEXTURE_2D_ARRAY, texture.id);
         else glBindTexture(GL_TEXTURE_2D, texture.id);
         glActiveTexture(GL_TEXTURE0);
@@ -63,8 +64,7 @@ void draw(Draw_Command* cmd) {
         glDrawArraysInstanced(draw_mode, 0, vertex_buffer.component_count, cmd->instance_count);
     }
     
-    if (cmd->flags & DRAW_FLAG_IGNORE_DEPTH) glDepthMask(GL_TRUE);
-
+    glDepthMask(GL_TRUE);
     glBindTexture(GL_TEXTURE_2D, 0);
     glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
@@ -289,36 +289,37 @@ s32 find_shader_by_file(Shader_Index_List* list, const char* path) {
     return INVALID_INDEX;
 }
 
-void add_shader_uniforms(s32 shader_idx, Uniform* uniforms, s32 count) {
-    auto& shader = render_registry.shaders[shader_idx];
-    assert(shader.uniform_count + count <= MAX_SHADER_UNIFORMS);
-    
+void add_material_uniforms(s32 material_idx, const Uniform* uniforms, s32 count) {
+    auto& material = render_registry.materials[material_idx];
+    const auto& shader = render_registry.shaders[material.shader_idx];
+    assert(material.uniform_count + count <= MAX_MATERIAL_UNIFORMS);
+
     for (s32 i = 0; i < count; ++i) {
-        auto* other_uniform  = uniforms + i;
-        auto* shader_uniform = shader.uniforms + shader.uniform_count + i;
-        memcpy(shader_uniform, other_uniform, sizeof(Uniform));
-        shader_uniform->location = glGetUniformLocation(shader.id, shader_uniform->name);   
+        auto* src_uniform = uniforms + i;
+        auto* dst_uniform = material.uniforms + material.uniform_count + i;
+        memcpy(dst_uniform, src_uniform, sizeof(Uniform));
+        dst_uniform->location = glGetUniformLocation(shader.id, dst_uniform->name);   
     }
 
-    shader.uniform_count += count;
+    material.uniform_count += count;
 }
 
-Uniform* find_shader_uniform(s32 shader_idx, const char* name) {
-    auto& shader = render_registry.shaders[shader_idx];
+Uniform* find_material_uniform(s32 material_idx, const char* name) {
+    auto& material = render_registry.materials[material_idx];
     
     Uniform* uniform = null;
-    for (s32 i = 0; i < shader.uniform_count; ++i) {
-        if (strcmp(shader.uniforms[i].name, name) == 0)
-           return shader.uniforms + i;
+    for (s32 i = 0; i < material.uniform_count; ++i) {
+        if (strcmp(material.uniforms[i].name, name) == 0)
+            return material.uniforms + i;
     }
 
     return null;
 }
 
-void set_shader_uniform_value(s32 shader_idx, const char* name, const void* data) {
-    Uniform* uniform = find_shader_uniform(shader_idx, name);
+void set_material_uniform_value(s32 material_idx, const char* name, const void* data) {
+    Uniform* uniform = find_material_uniform(material_idx, name);
     if (!uniform) {
-        error("Failed to set shader uniform %s value as its not found", name);
+        error("Failed to set material uniform %s value as its not found", name);
         return;
     }
 
@@ -326,10 +327,10 @@ void set_shader_uniform_value(s32 shader_idx, const char* name, const void* data
     uniform->flags |= UNIFORM_FLAG_DIRTY;
 }
 
-void mark_shader_uniform_dirty(s32 shader_idx, const char* name) {
-    Uniform* uniform = find_shader_uniform(shader_idx, name);
+void mark_material_uniform_dirty(s32 material_idx, const char* name) {
+    Uniform* uniform = find_material_uniform(material_idx, name);
     if (!uniform) {
-        error("Failed to mark shader uniform %s dirty as its not found", name);
+        error("Failed to mark material uniform %s dirty as its not found", name);
         return;
     }
 
@@ -383,6 +384,11 @@ void check_shader_hot_reload_queue(Shader_Hot_Reload_Queue* queue) {
 }
 
 void sync_uniform(const Uniform* uniform) {
+    if (uniform->type == UNIFORM_NULL) {
+        warn("Tried to sync uniform of null type %p", uniform);
+        return;
+    }
+
     if (!(uniform->flags & UNIFORM_FLAG_DIRTY)) return;
 
     switch(uniform->type) {
@@ -449,4 +455,109 @@ s32 create_texture(const char* path) {
     texture.id = gl_create_texture(data, texture.width, texture.height);
     
     return render_registry.textures.add(texture);
+}
+
+Font_Atlas* bake_font_atlas(const Font* font, u32 start_charcode, u32 end_charcode, s16 font_size) {
+    Font_Atlas* atlas = alloc_struct_persistent(Font_Atlas);
+    atlas->font = font;
+    atlas->texture_idx = INVALID_INDEX;
+
+    const u32 charcode_count = end_charcode - start_charcode + 1;
+    atlas->metrics = alloc_array_persistent(charcode_count, Font_Glyph_Metric);
+    atlas->start_charcode = start_charcode;
+    atlas->end_charcode = end_charcode;
+    
+    Texture texture;
+    glGenTextures(1, &texture.id);
+    texture.flags |= TEXTURE_FLAG_2D_ARRAY;
+    texture.width = font_size;
+    texture.height = font_size;
+    texture.color_channel_count = 4;
+    texture.path = "texture for glyph batch rendering";
+
+    atlas->texture_idx = render_registry.textures.add(texture);
+    
+    rescale_font_atlas(atlas, font_size);
+
+    return atlas;
+}
+
+void rescale_font_atlas(Font_Atlas* atlas, s16 font_size) {
+    if (atlas->texture_idx == INVALID_INDEX) {
+        error("Failed to rescale font atlas as texture is not valid");
+        return;
+    }
+
+    auto& texture = render_registry.textures[atlas->texture_idx];
+    assert(texture.flags & TEXTURE_FLAG_2D_ARRAY);
+    
+    texture.width = font_size;
+    texture.height = font_size;
+    
+    const Font* font = atlas->font;
+    atlas->font_size = font_size;
+
+    const u32 charcode_count = atlas->end_charcode - atlas->start_charcode + 1;
+    const f32 scale = stbtt_ScaleForPixelHeight(font->info, (f32)font_size);
+    atlas->px_h_scale = scale;
+    atlas->line_height = (s32)((font->ascent - font->descent + font->line_gap) * scale);
+    
+    s32 max_layers;
+    glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &max_layers);
+    assert(charcode_count <= (u32)max_layers);
+
+    // stbtt rasterizes glyphs as 8bpp, so tell open gl to use 1 byte per color channel.
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+    glBindTexture(GL_TEXTURE_2D_ARRAY, texture.id);
+    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_R8, atlas->font_size, atlas->font_size, charcode_count, 0, GL_RED, GL_UNSIGNED_BYTE, null);
+    
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    
+    u8* bitmap = alloc_buffer_temp(font_size * font_size);    
+    for (u32 i = 0; i < charcode_count; ++i) {
+        const u32 c = i + atlas->start_charcode;
+        Font_Glyph_Metric* metric = atlas->metrics + i;
+        
+        s32 w, h, offx, offy;
+        const s32 glyph_index = stbtt_FindGlyphIndex(font->info, c);
+        u8* stb_bitmap = stbtt_GetGlyphBitmap(font->info, scale, scale, glyph_index, &w, &h, &offx, &offy);
+
+        // Offset original bitmap to be at center of new one.
+        const s32 x_offset = (font_size - w) / 2;
+        const s32 y_offset = (font_size - h) / 2;
+
+        metric->offset_x = offx - x_offset;
+        metric->offset_y = offy - y_offset;
+        
+        memset(bitmap, 0, font_size * font_size);
+
+        // @Cleanup: looks nasty, should come up with better solution.
+        // Now we bake bitmap using stbtt and 'rescale' it to font size square one.
+        // Maybe use stbtt_MakeGlyphBitmap at least?
+        for (int y = 0; y < h; ++y) {
+            for (int x = 0; x < w; ++x) {
+                int src_index = y * w + x;
+                int dest_index = (y + y_offset) * font_size + (x + x_offset);
+                if (dest_index >= 0 && dest_index < font_size * font_size)
+                    bitmap[dest_index] = stb_bitmap[src_index];
+            }
+        }
+
+        stbtt_FreeBitmap(stb_bitmap, null);
+
+        glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, i, font_size, font_size, 1, GL_RED, GL_UNSIGNED_BYTE, bitmap);
+
+        s32 advance_width = 0;
+        stbtt_GetGlyphHMetrics(font->info, glyph_index, &advance_width, 0);
+        metric->advance_width = (s32)(advance_width * scale);
+    }
+
+    free_buffer_temp(font_size * font_size);
+    
+    glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 4); // restore default color channel size
 }

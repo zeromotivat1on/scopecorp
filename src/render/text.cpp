@@ -26,10 +26,10 @@ Text_Draw_Command* create_text_draw_command() {
 
     cmd->flags |= DRAW_FLAG_IGNORE_DEPTH;
     cmd->draw_mode = DRAW_TRIANGLE_STRIP;
-    cmd->shader_idx = shader_index_list.text;
-    set_shader_uniform_value(cmd->shader_idx, "u_charmap", cmd->charmap);
-    set_shader_uniform_value(cmd->shader_idx, "u_transforms", cmd->transforms);
-    set_shader_uniform_value(cmd->shader_idx, "u_projection", &cmd->projection);
+    cmd->material_idx = material_index_list.text;
+    set_material_uniform_value(cmd->material_idx, "u_charmap", cmd->charmap);
+    set_material_uniform_value(cmd->material_idx, "u_transforms", cmd->transforms);
+    set_material_uniform_value(cmd->material_idx, "u_projection", &cmd->projection);
 
     f32 vertices[] = {
         0.0f, 1.0f,
@@ -47,14 +47,14 @@ void draw_text_immediate(const Font_Atlas* atlas, const char* text, u32 text_siz
     if (!text_draw_cmd_immediate) text_draw_cmd_immediate = create_text_draw_command();
 
     auto* cmd = text_draw_cmd_immediate;
-    cmd->texture_idx = atlas->texture_idx;
 
-    set_shader_uniform_value(cmd->shader_idx, "u_text_color", &color);
+    render_registry.materials[cmd->material_idx].texture_idx = atlas->texture_idx;
+    set_material_uniform_value(cmd->material_idx, "u_text_color", &color);
 
     // As charmap and transforms array are static arrays and won't be moved,
     // we can just make uniforms dirty, so they will be synced with gpu later.
-    mark_shader_uniform_dirty(cmd->shader_idx, "u_charmap");
-    mark_shader_uniform_dirty(cmd->shader_idx, "u_transforms");
+    mark_material_uniform_dirty(cmd->material_idx, "u_charmap");
+    mark_material_uniform_dirty(cmd->material_idx, "u_transforms");
 
     s32 work_idx = 0;
     f32 x = pos.x;
@@ -109,5 +109,5 @@ void on_framebuffer_resize(s32 w, s32 h) {
     if (!text_draw_cmd_immediate) text_draw_cmd_immediate = create_text_draw_command();
 
     text_draw_cmd_immediate->projection = mat4_orthographic(0.0f, (f32)w, 0.0f, (f32)h, -1.0f, 1.0f);
-    mark_shader_uniform_dirty(text_draw_cmd_immediate->shader_idx, "u_projection");
+    mark_material_uniform_dirty(text_draw_cmd_immediate->material_idx, "u_projection");
 }

@@ -29,7 +29,7 @@ struct Uniform
     Uniform_Type type = UNIFORM_NULL;
     u32 flags = 0;
     u32 location = UINT32_MAX;
-    s32 count = 1; // greater than 1 for array uniforms
+    s32 count = 0; // greater than 1 for array uniforms
 };
 
-void sync_uniform(const Uniform* uniform); // pass uniform data to gfx api if dirty
+void sync_uniform(const Uniform* uniform); // pass uniform data to gpu if dirty

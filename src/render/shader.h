@@ -3,7 +3,6 @@
 #include "uniform.h"
 
 inline constexpr s32 MAX_SHADER_SIZE = KB(8);
-inline constexpr s32 MAX_SHADER_UNIFORMS = 4;
 inline constexpr s32 MAX_SHADER_HOT_RELOAD_QUEUE_SIZE = 4;
 
 inline const char* vertex_region_name   = "[vertex]";
@@ -12,8 +11,6 @@ inline const char* fragment_region_name = "[fragment]";
 struct Shader {
     u32 id;
     const char* path;
-    Uniform uniforms[MAX_SHADER_UNIFORMS];
-    s32 uniform_count = 0;
 };
 
 struct Shader_Index_List {
@@ -41,16 +38,6 @@ void compile_game_shaders(Shader_Index_List* list);
 s32  create_shader(const char* path);
 bool recreate_shader(Shader* shader);
 s32  find_shader_by_file(Shader_Index_List* list, const char* path);
-void add_shader_uniforms(s32 shader_idx, Uniform* uniforms, s32 count);
-
-Uniform* find_shader_uniform(s32 shader_idx, const char* name);
-
-// Given data is not copied to uniform, it just stores a reference to it.
-// Caller should know value type in uniform to avoid possible read access violations.
-// For now its ok to link local variables as long as they live till draw queue flush,
-// where all uniforms are synced with gpu.
-void set_shader_uniform_value(s32 shader_idx, const char* name, const void* data);
-void mark_shader_uniform_dirty(s32 shader_idx, const char* name);
 
 // @Cleanup: current hot-reload implementation is not actually thread-safe!
 void init_shader_hot_reload(Shader_Hot_Reload_Queue* queue);

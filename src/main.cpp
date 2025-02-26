@@ -12,14 +12,9 @@
 #include "os/wgl.h"
 
 #include "render/gl.h"
-#include "render/text.h"
-#include "render/shader.h"
-#include "render/vertex.h"
-#include "render/texture.h"
-#include "render/index_buffer.h"
-#include "render/vertex_buffer.h"
-#include "render/render_registry.h"
 #include "render/draw.h"
+#include "render/text.h"
+#include "render/render_registry.h"
 
 #include "audio/al.h"
 #include "audio/alc.h"
@@ -114,9 +109,10 @@ int main() {
     init_render_registry(&render_registry);    
     load_game_textures(&texture_index_list);
     compile_game_shaders(&shader_index_list);
+    create_game_materials(&material_index_list);
 
-    load_game_sounds(&sounds);
     create_game_flip_books(&flip_books);
+    load_game_sounds(&sounds);
 
     //alSourcePlay(sounds.world.source);
 
@@ -162,8 +158,7 @@ int main() {
 
     Draw_Command ground_draw_cmd;
     {   // Create ground.
-        ground_draw_cmd.shader_idx  = shader_index_list.pos_tex;
-        ground_draw_cmd.texture_idx = texture_index_list.stone;
+        ground_draw_cmd.material_idx = material_index_list.ground;
 
         Vertex_PU vertices[] = {
             { vec3( 0.5f,  0.5f, 0.0f), vec2(1.0f, 1.0f) },
@@ -180,7 +175,7 @@ int main() {
     
     Draw_Command player_draw_cmd;
     {   // Create player.
-        player_draw_cmd.shader_idx  = shader_index_list.player;
+        player_draw_cmd.material_idx = material_index_list.player;
 
         Vertex_PU vertices[4] = { // center in bottom mid point of quad
             { vec3( 0.5f,  1.0f, 0.0f), vec2(1.0f, 1.0f) },
@@ -197,8 +192,7 @@ int main() {
 
     Draw_Command cube_draw_cmd;
     {   // Create cube.
-        cube_draw_cmd.shader_idx  = shader_index_list.pos_tex;
-        cube_draw_cmd.texture_idx = texture_index_list.stone;
+        cube_draw_cmd.material_idx = material_index_list.cube;
 
         Vertex_PU vertices[] = {
             // Front face
@@ -260,8 +254,7 @@ int main() {
     Draw_Command skybox_draw_cmd;
     {   // Create skybox.
         skybox_draw_cmd.flags |= DRAW_FLAG_IGNORE_DEPTH;
-        skybox_draw_cmd.shader_idx = shader_index_list.skybox;
-        skybox_draw_cmd.texture_idx = texture_index_list.skybox;
+        skybox_draw_cmd.material_idx = material_index_list.skybox;
 
         Vertex_PU vertices[] = {
             { vec3( 1.0f,  1.0f, 0.0f), vec2(1.0f, 1.0f) },
@@ -296,8 +289,8 @@ int main() {
 
         // Draw skybox.
         const vec2 scale = vec2(8.0f, 3.0f);
-        set_shader_uniform_value(skybox_draw_cmd.shader_idx, "u_scale", &scale);
-        set_shader_uniform_value(skybox_draw_cmd.shader_idx, "u_offset", &camera.eye);
+        set_material_uniform_value(skybox_draw_cmd.material_idx, "u_scale", &scale);
+        set_material_uniform_value(skybox_draw_cmd.material_idx, "u_offset", &camera.eye);
         enqueue_draw_command(&draw_queue, &skybox_draw_cmd);
 
         // Draw player.        
@@ -305,8 +298,9 @@ int main() {
         const mat4 player_v = camera_view(current_camera);
         const mat4 player_p = camera_projection(current_camera);
         const mat4 player_mvp = player_m * player_v * player_p;
-        set_shader_uniform_value(player_draw_cmd.shader_idx, "u_mvp", player_mvp.ptr());
-        player_draw_cmd.texture_idx = player.texture_idx;
+        set_material_uniform_value(player_draw_cmd.material_idx, "u_mvp", player_mvp.ptr());
+        // @Cleanup: create function for this.
+        render_registry.materials[player_draw_cmd.material_idx].texture_idx = player.texture_idx;
         enqueue_draw_command(&draw_queue, &player_draw_cmd);
 
         // Draw cube.
@@ -314,7 +308,7 @@ int main() {
         const mat4 cube_v = camera_view(current_camera);
         const mat4 cube_p = camera_projection(current_camera);
         const mat4 cube_mvp = cube_m * cube_v * cube_p;
-        set_shader_uniform_value(cube_draw_cmd.shader_idx, "u_mvp", cube_mvp.ptr());
+        set_material_uniform_value(cube_draw_cmd.material_idx, "u_mvp", cube_mvp.ptr());
         enqueue_draw_command(&draw_queue, &cube_draw_cmd);
               
         static char text[256];
@@ -331,7 +325,7 @@ int main() {
         const mat4 ground_v = camera_view(current_camera);
         const mat4 ground_p = camera_projection(current_camera);
         const mat4 ground_mvp = ground_m * ground_v * ground_p;
-        set_shader_uniform_value(ground_draw_cmd.shader_idx, "u_mvp", ground_mvp.ptr());
+        set_material_uniform_value(ground_draw_cmd.material_idx, "u_mvp", ground_mvp.ptr());
         draw(&ground_draw_cmd);
 
         {   // Entity data.

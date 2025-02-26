@@ -23,8 +23,7 @@ struct Draw_Command
     
     s32 vertex_buffer_idx = INVALID_INDEX;
     s32 index_buffer_idx  = INVALID_INDEX;
-    s32 shader_idx        = INVALID_INDEX; // @Todo: should be index to material
-    s32 texture_idx       = INVALID_INDEX;
+    s32 material_idx      = INVALID_INDEX;
     
     s32 instance_count = 1;
 };
@@ -37,7 +36,7 @@ struct Draw_Queue
 
 inline Draw_Queue draw_queue;
 
-void draw(Draw_Command* cmd); // gfx api specific
+void draw(const Draw_Command* cmd);
 
 // @Cleanup: find home for these.
 inline void init_draw_queue(Draw_Queue* queue) {
