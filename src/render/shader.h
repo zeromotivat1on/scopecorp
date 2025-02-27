@@ -32,7 +32,6 @@ struct Shader_Hot_Reload_Queue {
 inline Shader_Index_List shader_index_list;
 inline Shader_Hot_Reload_Queue shader_hot_reload_queue;
 
-// @Cleanup: move such inits (textures, uniforms etc.) to render registry.
 void compile_game_shaders(Shader_Index_List* list);
 
 s32  create_shader(const char* path);
