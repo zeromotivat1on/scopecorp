@@ -18,6 +18,8 @@ struct Texture {
 struct Texture_Index_List {
     s32 skybox;
     s32 stone;
+    s32 grass;
+    
     s32 player_idle[DIRECTION_COUNT];
     s32 player_move[DIRECTION_COUNT][4];
 };

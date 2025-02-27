@@ -321,11 +321,13 @@ int main() {
         flush_draw_commands(&draw_queue);
 
         // Draw ground.
-        const mat4 ground_m = mat4_transform(vec3(0.0f, 0.0f, 0.0f), quat(), vec3(1.0f));
+        const vec3 ground_scale = vec3(5);
+        const mat4 ground_m = mat4_transform(vec3(0.0f), quat_from_axis_angle(vec3_right, 90), ground_scale);
         const mat4 ground_v = camera_view(current_camera);
         const mat4 ground_p = camera_projection(current_camera);
         const mat4 ground_mvp = ground_m * ground_v * ground_p;
         set_material_uniform_value(ground_draw_cmd.material_idx, "u_mvp", ground_mvp.ptr());
+        set_material_uniform_value(ground_draw_cmd.material_idx, "u_scale", &ground_scale);
         draw(&ground_draw_cmd);
 
         {   // Entity data.

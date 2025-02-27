@@ -14,6 +14,7 @@ void compile_game_shaders(Shader_Index_List* list)
 {
     list->pos_col = create_shader(DIR_SHADERS "pos_col.glsl");
     list->pos_tex = create_shader(DIR_SHADERS "pos_tex.glsl");
+    list->pos_tex_scale = create_shader(DIR_SHADERS "pos_tex_scale.glsl");
     list->player = create_shader(DIR_SHADERS "player.glsl");
     list->text = create_shader(DIR_SHADERS "text.glsl");
     list->skybox = create_shader(DIR_SHADERS "skybox.glsl");
@@ -23,6 +24,7 @@ void load_game_textures(Texture_Index_List* list)
 {
     list->skybox = create_texture(DIR_TEXTURES "skybox.png");
     list->stone  = create_texture(DIR_TEXTURES "stone.png");
+    list->grass  = create_texture(DIR_TEXTURES "grass.png");
     
     list->player_idle[BACK] = create_texture(DIR_TEXTURES "player_idle_back.png");
     list->player_idle[RIGHT] = create_texture(DIR_TEXTURES "player_idle_right.png");
@@ -73,8 +75,12 @@ void create_game_materials(Material_Index_List* list)
     };
     add_material_uniforms(list->skybox, skybox_uniforms, c_array_count(skybox_uniforms));
 
-    list->ground = render_registry.materials.add(Material(shader_index_list.pos_tex, texture_index_list.stone));
-    add_material_uniforms(list->ground, &u_mvp, 1);
+    list->ground = render_registry.materials.add(Material(shader_index_list.pos_tex_scale, texture_index_list.grass));
+    const Uniform ground_uniforms[] = {
+        u_mvp,
+        Uniform("u_scale", UNIFORM_F32_VEC2, 1),
+    };
+    add_material_uniforms(list->ground, ground_uniforms, c_array_count(ground_uniforms));
 
     list->cube = render_registry.materials.add(Material(shader_index_list.pos_tex, texture_index_list.stone));
     add_material_uniforms(list->cube, &u_mvp, 1);

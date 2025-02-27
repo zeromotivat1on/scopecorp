@@ -14,11 +14,10 @@ struct Shader {
 };
 
 struct Shader_Index_List {
-    // General shaders.
     s32 pos_col;
     s32 pos_tex;
+    s32 pos_tex_scale;
 
-    // Specific shaders.
     s32 player;
     s32 text;
     s32 skybox;
