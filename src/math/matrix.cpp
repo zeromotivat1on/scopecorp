@@ -680,7 +680,7 @@ mat3 mat3_identity() {
 }
 
 mat4 mat4_transform(const vec3& location, const quat& rotation, const vec3& scale) {
-    return mat4_identity().translate(location).rotate(rotation).scale(scale);
+    return mat4_identity().scale(scale).rotate(rotation).translate(location);
 }
 
 mat4 mat4_view(const vec3& eye, const vec3& at, const vec3& up) {
