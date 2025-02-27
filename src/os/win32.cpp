@@ -857,19 +857,19 @@ void wgl_init(Window* window, s32 major_version, s32 minor_version) {
 
     window->win32->hglrc = wglCreateContextAttribsARB(window->win32->hdc, 0, context_attributes);
     if (window->win32->hglrc == NULL) {
-        error("Failed to create opengl context.");
+        error("Failed to create opengl context");
         return;
     }
 
     if (wglMakeCurrent(window->win32->hdc, window->win32->hglrc) == FALSE) {
-        error("Failed to make context current.\n");
+        error("Failed to make context current");
         return;
     }
     
     // @Cleanup: too lazy to load GL pointers manually,
     // maybe change and move glad source to own gl.h later.
     if (!gladLoadGLLoader((GLADloadproc)wgl_get_proc_address)) {
-        error("Failed to init GLAD.");
+        error("Failed to init GLAD");
         return;
     }
 
