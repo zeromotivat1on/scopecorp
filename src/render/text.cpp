@@ -105,6 +105,12 @@ void draw_text_immediate(const Font_Atlas* atlas, const char* text, u32 text_siz
     }
 }
 
+void draw_text_immediate_with_shadow(const Font_Atlas* atlas, const char* text, u32 text_size, vec2 pos, vec3 color, vec2 shadow_offset, vec3 shadow_color)
+{
+    draw_text_immediate(atlas, text, text_size, pos + shadow_offset, shadow_color);
+    draw_text_immediate(atlas, text, text_size, pos, color);
+}
+
 void on_framebuffer_resize(s32 w, s32 h) {
     if (!text_draw_cmd_immediate) text_draw_cmd_immediate = create_text_draw_command();
 

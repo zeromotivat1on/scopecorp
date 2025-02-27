@@ -286,39 +286,12 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         
         const Camera* current_camera = desired_camera(world);
-
+        
         // Draw skybox.
         const vec2 scale = vec2(8.0f, 3.0f);
         set_material_uniform_value(skybox_draw_cmd.material_idx, "u_scale", &scale);
         set_material_uniform_value(skybox_draw_cmd.material_idx, "u_offset", &camera.eye);
         enqueue_draw_command(&draw_queue, &skybox_draw_cmd);
-
-        // Draw player.        
-        const mat4 player_m = mat4_transform(player.location, player.rotation, player.scale);
-        const mat4 player_v = camera_view(current_camera);
-        const mat4 player_p = camera_projection(current_camera);
-        const mat4 player_mvp = player_m * player_v * player_p;
-        set_material_uniform_value(player_draw_cmd.material_idx, "u_mvp", player_mvp.ptr());
-        // @Cleanup: create function for this.
-        render_registry.materials[player_draw_cmd.material_idx].texture_idx = player.texture_idx;
-        enqueue_draw_command(&draw_queue, &player_draw_cmd);
-
-        // Draw cube.
-        const mat4 cube_m = mat4_transform(vec3(3.0f, 0.5f, 4.0f), quat(), vec3(1.0f));
-        const mat4 cube_v = camera_view(current_camera);
-        const mat4 cube_p = camera_projection(current_camera);
-        const mat4 cube_mvp = cube_m * cube_v * cube_p;
-        set_material_uniform_value(cube_draw_cmd.material_idx, "u_mvp", cube_mvp.ptr());
-        enqueue_draw_command(&draw_queue, &cube_draw_cmd);
-              
-        static char text[256];
-        const vec3 text_color = vec3(1.0f);
-        const f32 padding = atlas->font_size * 0.5f;
-        s32 text_size = 0;
-        f32 x, y;
-
-        // @Cleanup: flush before text draw as its overwritten by skybox, fix.
-        flush_draw_commands(&draw_queue);
 
         // Draw ground.
         const vec3 ground_scale = vec3(5);
@@ -328,37 +301,65 @@ int main() {
         const mat4 ground_mvp = ground_m * ground_v * ground_p;
         set_material_uniform_value(ground_draw_cmd.material_idx, "u_mvp", ground_mvp.ptr());
         set_material_uniform_value(ground_draw_cmd.material_idx, "u_scale", &ground_scale);
-        draw(&ground_draw_cmd);
+        enqueue_draw_command(&draw_queue, &ground_draw_cmd);
+
+        // Draw cube.
+        const mat4 cube_m = mat4_transform(vec3(3.0f, 0.5f, 4.0f), quat(), vec3(1.0f));
+        const mat4 cube_v = camera_view(current_camera);
+        const mat4 cube_p = camera_projection(current_camera);
+        const mat4 cube_mvp = cube_m * cube_v * cube_p;
+        set_material_uniform_value(cube_draw_cmd.material_idx, "u_mvp", cube_mvp.ptr());
+        enqueue_draw_command(&draw_queue, &cube_draw_cmd);
+        
+        // Draw player.        
+        const mat4 player_m = mat4_transform(player.location, player.rotation, player.scale);
+        const mat4 player_v = camera_view(current_camera);
+        const mat4 player_p = camera_projection(current_camera);
+        const mat4 player_mvp = player_m * player_v * player_p;
+        set_material_uniform_value(player_draw_cmd.material_idx, "u_mvp", player_mvp.ptr());
+        // @Cleanup: create function for this.
+        render_registry.materials[player_draw_cmd.material_idx].texture_idx = player.texture_idx;
+        enqueue_draw_command(&draw_queue, &player_draw_cmd);
+        
+        // @Cleanup: flush before text draw as its overwritten by skybox, fix.
+        flush_draw_commands(&draw_queue);
+
+        static char text[256];
+        const vec3 text_color = vec3(1.0f);
+        const f32 padding = atlas->font_size * 0.5f;
+        const vec2 shadow_offset = vec2(atlas->font_size * 0.1f, -atlas->font_size * 0.1f);
+        s32 text_size = 0;
+        vec2 pos;
 
         {   // Entity data.
             text_size = (s32)sprintf_s(text, sizeof(text), "player location %s velocity %s", to_string(player.location), to_string(player.velocity));
-            x = padding;
-            y = (f32)viewport.height - atlas->font_size;
-            draw_text_immediate(atlas, text, text_size, vec2(x, y), text_color);
-
+            pos.x = padding;
+            pos.y = (f32)viewport.height - atlas->font_size;
+            draw_text_immediate_with_shadow(atlas, text, text_size, pos, text_color, shadow_offset, vec3_zero);
+            
             text_size = (s32)sprintf_s(text, sizeof(text), "camera eye %s at %s", to_string(current_camera->eye), to_string(current_camera->at));
-            x = padding;
-            y -= atlas->font_size;
-            draw_text_immediate(atlas, text, text_size, vec2(x, y), text_color);
+            pos.x = padding;
+            pos.y -= atlas->font_size;
+            draw_text_immediate_with_shadow(atlas, text, text_size, pos, text_color, shadow_offset, vec3_zero);
         }
         
         {   // Runtime stats.
             text_size = (s32)sprintf_s(text, sizeof(text), "%.2fms %.ffps %dx%d %s", dt * 1000.0f, 1 / dt, window->width, window->height, build_type_name);
-            x = viewport.width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
-            y = viewport.height - (f32)atlas->font_size;
-            draw_text_immediate(atlas, text, text_size, vec2(x, y), text_color);
+            pos.x = viewport.width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
+            pos.y = viewport.height - (f32)atlas->font_size;
+            draw_text_immediate_with_shadow(atlas, text, text_size, pos, text_color, shadow_offset, vec3_zero);
         }
 
         {   // Controls.
             text_size = (s32)sprintf_s(text, sizeof(text), "F1 %s F2 %s F3 %s", to_string(game_state.mode), to_string(game_state.camera_behavior), to_string(game_state.player_movement_behavior));
-            x = viewport.width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
-            y = padding;
-            draw_text_immediate(atlas, text, text_size, vec2(x, y), text_color);
+            pos.x = viewport.width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
+            pos.y = padding;
+            draw_text_immediate_with_shadow(atlas, text, text_size, pos, text_color, shadow_offset, vec3_zero);
 
             text_size = (s32)sprintf_s(text, sizeof(text), "Shift/Control + Arrows - force move/rotate game camera");
-            x = viewport.width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
-            y += atlas->font_size;
-            draw_text_immediate(atlas, text, text_size, vec2(x, y), text_color);
+            pos.x = viewport.width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
+            pos.y += atlas->font_size;
+            draw_text_immediate_with_shadow(atlas, text, text_size, pos, text_color, shadow_offset, vec3_zero);
         }
 
         {   // Memory stats.
@@ -368,9 +369,9 @@ int main() {
             f32 persistent_part = (f32)persistent_used / persistent_size * 100.0f;
 
             text_size = (s32)sprintf_s(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Persistent)", (f32)persistent_used / 1024 / 1024, (f32)persistent_size / 1024 / 1024, persistent_part);
-            x = padding;
-            y = padding;
-            draw_text_immediate(atlas, text, text_size, vec2(x, y), text_color);
+            pos.x = padding;
+            pos.y = padding;
+            draw_text_immediate_with_shadow(atlas, text, text_size, pos, text_color, shadow_offset, vec3_zero);
             
             u64 frame_size;
             u64 frame_used;
@@ -378,9 +379,9 @@ int main() {
             f32 frame_part = (f32)frame_used / frame_size * 100.0f;
 
             text_size = (s32)sprintf_s(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Frame)", (f32)frame_used / 1024 / 1024, (f32)frame_size / 1024 / 1024, frame_part);
-            x = padding;
-            y += atlas->font_size;
-            draw_text_immediate(atlas, text, text_size, vec2(x, y), text_color);
+            pos.x = padding;
+            pos.y += atlas->font_size;
+            draw_text_immediate_with_shadow(atlas, text, text_size, pos, text_color, shadow_offset, vec3_zero);
             
             u64 temp_size;
             u64 temp_used;
@@ -388,9 +389,9 @@ int main() {
             f32 temp_part = (f32)temp_used / temp_size * 100.0f;
             
             text_size = (s32)sprintf_s(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Temp)", (f32)temp_used / 1024 / 1024, (f32)temp_size / 1024 / 1024, temp_part);
-            x = padding;
-            y += atlas->font_size;
-            draw_text_immediate(atlas, text, text_size, vec2(x, y), text_color);
+            pos.x = padding;
+            pos.y += atlas->font_size;
+            draw_text_immediate_with_shadow(atlas, text, text_size, pos, text_color, shadow_offset, vec3_zero);
         }
 
         wgl_swap_buffers(window);

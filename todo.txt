@@ -1,2 +1,5 @@
 - Logging from other threads cause crashes even log implementation is synchronized.
   This problem is observed in shader hot reload system.
+
+- Enqueue draw command order is crucial for expected output, we need to add sort/priority
+  of submitted draw commands. Also possible to add additional draw queues, e.g for ui.
