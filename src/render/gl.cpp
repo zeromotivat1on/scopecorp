@@ -25,6 +25,21 @@
 // Implementation is defined in font.cpp
 #include "stb_truetype.h"
 
+void gl_enable()
+{
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);  
+    glFrontFace(GL_CCW);
+
+    glEnable(GL_SCISSOR_TEST);
+
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
+}
+
 static s32 gl_draw_mode(Draw_Mode mode) {
     switch(mode) {
     case DRAW_TRIANGLES:      return GL_TRIANGLES;

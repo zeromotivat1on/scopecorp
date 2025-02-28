@@ -717,17 +717,16 @@ static void* wgl_get_proc_address(const char *name) {
 }
 
 static void wgl_load_procs() {
-#define LOAD(name, type) name = (type)wgl_get_proc_address(#name)
+#define load(name, type) name = (type)wgl_get_proc_address(#name)
 
-    LOAD(wglCreateContextAttribsARB, PFNWGLCREATECONTEXTATTRIBSARBPROC);
-    LOAD(wglChoosePixelFormatARB, PFNWGLCHOOSEPIXELFORMATARBPROC);
-    LOAD(wglSwapIntervalEXT, PFNWGLSWAPINTERVALEXTPROC);
+    load(wglCreateContextAttribsARB, PFNWGLCREATECONTEXTATTRIBSARBPROC);
+    load(wglChoosePixelFormatARB,    PFNWGLCHOOSEPIXELFORMATARBPROC);
+    load(wglSwapIntervalEXT,         PFNWGLSWAPINTERVALEXTPROC);
     
-#undef LOAD
+#undef load
 }
 
-void wgl_init(Window* window, s32 major_version, s32 minor_version) {
-    
+void wgl_init(Window* window) {    
     Win32_Window dummy_window = wgl_create_dummy_window(window);
     wgl_create_dummy_context(&dummy_window);
     
@@ -753,8 +752,8 @@ void wgl_init(Window* window, s32 major_version, s32 minor_version) {
     }
 
     const s32 context_attributes[] = {
-        WGL_CONTEXT_MAJOR_VERSION_ARB, major_version,
-        WGL_CONTEXT_MINOR_VERSION_ARB, minor_version,
+        WGL_CONTEXT_MAJOR_VERSION_ARB, 4,
+        WGL_CONTEXT_MINOR_VERSION_ARB, 6,
         WGL_CONTEXT_FLAGS_ARB, WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB,
         WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
         0

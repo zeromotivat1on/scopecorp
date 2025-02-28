@@ -55,22 +55,11 @@ int main() {
 
     register_event_callback(window, on_window_event);
 
-    // @Cleanup: not sure if its a good idea to pass gl major/minor version here.
-    wgl_init(window, 4, 6);
+    wgl_init(window);
     wgl_vsync(false);
 
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_BACK);  
-    glFrontFace(GL_CCW);
-
-    glEnable(GL_SCISSOR_TEST);
-
-    glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LESS);
-    
+    gl_enable();
+        
     ALCdevice* audio_device = alcOpenDevice(null);
     if (!audio_device) {
         error("Failed to open default audio device");
