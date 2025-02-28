@@ -3,6 +3,7 @@
 #include "font.h"
 #include "flip_book.h"
 #include "viewport.h"
+#include "memory_storage.h"
 
 #include "os/file.h"
 #include "os/thread.h"

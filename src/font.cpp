@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "font.h"
 #include "log.h"
+#include "memory_storage.h"
 #include "os/file.h"
 #include <string.h>
 

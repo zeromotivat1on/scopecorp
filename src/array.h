@@ -1,6 +1,8 @@
 #pragma once
 
-// Fixed capacity array allocated in persistent memory block
+#include "memory_storage.h"
+
+// Fixed capacity array allocated in persistent memory block.
 template<typename T>
 struct Array {
     T* items     = null;

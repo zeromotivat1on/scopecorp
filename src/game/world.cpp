@@ -2,6 +2,7 @@
 #include "world.h"
 #include "game.h"
 #include "player_control.h"
+#include "memory_storage.h"
 
 World* create_world() {
     World* world = alloc_struct_persistent(World);

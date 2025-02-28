@@ -1,12 +1,10 @@
 add_executable(${PROJECT_NAME}
-                camera.cpp camera.h flip_book.cpp flip_book.h font.cpp main.cpp pch.cpp profile.h stb_image.h stb_truetype.h log.h log.cpp
+                camera.cpp flip_book.cpp font.cpp main.cpp pch.cpp log.cpp memory_storage.cpp
                 # work_queue.cpp work_queue.h
-                os/file.cpp os/file.h os/input.h os/memory.h os/thread.h os/time.h os/window.h
-                math/matrix.cpp math/matrix.h math/math.cpp math/math.h math/quat.cpp math/quat.h math/vector.cpp math/vector.h
-                audio/al.h audio/alc.h audio/alext.h audio/sound.cpp audio/sound.h
-                editor/hot_reload.h
-                game/entities.h game/game.cpp game/game.h game/player_control.cpp game/player_control.h game/world.cpp game/world.h
-                editor/hot_reload.h
+                os/file.cpp
+                math/matrix.cpp math/math.cpp math/quat.cpp math/vector.cpp
+                audio/sound.cpp
+                game/game.cpp game/player_control.cpp game/world.cpp
                 render/gl.cpp render/glad.cpp render/render_registry.cpp render/text.cpp render/vertex.cpp)
 
 if (WIN32)

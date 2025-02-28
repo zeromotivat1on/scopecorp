@@ -5,6 +5,7 @@
 #include "audio/al.h"
 #include "profile.h"
 #include "memory_eater.h"
+#include "memory_storage.h"
 #include <stdio.h>
 #include <string.h>
 

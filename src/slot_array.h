@@ -1,5 +1,7 @@
 #pragma once
 
+#include "memory_storage.h"
+
 // Fixed capacity array allocated in persistent memory block.
 // Stores list of free indices, so deleting elements from slot array
 // do not cause shift, free index list is updated instead.
