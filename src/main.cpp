@@ -47,7 +47,7 @@ int main() {
     
     init_input_table();
     
-    window = create_window(1280, 720, "Scopecorp", 32, 32);
+    window = create_window(1280, 720, "Scopecorp", 0, 0);
     if (!window) {
         error("Failed to create window");
         return 1;

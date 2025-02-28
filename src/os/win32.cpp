@@ -521,6 +521,15 @@ static LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam, L
     return 0;
 }
 
+static RECT get_window_border_rect() {
+    const u32 style = WS_OVERLAPPED | WS_SYSMENU | WS_CAPTION | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_THICKFRAME;
+    const u32 ex_style = WS_EX_APPWINDOW;
+
+    RECT rect = {0};
+    AdjustWindowRectEx(&rect, style, 0, ex_style);
+    return rect;
+}
+
 Window* create_window(s32 w, s32 h, const char* name, s32 x, s32 y) {
     Window* window = new Window();
     window->win32 = new Win32_Window();
@@ -538,7 +547,13 @@ Window* create_window(s32 w, s32 h, const char* name, s32 x, s32 y) {
     
     window->win32->class_atom = RegisterClassEx(&wclass);
     window->win32->hinstance = (HINSTANCE)&__ImageBase;
-
+    
+    const RECT border_rect = get_window_border_rect();
+    x += border_rect.left;
+    //y += border_rect.top;
+    w += border_rect.right - border_rect.left;
+    h += border_rect.bottom - border_rect.top;
+    
     window->win32->hwnd = CreateWindowEx(0, window->win32->class_name, name,
                                          WS_OVERLAPPEDWINDOW, x, y, w, h,
                                          NULL, NULL, window->win32->hinstance, NULL);
@@ -561,8 +576,6 @@ void destroy(Window* window) {
     ReleaseDC(window->win32->hwnd, window->win32->hdc);
     DestroyWindow(window->win32->hwnd);
     UnregisterClass(window->win32->class_name, window->win32->hinstance);
-    delete window->win32;
-    delete window;
 }
 
 void poll_events(Window* window) {
