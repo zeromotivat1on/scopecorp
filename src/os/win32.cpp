@@ -10,6 +10,7 @@
 #include "os/wgl.h"
 
 #include "log.h"
+#include "memory_storage.h"
 #include "editor/hot_reload.h"
 
 #define VC_EXTRALEAN
@@ -531,8 +532,8 @@ static RECT get_window_border_rect() {
 }
 
 Window* create_window(s32 w, s32 h, const char* name, s32 x, s32 y) {
-    Window* window = new Window();
-    window->win32 = new Win32_Window();
+    Window* window = alloc_struct_persistent(Window);
+    window->win32 = alloc_struct_persistent(Win32_Window);
     
     window->win32->class_name = "win32_window";
 
