@@ -2,7 +2,6 @@
 #include "log.h"
 #include "font.h"
 #include "flip_book.h"
-#include "viewport.h"
 #include "memory_storage.h"
 
 #include "os/file.h"
@@ -16,6 +15,7 @@
 #include "render/draw.h"
 #include "render/text.h"
 #include "render/render_registry.h"
+#include "render/viewport.h"
 
 #include "audio/al.h"
 #include "audio/alc.h"
@@ -28,24 +28,16 @@
 #include <stdio.h>
 #include <string.h>
 
+Text_Draw_Command* text_draw_cmd = null;
+
 static void on_window_event(Window* window, Window_Event* event) {
     if (event->type == EVENT_RESIZE) {
-        const s16 window_w = window->width;
-        const s16 window_h = window->height;
+        resize_viewport(&viewport, window->width, window->height);
 
-        viewport_4x3(&viewport, window_w, window_h);
-        glViewport(viewport.x, viewport.y, viewport.width, viewport.height);
-        glScissor(viewport.x, viewport.y, viewport.width, viewport.height);
-
-        world->camera.aspect = (f32)viewport.width / viewport.height;
-        world->camera.left = viewport.x;
-        world->camera.right = (f32)viewport.x + viewport.width;
-        world->camera.bottom = viewport.y;
-        world->camera.top = (f32)viewport.y + viewport.height;
-
+        on_viewport_resize(&world->camera, &viewport);
         world->ed_camera = world->camera;
 
-        on_framebuffer_resize(viewport.width, viewport.height);
+        on_viewport_resize(text_draw_cmd, &viewport);
     }
     
     handle_event(window, event);
@@ -125,7 +117,8 @@ int main() {
 
     Font* font = create_font(DIR_FONTS "consola.ttf");
     Font_Atlas* atlas = bake_font_atlas(font, 32, 128, 16);
-
+    text_draw_cmd = create_default_text_draw_command(atlas);
+    
     init_draw_queue(&draw_queue);
     
     world = create_world();
@@ -336,31 +329,31 @@ int main() {
             text_size = (s32)sprintf_s(text, sizeof(text), "player location %s velocity %s", to_string(player.location), to_string(player.velocity));
             pos.x = padding;
             pos.y = (f32)viewport.height - atlas->font_size;
-            draw_text_immediate_with_shadow(atlas, text, text_size, pos, text_color, shadow_offset, vec3_zero);
+            draw_text_immediate_with_shadow(text_draw_cmd, text, text_size, pos, text_color, shadow_offset, vec3_zero);
             
             text_size = (s32)sprintf_s(text, sizeof(text), "camera eye %s at %s", to_string(current_camera->eye), to_string(current_camera->at));
             pos.x = padding;
             pos.y -= atlas->font_size;
-            draw_text_immediate_with_shadow(atlas, text, text_size, pos, text_color, shadow_offset, vec3_zero);
+            draw_text_immediate_with_shadow(text_draw_cmd, text, text_size, pos, text_color, shadow_offset, vec3_zero);
         }
         
         {   // Runtime stats.
             text_size = (s32)sprintf_s(text, sizeof(text), "%.2fms %.ffps %dx%d %s", dt * 1000.0f, 1 / dt, window->width, window->height, build_type_name);
             pos.x = viewport.width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
             pos.y = viewport.height - (f32)atlas->font_size;
-            draw_text_immediate_with_shadow(atlas, text, text_size, pos, text_color, shadow_offset, vec3_zero);
+            draw_text_immediate_with_shadow(text_draw_cmd, text, text_size, pos, text_color, shadow_offset, vec3_zero);
         }
 
         {   // Controls.
             text_size = (s32)sprintf_s(text, sizeof(text), "F1 %s F2 %s F3 %s", to_string(game_state.mode), to_string(game_state.camera_behavior), to_string(game_state.player_movement_behavior));
             pos.x = viewport.width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
             pos.y = padding;
-            draw_text_immediate_with_shadow(atlas, text, text_size, pos, text_color, shadow_offset, vec3_zero);
+            draw_text_immediate_with_shadow(text_draw_cmd, text, text_size, pos, text_color, shadow_offset, vec3_zero);
 
             text_size = (s32)sprintf_s(text, sizeof(text), "Shift/Control + Arrows - force move/rotate game camera");
             pos.x = viewport.width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
             pos.y += atlas->font_size;
-            draw_text_immediate_with_shadow(atlas, text, text_size, pos, text_color, shadow_offset, vec3_zero);
+            draw_text_immediate_with_shadow(text_draw_cmd, text, text_size, pos, text_color, shadow_offset, vec3_zero);
         }
 
         {   // Memory stats.
@@ -372,7 +365,7 @@ int main() {
             text_size = (s32)sprintf_s(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Persistent)", (f32)persistent_used / 1024 / 1024, (f32)persistent_size / 1024 / 1024, persistent_part);
             pos.x = padding;
             pos.y = padding;
-            draw_text_immediate_with_shadow(atlas, text, text_size, pos, text_color, shadow_offset, vec3_zero);
+            draw_text_immediate_with_shadow(text_draw_cmd, text, text_size, pos, text_color, shadow_offset, vec3_zero);
             
             u64 frame_size;
             u64 frame_used;
@@ -382,7 +375,7 @@ int main() {
             text_size = (s32)sprintf_s(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Frame)", (f32)frame_used / 1024 / 1024, (f32)frame_size / 1024 / 1024, frame_part);
             pos.x = padding;
             pos.y += atlas->font_size;
-            draw_text_immediate_with_shadow(atlas, text, text_size, pos, text_color, shadow_offset, vec3_zero);
+            draw_text_immediate_with_shadow(text_draw_cmd, text, text_size, pos, text_color, shadow_offset, vec3_zero);
             
             u64 temp_size;
             u64 temp_used;
@@ -392,7 +385,7 @@ int main() {
             text_size = (s32)sprintf_s(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Temp)", (f32)temp_used / 1024 / 1024, (f32)temp_size / 1024 / 1024, temp_part);
             pos.x = padding;
             pos.y += atlas->font_size;
-            draw_text_immediate_with_shadow(atlas, text, text_size, pos, text_color, shadow_offset, vec3_zero);
+            draw_text_immediate_with_shadow(text_draw_cmd, text, text_size, pos, text_color, shadow_offset, vec3_zero);
         }
 
         wgl_swap_buffers(window);

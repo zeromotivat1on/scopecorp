@@ -10,6 +10,7 @@
 #include "render/index_buffer.h"
 #include "render/vertex_buffer.h"
 #include "render/render_registry.h"
+#include "render/viewport.h"
 
 #include "log.h"
 #include "font.h"
@@ -70,6 +71,31 @@ void draw(const Draw_Command* cmd) {
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
     glUseProgram(0);
+}
+
+void resize_viewport(Viewport* viewport, s16 width, s16 height)
+{
+    switch(viewport->aspect_type) {
+    case VIEWPORT_4X3:
+        viewport->width = width;
+        viewport->height = height;
+    
+        if (width * 3 > height * 4) {
+            viewport->width = height * 4 / 3;
+            viewport->x = (width - viewport->width) / 2;
+        } else {
+            viewport->height = width * 3 / 4;
+            viewport->y = (height - viewport->height) / 2;
+        }
+        
+        break;
+    default:
+        error("Failed to resize viewport with unknown aspect type %d", viewport->aspect_type);
+        break;
+    }
+
+    glViewport(viewport->x, viewport->y, viewport->width, viewport->height);
+    glScissor(viewport->x, viewport->y, viewport->width, viewport->height);
 }
 
 static s32 gl_usage(Buffer_Usage_Type type) {

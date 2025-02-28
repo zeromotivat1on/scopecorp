@@ -4,29 +4,19 @@
 #include "os/file.h"
 #include "math/vector.h"
 #include "math/matrix.h"
-#include "render/gl.h"
 #include "render/draw.h"
-#include "render/shader.h"
-#include "render/texture.h"
-#include "render/vertex_buffer.h"
 #include "render/render_registry.h"
+#include "render/viewport.h"
 
-// @Cleanup: expose to header?
-struct Text_Draw_Command : Draw_Command {
-    mat4 projection;
-    mat4 transforms[TEXT_RENDER_BATCH_SIZE];
-    u32  charmap[TEXT_RENDER_BATCH_SIZE];
-};
-
-static Text_Draw_Command* text_draw_cmd_immediate = null;
-
-Text_Draw_Command* create_text_draw_command() {
-    Text_Draw_Command* cmd = alloc_struct_persistent(Text_Draw_Command);
+Text_Draw_Command* create_default_text_draw_command(Font_Atlas* atlas) {
+    // @Cleanup: create separate container for draw commands.
+    auto* cmd = alloc_struct_persistent(Text_Draw_Command);
     *cmd = Text_Draw_Command();
 
     cmd->flags |= DRAW_FLAG_IGNORE_DEPTH;
     cmd->draw_mode = DRAW_TRIANGLE_STRIP;
     cmd->material_idx = material_index_list.text;
+    cmd->atlas = atlas;
     set_material_uniform_value(cmd->material_idx, "u_charmap", cmd->charmap);
     set_material_uniform_value(cmd->material_idx, "u_transforms", cmd->transforms);
     set_material_uniform_value(cmd->material_idx, "u_projection", &cmd->projection);
@@ -37,17 +27,16 @@ Text_Draw_Command* create_text_draw_command() {
         1.0f, 1.0f,
         1.0f, 0.0f,
     };
-    Vertex_Attrib_Type attrib_types[] = { VERTEX_ATTRIB_F32_V2 };
-    cmd->vertex_buffer_idx = create_vertex_buffer(attrib_types, c_array_count(attrib_types), vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
+    Vertex_Attrib_Type attribs[] = { VERTEX_ATTRIB_F32_V2 };
+    cmd->vertex_buffer_idx = create_vertex_buffer(attribs, c_array_count(attribs), vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
 
     return cmd;
 }
 
-void draw_text_immediate(const Font_Atlas* atlas, const char* text, u32 text_size, vec2 pos, vec3 color) {
-    if (!text_draw_cmd_immediate) text_draw_cmd_immediate = create_text_draw_command();
+void draw_text_immediate(Text_Draw_Command* cmd, const char* text, u32 text_size, vec2 pos, vec3 color) {
+    const auto* atlas = cmd->atlas;
 
-    auto* cmd = text_draw_cmd_immediate;
-
+    // @Cleanup: create function for this.
     render_registry.materials[cmd->material_idx].texture_idx = atlas->texture_idx;
     set_material_uniform_value(cmd->material_idx, "u_text_color", &color);
 
@@ -105,15 +94,13 @@ void draw_text_immediate(const Font_Atlas* atlas, const char* text, u32 text_siz
     }
 }
 
-void draw_text_immediate_with_shadow(const Font_Atlas* atlas, const char* text, u32 text_size, vec2 pos, vec3 color, vec2 shadow_offset, vec3 shadow_color)
+void draw_text_immediate_with_shadow(Text_Draw_Command* cmd, const char* text, u32 text_size, vec2 pos, vec3 color, vec2 shadow_offset, vec3 shadow_color)
 {
-    draw_text_immediate(atlas, text, text_size, pos + shadow_offset, shadow_color);
-    draw_text_immediate(atlas, text, text_size, pos, color);
+    draw_text_immediate(cmd, text, text_size, pos + shadow_offset, shadow_color);
+    draw_text_immediate(cmd, text, text_size, pos, color);
 }
 
-void on_framebuffer_resize(s32 w, s32 h) {
-    if (!text_draw_cmd_immediate) text_draw_cmd_immediate = create_text_draw_command();
-
-    text_draw_cmd_immediate->projection = mat4_orthographic(0.0f, (f32)w, 0.0f, (f32)h, -1.0f, 1.0f);
-    mark_material_uniform_dirty(text_draw_cmd_immediate->material_idx, "u_projection");
+void on_viewport_resize(Text_Draw_Command* cmd, Viewport* viewport) {
+    cmd->projection = mat4_orthographic(0, viewport->width, 0, viewport->height, -1, 1);
+    mark_material_uniform_dirty(cmd->material_idx, "u_projection");
 }

@@ -31,3 +31,4 @@ struct Camera {
 
 mat4 camera_view(const Camera* camera);
 mat4 camera_projection(const Camera* camera);
+void on_viewport_resize(Camera* camera, struct Viewport* viewport);
