@@ -123,7 +123,7 @@ int main() {
     register_hot_reload_dir(&hot_reload_list, DIR_SHADERS, on_shader_changed_externally);
     start_hot_reload_thread(&hot_reload_list);
 
-    Font* font = create_font("C:/Windows/Fonts/Consola.ttf");
+    Font* font = create_font(DIR_FONTS "consola.ttf");
     Font_Atlas* atlas = bake_font_atlas(font, 32, 128, 16);
 
     init_draw_queue(&draw_queue);

@@ -36,4 +36,5 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
                                # Directories
                                DIR_SHADERS="${RUN_TREE_DIR}/data/shaders/"
                                DIR_TEXTURES="${RUN_TREE_DIR}/data/textures/"
-                               DIR_SOUNDS="${RUN_TREE_DIR}/data/sounds/")
+                               DIR_SOUNDS="${RUN_TREE_DIR}/data/sounds/"
+                               DIR_FONTS="${RUN_TREE_DIR}/data/fonts/")

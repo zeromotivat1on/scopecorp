@@ -2,51 +2,45 @@
 #include "file.h"
 #include "log.h"
 #include "memory_storage.h"
-#include <stdio.h>
-#include <string.h>
 
-bool read_file(const char* path, void* buffer, u64 buffer_size, u64* bytes_read)
+bool read_file(const char* path, void* buffer, u64 size, u64* bytes_read)
 {
-    FILE* file;
-    s32 err = fopen_s(&file, path, "rb");
-    if (err == 0)
-    {
-        const u64 read_count = fread(buffer, 1, buffer_size, file);
-        if (bytes_read) *bytes_read = read_count;
-        err = ferror(file);
-        fclose(file);
-        if (err == 0) return true;
+    File file = open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_READ);
+    if (file == INVALID_FILE) {
+        error("Failed to open file %s", path);
+        return false;
     }
 
-    error("Failed to read file %s with error %d %s", path, err, strerror(err));
+    defer { close_file(file); };
+
     if (bytes_read) *bytes_read = 0;
-    
-    return false;
+    if (!read_file(file, buffer, size, bytes_read)) {
+        error("Failed to read file %s", path);
+        return false;
+    }
+
+    return true;
 }
 
 void* read_entire_file_temp(const char* path, u64* bytes_read)
 {
-    FILE* file;
-    s32 err = fopen_s(&file, path, "rb");
-    if (err == 0)
-    {
-        fseek(file, 0, SEEK_END);
-        const u64 size = ftell(file);
-        fseek(file, 0, SEEK_SET);
-
-        void* buffer = alloc_temp(size);
-        const u64 read_count = fread(buffer, 1, size, file);
-        if (bytes_read) *bytes_read = read_count;
-
-        err = ferror(file);
-        fclose(file);
-        if (err == 0) return buffer;
-
-        free_temp(size);
+    File file = open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_READ);
+    if (file == INVALID_FILE) {
+        error("Failed to open file %s", path);
+        return false;
     }
 
-    error("Failed to read entire file temp %s with error %d %s", path, err, strerror(err));
-    if (bytes_read) *bytes_read = 0;
+    defer { close_file(file); };
     
-    return null;
+    const s64 size = file_size(file);
+    void* buffer = alloc_temp(size);
+
+    if (bytes_read) *bytes_read = 0;
+    if (!read_file(file, buffer, size, bytes_read)) {
+        error("Failed to read entire file %s", path);
+        free_temp(size);
+        return null;
+    }
+
+    return buffer;
 }

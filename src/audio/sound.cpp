@@ -1,11 +1,11 @@
 #include "pch.h"
 #include "sound.h"
 #include "log.h"
-#include "os/file.h"
-#include "audio/al.h"
 #include "profile.h"
 #include "memory_eater.h"
 #include "memory_storage.h"
+#include "os/file.h"
+#include "audio/al.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -31,7 +31,7 @@ static s32 al_determine_audio_format(s32 channel_count, s32 bit_depth) {
 }
 
 // Extract wave header data and return pointer to start of actual sound data.
-static void* extract_wav(void* data, s32* channel_count, s32* sample_rate, s32* bits_per_sample, s32* size) {   
+static void* extract_wav(void* data, s32* channel_count, s32* sample_rate, s32* bits_per_sample, s32* size) {
     const char* riff = (char*)eat(&data, 4);
     if (strncmp(riff, "RIFF", 4) != 0) {
         error("File is not a valid wave file, header does not begin with RIFF");
