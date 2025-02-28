@@ -15,6 +15,8 @@ struct Window {
 #endif
 };
 
+inline struct Window* window = null;
+
 enum Event_Type : u8 {
     EVENT_UNKNOWN,
     EVENT_RESIZE,

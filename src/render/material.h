@@ -32,7 +32,8 @@ Uniform* find_material_uniform(s32 material_idx, const char* name);
 // Given data is not copied to uniform, it just stores a reference to it.
 // Caller should know value type in uniform to avoid possible read access violations.
 // For now its ok to link local variables as long as they live till draw queue flush,
-// where all uniforms are synced with gpu.
+// where all uniforms are synced with gpu, or you can allocate them in frame memory
+// storage as its cleared after draw commands are flushed.
 // @Cleanup: create large buffer for uniform values and store offsets in them?
 void set_material_uniform_value(s32 material_idx, const char* name, const void* data);
 void mark_material_uniform_dirty(s32 material_idx, const char* name);

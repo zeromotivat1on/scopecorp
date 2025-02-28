@@ -16,6 +16,8 @@ struct World {
     //s32 entity_count;
 };
 
+inline struct World* world = null;
+
 World* create_world();
 void tick(World* world, f32 dt);
 Camera* desired_camera(World* world);

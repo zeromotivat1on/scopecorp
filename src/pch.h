@@ -51,6 +51,8 @@ enum Direction {
     DIRECTION_COUNT
 };
 
+inline constexpr s32 MAX_PATH_SIZE = 256;
+
 // Preallocate base root of application memory.
 // All other memory operations will be done using this block.
 void prealloc_root();
@@ -110,10 +112,3 @@ void    usage_temp(u64* size, u64* used);
 // @Todo: arbitrary allocations like malloc/free.
 //void* alloc_arb(u64 size);
 //void  free_arb(void* ptr);
-
-// Globals
-// @Cleanup: is it really worth to have them here?
-inline struct Window* window = null;
-inline struct World* world = null;
-
-inline constexpr s32 MAX_PATH_SIZE = 256;
