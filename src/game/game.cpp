@@ -1,12 +1,26 @@
 #include "pch.h"
-#include "game.h"
+#include "game/game.h"
+#include "game/player_control.h"
+#include "game/world.h"
+
 #include "log.h"
+
 #include "os/input.h"
 #include "os/window.h"
-#include "player_control.h"
+
+#include "render/text.h"
+#include "render/viewport.h"
 
 void handle_event(Window* window, Window_Event* event) {
     // @Todo: use input action.
+    if (event->type == EVENT_RESIZE) {
+        resize_viewport(&viewport, window->width, window->height);
+
+        on_viewport_resize(&world->camera, &viewport);
+        world->ed_camera = world->camera;
+
+        on_viewport_resize(text_draw_cmd, &viewport);
+    }
 
     if (event->type == EVENT_KEYBOARD) {
         const s16 key = event->key_code;

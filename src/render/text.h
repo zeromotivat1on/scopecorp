@@ -20,6 +20,8 @@ struct Text_Draw_Command : Draw_Command {
     Font_Atlas* atlas = null;
 };
 
+inline Text_Draw_Command* text_draw_cmd = null; // default text draw command
+
 Text_Draw_Command* create_default_text_draw_command(Font_Atlas* atlas);
 
 void draw_text_immediate(Text_Draw_Command* cmd, const char* text, u32 text_size, vec2 pos, vec3 color);

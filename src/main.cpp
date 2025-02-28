@@ -28,18 +28,7 @@
 #include <stdio.h>
 #include <string.h>
 
-Text_Draw_Command* text_draw_cmd = null;
-
-static void on_window_event(Window* window, Window_Event* event) {
-    if (event->type == EVENT_RESIZE) {
-        resize_viewport(&viewport, window->width, window->height);
-
-        on_viewport_resize(&world->camera, &viewport);
-        world->ed_camera = world->camera;
-
-        on_viewport_resize(text_draw_cmd, &viewport);
-    }
-    
+static void on_window_event(Window* window, Window_Event* event) {    
     handle_event(window, event);
 }
 
