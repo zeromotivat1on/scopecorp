@@ -289,7 +289,7 @@ int main() {
         const Camera* current_camera = desired_camera(world);
         
         // Draw skybox.
-        const vec2 scale = vec2(8.0f, 3.0f);
+        const vec2 scale = vec2(8.0f, 4.0f);
         set_material_uniform_value(skybox_draw_cmd.material_idx, "u_scale", &scale);
         set_material_uniform_value(skybox_draw_cmd.material_idx, "u_offset", &camera.eye);
         enqueue_draw_command(&draw_queue, &skybox_draw_cmd);
