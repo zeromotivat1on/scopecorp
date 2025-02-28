@@ -23,5 +23,6 @@ struct Sound_List {
 
 inline Sound_List sounds;
 
+void init_audio_context();
 void load_game_sounds(Sound_List* list);
 Sound create_sound(const char* path, u32 flags);

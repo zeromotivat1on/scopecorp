@@ -59,23 +59,8 @@ int main() {
     wgl_vsync(false);
 
     gl_enable();
-        
-    ALCdevice* audio_device = alcOpenDevice(null);
-    if (!audio_device) {
-        error("Failed to open default audio device");
-        return 1;
-    }
 
-    ALCcontext* audio_context = alcCreateContext(audio_device, null);
-    if (!audio_context) {
-        error("Failed to create alc context");
-        return 1;
-    }
-
-    if (!alcMakeContextCurrent(audio_context)) {
-        error("Failed to make alc context current");
-        return 1;
-    }
+    init_audio_context();
 
     init_render_registry(&render_registry);    
     load_game_textures(&texture_index_list);

@@ -3,7 +3,7 @@ add_executable(${PROJECT_NAME}
                 # work_queue.cpp work_queue.h
                 os/file.cpp
                 math/matrix.cpp math/math.cpp math/quat.cpp math/vector.cpp
-                audio/sound.cpp
+                audio/al.cpp audio/sound.cpp
                 game/game.cpp game/player_control.cpp game/world.cpp
                 render/gl.cpp render/glad.cpp render/render_registry.cpp render/text.cpp render/vertex.cpp)
 
