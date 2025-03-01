@@ -86,53 +86,15 @@ int main() {
     
     world = create_world();
 
-    const auto& player_idle_texture = render_registry.textures[texture_index_list.player_idle[BACK]];
+    const auto& player_idle_texture = render_registry.textures[texture_index_list.player_idle[DIRECTION_BACK]];
     const f32 player_scale_aspect = (f32)player_idle_texture.width / player_idle_texture.height;
     const f32 player_y_scale = 1.0f * player_scale_aspect;
     const f32 player_x_scale = player_y_scale * player_scale_aspect;
 
     Player& player = world->player;
-    player.scale = vec3(player_x_scale, player_y_scale, 1.0f);
-    
-    Camera& camera = world->camera;
-    camera.mode = MODE_PERSPECTIVE;
-    camera.yaw = 90.0f;
-	camera.pitch = 0.0f;
-	camera.eye = player.location + player.camera_offset;
-	camera.at = camera.eye + forward(camera.yaw, camera.pitch);
-	camera.up = vec3(0.0f, 1.0f, 0.0f);
-	camera.fov = 60.0f;
-	//camera.aspect = window->width / window->height;
-	//camera.aspect = 4.0f / 3.0f;
-	camera.near = 0.1f;
-	camera.far = 1000.0f;
-	camera.left = 0.0f;
-	camera.right = (f32)window->width;
-	camera.bottom = 0.0f;
-	camera.top = (f32)window->height;
-
-    world->ed_camera = camera;
-
-    Draw_Command ground_draw_cmd;
-    {   // Create ground.
-        ground_draw_cmd.material_idx = material_index_list.ground;
-
-        Vertex_PU vertices[] = {
-            { vec3( 0.5f,  0.5f, 0.0f), vec2(1.0f, 1.0f) },
-            { vec3( 0.5f, -0.5f, 0.0f), vec2(1.0f, 0.0f) },
-            { vec3(-0.5f, -0.5f, 0.0f), vec2(0.0f, 0.0f) },
-            { vec3(-0.5f,  0.5f, 0.0f), vec2(0.0f, 1.0f) },
-        };
-        Vertex_Attrib_Type attribs[] = { VERTEX_ATTRIB_F32_V3, VERTEX_ATTRIB_F32_V2 };
-        ground_draw_cmd.vertex_buffer_idx = create_vertex_buffer(attribs, c_array_count(attribs), (f32*)vertices, 5 * c_array_count(vertices), BUFFER_USAGE_STATIC);
-        
-        u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
-        ground_draw_cmd.index_buffer_idx = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
-    }
-    
-    Draw_Command player_draw_cmd;
     {   // Create player.
-        player_draw_cmd.material_idx = material_index_list.player;
+        player.scale = vec3(player_x_scale, player_y_scale, 1.0f);
+        player.material_idx = material_index_list.player;
 
         Vertex_PU vertices[4] = { // center in bottom mid point of quad
             { vec3( 0.5f,  1.0f, 0.0f), vec2(1.0f, 1.0f) },
@@ -141,15 +103,32 @@ int main() {
             { vec3(-0.5f,  1.0f, 0.0f), vec2(0.0f, 1.0f) },
         };
         Vertex_Attrib_Type attribs[] = { VERTEX_ATTRIB_F32_V3, VERTEX_ATTRIB_F32_V2 };
-        player_draw_cmd.vertex_buffer_idx = create_vertex_buffer(attribs, c_array_count(attribs), (f32*)vertices, 5 * c_array_count(vertices), BUFFER_USAGE_STATIC);
+        player.vertex_buffer_idx = create_vertex_buffer(attribs, c_array_count(attribs), (f32*)vertices, 5 * c_array_count(vertices), BUFFER_USAGE_STATIC);
 
         u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
-        player_draw_cmd.index_buffer_idx = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
+        player.index_buffer_idx = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
     }
+    
+    Static_Mesh ground;
+    {   // Create ground.
+        ground.material_idx = material_index_list.ground;
 
-    Draw_Command cube_draw_cmd;
+        Vertex_PU vertices[] = {
+            { vec3( 0.5f,  0.5f, 0.0f), vec2(1.0f, 1.0f) },
+            { vec3( 0.5f, -0.5f, 0.0f), vec2(1.0f, 0.0f) },
+            { vec3(-0.5f, -0.5f, 0.0f), vec2(0.0f, 0.0f) },
+            { vec3(-0.5f,  0.5f, 0.0f), vec2(0.0f, 1.0f) },
+        };
+        Vertex_Attrib_Type attribs[] = { VERTEX_ATTRIB_F32_V3, VERTEX_ATTRIB_F32_V2 };
+        ground.vertex_buffer_idx = create_vertex_buffer(attribs, c_array_count(attribs), (f32*)vertices, 5 * c_array_count(vertices), BUFFER_USAGE_STATIC);
+        
+        u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
+        ground.index_buffer_idx = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
+    }
+    
+    Static_Mesh cube;
     {   // Create cube.
-        cube_draw_cmd.material_idx = material_index_list.cube;
+        cube.material_idx = material_index_list.cube;
 
         Vertex_PU vertices[] = {
             // Front face
@@ -189,7 +168,7 @@ int main() {
             { vec3( 0.5f, -0.5f,  0.5f), vec2(1.0f, 1.0f) },
         };
         Vertex_Attrib_Type attribs[] = { VERTEX_ATTRIB_F32_V3, VERTEX_ATTRIB_F32_V2 };
-        cube_draw_cmd.vertex_buffer_idx = create_vertex_buffer(attribs, c_array_count(attribs), (f32*)vertices, 5 * c_array_count(vertices), BUFFER_USAGE_STATIC);
+        cube.vertex_buffer_idx = create_vertex_buffer(attribs, c_array_count(attribs), (f32*)vertices, 5 * c_array_count(vertices), BUFFER_USAGE_STATIC);
 
         u32 indices[] = {
             // Front face
@@ -205,7 +184,7 @@ int main() {
             // Top face
             20, 22, 21, 21, 22, 23
         };
-        cube_draw_cmd.index_buffer_idx = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
+        cube.index_buffer_idx = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
     }
 
     Draw_Command skybox_draw_cmd;
@@ -225,7 +204,24 @@ int main() {
         u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
         skybox_draw_cmd.index_buffer_idx = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
     }
-    
+
+    Camera& camera = world->camera;
+    camera.mode = MODE_PERSPECTIVE;
+    camera.yaw = 90.0f;
+	camera.pitch = 0.0f;
+	camera.eye = player.location + player.camera_offset;
+	camera.at = camera.eye + forward(camera.yaw, camera.pitch);
+	camera.up = vec3(0.0f, 1.0f, 0.0f);
+	camera.fov = 60.0f;
+	camera.near = 0.1f;
+	camera.far = 1000.0f;
+	camera.left = 0.0f;
+	camera.right = (f32)window->width;
+	camera.bottom = 0.0f;
+	camera.top = (f32)window->height;
+
+    world->ed_camera = camera;
+
     f32 dt = 0.0f;
     s64 begin_counter = performance_counter();
     const f32 frequency = (f32)performance_frequency();
@@ -256,27 +252,25 @@ int main() {
         const mat4 ground_v = camera_view(current_camera);
         const mat4 ground_p = camera_projection(current_camera);
         const mat4 ground_mvp = ground_m * ground_v * ground_p;
-        set_material_uniform_value(ground_draw_cmd.material_idx, "u_mvp", ground_mvp.ptr());
-        set_material_uniform_value(ground_draw_cmd.material_idx, "u_scale", &ground_scale);
-        enqueue_draw_command(&draw_queue, &ground_draw_cmd);
+        set_material_uniform_value(ground.material_idx, "u_mvp", ground_mvp.ptr());
+        set_material_uniform_value(ground.material_idx, "u_scale", &ground_scale);
+        enqueue_draw_entity(&draw_queue, &ground);
 
         // Draw cube.
         const mat4 cube_m = mat4_transform(vec3(3.0f, 0.5f, 4.0f), quat(), vec3(1.0f));
         const mat4 cube_v = camera_view(current_camera);
         const mat4 cube_p = camera_projection(current_camera);
         const mat4 cube_mvp = cube_m * cube_v * cube_p;
-        set_material_uniform_value(cube_draw_cmd.material_idx, "u_mvp", cube_mvp.ptr());
-        enqueue_draw_command(&draw_queue, &cube_draw_cmd);
+        set_material_uniform_value(cube.material_idx, "u_mvp", cube_mvp.ptr());
+        enqueue_draw_entity(&draw_queue, &cube);
         
         // Draw player.        
         const mat4 player_m = mat4_transform(player.location, player.rotation, player.scale);
         const mat4 player_v = camera_view(current_camera);
         const mat4 player_p = camera_projection(current_camera);
         const mat4 player_mvp = player_m * player_v * player_p;
-        set_material_uniform_value(player_draw_cmd.material_idx, "u_mvp", player_mvp.ptr());
-        // @Cleanup: create function for this.
-        render_registry.materials[player_draw_cmd.material_idx].texture_idx = player.texture_idx;
-        enqueue_draw_command(&draw_queue, &player_draw_cmd);
+        set_material_uniform_value(player.material_idx, "u_mvp", player_mvp.ptr());
+        enqueue_draw_entity(&draw_queue, &player);
         
         // @Cleanup: flush before text draw as its overwritten by skybox, fix.
         flush_draw_commands(&draw_queue);

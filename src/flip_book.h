@@ -4,10 +4,10 @@ inline constexpr s32 MAX_FLIP_BOOK_FRAMES = 8;
 
 struct Flip_Book {
     s32 frames[MAX_FLIP_BOOK_FRAMES]; // texture indices from render registry
-    s32 frame_count;
-    s32 current_frame_idx;
-    f32 switch_frame_time; // amount of time to switch to next frame
-    f32 frame_time;
+    s32 frame_count = 0;
+    s32 current_frame_idx = 0;
+    f32 switch_frame_time = MAX_F32; // amount of time to switch to next frame
+    f32 frame_time = 0.0f;
 };
 
 struct Flip_Book_List {

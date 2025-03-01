@@ -28,7 +28,7 @@ struct Uniform
     const void* value = null;
     Uniform_Type type = UNIFORM_NULL;
     u32 flags = 0;
-    u32 location = UINT32_MAX;
+    u32 location = MAX_U32;
     s32 count = 0; // greater than 1 for array uniforms
 };
 

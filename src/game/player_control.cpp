@@ -1,14 +1,20 @@
 #include "pch.h"
 #include "player_control.h"
 #include "log.h"
+#include "flip_book.h"
+
 #include "os/input.h"
+
 #include "game/game.h"
 #include "game/world.h"
+
 #include "math/math.h"
+
 #include "audio/al.h"
 #include "audio/sound.h"
+
 #include "render/texture.h"
-#include "flip_book.h"
+#include "render/render_registry.h"
 
 void press(s32 key, bool pressed) {
     
@@ -66,22 +72,22 @@ void tick(Player* player, f32 dt) {
         if (game_state.player_movement_behavior == MOVE_INDEPENDENT) {
             if (input_table.key_states[KEY_D]) {
                 velocity.x = speed;
-                player->move_direction = RIGHT;
+                player->move_direction = DIRECTION_RIGHT;
             }
             
             if (input_table.key_states[KEY_A]) {
                 velocity.x = -speed;
-                player->move_direction = LEFT;
+                player->move_direction = DIRECTION_LEFT;
             }
     
             if (input_table.key_states[KEY_W]) {
                 velocity.z = speed;
-                player->move_direction = FORWARD;
+                player->move_direction = DIRECTION_FORWARD;
             }
     
             if (input_table.key_states[KEY_S]) {
                 velocity.z = -speed;
-                player->move_direction = BACK;
+                player->move_direction = DIRECTION_BACK;
             }      
         } else if (game_state.player_movement_behavior == MOVE_RELATIVE_TO_CAMERA) {
             Camera& camera = world->camera;
@@ -90,38 +96,39 @@ void tick(Player* player, f32 dt) {
 
             if (input_table.key_states[KEY_D]) {
                 velocity += speed * camera_right;
-                player->move_direction = RIGHT;
+                player->move_direction = DIRECTION_RIGHT;
             }
             
             if (input_table.key_states[KEY_A]) {
                 velocity -= speed * camera_right;
-                player->move_direction = LEFT;
+                player->move_direction = DIRECTION_LEFT;
             }
     
             if (input_table.key_states[KEY_W]) {
                 velocity += speed * camera_forward;
-                player->move_direction = FORWARD;
+                player->move_direction = DIRECTION_FORWARD;
             }
     
             if (input_table.key_states[KEY_S]) {
                 velocity -= speed * camera_forward;
-                player->move_direction = BACK;
+                player->move_direction = DIRECTION_BACK;
             }
         }
         
         player->velocity  = velocity.truncate(speed);
         player->location += player->velocity;
 
-        if (player->velocity != vec3(0.0f)) {
-            player->flip_book = &flip_books.player_move[player->move_direction];
+        if (player->velocity == vec3_zero) {
+            // @Cleanup: wrap this!!!
+            render_registry.materials[player->material_idx].texture_idx = texture_index_list.player_idle[player->move_direction];
         } else {
-            player->flip_book = null;
-            player->texture_idx = texture_index_list.player_idle[player->move_direction];
-        }
-
-        if (player->flip_book) {
-            tick(player->flip_book, dt);
-            player->texture_idx = current_frame(player->flip_book);
+            player->flip_book = &flip_books.player_move[player->move_direction];
+            // @Cleanup: reset old flip book frame time if we've changed to new one.
+            if (player->flip_book) {
+                tick(player->flip_book, dt);
+                // @Cleanup: wrap this!!!
+                render_registry.materials[player->material_idx].texture_idx = current_frame(player->flip_book);
+            }
         }
         
         if (game_state.camera_behavior == STICK_TO_PLAYER) {

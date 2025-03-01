@@ -26,38 +26,3 @@ Camera* desired_camera(World* world) {
     assert(false); // never gonna happen
     return null;
 }
-
-/*
-Entity* new_entity(World* world) {
-    static s32 id = 0;
-    assert(world->entity_count < MAX_ENTITIES);
-    
-    Entity* e = world->entities + world->entity_count++;
-    e->id = id++;
-    return e;
-}
-
-Entity* find_entity(World* world, s32 id) {
-    assert(id != INVALID_ENTITY_ID);
-
-    // @Cleanup: linear search is bad for possibly large entity count.
-    for (s32 i = 0; i < world->entity_count; ++i)
-    {
-        if (world->entities[i].id == id)
-            return world->entities + i;
-    }
-
-    return null;
-}
-
-void delete_entity(World* world, s32 id) {
-    Entity* entity_to_delete = find_entity(world, id);
-    if (!entity_to_delete) return;
-    
-    Entity* last_entity = world->entities + --world->entity_count;
-    memcpy(entity_to_delete, last_entity, sizeof(Entity));
-    
-    // We've moved last entity to new delete position, invalidate its id.
-    last_entity->id = INVALID_ENTITY_ID;
-}
-*/

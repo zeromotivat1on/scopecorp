@@ -1,9 +1,10 @@
 #pragma once
 
 #include "camera.h"
-#include "entities.h"
+#include "slot_array.h"
+#include "game/entities.h"
 
-inline constexpr s32 MAX_ENTITIES = 1024;
+inline constexpr s32 MAX_STATIC_MESHES = 1024;
 
 struct World {
     f32 dt;
@@ -12,18 +13,11 @@ struct World {
     Camera camera;
     Camera ed_camera;
 
-    //Entity* entities;
-    //s32 entity_count;
+    Slot_Array<Static_Mesh> static_meshes;
 };
 
-inline struct World* world = null;
+inline World* world = null;
 
 World* create_world();
-void tick(World* world, f32 dt);
 Camera* desired_camera(World* world);
-
-/*
-Entity* new_entity(World* world);
-Entity* find_entity(World* world, s32 id);
-void delete_entity(World* world, s32 id);
-*/
+void tick(World* world, f32 dt);
