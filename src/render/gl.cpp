@@ -1,5 +1,5 @@
 #include "pch.h"
-#include "render/gl.h"
+#include "render/gfx.h"
 #include "render/glad.h"
 #include "render/draw.h"
 #include "render/text.h"
@@ -25,19 +25,34 @@
 // Implementation is defined in font.cpp
 #include "stb_truetype.h"
 
-void gl_enable()
-{
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+void set_gfx_features(u32 flags) {
+    if (flags & GFX_FLAG_BLEND) {
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    }
+    
+    if (flags & GFX_FLAG_CULL_BACK_FACE) {
+        glEnable(GL_CULL_FACE);
+        glCullFace(GL_BACK);        
+    }
 
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_BACK);  
-    glFrontFace(GL_CCW);
+    if (flags & GFX_FLAG_CULL_BACK_FACE) {
+        glFrontFace(GL_CCW);
+    }
+    
+    if (flags & GFX_FLAG_SCISSOR) {
+        glEnable(GL_SCISSOR_TEST);
+    }
+    
+    if (flags & GFX_FLAG_DEPTH) {
+        glEnable(GL_DEPTH_TEST);
+        glDepthFunc(GL_LESS);
+    }
+}
 
-    glEnable(GL_SCISSOR_TEST);
-
-    glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LESS);
+void clear_screen(vec4 color) {
+    glClearColor(color.x, color.y, color.z, color.w);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
 static s32 gl_draw_mode(Draw_Mode mode) {

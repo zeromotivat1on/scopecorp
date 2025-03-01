@@ -10,7 +10,7 @@ add_executable(${PROJECT_NAME}
 if (WIN32)
    target_link_libraries(${PROJECT_NAME} PRIVATE opengl32.lib)
    target_link_libraries(${PROJECT_NAME} PRIVATE ${RUN_TREE_DIR}/openal32.lib)
-   target_sources(${PROJECT_NAME} PRIVATE os/win32.cpp)
+   target_sources(${PROJECT_NAME} PRIVATE os/win32.cpp os/win32_gl.cpp)
 endif()
 
 set_target_properties(${PROJECT_NAME} PROPERTIES

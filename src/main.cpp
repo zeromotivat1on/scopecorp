@@ -11,7 +11,7 @@
 #include "os/time.h"
 #include "os/wgl.h"
 
-#include "render/gl.h"
+#include "render/gfx.h"
 #include "render/draw.h"
 #include "render/text.h"
 #include "render/render_registry.h"
@@ -55,10 +55,10 @@ int main() {
 
     register_event_callback(window, on_window_event);
 
-    wgl_init(window);
-    wgl_vsync(false);
-
-    gl_enable();
+    init_gfx(window);
+    set_gfx_features(GFX_FLAG_BLEND | GFX_FLAG_DEPTH | GFX_FLAG_SCISSOR |
+                     GFX_FLAG_CULL_BACK_FACE | GFX_FLAG_WINDING_CCW);
+    set_vsync(false);
 
     init_audio_context();
 
@@ -235,8 +235,7 @@ int main() {
 
         check_shader_hot_reload_queue(&shader_hot_reload_queue);
         
-        glClearColor(0.9f, 0.4f, 0.5f, 1.0f); // ugly bright pink
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        clear_screen(vec4(0.9f, 0.4f, 0.5f, 1.0f)); // ugly bright pink
         
         const Camera* current_camera = desired_camera(world);
         
@@ -345,7 +344,7 @@ int main() {
             draw_text_immediate_with_shadow(text_draw_cmd, text, text_size, pos, text_color, shadow_offset, vec3_zero);
         }
 
-        wgl_swap_buffers(window);
+        swap_buffers(window);
         free_all_frame();
         
         const s64 end_counter = performance_counter();
