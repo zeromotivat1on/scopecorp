@@ -53,9 +53,15 @@ static_assert(sizeof(f64) == 8);
 #define MAX_PATH_SIZE 256
 
 #if DEBUG
+
 inline const char* build_type_name = "DEBUG";
+#define debug_scope if (1)
+
 #elif RELEASE
+
 inline const char* build_type_name = "RELEASE";
+#define debug_scope if (0)
+
 #else
 #error "Unknown build type"
 #endif
