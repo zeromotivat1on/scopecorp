@@ -1,5 +1,7 @@
 #pragma once
 
+struct vec3;
+
 enum Sound_Flags : u32 {
     SOUND_FLAG_LOOP = 0x1,
 };
@@ -26,3 +28,5 @@ inline Sound_List sounds;
 void init_audio_context();
 void load_game_sounds(Sound_List* list);
 Sound create_sound(const char* path, u32 flags);
+
+void set_listener_pos(vec3 pos);

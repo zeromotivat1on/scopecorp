@@ -17,8 +17,6 @@
 #include "render/render_registry.h"
 #include "render/viewport.h"
 
-#include "audio/al.h"
-#include "audio/alc.h"
 #include "audio/sound.h"
 
 #include "game/world.h"
@@ -229,10 +227,7 @@ int main() {
     while (alive(window)) {
         poll_events(window);
         tick(world, dt);
-
-        // @Cleanup: temp listener position update here.
-        alListener3f(AL_POSITION, player.location.x, player.location.y, player.location.z);
-
+        set_listener_pos(player.location);
         check_shader_hot_reload_queue(&shader_hot_reload_queue);
         
         clear_screen(vec4(0.9f, 0.4f, 0.5f, 1.0f)); // ugly bright pink
