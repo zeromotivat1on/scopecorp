@@ -11,8 +11,8 @@
 #include <stdio.h>
 
 void draw_dev_stats(const Font_Atlas* atlas, const World* world) {
-    const Player* player = &world->player;
-    const Camera* camera = &world->camera;
+    const Player& player = world->player;
+    const Camera& camera = world->camera;
     
     static char text[256];
     const vec3 text_color = vec3(1.0f);
@@ -22,14 +22,14 @@ void draw_dev_stats(const Font_Atlas* atlas, const World* world) {
     vec2 pos;
 
     {   // Entity data.
-        text_size = (s32)sprintf_s(text, sizeof(text), "player location %s velocity %s", to_string(player->location), to_string(player->velocity));
+        text_size = (s32)sprintf_s(text, sizeof(text), "player\n\tlocation %s\n\tvelocity %s\n\taabb %s %s", to_string(player.location), to_string(player.velocity), to_string(player.aabb.min), to_string(player.aabb.max));
         pos.x = padding;
-        pos.y = (f32)viewport.height - atlas->font_size;
+        pos.y = (f32)viewport.height - atlas->line_height;
         draw_text_immediate_with_shadow(text_draw_cmd, text, text_size, pos, text_color, shadow_offset, vec3_zero);
         
-        text_size = (s32)sprintf_s(text, sizeof(text), "camera eye %s at %s", to_string(camera->eye), to_string(camera->at));
+        text_size = (s32)sprintf_s(text, sizeof(text), "camera\n\teye %s\n\tat %s", to_string(camera.eye), to_string(camera.at));
         pos.x = padding;
-        pos.y -= atlas->font_size;
+        pos.y -= atlas->line_height * 4;
         draw_text_immediate_with_shadow(text_draw_cmd, text, text_size, pos, text_color, shadow_offset, vec3_zero);
     }
         
@@ -37,7 +37,7 @@ void draw_dev_stats(const Font_Atlas* atlas, const World* world) {
         const f32 dt = world->dt;
         text_size = (s32)sprintf_s(text, sizeof(text), "%.2fms %.ffps %dx%d %s", dt * 1000.0f, 1 / dt, viewport.width, viewport.height, build_type_name);
         pos.x = viewport.width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
-        pos.y = viewport.height - (f32)atlas->font_size;
+        pos.y = viewport.height - atlas->line_height;
         draw_text_immediate_with_shadow(text_draw_cmd, text, text_size, pos, text_color, shadow_offset, vec3_zero);
     }
 
@@ -49,7 +49,7 @@ void draw_dev_stats(const Font_Atlas* atlas, const World* world) {
 
         text_size = (s32)sprintf_s(text, sizeof(text), "Shift/Control + Arrows - force move/rotate game camera");
         pos.x = viewport.width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
-        pos.y += atlas->font_size;
+        pos.y += atlas->line_height;
         draw_text_immediate_with_shadow(text_draw_cmd, text, text_size, pos, text_color, shadow_offset, vec3_zero);
     }
 
@@ -71,7 +71,7 @@ void draw_dev_stats(const Font_Atlas* atlas, const World* world) {
 
         text_size = (s32)sprintf_s(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Frame)", (f32)frame_used / 1024 / 1024, (f32)frame_size / 1024 / 1024, frame_part);
         pos.x = padding;
-        pos.y += atlas->font_size;
+        pos.y += atlas->line_height;
         draw_text_immediate_with_shadow(text_draw_cmd, text, text_size, pos, text_color, shadow_offset, vec3_zero);
             
         u64 temp_size;
@@ -81,7 +81,7 @@ void draw_dev_stats(const Font_Atlas* atlas, const World* world) {
             
         text_size = (s32)sprintf_s(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Temp)", (f32)temp_used / 1024 / 1024, (f32)temp_size / 1024 / 1024, temp_part);
         pos.x = padding;
-        pos.y += atlas->font_size;
+        pos.y += atlas->line_height;
         draw_text_immediate_with_shadow(text_draw_cmd, text, text_size, pos, text_color, shadow_offset, vec3_zero);
     }
     

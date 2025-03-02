@@ -557,6 +557,10 @@ void rescale_font_atlas(Font_Atlas* atlas, s16 font_size) {
     const f32 scale = stbtt_ScaleForPixelHeight(font->info, (f32)font_size);
     atlas->px_h_scale = scale;
     atlas->line_height = (s32)((font->ascent - font->descent + font->line_gap) * scale);
+
+    const s32 space_glyph_index = stbtt_FindGlyphIndex(font->info, ' ');
+    stbtt_GetGlyphHMetrics(font->info, space_glyph_index, &atlas->space_advance_width, 0);
+    atlas->space_advance_width = (s32)(atlas->space_advance_width * scale);
     
     s32 max_layers;
     glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &max_layers);
@@ -572,7 +576,7 @@ void rescale_font_atlas(Font_Atlas* atlas, s16 font_size) {
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    
+
     u8* bitmap = alloc_buffer_temp(font_size * font_size);    
     for (u32 i = 0; i < charcode_count; ++i) {
         const u32 c = i + atlas->start_charcode;

@@ -54,24 +54,29 @@ void draw_text_immediate(Text_Draw_Command* cmd, const char* text, u32 text_size
     
     for (u32 i = 0; i < text_size; ++i) {
         const char c = text[i];
-        
+                
+        if (c == ' ') {
+            x += atlas->space_advance_width;
+            continue;
+        }
+
+        if (c == '\t') {
+            x += 4 * atlas->space_advance_width;
+            continue;
+        }
+
         if (c == '\n') {
             x = pos.x;
             y -= atlas->line_height;
             continue;
         }
-        
+
         assert((u32)c >= atlas->start_charcode);
         assert((u32)c <= atlas->end_charcode);
 
         const u32 ci = c - atlas->start_charcode; // correctly shifted index
         const Font_Glyph_Metric* metric = atlas->metrics + ci;
-        
-        if (c == ' ') {
-            x += metric->advance_width;
-            continue;
-        }
-        
+ 
         const f32 gw = (f32)atlas->font_size;
         const f32 gh = (f32)atlas->font_size;
         const f32 gx = x + metric->offset_x;

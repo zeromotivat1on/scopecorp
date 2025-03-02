@@ -35,6 +35,16 @@ Font* create_font(const char* path) {
 s32 line_width_px(const Font_Atlas* atlas, const char* text, s32 text_size) {
     s32 width = 0;
     for (s32 i = 0; i < text_size; ++i) {
+        if (text[i] == ' ') {
+            width += atlas->space_advance_width;
+            continue;
+        }
+
+        if (text[i] == '\t') {
+            width += 4 * atlas->space_advance_width;
+            continue;
+        }
+        
         const u32 ci = text[i] - atlas->start_charcode;
         const Font_Glyph_Metric* metric = atlas->metrics + ci;
         width += metric->advance_width;

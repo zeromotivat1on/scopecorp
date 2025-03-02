@@ -72,7 +72,7 @@ int main() {
     start_hot_reload_thread(&hot_reload_list);
 
     Font* font = create_font(DIR_FONTS "consola.ttf");
-    Font_Atlas* atlas = bake_font_atlas(font, 32, 128, 16);
+    Font_Atlas* atlas = bake_font_atlas(font, 33, 126, 16);
     text_draw_cmd = create_default_text_draw_command(atlas);
     
     init_draw_queue(&draw_queue);
@@ -127,6 +127,9 @@ int main() {
     Static_Mesh& cube = world->static_meshes[world->static_meshes.add_default()];
     {   // Create cube.
         cube.location = vec3(3.0f, 0.5f, 4.0f);
+        cube.aabb.min = cube.location - cube.scale * 0.5f;
+        cube.aabb.min = cube.aabb.min + cube.scale;
+        
         cube.material_idx = material_index_list.cube;
 
         Vertex_PU vertices[] = {
@@ -227,6 +230,11 @@ int main() {
     while (alive(window)) {
         poll_events(window);
         tick(world, dt);
+
+        if (aabb_intersect(player.aabb, cube.aabb)) {
+            log("Player and cube collision!!!");
+        }
+        
         set_listener_pos(player.location);
         check_shader_hot_reload_queue(&shader_hot_reload_queue);
         

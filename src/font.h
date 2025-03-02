@@ -23,6 +23,7 @@ struct Font_Atlas {
     u32 end_charcode;
     f32 px_h_scale;
     s32 line_height;
+    s32 space_advance_width;
     s16 font_size; // size of glyph square bitmap
 };
 

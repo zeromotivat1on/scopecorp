@@ -3,6 +3,8 @@
 #include "math/vector.h"
 #include "math/quat.h"
 
+#include "collision.h"
+
 inline constexpr s32 INVALID_ENTITY_ID = -1;
 
 enum Entity_Type {
@@ -41,6 +43,8 @@ struct Player : Entity {
     Direction move_direction = DIRECTION_BACK;
     
     Flip_Book* flip_book = null;
+
+    AABB aabb;
     
     s32 vertex_buffer_idx = INVALID_INDEX;
     s32 index_buffer_idx  = INVALID_INDEX;
@@ -50,6 +54,8 @@ struct Player : Entity {
 struct Static_Mesh : Entity {
     Static_Mesh() { type = E_STATIC_MESH; }
 
+    AABB aabb;
+    
     s32 vertex_buffer_idx = INVALID_INDEX;
     s32 index_buffer_idx  = INVALID_INDEX;
     s32 material_idx      = INVALID_INDEX;
