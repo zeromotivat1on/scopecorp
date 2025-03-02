@@ -22,3 +22,8 @@ struct Scope_Timer {
 	s64 start;
 };
 #endif
+
+struct Font_Atlas;
+struct World;
+
+void draw_dev_stats(const Font_Atlas* atlas, const World* world);

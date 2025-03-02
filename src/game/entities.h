@@ -8,6 +8,7 @@ inline constexpr s32 INVALID_ENTITY_ID = -1;
 enum Entity_Type {
     E_UNKNOWN,
     E_PLAYER,
+    E_SKYBOX,
     E_STATIC_MESH
 };
 
@@ -18,6 +19,8 @@ struct Entity {
     vec3 location;
     quat rotation;
     vec3 scale = vec3(1.0f);
+
+    mat4 mvp;
 };
 
 struct Flip_Book;
@@ -47,6 +50,17 @@ struct Player : Entity {
 struct Static_Mesh : Entity {
     Static_Mesh() { type = E_STATIC_MESH; }
 
+    s32 vertex_buffer_idx = INVALID_INDEX;
+    s32 index_buffer_idx  = INVALID_INDEX;
+    s32 material_idx      = INVALID_INDEX;
+};
+
+struct Skybox : Entity {
+    Skybox() { type = E_SKYBOX; }
+
+    vec2 uv_scale = vec2(8.0f, 4.0f);
+    vec3 uv_offset;
+    
     s32 vertex_buffer_idx = INVALID_INDEX;
     s32 index_buffer_idx  = INVALID_INDEX;
     s32 material_idx      = INVALID_INDEX;

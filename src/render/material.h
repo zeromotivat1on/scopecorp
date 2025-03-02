@@ -1,5 +1,7 @@
 #pragma once
 
+#include "render/uniform.h"
+
 inline constexpr s32 MAX_MATERIAL_UNIFORMS = 8;
 
 struct Uniform;

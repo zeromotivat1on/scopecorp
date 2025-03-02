@@ -21,11 +21,13 @@ struct Slot_Array {
           free_indices(alloc_array_persistent(capacity, s32)) {}
     
     T& operator[](s32 idx) {
+        assert(idx >= 0);
         assert(idx < count + free_index_count); // take into account free slots
         return items[idx];
     }
 
     const T& operator[](s32 idx) const {
+        assert(idx >= 0);
         assert(idx < count + free_index_count); // take into account free slots
         return items[idx];
     }
@@ -48,6 +50,7 @@ struct Slot_Array {
     }
 
     s32 remove(s32 idx) {
+        assert(idx >= 0);
         assert(idx < count + free_index_count);
         
         free_indices[free_index_count] = idx;

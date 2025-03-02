@@ -1,9 +1,12 @@
 #include "pch.h"
 #include "text.h"
 #include "font.h"
+
 #include "os/file.h"
+
 #include "math/vector.h"
 #include "math/matrix.h"
+
 #include "render/draw.h"
 #include "render/render_registry.h"
 #include "render/viewport.h"

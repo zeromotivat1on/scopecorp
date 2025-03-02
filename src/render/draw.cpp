@@ -1,5 +1,7 @@
 #include "pch.h"
 #include "render/draw.h"
+
+#include "game/world.h"
 #include "game/entities.h"
 
 #include "log.h"
@@ -21,6 +23,15 @@ void flush_draw_commands(Draw_Queue* queue) {
     queue->count = 0;
 }
 
+void enqueue_draw_world(Draw_Queue* queue, const World* world) {
+    enqueue_draw_entity(&draw_queue, &world->skybox);
+    
+    for (s32 i = 0; i < world->static_meshes.count; ++i)
+        enqueue_draw_entity(queue, world->static_meshes.items + i);
+
+    enqueue_draw_entity(&draw_queue, &world->player);
+}
+
 static Draw_Command draw_command_for(const Entity* e) {
     switch(e->type) {
     case E_STATIC_MESH: {
@@ -37,6 +48,15 @@ static Draw_Command draw_command_for(const Entity* e) {
         cmd.vertex_buffer_idx = player->vertex_buffer_idx;
         cmd.index_buffer_idx  = player->index_buffer_idx;
         cmd.material_idx      = player->material_idx;
+        return cmd;
+    }
+    case E_SKYBOX: {
+        const auto* skybox = (Skybox*)e;
+        Draw_Command cmd;
+        cmd.flags |= DRAW_FLAG_IGNORE_DEPTH;
+        cmd.vertex_buffer_idx = skybox->vertex_buffer_idx;
+        cmd.index_buffer_idx  = skybox->index_buffer_idx;
+        cmd.material_idx      = skybox->material_idx;
         return cmd;
     }
     default:

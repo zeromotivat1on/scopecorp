@@ -1,5 +1,5 @@
 add_executable(${PROJECT_NAME}
-                camera.cpp flip_book.cpp font.cpp main.cpp pch.cpp log.cpp memory_storage.cpp
+                camera.cpp flip_book.cpp font.cpp log.cpp main.cpp memory_storage.cpp pch.cpp profile.cpp
                 # work_queue.cpp work_queue.h
                 os/file.cpp
                 math/matrix.cpp math/math.cpp math/quat.cpp math/vector.cpp

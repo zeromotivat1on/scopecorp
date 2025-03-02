@@ -7,6 +7,7 @@
 inline constexpr s32 MAX_DRAW_QUEUE_SIZE = 64;
 
 struct Entity;
+struct World;
 
 enum Draw_Mode {
     DRAW_TRIANGLES,
@@ -39,6 +40,7 @@ void init_draw_queue(Draw_Queue* queue);
 void enqueue_draw_command(Draw_Queue* queue, const Draw_Command* cmd);
 void flush_draw_commands(Draw_Queue* queue);
 
-void draw(const Draw_Command* cmd);
-
+void enqueue_draw_world(Draw_Queue* queue, const World* world);
 void enqueue_draw_entity(Draw_Queue* queue, const Entity* e);
+
+void draw(const Draw_Command* cmd);

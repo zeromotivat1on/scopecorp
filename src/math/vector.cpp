@@ -556,7 +556,7 @@ const char* to_string(const vec3& v) {
     buffer_idx = (buffer_idx + 1) % 4;
 
     char* buffer = buffers[buffer_idx];
-    sprintf_s(buffer, 32, "(%.2f, %.2f %.2f)", v.x, v.y, v.z);
+    sprintf_s(buffer, 32, "(%.3f, %.3f %.3f)", v.x, v.y, v.z);
     return buffer;
 }
 

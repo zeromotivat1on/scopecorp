@@ -3,105 +3,23 @@
 #include "font.h"
 #include "flip_book.h"
 #include "memory_storage.h"
+#include "profile.h"
 
-#include "os/file.h"
 #include "os/thread.h"
 #include "os/input.h"
 #include "os/window.h"
 #include "os/time.h"
-#include "os/wgl.h"
 
 #include "render/gfx.h"
 #include "render/draw.h"
 #include "render/text.h"
 #include "render/render_registry.h"
-#include "render/viewport.h"
 
 #include "audio/sound.h"
 
 #include "game/world.h"
 #include "game/game.h"
 #include "editor/hot_reload.h"
-
-#include <stdio.h>
-#include <string.h>
-
-static void draw_dev_stats(const Font_Atlas* atlas) {
-    const Player* player = &world->player;
-    const Camera* camera = &world->camera;
-    
-    static char text[256];
-    const vec3 text_color = vec3(1.0f);
-    const f32 padding = atlas->font_size * 0.5f;
-    const vec2 shadow_offset = vec2(atlas->font_size * 0.1f, -atlas->font_size * 0.1f);
-    s32 text_size = 0;
-    vec2 pos;
-
-    {   // Entity data.
-        text_size = (s32)sprintf_s(text, sizeof(text), "player location %s velocity %s", to_string(player->location), to_string(player->velocity));
-        pos.x = padding;
-        pos.y = (f32)viewport.height - atlas->font_size;
-        draw_text_immediate_with_shadow(text_draw_cmd, text, text_size, pos, text_color, shadow_offset, vec3_zero);
-            
-        text_size = (s32)sprintf_s(text, sizeof(text), "camera eye %s at %s", to_string(camera->eye), to_string(camera->at));
-        pos.x = padding;
-        pos.y -= atlas->font_size;
-        draw_text_immediate_with_shadow(text_draw_cmd, text, text_size, pos, text_color, shadow_offset, vec3_zero);
-    }
-        
-    {   // Runtime stats.
-        const f32 dt = world->dt;
-        text_size = (s32)sprintf_s(text, sizeof(text), "%.2fms %.ffps %dx%d %s", dt * 1000.0f, 1 / dt, window->width, window->height, build_type_name);
-        pos.x = viewport.width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
-        pos.y = viewport.height - (f32)atlas->font_size;
-        draw_text_immediate_with_shadow(text_draw_cmd, text, text_size, pos, text_color, shadow_offset, vec3_zero);
-    }
-
-    {   // Controls.
-        text_size = (s32)sprintf_s(text, sizeof(text), "F1 %s F2 %s F3 %s", to_string(game_state.mode), to_string(game_state.camera_behavior), to_string(game_state.player_movement_behavior));
-        pos.x = viewport.width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
-        pos.y = padding;
-        draw_text_immediate_with_shadow(text_draw_cmd, text, text_size, pos, text_color, shadow_offset, vec3_zero);
-
-        text_size = (s32)sprintf_s(text, sizeof(text), "Shift/Control + Arrows - force move/rotate game camera");
-        pos.x = viewport.width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
-        pos.y += atlas->font_size;
-        draw_text_immediate_with_shadow(text_draw_cmd, text, text_size, pos, text_color, shadow_offset, vec3_zero);
-    }
-
-    {   // Memory stats.
-        u64 persistent_size;
-        u64 persistent_used;
-        usage_persistent(&persistent_size, &persistent_used);
-        f32 persistent_part = (f32)persistent_used / persistent_size * 100.0f;
-
-        text_size = (s32)sprintf_s(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Persistent)", (f32)persistent_used / 1024 / 1024, (f32)persistent_size / 1024 / 1024, persistent_part);
-        pos.x = padding;
-        pos.y = padding;
-        draw_text_immediate_with_shadow(text_draw_cmd, text, text_size, pos, text_color, shadow_offset, vec3_zero);
-            
-        u64 frame_size;
-        u64 frame_used;
-        usage_frame(&frame_size, &frame_used);
-        f32 frame_part = (f32)frame_used / frame_size * 100.0f;
-
-        text_size = (s32)sprintf_s(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Frame)", (f32)frame_used / 1024 / 1024, (f32)frame_size / 1024 / 1024, frame_part);
-        pos.x = padding;
-        pos.y += atlas->font_size;
-        draw_text_immediate_with_shadow(text_draw_cmd, text, text_size, pos, text_color, shadow_offset, vec3_zero);
-            
-        u64 temp_size;
-        u64 temp_used;
-        usage_temp(&temp_size, &temp_used);
-        f32 temp_part = (f32)temp_used / temp_size * 100.0f;
-            
-        text_size = (s32)sprintf_s(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Temp)", (f32)temp_used / 1024 / 1024, (f32)temp_size / 1024 / 1024, temp_part);
-        pos.x = padding;
-        pos.y += atlas->font_size;
-        draw_text_immediate_with_shadow(text_draw_cmd, text, text_size, pos, text_color, shadow_offset, vec3_zero);
-    }
-    
-}
 
 static void on_window_event(Window* window, Window_Event* event) {    
     handle_event(window, event);
@@ -159,7 +77,8 @@ int main() {
     
     init_draw_queue(&draw_queue);
     
-    world = create_world();
+    world = alloc_struct_persistent(World);
+    init_world(world);
 
     const auto& player_idle_texture = render_registry.textures[texture_index_list.player_idle[DIRECTION_BACK]];
     const f32 player_scale_aspect = (f32)player_idle_texture.width / player_idle_texture.height;
@@ -184,10 +103,14 @@ int main() {
         player.index_buffer_idx = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
     }
     
-    Static_Mesh ground;
+    Static_Mesh& ground = world->static_meshes[world->static_meshes.add_default()];
     {   // Create ground.
+        ground.scale = vec3(16.0f);
+        ground.rotation = quat_from_axis_angle(vec3_right, 90.0f);
         ground.material_idx = material_index_list.ground;
-
+        
+        set_material_uniform_value(ground.material_idx, "u_scale", &ground.scale);
+        
         Vertex_PU vertices[] = {
             { vec3( 0.5f,  0.5f, 0.0f), vec2(1.0f, 1.0f) },
             { vec3( 0.5f, -0.5f, 0.0f), vec2(1.0f, 0.0f) },
@@ -201,8 +124,9 @@ int main() {
         ground.index_buffer_idx = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
     }
     
-    Static_Mesh cube;
+    Static_Mesh& cube = world->static_meshes[world->static_meshes.add_default()];
     {   // Create cube.
+        cube.location = vec3(3.0f, 0.5f, 4.0f);
         cube.material_idx = material_index_list.cube;
 
         Vertex_PU vertices[] = {
@@ -262,10 +186,9 @@ int main() {
         cube.index_buffer_idx = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
     }
 
-    Draw_Command skybox_draw_cmd;
+    Skybox& skybox = world->skybox;
     {   // Create skybox.
-        skybox_draw_cmd.flags |= DRAW_FLAG_IGNORE_DEPTH;
-        skybox_draw_cmd.material_idx = material_index_list.skybox;
+        skybox.material_idx = material_index_list.skybox;
 
         Vertex_PU vertices[] = {
             { vec3( 1.0f,  1.0f, 0.0f), vec2(1.0f, 1.0f) },
@@ -274,10 +197,10 @@ int main() {
             { vec3(-1.0f,  1.0f, 0.0f), vec2(0.0f, 1.0f) },
         };
         Vertex_Attrib_Type attribs[] = { VERTEX_ATTRIB_F32_V3, VERTEX_ATTRIB_F32_V2 };
-        skybox_draw_cmd.vertex_buffer_idx = create_vertex_buffer(attribs, c_array_count(attribs), (f32*)vertices, 5 * c_array_count(vertices), BUFFER_USAGE_STATIC);
+        skybox.vertex_buffer_idx = create_vertex_buffer(attribs, c_array_count(attribs), (f32*)vertices, 5 * c_array_count(vertices), BUFFER_USAGE_STATIC);
         
         u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
-        skybox_draw_cmd.index_buffer_idx = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
+        skybox.index_buffer_idx = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
     }
 
     Camera& camera = world->camera;
@@ -308,46 +231,13 @@ int main() {
         check_shader_hot_reload_queue(&shader_hot_reload_queue);
         
         clear_screen(vec4(0.9f, 0.4f, 0.5f, 1.0f)); // ugly bright pink
-        
-        const Camera* current_camera = desired_camera(world);
-        
-        // Draw skybox.
-        const vec2 scale = vec2(8.0f, 4.0f);
-        set_material_uniform_value(skybox_draw_cmd.material_idx, "u_scale", &scale);
-        set_material_uniform_value(skybox_draw_cmd.material_idx, "u_offset", &camera.eye);
-        enqueue_draw_command(&draw_queue, &skybox_draw_cmd);
-
-        // Draw ground.
-        const vec3 ground_scale = vec3(16);
-        const mat4 ground_m = mat4_transform(vec3(0.0f), quat_from_axis_angle(vec3_right, 90), ground_scale);
-        const mat4 ground_v = camera_view(current_camera);
-        const mat4 ground_p = camera_projection(current_camera);
-        const mat4 ground_mvp = ground_m * ground_v * ground_p;
-        set_material_uniform_value(ground.material_idx, "u_mvp", ground_mvp.ptr());
-        set_material_uniform_value(ground.material_idx, "u_scale", &ground_scale);
-        enqueue_draw_entity(&draw_queue, &ground);
-
-        // Draw cube.
-        const mat4 cube_m = mat4_transform(vec3(3.0f, 0.5f, 4.0f), quat(), vec3(1.0f));
-        const mat4 cube_v = camera_view(current_camera);
-        const mat4 cube_p = camera_projection(current_camera);
-        const mat4 cube_mvp = cube_m * cube_v * cube_p;
-        set_material_uniform_value(cube.material_idx, "u_mvp", cube_mvp.ptr());
-        enqueue_draw_entity(&draw_queue, &cube);
-        
-        // Draw player.        
-        const mat4 player_m = mat4_transform(player.location, player.rotation, player.scale);
-        const mat4 player_v = camera_view(current_camera);
-        const mat4 player_p = camera_projection(current_camera);
-        const mat4 player_mvp = player_m * player_v * player_p;
-        set_material_uniform_value(player.material_idx, "u_mvp", player_mvp.ptr());
-        enqueue_draw_entity(&draw_queue, &player);
+        enqueue_draw_world(&draw_queue, world);
         
         // @Cleanup: flush before text draw as its overwritten by skybox, fix.
         flush_draw_commands(&draw_queue);
 
         debug_scope {
-            draw_dev_stats(atlas);
+            draw_dev_stats(atlas, world);
         }
         
         swap_buffers(window);
