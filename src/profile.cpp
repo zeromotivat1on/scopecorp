@@ -37,7 +37,7 @@ void draw_dev_stats(const Font_Atlas* atlas, const World* world) {
         const f32 dt = world->dt;
         text_size = (s32)sprintf_s(text, sizeof(text), "%.2fms %.ffps %dx%d %s", dt * 1000.0f, 1 / dt, viewport.width, viewport.height, build_type_name);
         pos.x = viewport.width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
-        pos.y = viewport.height - atlas->line_height;
+        pos.y = (f32)viewport.height - atlas->line_height;
         draw_text_immediate_with_shadow(text_draw_cmd, text, text_size, pos, text_color, shadow_offset, vec3_zero);
     }
 

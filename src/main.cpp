@@ -13,6 +13,7 @@
 #include "render/gfx.h"
 #include "render/draw.h"
 #include "render/text.h"
+#include "render/viewport.h"
 #include "render/render_registry.h"
 
 #include "audio/sound.h"
@@ -20,6 +21,8 @@
 #include "game/world.h"
 #include "game/game.h"
 #include "editor/hot_reload.h"
+
+#include <stdio.h>
 
 static void on_window_event(Window* window, Window_Event* event) {    
     handle_event(window, event);
@@ -128,7 +131,7 @@ int main() {
     {   // Create cube.
         cube.location = vec3(3.0f, 0.5f, 4.0f);
         cube.aabb.min = cube.location - cube.scale * 0.5f;
-        cube.aabb.min = cube.aabb.min + cube.scale;
+        cube.aabb.max = cube.aabb.min + cube.scale;
         
         cube.material_idx = material_index_list.cube;
 
@@ -230,10 +233,6 @@ int main() {
     while (alive(window)) {
         poll_events(window);
         tick(world, dt);
-
-        if (aabb_intersect(player.aabb, cube.aabb)) {
-            log("Player and cube collision!!!");
-        }
         
         set_listener_pos(player.location);
         check_shader_hot_reload_queue(&shader_hot_reload_queue);
@@ -246,6 +245,13 @@ int main() {
 
         debug_scope {
             draw_dev_stats(atlas, world);
+
+            const bool has_collision = aabb_intersect(player.aabb, cube.aabb);
+            
+            char text[256];
+            s32 size = sprintf_s(text, sizeof(text), "cube\n\tlocation %s\n\taabb %s %s\ncollision with player %s", to_string(cube.location), to_string(cube.aabb.min), to_string(cube.aabb.max), has_collision ? "TRUE" : "FALSE");
+            vec2 pos = vec2(10.0f, viewport.height * 0.5f);
+            draw_text_immediate(text_draw_cmd, text, size, pos, vec3(1.0f));
         }
         
         swap_buffers(window);
