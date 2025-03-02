@@ -1,6 +1,6 @@
 #include "pch.h"
 #include "log.h"
-#include "os/window.h"
+
 #include "render/gfx.h"
 #include "render/glad.h"
 
@@ -8,6 +8,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include "os/wglext.h"
+#include "os/window.h"
 
 // Also defined in win32.cpp
 struct Win32_Window {

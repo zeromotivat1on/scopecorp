@@ -7,7 +7,6 @@
 #include "os/thread.h"
 #include "os/time.h"
 #include "os/window.h"
-#include "os/wgl.h"
 
 #include "log.h"
 #include "memory_storage.h"
@@ -16,12 +15,8 @@
 #define VC_EXTRALEAN
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
-#include <winbase.h>
 #include <windowsx.h>
 #include <intrin.h>
-
-#include "render/glad.h"
-//#include "os/wglext.h"
 
 // Also defined in win32_gl.cpp
 struct Win32_Window {
