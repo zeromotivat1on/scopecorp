@@ -1,6 +1,6 @@
 #include "pch.h"
 #include "math/vector.h"
-#include "math/math.h"
+#include "math/math_core.h"
 #include <stdio.h>
 
 // Vector2

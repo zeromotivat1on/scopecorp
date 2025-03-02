@@ -8,7 +8,7 @@
 #include "game/game.h"
 #include "game/world.h"
 
-#include "math/math.h"
+#include "math/math_core.h"
 
 #include "audio/al.h"
 #include "audio/sound.h"
