@@ -38,16 +38,16 @@ static Draw_Command draw_command_for(const Entity *e) {
 		const auto *mesh = (Static_Mesh *)e;
 		Draw_Command command;
 		command.vertex_buffer_index = mesh->vertex_buffer_index;
-		command.index_buffer_index =	mesh->index_buffer_index;
-		command.material_index =		mesh->material_index;
+		command.index_buffer_index  = mesh->index_buffer_index;
+		command.material_index      = mesh->material_index;
 		return command;
 	}
 	case E_PLAYER: {
 		const auto *player = (Player *)e;
 		Draw_Command command;
 		command.vertex_buffer_index = player->vertex_buffer_index;
-		command.index_buffer_index =	player->index_buffer_index;
-		command.material_index =		player->material_index;
+		command.index_buffer_index  = player->index_buffer_index;
+		command.material_index      = player->material_index;
 		return command;
 	}
 	case E_SKYBOX: {
@@ -55,13 +55,13 @@ static Draw_Command draw_command_for(const Entity *e) {
 		Draw_Command command;
 		command.flags |= DRAW_FLAG_IGNORE_DEPTH;
 		command.vertex_buffer_index = skybox->vertex_buffer_index;
-		command.index_buffer_index =	skybox->index_buffer_index;
-		command.material_index =		skybox->material_index;
+		command.index_buffer_index  = skybox->index_buffer_index;
+		command.material_index      = skybox->material_index;
 		return command;
 	}
 	default:
 		error("Failed to create draw command for entity of unknown type %d", e->type);
-		return {};
+		return {0};
 	}
 }
 
