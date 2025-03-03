@@ -177,17 +177,17 @@ int main() {
 
 		u32 indices[] = {
 			// Front face
-			 0,  1,  2,  1,  3,  2,
-			 // Back face
-			  4,  6,  5,  5,  6,  7,
-			  // Left face
-			   8,  9, 10,  9, 11, 10,
-			   // Right face
-			   12, 14, 13, 13, 14, 15,
-			   // Bottom face
-			   16, 17, 18, 17, 19, 18,
-			   // Top face
-			   20, 22, 21, 21, 22, 23
+			0,  1,  2,  1,  3,  2,
+			// Back face
+			4,  6,  5,  5,  6,  7,
+			// Left face
+			8,  9, 10,  9, 11, 10,
+			// Right face
+			12, 14, 13, 13, 14, 15,
+			// Bottom face
+			16, 17, 18, 17, 19, 18,
+			// Top face
+			20, 22, 21, 21, 22, 23
 		};
 		cube.index_buffer_index = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
 	}
