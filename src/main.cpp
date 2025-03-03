@@ -246,10 +246,10 @@ int main() {
         debug_scope {
             draw_dev_stats(atlas, world);
 
-            const bool has_collision = aabb_intersect(player.aabb, cube.aabb);
+            const bool has_overlap = aabb_overlap(player.aabb, cube.aabb);
             
             char text[256];
-            s32 size = sprintf_s(text, sizeof(text), "cube\n\tlocation %s\n\taabb %s %s\ncollision with player %s", to_string(cube.location), to_string(cube.aabb.min), to_string(cube.aabb.max), has_collision ? "TRUE" : "FALSE");
+            s32 size = sprintf_s(text, sizeof(text), "cube\n\tlocation %s\n\taabb %s %s\noverlap with player %s", to_string(cube.location), to_string(cube.aabb.min), to_string(cube.aabb.max), has_overlap ? "TRUE" : "FALSE");
             vec2 pos = vec2(10.0f, viewport.height * 0.5f);
             draw_text_immediate(text_draw_cmd, text, size, pos, vec3(1.0f));
         }

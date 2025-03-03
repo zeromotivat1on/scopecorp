@@ -8,4 +8,4 @@ struct AABB {
     vec3 max;
 };
 
-bool aabb_intersect(const AABB& a, const AABB& b);
+bool aabb_overlap(const AABB& a, const AABB& b);
