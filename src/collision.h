@@ -4,8 +4,8 @@
 #include "math/quat.h"
 
 struct AABB {
-    vec3 min;
-    vec3 max;
+	vec3 min;
+	vec3 max;
 };
 
-bool aabb_overlap(const AABB& a, const AABB& b);
+bool aabb_overlap(const AABB &a, const AABB &b);

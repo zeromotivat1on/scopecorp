@@ -26,4 +26,4 @@ struct Render_Registry {
 
 inline Render_Registry render_registry;
 
-void init_render_registry(Render_Registry* registry);
+void init_render_registry(Render_Registry *registry);

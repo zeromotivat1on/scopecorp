@@ -15,4 +15,4 @@ struct Viewport {
 
 inline Viewport viewport;
 
-void resize_viewport(Viewport* viewport, s16 width, s16 height);
+void resize_viewport(Viewport *viewport, s16 width, s16 height);

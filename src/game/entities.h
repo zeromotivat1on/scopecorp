@@ -42,13 +42,13 @@ struct Player : Entity {
     vec3 velocity            = vec3_zero;
     Direction move_direction = DIRECTION_BACK;
     
-    Flip_Book* flip_book = null;
+    Flip_Book *flip_book = null;
 
     AABB aabb;
     
-    s32 vertex_buffer_idx = INVALID_INDEX;
-    s32 index_buffer_idx  = INVALID_INDEX;
-    s32 material_idx      = INVALID_INDEX;
+    s32 vertex_buffer_index = INVALID_INDEX;
+    s32 index_buffer_index  = INVALID_INDEX;
+    s32 material_index      = INVALID_INDEX;
 };
 
 struct Static_Mesh : Entity {
@@ -56,9 +56,9 @@ struct Static_Mesh : Entity {
 
     AABB aabb;
     
-    s32 vertex_buffer_idx = INVALID_INDEX;
-    s32 index_buffer_idx  = INVALID_INDEX;
-    s32 material_idx      = INVALID_INDEX;
+    s32 vertex_buffer_index = INVALID_INDEX;
+    s32 index_buffer_index  = INVALID_INDEX;
+    s32 material_index      = INVALID_INDEX;
 };
 
 struct Skybox : Entity {
@@ -67,7 +67,7 @@ struct Skybox : Entity {
     vec2 uv_scale = vec2(8.0f, 4.0f);
     vec3 uv_offset;
     
-    s32 vertex_buffer_idx = INVALID_INDEX;
-    s32 index_buffer_idx  = INVALID_INDEX;
-    s32 material_idx      = INVALID_INDEX;
+    s32 vertex_buffer_index = INVALID_INDEX;
+    s32 index_buffer_index  = INVALID_INDEX;
+    s32 material_index      = INVALID_INDEX;
 };

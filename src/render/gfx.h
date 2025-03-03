@@ -11,9 +11,9 @@ enum Gfx_Feature_Flags : u32 {
     GFX_FLAG_SCISSOR        = 0x10,
 };
 
-void init_gfx(Window* window);
+void init_gfx(Window *window);
 void set_vsync(bool enable);
-void swap_buffers(Window* window);
+void swap_buffers(Window *window);
 
 void set_gfx_features(u32 flags);
 void clear_screen(vec4 color);

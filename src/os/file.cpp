@@ -3,44 +3,44 @@
 #include "log.h"
 #include "memory_storage.h"
 
-bool read_file(const char* path, void* buffer, u64 size, u64* bytes_read)
+bool read_file(const char *path, void *buffer, u64 size, u64 *bytes_read)
 {
-    File file = open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_READ);
-    if (file == INVALID_FILE) {
-        error("Failed to open file %s", path);
-        return false;
-    }
+	File file = open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_READ);
+	if (file == INVALID_FILE) {
+		error("Failed to open file %s", path);
+		return false;
+	}
 
-    defer { close_file(file); };
+	defer { close_file(file); };
 
-    if (bytes_read) *bytes_read = 0;
-    if (!read_file(file, buffer, size, bytes_read)) {
-        error("Failed to read file %s", path);
-        return false;
-    }
+	if (bytes_read) *bytes_read = 0;
+	if (!read_file(file, buffer, size, bytes_read)) {
+		error("Failed to read file %s", path);
+		return false;
+	}
 
-    return true;
+	return true;
 }
 
-void* read_entire_file_temp(const char* path, u64* bytes_read)
+void *read_entire_file_temp(const char *path, u64 *bytes_read)
 {
-    File file = open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_READ);
-    if (file == INVALID_FILE) {
-        error("Failed to open file %s", path);
-        return false;
-    }
+	File file = open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_READ);
+	if (file == INVALID_FILE) {
+		error("Failed to open file %s", path);
+		return false;
+	}
 
-    defer { close_file(file); };
-    
-    const s64 size = file_size(file);
-    void* buffer = alloc_temp(size);
+	defer { close_file(file); };
 
-    if (bytes_read) *bytes_read = 0;
-    if (!read_file(file, buffer, size, bytes_read)) {
-        error("Failed to read entire file %s", path);
-        free_temp(size);
-        return null;
-    }
+	const s64 size = file_size(file);
+	void *buffer = alloc_temp(size);
 
-    return buffer;
+	if (bytes_read) *bytes_read = 0;
+	if (!read_file(file, buffer, size, bytes_read)) {
+		error("Failed to read entire file %s", path);
+		free_temp(size);
+		return null;
+	}
+
+	return buffer;
 }

@@ -13,18 +13,18 @@ struct Viewport;
 struct Font_Atlas;
 
 struct Text_Draw_Command : Draw_Command {
-    mat4 projection;
-    mat4 transforms[TEXT_RENDER_BATCH_SIZE];
-    u32  charmap[TEXT_RENDER_BATCH_SIZE];
+	mat4 projection;
+	mat4 transforms[TEXT_RENDER_BATCH_SIZE];
+	u32  charmap[TEXT_RENDER_BATCH_SIZE];
 
-    Font_Atlas* atlas = null;
+	Font_Atlas *atlas = null;
 };
 
-inline Text_Draw_Command* text_draw_cmd = null; // default text draw command
+inline Text_Draw_Command *text_draw_command = null; // default text draw command
 
-Text_Draw_Command* create_default_text_draw_command(Font_Atlas* atlas);
+Text_Draw_Command *create_default_text_draw_command(Font_Atlas *atlas);
 
-void draw_text_immediate(Text_Draw_Command* cmd, const char* text, u32 text_size, vec2 pos, vec3 color);
-void draw_text_immediate_with_shadow(Text_Draw_Command* cmd, const char* text, u32 text_size, vec2 pos, vec3 color, vec2 shadow_offset, vec3 shadow_color);
+void draw_text_immediate(Text_Draw_Command *command, const char *text, u32 text_size, vec2 pos, vec3 color);
+void draw_text_immediate_with_shadow(Text_Draw_Command *command, const char *text, u32 text_size, vec2 pos, vec3 color, vec2 shadow_offset, vec3 shadow_color);
 
-void on_viewport_resize(Text_Draw_Command* cmd, Viewport* viewport);
+void on_viewport_resize(Text_Draw_Command *command, Viewport *viewport);

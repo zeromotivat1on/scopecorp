@@ -1,14 +1,14 @@
 #pragma once
 
-typedef void* Semaphore;
-typedef void* Mutex;
-typedef void* Critical_Section;
+typedef void *Semaphore;
+typedef void *Mutex;
+typedef void *Critical_Section;
 
 extern const u32 WAIT_INFINITE;
 extern const u32 CRITICAL_SECTION_SIZE;
 
 Semaphore create_semaphore(s32 init_count, s32 max_count);
-bool release_semaphore(Semaphore handle, s32 count, s32* prev_count);
+bool release_semaphore(Semaphore handle, s32 count, s32 *prev_count);
 bool wait_semaphore(Semaphore handle, u32 ms);
 
 Mutex create_mutex(bool signaled);

@@ -26,598 +26,598 @@
 #include "stb_truetype.h"
 
 void set_gfx_features(u32 flags) {
-    if (flags & GFX_FLAG_BLEND) {
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    }
-    
-    if (flags & GFX_FLAG_CULL_BACK_FACE) {
-        glEnable(GL_CULL_FACE);
-        glCullFace(GL_BACK);        
-    }
+	if (flags & GFX_FLAG_BLEND) {
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	}
 
-    if (flags & GFX_FLAG_CULL_BACK_FACE) {
-        glFrontFace(GL_CCW);
-    }
-    
-    if (flags & GFX_FLAG_SCISSOR) {
-        glEnable(GL_SCISSOR_TEST);
-    }
-    
-    if (flags & GFX_FLAG_DEPTH) {
-        glEnable(GL_DEPTH_TEST);
-        glDepthFunc(GL_LESS);
-    }
+	if (flags & GFX_FLAG_CULL_BACK_FACE) {
+		glEnable(GL_CULL_FACE);
+		glCullFace(GL_BACK);
+	}
+
+	if (flags & GFX_FLAG_CULL_BACK_FACE) {
+		glFrontFace(GL_CCW);
+	}
+
+	if (flags & GFX_FLAG_SCISSOR) {
+		glEnable(GL_SCISSOR_TEST);
+	}
+
+	if (flags & GFX_FLAG_DEPTH) {
+		glEnable(GL_DEPTH_TEST);
+		glDepthFunc(GL_LESS);
+	}
 }
 
 void clear_screen(vec4 color) {
-    glClearColor(color.x, color.y, color.z, color.w);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glClearColor(color.x, color.y, color.z, color.w);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
 static s32 gl_draw_mode(Draw_Mode mode) {
-    switch(mode) {
-    case DRAW_TRIANGLES:      return GL_TRIANGLES;
-    case DRAW_TRIANGLE_STRIP: return GL_TRIANGLE_STRIP;
-    default:
-        error("Failed to get open gl draw mode from given draw mode %d", mode);
-        return - 1;
-    }
+	switch (mode) {
+	case DRAW_TRIANGLES:      return GL_TRIANGLES;
+	case DRAW_TRIANGLE_STRIP: return GL_TRIANGLE_STRIP;
+	default:
+		error("Failed to get open gl draw mode from given draw mode %d", mode);
+		return -1;
+	}
 }
 
-void draw(const Draw_Command* cmd) {
-    if (cmd->flags & DRAW_FLAG_IGNORE_DEPTH) glDepthMask(GL_FALSE);
-    
-    const s32 draw_mode = gl_draw_mode(cmd->draw_mode);
+void draw(const Draw_Command *command) {
+	if (command->flags & DRAW_FLAG_IGNORE_DEPTH) glDepthMask(GL_FALSE);
 
-    const auto& material = render_registry.materials[cmd->material_idx];
-    const auto& shader = render_registry.shaders[material.shader_idx];
-    glUseProgram(shader.id);
+	const s32 draw_mode = gl_draw_mode(command->draw_mode);
 
-    for (s32 i = 0; i < material.uniform_count; ++i)
-        sync_uniform(material.uniforms + i);
-    
-    if (material.texture_idx != INVALID_INDEX) {
-        const auto& texture = render_registry.textures[material.texture_idx];
-        if (texture.flags & TEXTURE_FLAG_2D_ARRAY) glBindTexture(GL_TEXTURE_2D_ARRAY, texture.id);
-        else glBindTexture(GL_TEXTURE_2D, texture.id);
-        glActiveTexture(GL_TEXTURE0);
-    }
+	const auto &material = render_registry.materials[command->material_index];
+	const auto &shader =   render_registry.shaders[material.shader_index];
+	glUseProgram(shader.id);
 
-    const auto& vertex_buffer = render_registry.vertex_buffers[cmd->vertex_buffer_idx];
-    glBindVertexArray(vertex_buffer.id);
+	for (s32 i = 0; i < material.uniform_count; ++i)
+		sync_uniform(material.uniforms + i);
 
-    if (cmd->index_buffer_idx != INVALID_INDEX) {
-        const auto& index_buffer = render_registry.index_buffers[cmd->index_buffer_idx];
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer.id);
-        glDrawElementsInstanced(draw_mode, index_buffer.component_count, GL_UNSIGNED_INT, 0, cmd->instance_count);
-    } else {
-        glDrawArraysInstanced(draw_mode, 0, vertex_buffer.component_count, cmd->instance_count);
-    }
-    
-    glDepthMask(GL_TRUE);
-    glBindTexture(GL_TEXTURE_2D, 0);
-    glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
-    glUseProgram(0);
+	if (material.texture_index != INVALID_INDEX) {
+		const auto &texture = render_registry.textures[material.texture_index];
+		if (texture.flags & TEXTURE_FLAG_2D_ARRAY) glBindTexture(GL_TEXTURE_2D_ARRAY, texture.id);
+		else glBindTexture(GL_TEXTURE_2D, texture.id);
+		glActiveTexture(GL_TEXTURE0);
+	}
+
+	const auto &vertex_buffer = render_registry.vertex_buffers[command->vertex_buffer_index];
+	glBindVertexArray(vertex_buffer.id);
+
+	if (command->index_buffer_index != INVALID_INDEX) {
+		const auto &index_buffer = render_registry.index_buffers[command->index_buffer_index];
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer.id);
+		glDrawElementsInstanced(draw_mode, index_buffer.component_count, GL_UNSIGNED_INT, 0, command->instance_count);
+	} else {
+		glDrawArraysInstanced(draw_mode, 0, vertex_buffer.component_count, command->instance_count);
+	}
+
+	glDepthMask(GL_TRUE);
+	glBindTexture(GL_TEXTURE_2D, 0);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
+	glUseProgram(0);
 }
 
-void resize_viewport(Viewport* viewport, s16 width, s16 height)
+void resize_viewport(Viewport *viewport, s16 width, s16 height)
 {
-    switch(viewport->aspect_type) {
-    case VIEWPORT_4X3:
-        viewport->width = width;
-        viewport->height = height;
-    
-        if (width * 3 > height * 4) {
-            viewport->width = height * 4 / 3;
-            viewport->x = (width - viewport->width) / 2;
-        } else {
-            viewport->height = width * 3 / 4;
-            viewport->y = (height - viewport->height) / 2;
-        }
-        
-        break;
-    default:
-        error("Failed to resize viewport with unknown aspect type %d", viewport->aspect_type);
-        break;
-    }
+	switch (viewport->aspect_type) {
+	case VIEWPORT_4X3:
+		viewport->width = width;
+		viewport->height = height;
 
-    glViewport(viewport->x, viewport->y, viewport->width, viewport->height);
-    glScissor(viewport->x, viewport->y, viewport->width, viewport->height);
+		if (width * 3 > height * 4) {
+			viewport->width = height * 4 / 3;
+			viewport->x = (width - viewport->width) / 2;
+		} else {
+			viewport->height = width * 3 / 4;
+			viewport->y = (height - viewport->height) / 2;
+		}
+
+		break;
+	default:
+		error("Failed to resize viewport with unknown aspect type %d", viewport->aspect_type);
+		break;
+	}
+
+	glViewport(viewport->x, viewport->y, viewport->width, viewport->height);
+	glScissor(viewport->x, viewport->y, viewport->width, viewport->height);
 }
 
 static s32 gl_usage(Buffer_Usage_Type type) {
-    switch(type) {
-    case BUFFER_USAGE_STATIC:  return GL_STATIC_DRAW;
-    case BUFFER_USAGE_DYNAMIC: return GL_DYNAMIC_DRAW;
-    default:
-        error("Failed to get open gl usage from given buffer usage %d", type);
-        return - 1;
-    }
+	switch (type) {
+	case BUFFER_USAGE_STATIC:  return GL_STATIC_DRAW;
+	case BUFFER_USAGE_DYNAMIC: return GL_DYNAMIC_DRAW;
+	default:
+		error("Failed to get open gl usage from given buffer usage %d", type);
+		return -1;
+	}
 }
 
-s32 create_vertex_buffer(Vertex_Attrib_Type* attribs, s32 attrib_count, const f32* vertices, s32 vertex_count, Buffer_Usage_Type usage_type) {
-    assert(attrib_count <= MAX_VERTEX_LAYOUT_ATTRIBS);
+s32 create_vertex_buffer(Vertex_Attrib_Type *attribs, s32 attrib_count, const f32 *vertices, s32 vertex_count, Buffer_Usage_Type usage_type) {
+	assert(attrib_count <= MAX_VERTEX_LAYOUT_ATTRIBS);
 
-    Vertex_Buffer buffer = {0};
-    buffer.usage_type = usage_type;
-    buffer.component_count = vertex_count;
-    memcpy(&buffer.layout.attribs, attribs, attrib_count * sizeof(Vertex_Attrib_Type));
+	Vertex_Buffer buffer = {0};
+	buffer.usage_type = usage_type;
+	buffer.component_count = vertex_count;
+	memcpy(&buffer.layout.attribs, attribs, attrib_count * sizeof(Vertex_Attrib_Type));
 
-    u32 vbo;
-    glGenBuffers(1, &vbo);
-    glGenVertexArrays(1, &buffer.id);
+	u32 vbo;
+	glGenBuffers(1, &vbo);
+	glGenVertexArrays(1, &buffer.id);
 
-    glBindVertexArray(buffer.id);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+	glBindVertexArray(buffer.id);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 
-    const s32 usage = gl_usage(usage_type);
-    glBufferData(GL_ARRAY_BUFFER, vertex_count * sizeof(f32), vertices, usage);
-    
-    s32 stride = 0;
-    for (s32 i = 0; i < attrib_count; ++i)
-        stride += vertex_attrib_size(attribs[i]);
-        
-    for (s32 i = 0; i < attrib_count; ++i) {
-        const s32 dimension = vertex_attrib_dimension(attribs[i]);
-        
-        s32 offset = 0;
-        for (s32 j = 0; j < i; ++j)
-            offset += vertex_attrib_size(attribs[j]);
+	const s32 usage = gl_usage(usage_type);
+	glBufferData(GL_ARRAY_BUFFER, vertex_count * sizeof(f32), vertices, usage);
 
-        glEnableVertexAttribArray(i);
-        glVertexAttribPointer(i, dimension, GL_FLOAT, GL_FALSE, stride, (void*)(u64)offset);
-    }
+	s32 stride = 0;
+	for (s32 i = 0; i < attrib_count; ++i)
+		stride += vertex_attrib_size(attribs[i]);
 
-    glBindVertexArray(0);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+	for (s32 i = 0; i < attrib_count; ++i) {
+		const s32 dimension = vertex_attrib_dimension(attribs[i]);
 
-    return render_registry.vertex_buffers.add(buffer);
+		s32 offset = 0;
+		for (s32 j = 0; j < i; ++j)
+			offset += vertex_attrib_size(attribs[j]);
+
+		glEnableVertexAttribArray(i);
+		glVertexAttribPointer(i, dimension, GL_FLOAT, GL_FALSE, stride, (void *)(u64)offset);
+	}
+
+	glBindVertexArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	return render_registry.vertex_buffers.add(buffer);
 }
 
-s32 create_index_buffer(u32* indices, s32 count, Buffer_Usage_Type usage_type) {
-    Index_Buffer buffer;
-    buffer.component_count = count;
-    buffer.usage_type = usage_type;
+s32 create_index_buffer(u32 *indices, s32 count, Buffer_Usage_Type usage_type) {
+	Index_Buffer buffer;
+	buffer.component_count = count;
+	buffer.usage_type = usage_type;
 
-    glGenBuffers(1, &buffer.id);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffer.id);
-    
-    const s32 usage = gl_usage(usage_type);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, count * sizeof(u32), indices, usage);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+	glGenBuffers(1, &buffer.id);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffer.id);
 
-    return render_registry.index_buffers.add(buffer);
+	const s32 usage = gl_usage(usage_type);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, count * sizeof(u32), indices, usage);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+	return render_registry.index_buffers.add(buffer);
 }
 
-static u32 gl_create_shader(GLenum type, const char* src) {    
-    u32 shader = glCreateShader(type);
-    glShaderSource(shader, 1, &src, null);
-    glCompileShader(shader);
+static u32 gl_create_shader(GLenum type, const char *src) {
+	u32 shader = glCreateShader(type);
+	glShaderSource(shader, 1, &src, null);
+	glCompileShader(shader);
 
-    s32 success;
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        const char* shader_name;
-        if (type == GL_VERTEX_SHADER) shader_name = "vertex";
-        else if (type == GL_FRAGMENT_SHADER) shader_name = "fragment";
+	s32 success;
+	glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+	if (!success) {
+		const char *shader_name;
+		if (type == GL_VERTEX_SHADER) shader_name = "vertex";
+		else if (type == GL_FRAGMENT_SHADER) shader_name = "fragment";
 
-        char info_log[512];
-        glGetShaderInfoLog(shader, sizeof(info_log), null, info_log);
-        error("Failed to compile shader %s, gl reason %s", shader_name, info_log);
-        return INVALID_INDEX;
-    }
+		char info_log[512];
+		glGetShaderInfoLog(shader, sizeof(info_log), null, info_log);
+		error("Failed to compile shader %s, gl reason %s", shader_name, info_log);
+		return INVALID_INDEX;
+	}
 
-    return shader;
+	return shader;
 }
 
-static u32 gl_link_program(u32 vertex_shader, u32 fragment_shader) {    
-    u32 program = glCreateProgram();
+static u32 gl_link_program(u32 vertex_shader, u32 fragment_shader) {
+	u32 program = glCreateProgram();
 
-    glAttachShader(program, vertex_shader);
-    glAttachShader(program, fragment_shader);
-    glLinkProgram(program);
+	glAttachShader(program, vertex_shader);
+	glAttachShader(program, fragment_shader);
+	glLinkProgram(program);
 
-    s32 success;
-    glGetProgramiv(program, GL_LINK_STATUS, &success);
-    if (!success) {
-        char info_log[512];
-        glGetProgramInfoLog(program, sizeof(info_log), null, info_log);
-        error("Failed to link shader program, gl reason %s", info_log);
-        return INVALID_INDEX;
-    }
+	s32 success;
+	glGetProgramiv(program, GL_LINK_STATUS, &success);
+	if (!success) {
+		char info_log[512];
+		glGetProgramInfoLog(program, sizeof(info_log), null, info_log);
+		error("Failed to link shader program, gl reason %s", info_log);
+		return INVALID_INDEX;
+	}
 
-    glDeleteShader(vertex_shader);
-    glDeleteShader(fragment_shader);
+	glDeleteShader(vertex_shader);
+	glDeleteShader(fragment_shader);
 
-    return program;
+	return program;
 }
 
-static void parse_shader_source(const char* path, const char* shader_src, char* vertex_src, char* fragment_src) {
-    static const u64 vertex_region_name_size = strlen(vertex_region_name);
-    static const u64 fragment_region_name_size = strlen(fragment_region_name);
+static void parse_shader_source(const char *path, const char *shader_src, char *vertex_src, char *fragment_src) {
+	static const u64 vertex_region_name_size = strlen(vertex_region_name);
+	static const u64 fragment_region_name_size = strlen(fragment_region_name);
 
-    const char* vertex_region = strstr(shader_src, vertex_region_name);
-    if (!vertex_region) {
-        error("Failed to find vertex region in shader %s", path);
-        return;
-    }
-    
-    const char* fragment_region = strstr(shader_src, fragment_region_name);
-    if (!fragment_region) {
-        error("Failed to find fragment region in shader %s", path);
-        return;
-    }
-    
-    vertex_region += vertex_region_name_size;
-    const s32 vertex_src_size = (s32)(fragment_region - vertex_region);
+	const char *vertex_region = strstr(shader_src, vertex_region_name);
+	if (!vertex_region) {
+		error("Failed to find vertex region in shader %s", path);
+		return;
+	}
 
-    fragment_region += fragment_region_name_size;
-    const char* end_pos = shader_src + strlen(shader_src);
-    const s32 fragment_src_size = (s32)(end_pos - fragment_region);
-    
-    memcpy(vertex_src, vertex_region, vertex_src_size);
-    vertex_src[vertex_src_size] = '\0';
-    
-    memcpy(fragment_src, fragment_region, fragment_src_size);
-    fragment_src[fragment_src_size] = '\0';
+	const char *fragment_region = strstr(shader_src, fragment_region_name);
+	if (!fragment_region) {
+		error("Failed to find fragment region in shader %s", path);
+		return;
+	}
+
+	vertex_region += vertex_region_name_size;
+	const s32 vertex_src_size = (s32)(fragment_region - vertex_region);
+
+	fragment_region += fragment_region_name_size;
+	const char *end_pos = shader_src + strlen(shader_src);
+	const s32 fragment_src_size = (s32)(end_pos - fragment_region);
+
+	memcpy(vertex_src, vertex_region, vertex_src_size);
+	vertex_src[vertex_src_size] = '\0';
+
+	memcpy(fragment_src, fragment_region, fragment_src_size);
+	fragment_src[fragment_src_size] = '\0';
 }
 
-s32 create_shader(const char* path) {
-    char timer_string[256];
-    sprintf_s(timer_string, sizeof(timer_string), "%s from %s took", __FUNCTION__, path);
-    SCOPE_TIMER(timer_string);
-    
-    Shader shader;
-    shader.path = path;
+s32 create_shader(const char *path) {
+	char timer_string[256];
+	sprintf_s(timer_string, sizeof(timer_string), "%s from %s took", __FUNCTION__, path);
+	SCOPE_TIMER(timer_string);
 
-    u64 shader_size = 0;
-    u8* shader_src = alloc_buffer_temp(MAX_SHADER_SIZE);
-    defer { free_buffer_temp(MAX_SHADER_SIZE); };
-    
-    if (!read_file(path, shader_src, MAX_SHADER_SIZE, &shader_size))
-        return INVALID_INDEX;
-    
-    shader_src[shader_size] = '\0';
+	Shader shader;
+	shader.path = path;
 
-    char* vertex_src = (char*)alloc_temp(MAX_SHADER_SIZE);
-    defer { free_temp(MAX_SHADER_SIZE); };
+	u64 shader_size = 0;
+	u8 *shader_src = alloc_buffer_temp(MAX_SHADER_SIZE);
+	defer { free_buffer_temp(MAX_SHADER_SIZE); };
 
-    char* fragment_src = (char*)alloc_temp(MAX_SHADER_SIZE);
-    defer { free_temp(MAX_SHADER_SIZE); };
- 
-    parse_shader_source(path, (char*)shader_src, vertex_src, fragment_src);
-    
-    const u32 vertex_shader = gl_create_shader(GL_VERTEX_SHADER, vertex_src);
-    const u32 fragment_shader = gl_create_shader(GL_FRAGMENT_SHADER, fragment_src);
-    shader.id = gl_link_program(vertex_shader, fragment_shader);
-    
-    return render_registry.shaders.add(shader);
+	if (!read_file(path, shader_src, MAX_SHADER_SIZE, &shader_size))
+		return INVALID_INDEX;
+
+	shader_src[shader_size] = '\0';
+
+	char *vertex_src = (char *)alloc_temp(MAX_SHADER_SIZE);
+	defer { free_temp(MAX_SHADER_SIZE); };
+
+	char *fragment_src = (char *)alloc_temp(MAX_SHADER_SIZE);
+	defer { free_temp(MAX_SHADER_SIZE); };
+
+	parse_shader_source(path, (char *)shader_src, vertex_src, fragment_src);
+
+	const u32 vertex_shader = gl_create_shader(GL_VERTEX_SHADER, vertex_src);
+	const u32 fragment_shader = gl_create_shader(GL_FRAGMENT_SHADER, fragment_src);
+	shader.id = gl_link_program(vertex_shader, fragment_shader);
+
+	return render_registry.shaders.add(shader);
 }
 
-bool recreate_shader(Shader* shader) {
-    u64 shader_size = 0;
-    u8* shader_src = alloc_buffer_temp(MAX_SHADER_SIZE);
-    defer { free_buffer_temp(MAX_SHADER_SIZE); };
+bool recreate_shader(Shader *shader) {
+	u64 shader_size = 0;
+	u8 *shader_src = alloc_buffer_temp(MAX_SHADER_SIZE);
+	defer { free_buffer_temp(MAX_SHADER_SIZE); };
 
-    if (!read_file(shader->path, shader_src, MAX_SHADER_SIZE, &shader_size))
-        return false;
-    
-    shader_src[shader_size] = '\0';
+	if (!read_file(shader->path, shader_src, MAX_SHADER_SIZE, &shader_size))
+		return false;
 
-    char* vertex_src = (char*)alloc_temp(MAX_SHADER_SIZE);
-    defer { free_temp(MAX_SHADER_SIZE); };
+	shader_src[shader_size] = '\0';
 
-    char* fragment_src = (char*)alloc_temp(MAX_SHADER_SIZE);
-    defer { free_temp(MAX_SHADER_SIZE); };
- 
-    parse_shader_source(shader->path, (char*)shader_src, vertex_src, fragment_src);
+	char *vertex_src = (char *)alloc_temp(MAX_SHADER_SIZE);
+	defer { free_temp(MAX_SHADER_SIZE); };
 
-    // We are free to delete old shader program at this stage.
-    glDeleteProgram(shader->id);
+	char *fragment_src = (char *)alloc_temp(MAX_SHADER_SIZE);
+	defer { free_temp(MAX_SHADER_SIZE); };
 
-    const u32 vertex_shader = gl_create_shader(GL_VERTEX_SHADER, vertex_src);
-    const u32 fragment_shader = gl_create_shader(GL_FRAGMENT_SHADER, fragment_src);
-    shader->id = gl_link_program(vertex_shader, fragment_shader);
-    
-    return true;
+	parse_shader_source(shader->path, (char *)shader_src, vertex_src, fragment_src);
+
+	// We are free to delete old shader program at this stage.
+	glDeleteProgram(shader->id);
+
+	const u32 vertex_shader = gl_create_shader(GL_VERTEX_SHADER, vertex_src);
+	const u32 fragment_shader = gl_create_shader(GL_FRAGMENT_SHADER, fragment_src);
+	shader->id = gl_link_program(vertex_shader, fragment_shader);
+
+	return true;
 }
 
-s32 find_shader_by_file(Shader_Index_List* list, const char* path) {
-    const s32 item_size = sizeof(s32);
-    const s32 list_size = sizeof(Shader_Index_List);
-    
-    u8* data = (u8*)list;
-    s32 pos = 0;
+s32 find_shader_by_file(Shader_Index_List *list, const char *path) {
+	const s32 item_size = sizeof(s32);
+	const s32 list_size = sizeof(Shader_Index_List);
 
-    while (pos < list_size) {
-        s32 shader_idx = *(s32*)(data + pos);
-        assert(shader_idx < MAX_SHADERS);
+	u8 *data = (u8 *)list;
+	s32 pos = 0;
 
-        const auto& shader = render_registry.shaders[shader_idx];
-        if (strcmp(shader.path, path) == 0) return shader_idx;
+	while (pos < list_size) {
+		s32 shader_index = *(s32 *)(data + pos);
+		assert(shader_index < MAX_SHADERS);
 
-        pos += item_size;
-    }
+		const auto &shader = render_registry.shaders[shader_index];
+		if (strcmp(shader.path, path) == 0) return shader_index;
 
-    return INVALID_INDEX;
+		pos += item_size;
+	}
+
+	return INVALID_INDEX;
 }
 
-void add_material_uniforms(s32 material_idx, const Uniform* uniforms, s32 count) {
-    auto& material = render_registry.materials[material_idx];
-    const auto& shader = render_registry.shaders[material.shader_idx];
-    assert(material.uniform_count + count <= MAX_MATERIAL_UNIFORMS);
+void add_material_uniforms(s32 material_index, const Uniform *uniforms, s32 count) {
+	auto &material = render_registry.materials[material_index];
+	const auto &shader = render_registry.shaders[material.shader_index];
+	assert(material.uniform_count + count <= MAX_MATERIAL_UNIFORMS);
 
-    for (s32 i = 0; i < count; ++i) {
-        auto* src_uniform = uniforms + i;
-        auto* dst_uniform = material.uniforms + material.uniform_count + i;
-        memcpy(dst_uniform, src_uniform, sizeof(Uniform));
-        dst_uniform->location = glGetUniformLocation(shader.id, dst_uniform->name);   
-    }
+	for (s32 i = 0; i < count; ++i) {
+		auto *src_uniform = uniforms + i;
+		auto *dst_uniform = material.uniforms + material.uniform_count + i;
+		memcpy(dst_uniform, src_uniform, sizeof(Uniform));
+		dst_uniform->location = glGetUniformLocation(shader.id, dst_uniform->name);
+	}
 
-    material.uniform_count += count;
+	material.uniform_count += count;
 }
 
-Uniform* find_material_uniform(s32 material_idx, const char* name) {
-    auto& material = render_registry.materials[material_idx];
-    
-    Uniform* uniform = null;
-    for (s32 i = 0; i < material.uniform_count; ++i) {
-        if (strcmp(material.uniforms[i].name, name) == 0)
-            return material.uniforms + i;
-    }
+Uniform *find_material_uniform(s32 material_index, const char *name) {
+	auto &material = render_registry.materials[material_index];
 
-    return null;
+	Uniform *uniform = null;
+	for (s32 i = 0; i < material.uniform_count; ++i) {
+		if (strcmp(material.uniforms[i].name, name) == 0)
+			return material.uniforms + i;
+	}
+
+	return null;
 }
 
-void set_material_uniform_value(s32 material_idx, const char* name, const void* data) {
-    Uniform* uniform = find_material_uniform(material_idx, name);
-    if (!uniform) {
-        error("Failed to set material uniform %s value as its not found", name);
-        return;
-    }
+void set_material_uniform_value(s32 material_index, const char *name, const void *data) {
+	Uniform *uniform = find_material_uniform(material_index, name);
+	if (!uniform) {
+		error("Failed to set material uniform %s value as its not found", name);
+		return;
+	}
 
-    uniform->value = data;
-    uniform->flags |= UNIFORM_FLAG_DIRTY;
+	uniform->value = data;
+	uniform->flags |= UNIFORM_FLAG_DIRTY;
 }
 
-void mark_material_uniform_dirty(s32 material_idx, const char* name) {
-    Uniform* uniform = find_material_uniform(material_idx, name);
-    if (!uniform) {
-        error("Failed to mark material uniform %s dirty as its not found", name);
-        return;
-    }
+void mark_material_uniform_dirty(s32 material_index, const char *name) {
+	Uniform *uniform = find_material_uniform(material_index, name);
+	if (!uniform) {
+		error("Failed to mark material uniform %s dirty as its not found", name);
+		return;
+	}
 
-    uniform->flags |= UNIFORM_FLAG_DIRTY;
+	uniform->flags |= UNIFORM_FLAG_DIRTY;
 }
 
-void init_shader_hot_reload(Shader_Hot_Reload_Queue* queue) {
-    *queue = {0};
+void init_shader_hot_reload(Shader_Hot_Reload_Queue *queue) {
+	*queue = {0};
 }
 
 // @Cleanup: do not need this as recreate_shader exists now?
-bool hot_reload_shader(s32 shader_idx) {
-    assert(shader_idx < MAX_SHADERS);
-    auto& shader = render_registry.shaders[shader_idx];
+bool hot_reload_shader(s32 shader_index) {
+	assert(shader_index < MAX_SHADERS);
+	auto &shader = render_registry.shaders[shader_index];
 
-    if (recreate_shader(&shader)) {
-        log("Hot reloaded shader %s", shader.path);
-        return true;
-    }
+	if (recreate_shader(&shader)) {
+		log("Hot reloaded shader %s", shader.path);
+		return true;
+	}
 
-    error("Failed to hot reload shader %s, see errors above", shader.path);
-    return false;
+	error("Failed to hot reload shader %s, see errors above", shader.path);
+	return false;
 }
 
-void on_shader_changed_externally(const char* path) {
-    const s32 shader_idx = find_shader_by_file(&shader_index_list, path);
-    if (shader_idx == INVALID_INDEX) return;
+void on_shader_changed_externally(const char *path) {
+	const s32 shader_index = find_shader_by_file(&shader_index_list, path);
+	if (shader_index == INVALID_INDEX) return;
 
-    bool already_in_queue = false;
-    for (s32 i = 0; i < shader_hot_reload_queue.count; ++i) {
-        if (shader_idx == shader_hot_reload_queue.indices[i])
-            already_in_queue = true;
-    }
-    
-    if (!already_in_queue) {
-        assert(shader_hot_reload_queue.count < MAX_SHADER_HOT_RELOAD_QUEUE_SIZE);
-        shader_hot_reload_queue.indices[shader_hot_reload_queue.count] = shader_idx;
-        shader_hot_reload_queue.count++;
-    }
+	bool already_in_queue = false;
+	for (s32 i = 0; i < shader_hot_reload_queue.count; ++i) {
+		if (shader_index == shader_hot_reload_queue.indices[i])
+			already_in_queue = true;
+	}
+
+	if (!already_in_queue) {
+		assert(shader_hot_reload_queue.count < MAX_SHADER_HOT_RELOAD_QUEUE_SIZE);
+		shader_hot_reload_queue.indices[shader_hot_reload_queue.count] = shader_index;
+		shader_hot_reload_queue.count++;
+	}
 }
 
-void check_shader_hot_reload_queue(Shader_Hot_Reload_Queue* queue) {
-    if (queue->count == 0) return;
-    
-    for (s32 i = 0; i < queue->count; ++i) {
-        const s32 idx = queue->indices[i];
-        // @Cleanup: not correct in case of success of not last shader in queue,
-        // but in theory queue should always have max 1 shader in it.
-        if (hot_reload_shader(idx)) queue->count--;
-    }    
+void check_shader_hot_reload_queue(Shader_Hot_Reload_Queue *queue) {
+	if (queue->count == 0) return;
+
+	for (s32 i = 0; i < queue->count; ++i) {
+		const s32 index = queue->indices[i];
+		// @Cleanup: not correct in case of success of not last shader in queue,
+		// but in theory queue should always have max 1 shader in it.
+		if (hot_reload_shader(index)) queue->count--;
+	}
 }
 
-void sync_uniform(const Uniform* uniform) {
-    if (uniform->type == UNIFORM_NULL) {
-        warn("Tried to sync uniform of null type %p", uniform);
-        return;
-    }
+void sync_uniform(const Uniform *uniform) {
+	if (uniform->type == UNIFORM_NULL) {
+		warn("Tried to sync uniform of null type %p", uniform);
+		return;
+	}
 
-    if (!(uniform->flags & UNIFORM_FLAG_DIRTY)) return;
+	if (!(uniform->flags & UNIFORM_FLAG_DIRTY)) return;
 
-    switch(uniform->type) {
-    case UNIFORM_U32:
-        glUniform1uiv(uniform->location, uniform->count, (u32*)uniform->value);
-        break;
-    case UNIFORM_F32_VEC2:
-        glUniform2fv(uniform->location, uniform->count, (f32*)uniform->value);
-        break;
-    case UNIFORM_F32_VEC3:
-        glUniform3fv(uniform->location, uniform->count, (f32*)uniform->value);
-        break;
-    case UNIFORM_F32_MAT4:
-        glUniformMatrix4fv(uniform->location, uniform->count, GL_FALSE, (f32*)uniform->value);
-        break;
-    default:
-        error("Failed to sync uniform of unknown type %d", uniform->type);
-        break;
-    }
+	switch (uniform->type) {
+	case UNIFORM_U32:
+		glUniform1uiv(uniform->location, uniform->count, (u32 *)uniform->value);
+		break;
+	case UNIFORM_F32_VEC2:
+		glUniform2fv(uniform->location, uniform->count, (f32 *)uniform->value);
+		break;
+	case UNIFORM_F32_VEC3:
+		glUniform3fv(uniform->location, uniform->count, (f32 *)uniform->value);
+		break;
+	case UNIFORM_F32_MAT4:
+		glUniformMatrix4fv(uniform->location, uniform->count, GL_FALSE, (f32 *)uniform->value);
+		break;
+	default:
+		error("Failed to sync uniform of unknown type %d", uniform->type);
+		break;
+	}
 }
 
-static u32 gl_create_texture(void* data, s32 width, s32 height) {
-    u32 texture;
-    glGenTextures(1, &texture);
-    glBindTexture(GL_TEXTURE_2D, texture);
-    
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-    glGenerateMipmap(GL_TEXTURE_2D);
+static u32 gl_create_texture(void *data, s32 width, s32 height) {
+	u32 texture;
+	glGenTextures(1, &texture);
+	glBindTexture(GL_TEXTURE_2D, texture);
 
-    glBindTexture(GL_TEXTURE_2D, 0);
-    return texture;
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+	glGenerateMipmap(GL_TEXTURE_2D);
+
+	glBindTexture(GL_TEXTURE_2D, 0);
+	return texture;
 }
 
-s32 create_texture(const char* path) {
-    char timer_string[256];
-    sprintf_s(timer_string, sizeof(timer_string), "%s from %s took", __FUNCTION__, path);
-    SCOPE_TIMER(timer_string);
-    
-    Texture texture = {0};
-    texture.path = path;
-    
-    stbi_set_flip_vertically_on_load(true);
-    defer { stbi_set_flip_vertically_on_load(false); };
-    
-    u64 buffer_size = 0;
-    u8* buffer = alloc_buffer_temp(MAX_TEXTURE_SIZE);
-    defer { free_buffer_temp(MAX_TEXTURE_SIZE); };
-    
-    if (!read_file(path, buffer, MAX_TEXTURE_SIZE, &buffer_size)) {
-        return INVALID_INDEX;
-    }
-    
-    u8* data = stbi_load_from_memory(buffer, (s32)buffer_size, &texture.width, &texture.height, &texture.color_channel_count, 4);
-    if (!data) {
-        error("Failed to load texture %s, stbi reason %s", path, stbi_failure_reason());
-        return INVALID_INDEX;
-    }
+s32 create_texture(const char *path) {
+	char timer_string[256];
+	sprintf_s(timer_string, sizeof(timer_string), "%s from %s took", __FUNCTION__, path);
+	SCOPE_TIMER(timer_string);
 
-    texture.id = gl_create_texture(data, texture.width, texture.height);
-    
-    return render_registry.textures.add(texture);
+	Texture texture = {0};
+	texture.path = path;
+
+	stbi_set_flip_vertically_on_load(true);
+	defer { stbi_set_flip_vertically_on_load(false); };
+
+	u64 buffer_size = 0;
+	u8 *buffer = alloc_buffer_temp(MAX_TEXTURE_SIZE);
+	defer { free_buffer_temp(MAX_TEXTURE_SIZE); };
+
+	if (!read_file(path, buffer, MAX_TEXTURE_SIZE, &buffer_size)) {
+		return INVALID_INDEX;
+	}
+
+	u8 *data = stbi_load_from_memory(buffer, (s32)buffer_size, &texture.width, &texture.height, &texture.color_channel_count, 4);
+	if (!data) {
+		error("Failed to load texture %s, stbi reason %s", path, stbi_failure_reason());
+		return INVALID_INDEX;
+	}
+
+	texture.id = gl_create_texture(data, texture.width, texture.height);
+
+	return render_registry.textures.add(texture);
 }
 
-Font_Atlas* bake_font_atlas(const Font* font, u32 start_charcode, u32 end_charcode, s16 font_size) {
-    Font_Atlas* atlas = alloc_struct_persistent(Font_Atlas);
-    atlas->font = font;
-    atlas->texture_idx = INVALID_INDEX;
+Font_Atlas *bake_font_atlas(const Font *font, u32 start_charcode, u32 end_charcode, s16 font_size) {
+	Font_Atlas *atlas = alloc_struct_persistent(Font_Atlas);
+	atlas->font = font;
+	atlas->texture_index = INVALID_INDEX;
 
-    const u32 charcode_count = end_charcode - start_charcode + 1;
-    atlas->metrics = alloc_array_persistent(charcode_count, Font_Glyph_Metric);
-    atlas->start_charcode = start_charcode;
-    atlas->end_charcode = end_charcode;
-    
-    Texture texture;
-    glGenTextures(1, &texture.id);
-    texture.flags |= TEXTURE_FLAG_2D_ARRAY;
-    texture.width = font_size;
-    texture.height = font_size;
-    texture.color_channel_count = 4;
-    texture.path = "texture for glyph batch rendering";
+	const u32 charcode_count = end_charcode - start_charcode + 1;
+	atlas->metrics = alloc_array_persistent(charcode_count, Font_Glyph_Metric);
+	atlas->start_charcode = start_charcode;
+	atlas->end_charcode = end_charcode;
 
-    atlas->texture_idx = render_registry.textures.add(texture);
-    
-    rescale_font_atlas(atlas, font_size);
+	Texture texture;
+	glGenTextures(1, &texture.id);
+	texture.flags |= TEXTURE_FLAG_2D_ARRAY;
+	texture.width = font_size;
+	texture.height = font_size;
+	texture.color_channel_count = 4;
+	texture.path = "texture for glyph batch rendering";
 
-    return atlas;
+	atlas->texture_index = render_registry.textures.add(texture);
+
+	rescale_font_atlas(atlas, font_size);
+
+	return atlas;
 }
 
-void rescale_font_atlas(Font_Atlas* atlas, s16 font_size) {
-    if (atlas->texture_idx == INVALID_INDEX) {
-        error("Failed to rescale font atlas as texture is not valid");
-        return;
-    }
+void rescale_font_atlas(Font_Atlas *atlas, s16 font_size) {
+	if (atlas->texture_index == INVALID_INDEX) {
+		error("Failed to rescale font atlas as texture is not valid");
+		return;
+	}
 
-    auto& texture = render_registry.textures[atlas->texture_idx];
-    assert(texture.flags & TEXTURE_FLAG_2D_ARRAY);
-    
-    texture.width = font_size;
-    texture.height = font_size;
-    
-    const Font* font = atlas->font;
-    atlas->font_size = font_size;
+	auto &texture = render_registry.textures[atlas->texture_index];
+	assert(texture.flags & TEXTURE_FLAG_2D_ARRAY);
 
-    const u32 charcode_count = atlas->end_charcode - atlas->start_charcode + 1;
-    const f32 scale = stbtt_ScaleForPixelHeight(font->info, (f32)font_size);
-    atlas->px_h_scale = scale;
-    atlas->line_height = (s32)((font->ascent - font->descent + font->line_gap) * scale);
+	texture.width = font_size;
+	texture.height = font_size;
 
-    const s32 space_glyph_index = stbtt_FindGlyphIndex(font->info, ' ');
-    stbtt_GetGlyphHMetrics(font->info, space_glyph_index, &atlas->space_advance_width, 0);
-    atlas->space_advance_width = (s32)(atlas->space_advance_width * scale);
-    
-    s32 max_layers;
-    glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &max_layers);
-    assert(charcode_count <= (u32)max_layers);
+	const Font *font = atlas->font;
+	atlas->font_size = font_size;
 
-    // stbtt rasterizes glyphs as 8bpp, so tell open gl to use 1 byte per color channel.
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+	const u32 charcode_count = atlas->end_charcode - atlas->start_charcode + 1;
+	const f32 scale = stbtt_ScaleForPixelHeight(font->info, (f32)font_size);
+	atlas->px_h_scale = scale;
+	atlas->line_height = (s32)((font->ascent - font->descent + font->line_gap) * scale);
 
-    glBindTexture(GL_TEXTURE_2D_ARRAY, texture.id);
-    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_R8, atlas->font_size, atlas->font_size, charcode_count, 0, GL_RED, GL_UNSIGNED_BYTE, null);
-    
-    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	const s32 space_glyph_index = stbtt_FindGlyphIndex(font->info, ' ');
+	stbtt_GetGlyphHMetrics(font->info, space_glyph_index, &atlas->space_advance_width, 0);
+	atlas->space_advance_width = (s32)(atlas->space_advance_width * scale);
 
-    u8* bitmap = alloc_buffer_temp(font_size * font_size);    
-    for (u32 i = 0; i < charcode_count; ++i) {
-        const u32 c = i + atlas->start_charcode;
-        Font_Glyph_Metric* metric = atlas->metrics + i;
-        
-        s32 w, h, offx, offy;
-        const s32 glyph_index = stbtt_FindGlyphIndex(font->info, c);
-        u8* stb_bitmap = stbtt_GetGlyphBitmap(font->info, scale, scale, glyph_index, &w, &h, &offx, &offy);
+	s32 max_layers;
+	glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &max_layers);
+	assert(charcode_count <= (u32)max_layers);
 
-        // Offset original bitmap to be at center of new one.
-        const s32 x_offset = (font_size - w) / 2;
-        const s32 y_offset = (font_size - h) / 2;
+	// stbtt rasterizes glyphs as 8bpp, so tell open gl to use 1 byte per color channel.
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
-        metric->offset_x = offx - x_offset;
-        metric->offset_y = offy - y_offset;
-        
-        memset(bitmap, 0, font_size * font_size);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, texture.id);
+	glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_R8, atlas->font_size, atlas->font_size, charcode_count, 0, GL_RED, GL_UNSIGNED_BYTE, null);
 
-        // @Cleanup: looks nasty, should come up with better solution.
-        // Now we bake bitmap using stbtt and 'rescale' it to font size square one.
-        // Maybe use stbtt_MakeGlyphBitmap at least?
-        for (int y = 0; y < h; ++y) {
-            for (int x = 0; x < w; ++x) {
-                int src_index = y * w + x;
-                int dest_index = (y + y_offset) * font_size + (x + x_offset);
-                if (dest_index >= 0 && dest_index < font_size * font_size)
-                    bitmap[dest_index] = stb_bitmap[src_index];
-            }
-        }
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-        stbtt_FreeBitmap(stb_bitmap, null);
+	u8 *bitmap = alloc_buffer_temp(font_size * font_size);
+	for (u32 i = 0; i < charcode_count; ++i) {
+		const u32 c = i + atlas->start_charcode;
+		Font_Glyph_Metric *metric = atlas->metrics + i;
 
-        glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, i, font_size, font_size, 1, GL_RED, GL_UNSIGNED_BYTE, bitmap);
+		s32 w, h, offx, offy;
+		const s32 glyph_index = stbtt_FindGlyphIndex(font->info, c);
+		u8 *stb_bitmap = stbtt_GetGlyphBitmap(font->info, scale, scale, glyph_index, &w, &h, &offx, &offy);
 
-        s32 advance_width = 0;
-        stbtt_GetGlyphHMetrics(font->info, glyph_index, &advance_width, 0);
-        metric->advance_width = (s32)(advance_width * scale);
-    }
+		// Offset original bitmap to be at center of new one.
+		const s32 x_offset = (font_size - w) / 2;
+		const s32 y_offset = (font_size - h) / 2;
 
-    free_buffer_temp(font_size * font_size);
-    
-    glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 4); // restore default color channel size
+		metric->offset_x = offx - x_offset;
+		metric->offset_y = offy - y_offset;
+
+		memset(bitmap, 0, font_size * font_size);
+
+		// @Cleanup: looks nasty, should come up with better solution.
+		// Now we bake bitmap using stbtt and 'rescale' it to font size square one.
+		// Maybe use stbtt_MakeGlyphBitmap at least?
+		for (int y = 0; y < h; ++y) {
+			for (int x = 0; x < w; ++x) {
+				int src_index = y * w + x;
+				int dest_index = (y + y_offset) * font_size + (x + x_offset);
+				if (dest_index >= 0 && dest_index < font_size * font_size)
+					bitmap[dest_index] = stb_bitmap[src_index];
+			}
+		}
+
+		stbtt_FreeBitmap(stb_bitmap, null);
+
+		glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, i, font_size, font_size, 1, GL_RED, GL_UNSIGNED_BYTE, bitmap);
+
+		s32 advance_width = 0;
+		stbtt_GetGlyphHMetrics(font->info, glyph_index, &advance_width, 0);
+		metric->advance_width = (s32)(advance_width * scale);
+	}
+
+	free_buffer_temp(font_size * font_size);
+
+	glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 4); // restore default color channel size
 }
