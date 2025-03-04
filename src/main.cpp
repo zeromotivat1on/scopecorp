@@ -53,7 +53,7 @@ int main() {
 
 	init_gfx(window);
 	set_gfx_features(GFX_FLAG_BLEND | GFX_FLAG_DEPTH | GFX_FLAG_SCISSOR |
-		GFX_FLAG_CULL_BACK_FACE | GFX_FLAG_WINDING_CCW);
+                     GFX_FLAG_CULL_BACK_FACE | GFX_FLAG_WINDING_CCW);
 	set_vsync(false);
 
 	init_audio_context();
@@ -83,14 +83,14 @@ int main() {
 	world = alloc_struct_persistent(World);
 	init_world(world);
 
-	const auto &player_idle_texture = render_registry.textures[texture_index_list.player_idle[DIRECTION_BACK]];
-	const f32 player_scale_aspect = (f32)player_idle_texture.width / player_idle_texture.height;
-	const f32 player_y_scale = 1.0f * player_scale_aspect;
-	const f32 player_x_scale = player_y_scale * player_scale_aspect;
-
 	Player &player = world->player;
 	{   // Create player.
-		player.scale = vec3(player_x_scale, player_y_scale, 1.0f);
+        const auto &texture = render_registry.textures[texture_index_list.player_idle[DIRECTION_BACK]];
+        const f32 scale_aspect = (f32)texture.width / texture.height;
+        const f32 y_scale = 1.0f * scale_aspect;
+        const f32 x_scale = y_scale * scale_aspect;
+        
+		player.scale = vec3(x_scale, y_scale, 1.0f);
 		player.material_index = material_index_list.player;
 
 		Vertex_PU vertices[4] = { // center in bottom mid point of quad
