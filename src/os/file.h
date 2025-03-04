@@ -14,5 +14,4 @@ s64  file_size(File handle);
 bool read_file(File handle, void *buffer, u64 size, u64 *bytes_read);
 bool write_file(File handle, void *buffer, u64 size, u64 *bytes_read);
 
-bool  read_file(const char *path, void *buffer, u64 size, u64 *bytes_read);
-void *read_entire_file_temp(const char *path, u64 *bytes_read);
+bool read_file(const char *path, void *buffer, u64 size, u64 *bytes_read);

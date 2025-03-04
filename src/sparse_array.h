@@ -17,9 +17,9 @@ struct Sparse_Array {
     Sparse_Array() = default;
     Sparse_Array(s32 capacity)
         : capacity(capacity),
-          items((T*)alloc_persistent(capacity * sizeof(T))),
-          dense(alloc_array_persistent(capacity, s32)),
-          sparse(alloc_array_persistent(capacity, s32)) {
+          items((T*)push(pers, capacity * sizeof(T))),
+          dense(push_array(pers, capacity, s32)),
+          sparse(push_array(pers, capacity, s32)) {
         memset(dense,  0xFF, capacity * sizeof(s32));
         memset(sparse, 0xFF, capacity * sizeof(s32));
     }

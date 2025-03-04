@@ -1,115 +1,64 @@
 #include "pch.h"
-#include "os/memory.h"
 #include "memory_storage.h"
+#include "log.h"
 
-constexpr u64 root_size = GB(1);
-static void *root_memory = null;
+#include "os/memory.h"
 
-static Memory_Storage persistent_storage;
-static Memory_Storage frame_storage;
-static Memory_Storage temp_storage;
-
-static u64 prealloc_offset = 0;
-
-void prealloc_root() {
+void *allocate_core() {
 #if DEBUG
-	void *root_address = (void *)TB(2);
+	void *vm_address = (void *)TB(2);
 #else
-	void *root_address = null;
+	void *vm_address = null;
 #endif
 
-	root_memory = vm_reserve(root_address, root_size);
+    constexpr u64 vm_size = GB(1);
+	void* vm = vm_reserve(vm_address, vm_size);
+    if (!vm) {
+        error("Failed to reserve virtual address space");
+        return null;
+    }
+    
+    u8 *commited = (u8 *)vm_commit(vm, pers_memory_size + frame_memory_size + temp_memory_size);
+    if (!commited) {
+        error("Failed to commit application memory");
+        return null;
+    }
+    
+    static Memory_Storage p, f, t;
+    pers  = &p;
+    frame = &f;
+    temp  = &t;
+
+    u64 offset = 0;
+    init(pers,  pers_memory_size,  commited + offset); offset += pers_memory_size;
+    init(frame, frame_memory_size, commited + offset); offset += frame_memory_size;
+    init(temp,  temp_memory_size,  commited + offset); offset += temp_memory_size;
+    
+    return vm;
 }
 
-void free_root() {
-	vm_release(root_memory);
+void release_core(void *memory) {
+	vm_release(memory);
 }
 
-void prealloc(Memory_Storage *storage, u64 size) {
-	assert(prealloc_offset + size < root_size);
-
-	storage->data = (u8 *)vm_commit((u8 *)root_memory + prealloc_offset, size);
+void init(Memory_Storage *storage, u64 size, void* memory) {
+	storage->data = (u8 *)vm_commit((u8 *)memory, size);
 	storage->size = size;
 	storage->used = 0;
-
-	prealloc_offset += size;
 }
 
-void *alloc(Memory_Storage *storage, u64 size) {
+void *push(Memory_Storage *storage, u64 size) {
 	assert(storage->used + size <= storage->size);
 	u8 *data = storage->data + storage->used;
 	storage->used += size;
 	return data;
 }
 
-void free(Memory_Storage *storage, u64 size) {
+void pop(Memory_Storage *storage, u64 size) {
 	assert(storage->used >= size);
 	storage->used -= size;
 }
 
-void free_all(Memory_Storage *storage) {
+void clear(Memory_Storage *storage) {
 	storage->used = 0;
-}
-
-void prealloc_persistent(u64 size) {
-	prealloc(&persistent_storage, size);
-}
-
-void *alloc_persistent(u64 size) {
-	return alloc(&persistent_storage, size);
-}
-
-void free_persistent(u64 size) {
-	free(&persistent_storage, size);
-}
-
-void free_all_persistent() {
-	free_all(&persistent_storage);
-}
-
-void usage_persistent(u64 *size, u64 *used) {
-	if (size) *size = persistent_storage.size;
-	if (used) *used = persistent_storage.used;
-}
-
-void prealloc_frame(u64 size) {
-	prealloc(&frame_storage, size);
-}
-
-void *alloc_frame(u64 size) {
-	return alloc(&frame_storage, size);
-}
-
-void free_frame(u64 size) {
-	free(&frame_storage, size);
-}
-
-void free_all_frame() {
-	free_all(&frame_storage);
-}
-
-void usage_frame(u64 *size, u64 *used) {
-	if (size) *size = frame_storage.size;
-	if (used) *used = frame_storage.used;
-}
-
-void prealloc_temp(u64 size) {
-	prealloc(&temp_storage, size);
-}
-
-void *alloc_temp(u64 size) {
-	return alloc(&temp_storage, size);
-}
-
-void free_temp(u64 size) {
-	free(&temp_storage, size);
-}
-
-void free_all_temp() {
-	free_all(&temp_storage);
-}
-
-void usage_temp(u64 *size, u64 *used) {
-	if (size) *size = temp_storage.size;
-	if (used) *used = temp_storage.used;
 }

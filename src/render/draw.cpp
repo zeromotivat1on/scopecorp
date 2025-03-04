@@ -8,7 +8,7 @@
 #include "memory_storage.h"
 
 void init_draw_queue(Draw_Queue *queue) {
-	queue->commands = alloc_array_persistent(MAX_DRAW_QUEUE_SIZE, Draw_Command);
+	queue->commands = push_array(pers, MAX_DRAW_QUEUE_SIZE, Draw_Command);
 	queue->count = 0;
 }
 

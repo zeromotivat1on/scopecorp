@@ -11,7 +11,7 @@ struct Array {
 
     Array() = default;
     Array(s32 capacity)
-        : capacity(capacity), items((T*)alloc_persistent(capacity * sizeof(T))) {}
+        : capacity(capacity), items((T*)push(pers, capacity * sizeof(T))) {}
     
     T& operator[](s32 idx) {
         assert(idx < count);

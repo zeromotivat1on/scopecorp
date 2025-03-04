@@ -99,8 +99,11 @@ Sound create_sound(const char *path, u32 flags) {
 	sound.path = path;
 	alGenBuffers(1, &sound.buffer);
 
-	u64 sound_file_size;
-	char *sound_data = (char *)read_entire_file_temp(path, &sound_file_size);
+    u64 sound_file_size;
+	char *sound_data = (char *)push(temp, MAX_SOUND_SIZE);
+    defer { pop(temp, MAX_SOUND_SIZE); };
+    
+    if (!read_file(path, sound_data, MAX_SOUND_SIZE, &sound_file_size)) return {0};
 
 	s32 sound_data_size;
 	sound_data = (char *)extract_wav(sound_data, &sound.channel_count, &sound.sample_rate, &sound.bit_depth, &sound_data_size);
@@ -110,9 +113,6 @@ Sound create_sound(const char *path, u32 flags) {
 
 	// @Cleanup: loading big sounds like that is bad, stream in such case.
 	alBufferData(sound.buffer, sound.audio_format, sound_data, sound_data_size, sound.sample_rate);
-
-	// We've copied buffer data to sound card memory, so free it on cpu.
-	free_temp(sound_file_size);
 
 	//if ((al_error = alGetError()) != AL_NO_ERROR) log("al_error (0x%X)", al_error);
 

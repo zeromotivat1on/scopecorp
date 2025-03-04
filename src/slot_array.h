@@ -17,8 +17,8 @@ struct Slot_Array {
     Slot_Array() = default;
     Slot_Array(s32 capacity)
         : capacity(capacity),
-          items((T*)alloc_persistent(capacity * sizeof(T))),
-          free_indices(alloc_array_persistent(capacity, s32)) {}
+          items((T*)push(pers, capacity * sizeof(T))),
+          free_indices(push_array(pers, capacity, s32)) {}
     
     T& operator[](s32 idx) {
         assert(idx >= 0);

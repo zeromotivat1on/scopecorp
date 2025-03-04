@@ -13,7 +13,7 @@
 
 Text_Draw_Command *create_default_text_draw_command(Font_Atlas *atlas) {
 	// @Cleanup: create separate container for draw commands.
-	auto *command = alloc_struct_persistent(Text_Draw_Command);
+	auto *command = push_struct(pers, Text_Draw_Command);
 	*command = Text_Draw_Command();
 
 	command->flags |= DRAW_FLAG_IGNORE_DEPTH;

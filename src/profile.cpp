@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "profile.h"
 #include "font.h"
+#include "memory_storage.h"
 
 #include "game/game.h"
 #include "game/world.h"
@@ -54,35 +55,22 @@ void draw_dev_stats(const Font_Atlas *atlas, const World *world) {
 	}
 
 	{   // Memory stats.
-		u64 persistent_size;
-		u64 persistent_used;
-		usage_persistent(&persistent_size, &persistent_used);
-		f32 persistent_part = (f32)persistent_used / persistent_size * 100.0f;
-
-		text_size = (s32)sprintf_s(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Persistent)", (f32)persistent_used / 1024 / 1024, (f32)persistent_size / 1024 / 1024, persistent_part);
+		const f32 pers_percent = (f32)pers->used / pers->size * 100.0f;
+		text_size = (s32)sprintf_s(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Persistent)", (f32)pers->used / 1024 / 1024, (f32)pers->size / 1024 / 1024, pers_percent);
 		pos.x = padding;
 		pos.y = padding;
 		draw_text_immediate_with_shadow(text_draw_command, text, text_size, pos, text_color, shadow_offset, vec3_zero);
 
-		u64 frame_size;
-		u64 frame_used;
-		usage_frame(&frame_size, &frame_used);
-		f32 frame_part = (f32)frame_used / frame_size * 100.0f;
-
-		text_size = (s32)sprintf_s(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Frame)", (f32)frame_used / 1024 / 1024, (f32)frame_size / 1024 / 1024, frame_part);
+		const f32 frame_percent = (f32)frame->used / frame->size * 100.0f;
+		text_size = (s32)sprintf_s(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Frame)", (f32)frame->used / 1024 / 1024, (f32)frame->size / 1024 / 1024, frame_percent);
 		pos.x = padding;
 		pos.y += atlas->line_height;
 		draw_text_immediate_with_shadow(text_draw_command, text, text_size, pos, text_color, shadow_offset, vec3_zero);
 
-		u64 temp_size;
-		u64 temp_used;
-		usage_temp(&temp_size, &temp_used);
-		f32 temp_part = (f32)temp_used / temp_size * 100.0f;
-
-		text_size = (s32)sprintf_s(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Temp)", (f32)temp_used / 1024 / 1024, (f32)temp_size / 1024 / 1024, temp_part);
+		const f32 temp_percent = (f32)temp->used / temp->size * 100.0f;
+		text_size = (s32)sprintf_s(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Temp)", (f32)temp->used / 1024 / 1024, (f32)temp->size / 1024 / 1024, temp_percent);
 		pos.x = padding;
 		pos.y += atlas->line_height;
 		draw_text_immediate_with_shadow(text_draw_command, text, text_size, pos, text_color, shadow_offset, vec3_zero);
 	}
-
 }

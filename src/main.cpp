@@ -29,17 +29,10 @@ static void on_window_event(Window *window, Window_Event *event) {
 }
 
 int main() {
-	prealloc_root();
-
-	constexpr u64 persistent_memory_size = MB(64);
-	constexpr u64 frame_memory_size = MB(16);
-	constexpr u64 temp_memory_size = MB(64);
-	prealloc_persistent(persistent_memory_size);
-	prealloc_frame(frame_memory_size);
-	prealloc_temp(temp_memory_size);
+    void *vm = allocate_core();
 
 	log("Preallocated memory storages: Persistent %.fmb | Frame %.fmb | Temp %.fmb",
-		(f32)persistent_memory_size / 1024 / 1024, (f32)frame_memory_size / 1024 / 1024, (f32)temp_memory_size / 1024 / 1024);
+		(f32)pers_memory_size / 1024 / 1024, (f32)frame_memory_size / 1024 / 1024, (f32)temp_memory_size / 1024 / 1024);
 
 	init_input_table();
 
@@ -80,7 +73,7 @@ int main() {
 
 	init_draw_queue(&draw_queue);
 
-	world = alloc_struct_persistent(World);
+	world = push_struct(pers, World);
 	init_world(world);
 
 	Player &player = world->player;
@@ -89,7 +82,7 @@ int main() {
         const f32 scale_aspect = (f32)texture.width / texture.height;
         const f32 y_scale = 1.0f * scale_aspect;
         const f32 x_scale = y_scale * scale_aspect;
-        
+
 		player.scale = vec3(x_scale, y_scale, 1.0f);
 		player.material_index = material_index_list.player;
 
@@ -255,7 +248,7 @@ int main() {
 		}
 
 		swap_buffers(window);
-		free_all_frame();
+		clear(frame);
 
 		const s64 end_counter = performance_counter();
 		dt = (end_counter - begin_counter) / frequency;
@@ -269,7 +262,7 @@ int main() {
 
 	stop_hot_reload_thread(&hot_reload_list);
 	destroy(window);
-	free_root();
-
+    release_core(vm);
+    
 	return 0;
 }

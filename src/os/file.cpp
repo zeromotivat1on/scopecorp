@@ -21,26 +21,3 @@ bool read_file(const char *path, void *buffer, u64 size, u64 *bytes_read)
 
 	return true;
 }
-
-void *read_entire_file_temp(const char *path, u64 *bytes_read)
-{
-	File file = open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_READ);
-	if (file == INVALID_FILE) {
-		error("Failed to open file %s", path);
-		return false;
-	}
-
-	defer { close_file(file); };
-
-	const s64 size = file_size(file);
-	void *buffer = alloc_temp(size);
-
-	if (bytes_read) *bytes_read = 0;
-	if (!read_file(file, buffer, size, bytes_read)) {
-		error("Failed to read entire file %s", path);
-		free_temp(size);
-		return null;
-	}
-
-	return buffer;
-}

@@ -525,8 +525,8 @@ static RECT get_window_border_rect() {
 }
 
 Window *create_window(s32 w, s32 h, const char *name, s32 x, s32 y) {
-	Window *window = alloc_struct_persistent(Window);
-	window->win32 = alloc_struct_persistent(Win32_Window);
+	Window *window = push_struct(pers, Window);
+	window->win32  = push_struct(pers, Win32_Window);
 
 	window->win32->class_name = "win32_window";
 

@@ -274,19 +274,19 @@ s32 create_shader(const char *path) {
 	shader.path = path;
 
 	u64 shader_size = 0;
-	u8 *shader_src = alloc_buffer_temp(MAX_SHADER_SIZE);
-	defer { free_buffer_temp(MAX_SHADER_SIZE); };
+	u8 *shader_src = (u8 *)push(temp, MAX_SHADER_SIZE);
+	defer { pop(temp, MAX_SHADER_SIZE); };
 
 	if (!read_file(path, shader_src, MAX_SHADER_SIZE, &shader_size))
 		return INVALID_INDEX;
 
 	shader_src[shader_size] = '\0';
 
-	char *vertex_src = (char *)alloc_temp(MAX_SHADER_SIZE);
-	defer { free_temp(MAX_SHADER_SIZE); };
+	char *vertex_src = (char *)push(temp, MAX_SHADER_SIZE);
+	defer { pop(temp, MAX_SHADER_SIZE); };
 
-	char *fragment_src = (char *)alloc_temp(MAX_SHADER_SIZE);
-	defer { free_temp(MAX_SHADER_SIZE); };
+	char *fragment_src = (char *)push(temp, MAX_SHADER_SIZE);
+	defer { pop(temp, MAX_SHADER_SIZE); };
 
 	parse_shader_source(path, (char *)shader_src, vertex_src, fragment_src);
 
@@ -299,19 +299,19 @@ s32 create_shader(const char *path) {
 
 bool recreate_shader(Shader *shader) {
 	u64 shader_size = 0;
-	u8 *shader_src = alloc_buffer_temp(MAX_SHADER_SIZE);
-	defer { free_buffer_temp(MAX_SHADER_SIZE); };
+	u8 *shader_src = (u8 *)push(temp, MAX_SHADER_SIZE);
+	defer { pop(temp, MAX_SHADER_SIZE); };
 
 	if (!read_file(shader->path, shader_src, MAX_SHADER_SIZE, &shader_size))
 		return false;
 
 	shader_src[shader_size] = '\0';
 
-	char *vertex_src = (char *)alloc_temp(MAX_SHADER_SIZE);
-	defer { free_temp(MAX_SHADER_SIZE); };
+	char *vertex_src = (char *)push(temp, MAX_SHADER_SIZE);
+	defer { pop(temp, MAX_SHADER_SIZE); };
 
-	char *fragment_src = (char *)alloc_temp(MAX_SHADER_SIZE);
-	defer { free_temp(MAX_SHADER_SIZE); };
+	char *fragment_src = (char *)push(temp, MAX_SHADER_SIZE);
+	defer { pop(temp, MAX_SHADER_SIZE); };
 
 	parse_shader_source(shader->path, (char *)shader_src, vertex_src, fragment_src);
 
@@ -501,8 +501,8 @@ s32 create_texture(const char *path) {
 	defer { stbi_set_flip_vertically_on_load(false); };
 
 	u64 buffer_size = 0;
-	u8 *buffer = alloc_buffer_temp(MAX_TEXTURE_SIZE);
-	defer { free_buffer_temp(MAX_TEXTURE_SIZE); };
+	u8 *buffer = (u8 *)push(temp, MAX_TEXTURE_SIZE);
+	defer { pop(temp, MAX_TEXTURE_SIZE); };
 
 	if (!read_file(path, buffer, MAX_TEXTURE_SIZE, &buffer_size)) {
 		return INVALID_INDEX;
@@ -520,12 +520,12 @@ s32 create_texture(const char *path) {
 }
 
 Font_Atlas *bake_font_atlas(const Font *font, u32 start_charcode, u32 end_charcode, s16 font_size) {
-	Font_Atlas *atlas = alloc_struct_persistent(Font_Atlas);
+	Font_Atlas *atlas = push_struct(pers, Font_Atlas);
 	atlas->font = font;
 	atlas->texture_index = INVALID_INDEX;
 
 	const u32 charcode_count = end_charcode - start_charcode + 1;
-	atlas->metrics = alloc_array_persistent(charcode_count, Font_Glyph_Metric);
+	atlas->metrics = push_array(pers, charcode_count, Font_Glyph_Metric);
 	atlas->start_charcode = start_charcode;
 	atlas->end_charcode = end_charcode;
 
@@ -583,7 +583,7 @@ void rescale_font_atlas(Font_Atlas *atlas, s16 font_size) {
 	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-	u8 *bitmap = alloc_buffer_temp(font_size * font_size);
+	u8 *bitmap = (u8 *)push(temp, font_size * font_size);
 	for (u32 i = 0; i < charcode_count; ++i) {
 		const u32 c = i + atlas->start_charcode;
 		Font_Glyph_Metric *metric = atlas->metrics + i;
@@ -622,7 +622,7 @@ void rescale_font_atlas(Font_Atlas *atlas, s16 font_size) {
 		metric->advance_width = (s32)(advance_width * scale);
 	}
 
-	free_buffer_temp(font_size * font_size);
+	pop(temp, font_size * font_size);
 
 	glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 4); // restore default color channel size
