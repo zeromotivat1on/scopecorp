@@ -21,9 +21,9 @@ struct Uniform {
 	const char *name  = null;
 	const void *value = null;
 	Uniform_Type type = UNIFORM_NULL;
-	u32 flags = 0;
-	u32 location = MAX_U32;
-	s32 count = 0; // greater than 1 for array uniforms
+	u32 flags    =  0;
+	s32 location = -1;
+	s32 count    =  0; // greater than 1 for array uniforms
 };
 
 void sync_uniform(const Uniform *uniform); // pass uniform data to gpu if dirty
