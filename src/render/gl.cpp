@@ -346,7 +346,7 @@ s32 find_shader_by_file(Shader_Index_List *list, const char *path) {
 }
 
 void add_material_uniforms(s32 material_index, const Uniform *uniforms, s32 count) {
-	auto &material = render_registry.materials[material_index];
+	auto &material     = render_registry.materials[material_index];
 	const auto &shader = render_registry.shaders[material.shader_index];
 	assert(material.uniform_count + count <= MAX_MATERIAL_UNIFORMS);
 
@@ -354,7 +354,10 @@ void add_material_uniforms(s32 material_index, const Uniform *uniforms, s32 coun
 		auto *src_uniform = uniforms + i;
 		auto *dst_uniform = material.uniforms + material.uniform_count + i;
 		memcpy(dst_uniform, src_uniform, sizeof(Uniform));
-		dst_uniform->location = glGetUniformLocation(shader.id, dst_uniform->name);
+
+        dst_uniform->location = glGetUniformLocation(shader.id, dst_uniform->name);
+        if (dst_uniform->location == -1)
+            error("Failed to get uniform location with invalid name %s", dst_uniform->name);
 	}
 
 	material.uniform_count += count;
@@ -450,6 +453,9 @@ void sync_uniform(const Uniform *uniform) {
 	switch (uniform->type) {
 	case UNIFORM_U32:
 		glUniform1uiv(uniform->location, uniform->count, (u32 *)uniform->value);
+		break;
+    case UNIFORM_F32:
+		glUniform1fv(uniform->location, uniform->count, (f32 *)uniform->value);
 		break;
 	case UNIFORM_F32_VEC2:
 		glUniform2fv(uniform->location, uniform->count, (f32 *)uniform->value);

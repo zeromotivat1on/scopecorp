@@ -4,14 +4,13 @@
 
 inline constexpr s32 MAX_MATERIAL_UNIFORMS = 8;
 
-struct Uniform;
 struct Material
 {
 	Material() = default;
 	Material(s32 shader_index, s32 texture_index)
 		: shader_index(shader_index), texture_index(texture_index) {}
 
-	s32 shader_index = INVALID_INDEX;
+	s32 shader_index  = INVALID_INDEX;
 	s32 texture_index = INVALID_INDEX;
 	s32 uniform_count = 0;
 	Uniform uniforms[MAX_MATERIAL_UNIFORMS];
@@ -28,7 +27,7 @@ struct Material_Index_List {
 inline Material_Index_List material_index_list;
 
 void create_game_materials(Material_Index_List *list);
-void add_material_uniforms(s32 material_index, const Uniform *uniforms, s32 count);
+void add_material_uniforms(s32 material_index, const Uniform *uniforms, s32 count = 1);
 Uniform *find_material_uniform(s32 material_index, const char *name);
 
 // Given data is not copied to uniform, it just stores a reference to it.

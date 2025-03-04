@@ -1,10 +1,6 @@
 #pragma once
 
-inline constexpr s32 MAX_UNIFORM_NAME_SIZE  = 64;
-inline constexpr s32 MAX_UNIFORM_ARRAY_SIZE = 128; // @Cleanup: grab from system caps
-
-enum Uniform_Type
-{
+enum Uniform_Type {
 	UNIFORM_NULL,
 	UNIFORM_U32,
 	UNIFORM_F32,
@@ -13,18 +9,16 @@ enum Uniform_Type
 	UNIFORM_F32_MAT4,
 };
 
-enum Uniform_Flags : u32
-{
-	UNIFORM_FLAG_DIRTY = 0x1, // have lists of dirty and clean uniforms for faster sync?
+enum Uniform_Flags : u32 {
+	UNIFORM_FLAG_DIRTY = 0x1,
 };
 
-struct Uniform
-{
+struct Uniform {
 	Uniform() = default;
-	Uniform(const char *name, Uniform_Type type, s32 count)
+	Uniform(const char *name, Uniform_Type type, s32 count = 1)
 		: name(name), type(type), count(count) {}
 
-	const char *name = null;
+	const char *name  = null;
 	const void *value = null;
 	Uniform_Type type = UNIFORM_NULL;
 	u32 flags = 0;
