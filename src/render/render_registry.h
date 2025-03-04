@@ -11,7 +11,6 @@
 inline constexpr s32 MAX_VERTEX_BUFFERS = 64;
 inline constexpr s32 MAX_INDEX_BUFFERS  = 64;
 inline constexpr s32 MAX_SHADERS        = 64;
-//inline constexpr s32 MAX_UNIFORMS       = 64;
 inline constexpr s32 MAX_TEXTURES       = 64;
 inline constexpr s32 MAX_MATERIALS      = 64;
 
@@ -19,7 +18,6 @@ struct Render_Registry {
     Slot_Array<Vertex_Buffer> vertex_buffers;
     Slot_Array<Index_Buffer>  index_buffers;
     Slot_Array<Shader>        shaders;
-    //Slot_Array<Uniform>       uniforms;
     Slot_Array<Texture>       textures;
     Slot_Array<Material>      materials;
 };
