@@ -15,15 +15,11 @@
 #include "log.h"
 #include "font.h"
 #include "profile.h"
-#include "os/file.h"
-
-#include <stdio.h>
-
-#define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
-
-// Implementation is defined in font.cpp
 #include "stb_truetype.h"
+#include "stb_sprintf.h"
+
+#include "os/file.h"
 
 void set_gfx_features(u32 flags) {
 	if (flags & GFX_FLAG_BLEND) {
@@ -267,7 +263,7 @@ static void parse_shader_source(const char *path, const char *shader_src, char *
 
 s32 create_shader(const char *path) {
 	char timer_string[256];
-	sprintf_s(timer_string, sizeof(timer_string), "%s from %s took", __FUNCTION__, path);
+	stbsp_snprintf(timer_string, sizeof(timer_string), "%s from %s took", __FUNCTION__, path);
 	SCOPE_TIMER(timer_string);
 
 	Shader shader;
@@ -491,7 +487,7 @@ static u32 gl_create_texture(void *data, s32 width, s32 height) {
 
 s32 create_texture(const char *path) {
 	char timer_string[256];
-	sprintf_s(timer_string, sizeof(timer_string), "%s from %s took", __FUNCTION__, path);
+	stbsp_snprintf(timer_string, sizeof(timer_string), "%s from %s took", __FUNCTION__, path);
 	SCOPE_TIMER(timer_string);
 
 	Texture texture = {0};

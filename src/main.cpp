@@ -4,6 +4,7 @@
 #include "flip_book.h"
 #include "memory_storage.h"
 #include "profile.h"
+#include "stb_sprintf.h"
 
 #include "os/thread.h"
 #include "os/input.h"
@@ -21,8 +22,6 @@
 #include "game/world.h"
 #include "game/game.h"
 #include "editor/hot_reload.h"
-
-#include <stdio.h>
 
 static void on_window_event(Window *window, Window_Event *event) {
 	handle_event(window, event);
@@ -242,7 +241,7 @@ int main() {
 			const bool has_overlap = aabb_overlap(player.aabb, cube.aabb);
 
 			char text[256];
-			s32 size = sprintf_s(text, sizeof(text), "cube\n\tlocation %s\n\taabb %s %s\noverlap with player %s", to_string(cube.location), to_string(cube.aabb.min), to_string(cube.aabb.max), has_overlap ? "TRUE" : "FALSE");
+			s32 size = stbsp_snprintf(text, sizeof(text), "cube\n\tlocation %s\n\taabb %s %s\noverlap with player %s", to_string(cube.location), to_string(cube.aabb.min), to_string(cube.aabb.max), has_overlap ? "TRUE" : "FALSE");
 			vec2 pos = vec2(10.0f, viewport.height * 0.5f);
 			draw_text_immediate(text_draw_command, text, size, pos, vec3(1.0f));
 		}

@@ -7,10 +7,10 @@
 #include "profile.h"
 #include "memory_eater.h"
 #include "memory_storage.h"
+#include "stb_sprintf.h"
 
 #include "os/file.h"
 
-#include <stdio.h>
 #include <string.h>
 
 void init_audio_context()
@@ -92,7 +92,7 @@ static void *extract_wav(void *data, s32 *channel_count, s32 *sample_rate, s32 *
 
 Sound create_sound(const char *path, u32 flags) {
 	char timer_string[256];
-	sprintf_s(timer_string, sizeof(timer_string), "%s from %s took", __FUNCTION__, path);
+	stbsp_snprintf(timer_string, sizeof(timer_string), "%s from %s took", __FUNCTION__, path);
 	SCOPE_TIMER(timer_string);
 
 	Sound sound;

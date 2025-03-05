@@ -2,11 +2,11 @@
 #include "font.h"
 #include "log.h"
 #include "memory_storage.h"
-#include "os/file.h"
-#include <string.h>
-
-#define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
+
+#include "os/file.h"
+
+#include <string.h>
 
 Font *create_font(const char *path) {
 	Font *font = push_struct(pers, Font);

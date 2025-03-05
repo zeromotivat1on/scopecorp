@@ -1,7 +1,8 @@
 #include "pch.h"
 #include "math/vector.h"
 #include "math/math_core.h"
-#include <stdio.h>
+
+#include "stb_sprintf.h"
 
 // Vector2
 
@@ -556,7 +557,7 @@ const char* to_string(const vec3 &v) {
     buffer_index = (buffer_index + 1) % 4;
 
     char* buffer = buffers[buffer_index];
-    sprintf_s(buffer, 32, "(%.3f, %.3f %.3f)", v.x, v.y, v.z);
+    stbsp_snprintf(buffer, 32, "(%.3f, %.3f %.3f)", v.x, v.y, v.z);
     return buffer;
 }
 
