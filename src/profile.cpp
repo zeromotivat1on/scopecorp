@@ -1,14 +1,25 @@
 #include "pch.h"
 #include "profile.h"
+#include "log.h"
 #include "font.h"
 #include "memory_storage.h"
 #include "stb_sprintf.h"
+
+#include "os/time.h"
 
 #include "game/game.h"
 #include "game/world.h"
 
 #include "render/text.h"
 #include "render/viewport.h"
+
+Scope_Timer::Scope_Timer(const char *info)
+    : info(info), start(performance_counter()) {}
+
+Scope_Timer::~Scope_Timer() {
+    const f32 seconds = (performance_counter() - start) / (f32)performance_frequency();
+    log("%s %.2fms", info, seconds * 1000.0f);
+}
 
 void draw_dev_stats(const Font_Atlas *atlas, const World *world) {
 	const Player &player = world->player;

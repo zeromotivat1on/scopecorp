@@ -14,22 +14,14 @@
 #define SCOPE_TIMER(name)
 #else
 
-#include "log.h"
-#include "os/time.h"
-
 #define SCOPE_TIMER(name) Scope_Timer (scope_timer##__LINE__)(name)
 
 struct Scope_Timer {
-	Scope_Timer(const char *info)
-		: info(info), start(performance_counter()) {}
-
-	~Scope_Timer() {
-		const f32 seconds = (performance_counter() - start) / (f32)performance_frequency();
-		log("%s %.2fms", info, seconds * 1000.0f);
-	}
-
-	const char *info;
+    const char *info;
 	s64 start;
+    
+	Scope_Timer(const char *info);
+	~Scope_Timer();
 };
 #endif
 

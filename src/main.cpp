@@ -28,6 +28,8 @@ static void on_window_event(Window *window, Window_Event *event) {
 }
 
 int main() {
+    const s64 startup_time = current_time_ms();
+    
     void *vm = allocate_core();
 
 	log("Preallocated memory storages: Persistent %.fmb | Frame %.fmb | Temp %.fmb",
@@ -218,6 +220,8 @@ int main() {
 	s64 begin_counter = performance_counter();
 	const f32 frequency = (f32)performance_frequency();
 
+    log("Startup took %.2fms", (f32)current_time_ms() - startup_time);
+    
 	while (alive(window)) {
         PROFILE_SCOPE("Game Frame");
 
