@@ -49,5 +49,4 @@ void check_shader_hot_reload_queue(Shader_Hot_Reload_Queue *queue, f32 dt) {
 		// but in theory queue should always have max 1 shader in it.
 		if (hot_reload_shader(index)) queue->count--;
 	}
-
 }
