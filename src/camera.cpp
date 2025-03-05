@@ -1,6 +1,9 @@
 #include "pch.h"
 #include "camera.h"
+#include "log.h"
+
 #include "math/math_core.h"
+
 #include "render/viewport.h"
 
 mat4 camera_view(const Camera *c) {
@@ -14,7 +17,7 @@ mat4 camera_projection(const Camera *c) {
 	if (c->mode == MODE_ORTHOGRAPHIC)
 		return mat4_orthographic(c->left, c->right, c->bottom, c->top, c->near, c->far);
 
-	assert(false); // unknown camera mode
+    error("Failed to get camera projection from camera with unknown view mode %d", c->mode);
 	return mat4_identity();
 }
 

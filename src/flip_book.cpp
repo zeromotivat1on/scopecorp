@@ -1,6 +1,9 @@
 #include "pch.h"
 #include "flip_book.h"
+#include "assertion.h"
+
 #include "render/texture.h"
+
 #include <string.h>
 #include <malloc.h>
 

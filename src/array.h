@@ -1,5 +1,6 @@
 #pragma once
 
+#include "assertion.h"
 #include "memory_storage.h"
 
 // Fixed capacity array allocated in persistent memory block.

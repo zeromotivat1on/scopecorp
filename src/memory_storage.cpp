@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "memory_storage.h"
 #include "log.h"
+#include "assertion.h"
 
 #include "os/memory.h"
 

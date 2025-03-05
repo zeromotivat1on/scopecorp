@@ -9,6 +9,7 @@
 #include "os/window.h"
 
 #include "log.h"
+#include "assertion.h"
 #include "memory_storage.h"
 #include "editor/hot_reload.h"
 
