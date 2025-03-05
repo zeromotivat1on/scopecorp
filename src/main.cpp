@@ -28,7 +28,7 @@ static void on_window_event(Window *window, Window_Event *event) {
 }
 
 int main() {
-    const s64 startup_time = current_time_ms();
+    const s64 startup_counter = performance_counter();
     
     void *vm = allocate_core();
 
@@ -220,7 +220,7 @@ int main() {
 	s64 begin_counter = performance_counter();
 	const f32 frequency = (f32)performance_frequency();
 
-    log("Startup took %.2fms", (f32)current_time_ms() - startup_time);
+    log("Startup took %.2fs", (performance_counter() - startup_counter) / (f32)performance_frequency());
     
 	while (alive(window)) {
         PROFILE_SCOPE("Game Frame");
