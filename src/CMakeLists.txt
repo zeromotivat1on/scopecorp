@@ -5,6 +5,7 @@ add_executable(${PROJECT_NAME}
                 math/matrix.cpp math/math.cpp math/quat.cpp math/vector.cpp
                 audio/al.cpp audio/sound.cpp
                 game/game.cpp game/player_control.cpp game/world.cpp
+                editor/hot_reload.cpp
                 render/draw.cpp render/gl.cpp render/glad.cpp render/render_registry.cpp render/text.cpp render/vertex.cpp)
 
 if (WIN32)

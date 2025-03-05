@@ -25,15 +25,17 @@ void *allocate_core() {
         return null;
     }
     
-    static Memory_Storage p, f, t;
-    pers  = &p;
-    frame = &f;
-    temp  = &t;
-
+    static Memory_Storage _pers, _frame, _temp, _panic;
+    pers  = &_pers;
+    frame = &_frame;
+    temp  = &_temp;
+    panic = &_panic;
+    
     u64 offset = 0;
     init(pers,  pers_memory_size,  commited + offset); offset += pers_memory_size;
     init(frame, frame_memory_size, commited + offset); offset += frame_memory_size;
     init(temp,  temp_memory_size,  commited + offset); offset += temp_memory_size;
+    init(panic, panic_memory_size, commited + offset); offset += panic_memory_size;
     
     return vm;
 }

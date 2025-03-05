@@ -3,6 +3,7 @@
 inline constexpr u64 pers_memory_size  = MB(64);
 inline constexpr u64 frame_memory_size = MB(16);
 inline constexpr u64 temp_memory_size  = MB(64);
+inline constexpr u64 panic_memory_size = MB(1);
 
 struct Memory_Storage {
 	u8 *data;
@@ -13,6 +14,7 @@ struct Memory_Storage {
 inline Memory_Storage *pers  = null;
 inline Memory_Storage *frame = null;
 inline Memory_Storage *temp  = null;
+inline Memory_Storage *panic = null;
 
 // Preallocate application memory.
 void *allocate_core();
@@ -29,8 +31,20 @@ void  clear(Memory_Storage *storage);
 
 // Allocations in memory storages are done in linear way, therefore its enforce
 // understanding of application memory requirements and lifetimes.
+//
 // - Persistent block has application lifetime and is meant for
 //   high-level abstractions like entities storage, asset registry etc.
+//
 // - Frame block has one application frame lifetime (cleared at the end of frame)
 //   and useful for allocations within game frame.
+//
 // - Temporary block has application lifetime and can be used for arbitrary allocations.
+//   You can clear it explicitely whenever its needed.
+//
+// - Panic block has application lifetime and is used in code that should have been
+//   returned other actual data, but returned this one instead with error logged.
+//   The client code may think that returned memory is valid and at some situations
+//   an application may show expected behavior, but the block generally stores garbage
+//   data and can be thought of as an error fallback path, that indicates a significant
+//   error in code that should be fixed, but at least allows to ignore immediate crashes
+//   like access violation.

@@ -58,8 +58,6 @@ int main() {
 	create_game_flip_books(&flip_books);
 	load_game_sounds(&sounds);
 
-	init_shader_hot_reload(&shader_hot_reload_queue);
-
 	Hot_Reload_List hot_reload_list = {0};
 	register_hot_reload_dir(&hot_reload_list, DIR_SHADERS, on_shader_changed_externally);
 	start_hot_reload_thread(&hot_reload_list);
@@ -227,7 +225,7 @@ int main() {
 		tick(world, dt);
 
 		set_listener_pos(player.location);
-		check_shader_hot_reload_queue(&shader_hot_reload_queue);
+		check_shader_hot_reload_queue(&shader_hot_reload_queue, dt);
 
 		clear_screen(vec4(0.9f, 0.4f, 0.5f, 1.0f)); // ugly bright pink
 		enqueue_draw_world(&draw_queue, world);
