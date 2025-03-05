@@ -1,6 +1,6 @@
 #pragma once
 
-inline constexpr s32 MAX_HOT_RELOAD_LIST_SIZE  = 16;
+inline constexpr s32 MAX_HOT_RELOAD_LIST_SIZE = 16;
 
 // @Cleanup: in case of shader hot reload, 1 or 2 attempts can be done
 // to open modified shader file to recreate it, but it can still be blocked
