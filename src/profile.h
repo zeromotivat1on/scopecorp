@@ -6,8 +6,8 @@
 #define PROFILE_SCOPE(name) ZoneScopedN(name)
 #define PROFILE_FRAME(name) FrameMarkNamed(name)
 #else
-#define PROFILE_SCOPE
-#define PROFILE_FRAME
+#define PROFILE_SCOPE(name)
+#define PROFILE_FRAME(name)
 #endif
 
 #if RELEASE
