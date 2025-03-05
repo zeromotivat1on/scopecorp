@@ -58,8 +58,6 @@ int main() {
 	create_game_flip_books(&flip_books);
 	load_game_sounds(&sounds);
 
-	//alSourcePlay(sounds.world.source);
-
 	init_shader_hot_reload(&shader_hot_reload_queue);
 
 	Hot_Reload_List hot_reload_list = {0};
@@ -223,6 +221,8 @@ int main() {
 	const f32 frequency = (f32)performance_frequency();
 
 	while (alive(window)) {
+        PROFILE_SCOPE("Game Frame");
+
 		poll_events(window);
 		tick(world, dt);
 
@@ -236,6 +236,8 @@ int main() {
 		flush_draw_commands(&draw_queue);
 
 		debug_scope {
+            PROFILE_SCOPE("Debug Stats Draw");
+
 			draw_dev_stats(atlas, world);
 
 			const bool has_overlap = aabb_overlap(player.aabb, cube.aabb);
@@ -247,6 +249,8 @@ int main() {
 		}
 
 		swap_buffers(window);
+        PROFILE_FRAME("Game Frame");
+        
 		clear(frame);
 
 		const s64 end_counter = performance_counter();

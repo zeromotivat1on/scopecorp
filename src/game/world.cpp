@@ -4,6 +4,7 @@
 #include "game/player_control.h"
 
 #include "log.h"
+#include "profile.h"
 
 #include "render/material.h"
 
@@ -14,6 +15,8 @@ void init_world(World *world) {
 }
 
 void tick(World *world, f32 dt) {
+    PROFILE_SCOPE("Tick World");
+    
 	world->dt = dt;
 
 	Camera *camera = desired_camera(world);

@@ -5,6 +5,7 @@
 #include "game/entities.h"
 
 #include "log.h"
+#include "profile.h"
 #include "memory_storage.h"
 
 void init_draw_queue(Draw_Queue *queue) {
@@ -19,11 +20,15 @@ void enqueue_draw_command(Draw_Queue *queue, const Draw_Command *command) {
 }
 
 void flush_draw_commands(Draw_Queue *queue) {
+    PROFILE_SCOPE(__FUNCTION__);
+    
 	for (s32 i = 0; i < queue->count; ++i) draw(queue->commands + i);
 	queue->count = 0;
 }
 
 void enqueue_draw_world(Draw_Queue *queue, const World *world) {
+    PROFILE_SCOPE(__FUNCTION__);
+    
 	enqueue_draw_entity(&draw_queue, &world->skybox);
 
 	for (s32 i = 0; i < world->static_meshes.count; ++i)

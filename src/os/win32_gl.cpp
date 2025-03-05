@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "log.h"
+#include "profile.h"
 
 #include "render/gfx.h"
 #include "render/glad.h"
@@ -176,5 +177,6 @@ void set_vsync(bool enable) {
 }
 
 void swap_buffers(Window *window) {
+    PROFILE_SCOPE(__FUNCTION__);
 	SwapBuffers(window->win32->hdc);
 }

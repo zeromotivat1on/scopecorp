@@ -64,15 +64,15 @@ inline const char* build_type_name = "RELEASE";
 #error "Unknown build type"
 #endif
 
-#define KB(n) (n * 1024ULL)
-#define MB(n) (KB(n) * 1024ULL)
-#define GB(n) (MB(n) * 1024ULL)
-#define TB(n) (GB(n) * 1024ULL)
+#define KB(n) (n * 1024ui64)
+#define MB(n) (KB(n) * 1024ui64)
+#define GB(n) (MB(n) * 1024ui64)
+#define TB(n) (GB(n) * 1024ui64)
 
 #define c_array_count(a) sizeof(a) / sizeof((a)[0])
 
-#define _CONCAT(a, b) a ## b 
-#define  CONCAT(a, b) _CONCAT(a, b)
+#define CONCAT_(a, b) a ## b 
+#define CONCAT(a, b) CONCAT_(a, b)
 
 struct Defer_Ref {};
 template <class F> struct Defer { F f; ~Defer() { f(); } };

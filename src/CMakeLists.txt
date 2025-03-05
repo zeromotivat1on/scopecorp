@@ -1,5 +1,5 @@
 add_executable(${PROJECT_NAME}
-                assertion.cpp camera.cpp collision.cpp flip_book.cpp font.cpp log.cpp main.cpp memory_storage.cpp pch.cpp profile.cpp
+                assert.cpp camera.cpp collision.cpp flip_book.cpp font.cpp log.cpp main.cpp memory_storage.cpp pch.cpp profile.cpp
                 # work_queue.cpp work_queue.h
                 os/file.cpp
                 math/matrix.cpp math/math.cpp math/quat.cpp math/vector.cpp
@@ -22,8 +22,13 @@ target_precompile_headers(${PROJECT_NAME} PUBLIC pch.h)
 target_include_directories(${PROJECT_NAME} PRIVATE "${PROJECT_SOURCE_DIR}")
 target_include_directories(${PROJECT_NAME} PRIVATE "${PROJECT_SOURCE_DIR}/src")
 
-if(MSVC)
+if (MSVC)
     target_compile_options(${PROJECT_NAME} PUBLIC /Zc:__cplusplus /W3)
+endif()
+
+if (INCLUDE_TRACY)
+    target_sources(${PROJECT_NAME} PRIVATE tracy/TracyClient.cpp)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE TRACY_ENABLE)
 endif()
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE

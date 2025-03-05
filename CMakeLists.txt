@@ -7,4 +7,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 set(RUN_TREE_DIR "${CMAKE_SOURCE_DIR}/run_tree")
 
+option(INCLUDE_TRACY "Include tracy profiler" ON)
+
 add_subdirectory(src)

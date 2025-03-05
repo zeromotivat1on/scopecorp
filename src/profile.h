@@ -1,13 +1,23 @@
 #pragma once
 
+#ifdef TRACY_ENABLE
+#include "tracy/tracy/Tracy.hpp"
+
+#define PROFILE_SCOPE(name) ZoneScopedN(name)
+#define PROFILE_FRAME(name) FrameMarkNamed(name)
+#else
+#define PROFILE_SCOPE
+#define PROFILE_FRAME
+#endif
+
 #if RELEASE
-#define SCOPE_TIMER(Name)	
+#define SCOPE_TIMER(name)
 #else
 
 #include "log.h"
 #include "os/time.h"
 
-#define SCOPE_TIMER(Name) Scope_Timer (scope_timer##__LINE__)(Name)
+#define SCOPE_TIMER(name) Scope_Timer (scope_timer##__LINE__)(name)
 
 struct Scope_Timer {
 	Scope_Timer(const char *info)

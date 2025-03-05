@@ -207,7 +207,7 @@ void tick(Player *player, f32 dt) {
 		camera.at = camera.eye + camera_forward;
 	}
 
-	const Sound &steps_sound = sounds.player_steps_cute;
+	const Sound &steps_sound = sounds.player_steps;
 	if (player->velocity == vec3(0.0f)) {
 		s32 state;
 		alGetSourcei(steps_sound.source, AL_SOURCE_STATE, &state);

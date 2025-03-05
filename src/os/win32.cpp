@@ -9,6 +9,7 @@
 #include "os/window.h"
 
 #include "log.h"
+#include "profile.h"
 #include "assertion.h"
 #include "memory_storage.h"
 #include "editor/hot_reload.h"
@@ -574,6 +575,8 @@ void destroy(Window *window) {
 }
 
 void poll_events(Window *window) {
+    PROFILE_SCOPE("Poll Window Events");
+    
 	input_table.mouse_offset_x = 0;
 	input_table.mouse_offset_y = 0;
 
