@@ -31,11 +31,12 @@ void enqueue_draw_world(Draw_Queue *queue, const World *world) {
 }
 
 static Draw_Command draw_command_for(const Entity *e) {
+    Draw_Command command;
+    command.flags = e->draw_flags;
+    
 	switch (e->type) {
 	case E_STATIC_MESH: {
 		const auto *mesh = (Static_Mesh *)e;
-		Draw_Command command;
-        command.flags = mesh->draw_flags;
 		command.vertex_buffer_index = mesh->vertex_buffer_index;
 		command.index_buffer_index  = mesh->index_buffer_index;
 		command.material_index      = mesh->material_index;
@@ -43,7 +44,6 @@ static Draw_Command draw_command_for(const Entity *e) {
 	}
 	case E_PLAYER: {
 		const auto *player = (Player *)e;
-		Draw_Command command;
 		command.vertex_buffer_index = player->vertex_buffer_index;
 		command.index_buffer_index  = player->index_buffer_index;
 		command.material_index      = player->material_index;
@@ -51,7 +51,6 @@ static Draw_Command draw_command_for(const Entity *e) {
 	}
 	case E_SKYBOX: {
 		const auto *skybox = (Skybox *)e;
-		Draw_Command command;
 		command.flags |= DRAW_FLAG_IGNORE_DEPTH;
 		command.vertex_buffer_index = skybox->vertex_buffer_index;
 		command.index_buffer_index  = skybox->index_buffer_index;

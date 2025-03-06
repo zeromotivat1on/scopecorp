@@ -203,7 +203,7 @@ void tick(Player *player, f32 dt) {
 		camera.at = camera.eye + camera_forward;
 	}
 
-    const vec3 aabb_offset = vec3(player->scale.x * 0.5f, 0.0f, 0.1f);
+    const vec3 aabb_offset = vec3(player->scale.x * 0.5f, 0.0f, player->scale.x * 0.3f);
 	player->aabb.min = player->location - aabb_offset;
 	player->aabb.max = player->location + aabb_offset;
 

@@ -84,11 +84,13 @@ int main() {
 		player.scale = vec3(x_scale, y_scale, 1.0f);
 		player.material_index = material_index_list.player;
 
+        // Little uv offset as source textures have small transient border.
+        const f32 uv_offset = 0.02f;
 		Vertex_PU vertices[4] = { // center in bottom mid point of quad
-			{ vec3( 0.5f,  1.0f, 0.0f), vec2(1.0f, 1.0f) },
-			{ vec3( 0.5f,  0.0f, 0.0f), vec2(1.0f, 0.0f) },
-			{ vec3(-0.5f,  0.0f, 0.0f), vec2(0.0f, 0.0f) },
-			{ vec3(-0.5f,  1.0f, 0.0f), vec2(0.0f, 1.0f) },
+			{ vec3( 0.5f,  1.0f, 0.0f), vec2(1.0f - uv_offset, 1.0f - uv_offset) },
+			{ vec3( 0.5f,  0.0f, 0.0f), vec2(1.0f - uv_offset, 0.0f + uv_offset) },
+			{ vec3(-0.5f,  0.0f, 0.0f), vec2(0.0f + uv_offset, 0.0f + uv_offset) },
+			{ vec3(-0.5f,  1.0f, 0.0f), vec2(0.0f + uv_offset, 1.0f - uv_offset) },
 		};
 		Vertex_Attrib_Type attribs[] = { VERTEX_ATTRIB_F32_V3, VERTEX_ATTRIB_F32_V2 };
 		player.vertex_buffer_index = create_vertex_buffer(attribs, c_array_count(attribs), (f32 *)vertices, 5 * c_array_count(vertices), BUFFER_USAGE_STATIC);
