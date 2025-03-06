@@ -1,9 +1,5 @@
 #pragma once
 
-// @Cleanup: includes for inline functions down below, remove later.
-#include "memory_storage.h"
-#include <string.h>
-
 inline constexpr s32 MAX_DRAW_QUEUE_SIZE = 64;
 
 struct Entity;

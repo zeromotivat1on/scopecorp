@@ -21,6 +21,8 @@
 
 #include "os/file.h"
 
+#include <string.h>
+
 void set_gfx_features(u32 flags) {
     gfx_features = flags;
     
