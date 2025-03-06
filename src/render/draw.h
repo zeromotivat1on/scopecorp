@@ -16,6 +16,7 @@ enum Draw_Mode {
 
 enum Draw_Command_Flags : u32 {
 	DRAW_FLAG_IGNORE_DEPTH = 0x1,
+    DRAW_FLAG_WIREFRAME    = 0x2, // draw as lines and disable face culling
 };
 
 struct Draw_Command {
@@ -38,9 +39,8 @@ inline Draw_Queue draw_queue;
 
 void init_draw_queue(Draw_Queue *queue);
 void enqueue_draw_command(Draw_Queue *queue, const Draw_Command *command);
-void flush_draw_commands(Draw_Queue *queue);
-
 void enqueue_draw_world(Draw_Queue *queue, const World *world);
 void enqueue_draw_entity(Draw_Queue *queue, const Entity *e);
+void flush_draw_commands(Draw_Queue *queue);
 
 void draw(const Draw_Command *command);

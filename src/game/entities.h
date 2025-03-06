@@ -23,6 +23,8 @@ struct Entity {
     vec3 scale = vec3(1.0f);
 
     mat4 mvp;
+
+    u32 draw_flags = 0;
 };
 
 struct Flip_Book;
@@ -53,9 +55,9 @@ struct Player : Entity {
 
 struct Static_Mesh : Entity {
     Static_Mesh() { type = E_STATIC_MESH; }
-
-    AABB aabb;
     
+    AABB aabb;
+
     s32 vertex_buffer_index = INVALID_INDEX;
     s32 index_buffer_index  = INVALID_INDEX;
     s32 material_index      = INVALID_INDEX;

@@ -22,6 +22,8 @@
 #include "os/file.h"
 
 void set_gfx_features(u32 flags) {
+    gfx_features = flags;
+    
 	if (flags & GFX_FLAG_BLEND) {
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -32,7 +34,7 @@ void set_gfx_features(u32 flags) {
 		glCullFace(GL_BACK);
 	}
 
-	if (flags & GFX_FLAG_CULL_BACK_FACE) {
+	if (flags & GFX_FLAG_WINDING_CCW) {
 		glFrontFace(GL_CCW);
 	}
 
@@ -44,6 +46,16 @@ void set_gfx_features(u32 flags) {
 		glEnable(GL_DEPTH_TEST);
 		glDepthFunc(GL_LESS);
 	}
+}
+
+void add_gfx_features(u32 flags) {
+    gfx_features |= flags;
+    set_gfx_features(gfx_features);
+}
+
+void remove_gfx_features(u32 flags) {
+    gfx_features &= ~flags;
+    set_gfx_features(gfx_features);
 }
 
 void clear_screen(vec4 color) {
@@ -64,6 +76,11 @@ static s32 gl_draw_mode(Draw_Mode mode) {
 void draw(const Draw_Command *command) {
 	if (command->flags & DRAW_FLAG_IGNORE_DEPTH) glDepthMask(GL_FALSE);
 
+    if (command->flags & DRAW_FLAG_WIREFRAME) {
+        glDisable(GL_CULL_FACE);
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    }
+    
 	const s32 draw_mode = gl_draw_mode(command->draw_mode);
 
 	const auto &material = render_registry.materials[command->material_index];
@@ -91,12 +108,18 @@ void draw(const Draw_Command *command) {
 		glDrawArraysInstanced(draw_mode, 0, vertex_buffer.component_count, command->instance_count);
 	}
 
-	glDepthMask(GL_TRUE);
-	glBindTexture(GL_TEXTURE_2D, 0);
-	glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-	glBindVertexArray(0);
-	glUseProgram(0);
+    {
+        PROFILE_SCOPE("Reset GL state after draw call");
+        
+        glEnable(GL_CULL_FACE);
+        glDepthMask(GL_TRUE);
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+        glUseProgram(0);
+    }
 }
 
 void resize_viewport(Viewport *viewport, s16 width, s16 height)

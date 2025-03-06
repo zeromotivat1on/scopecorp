@@ -19,13 +19,6 @@ void enqueue_draw_command(Draw_Queue *queue, const Draw_Command *command) {
 	memcpy(queue->commands + index, command, sizeof(Draw_Command));
 }
 
-void flush_draw_commands(Draw_Queue *queue) {
-    PROFILE_SCOPE(__FUNCTION__);
-    
-	for (s32 i = 0; i < queue->count; ++i) draw(queue->commands + i);
-	queue->count = 0;
-}
-
 void enqueue_draw_world(Draw_Queue *queue, const World *world) {
     PROFILE_SCOPE(__FUNCTION__);
     
@@ -42,6 +35,7 @@ static Draw_Command draw_command_for(const Entity *e) {
 	case E_STATIC_MESH: {
 		const auto *mesh = (Static_Mesh *)e;
 		Draw_Command command;
+        command.flags = mesh->draw_flags;
 		command.vertex_buffer_index = mesh->vertex_buffer_index;
 		command.index_buffer_index  = mesh->index_buffer_index;
 		command.material_index      = mesh->material_index;
@@ -73,4 +67,11 @@ static Draw_Command draw_command_for(const Entity *e) {
 void enqueue_draw_entity(Draw_Queue *queue, const Entity *e) {
 	const auto command = draw_command_for(e);
 	enqueue_draw_command(queue, &command);
+}
+
+void flush_draw_commands(Draw_Queue *queue) {
+    PROFILE_SCOPE(__FUNCTION__);
+    
+	for (s32 i = 0; i < queue->count; ++i) draw(queue->commands + i);
+	queue->count = 0;
 }

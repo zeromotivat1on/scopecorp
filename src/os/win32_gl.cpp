@@ -5,8 +5,8 @@
 #include "render/gfx.h"
 #include "render/glad.h"
 
-#define VC_EXTRALEAN
-#define WIN32_LEAN_AND_MEAN
+#define VC_EXTRALEAN 1
+#define WIN32_LEAN_AND_MEAN 1
 #include <windows.h>
 #include "os/wglext.h"
 #include "os/window.h"

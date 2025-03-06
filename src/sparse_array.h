@@ -5,40 +5,40 @@
 #include <string.h>
 
 // Fixed capacity array allocated in persistent memory block.
-// Stores list of free indices, so deleting elements from slot array
-// do not cause shift, free index list is updated instead.
+// Stores list of sparse and dense indices, so deleting elements from sparse array
+// do not cause shift, indices are updated instead. Items stored densely as well.
 template<typename T>
 struct Sparse_Array {    
-    T* items     = null;
-    s32* dense   = null;
-    s32* sparse  = null;
-    s32 count    = 0;
-    s32 capacity = 0;
+    T   *items    = null;
+    s32 *dense    = null;
+    s32 *sparse   = null;
+    s32  count    = 0;
+    s32  capacity = 0;
 
     Sparse_Array() = default;
     Sparse_Array(s32 capacity)
         : capacity(capacity),
-          items((T*)push(pers, capacity * sizeof(T))),
+          items((T *)push(pers, capacity * sizeof(T))),
           dense(push_array(pers, capacity, s32)),
           sparse(push_array(pers, capacity, s32)) {
         memset(dense,  0xFF, capacity * sizeof(s32));
         memset(sparse, 0xFF, capacity * sizeof(s32));
     }
     
-    T& operator[](s32 idx) {
+    T &operator[](s32 idx) {
         assert(idx >= 0);
         assert(idx < count);
         assert(sparse[idx] != INVALID_INDEX);
         return items[sparse[idx]];
     }
 
-    const T& operator[](s32 idx) const {
+    const T &operator[](s32 idx) const {
         assert(idx < count);
         assert(sparse[idx] != INVALID_INDEX);
         return items[sparse[idx]];
     }
 
-    T* find(s32 idx) {
+    T *find(s32 idx) {
         assert(idx >= 0);
         assert(idx < capacity); // find has less strict rules for index
         
@@ -48,7 +48,7 @@ struct Sparse_Array {
         return items + item_idx;
     }
 
-    s32 add(const T& item) {
+    s32 add(const T &item) {
         for (s32 i = 0; i < count + 1; ++i)
             if (sparse[i] == INVALID_INDEX)
                 return add(i, item);
@@ -64,7 +64,7 @@ struct Sparse_Array {
         return INVALID_INDEX;
     }
 
-    s32 add(s32 idx, const T& item) {
+    s32 add(s32 idx, const T &item) {
         assert(count < capacity);
 
         if (find(idx)) return INVALID_INDEX;
