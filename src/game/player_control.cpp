@@ -21,10 +21,6 @@ void press(s32 key, bool pressed) {
 }
 
 void tick(Player *player, f32 dt) {
-	const vec3 aabb_offset = vec3(player->scale.x * 0.5f, 0.0f, 0.1f);
-	player->aabb.min = player->location - aabb_offset;
-	player->aabb.max = player->location + aabb_offset;
-
 	// Force game camera movement/rotation.
 	if (input_table.key_states[KEY_SHIFT]) {
 		Camera &camera = world->camera;
@@ -206,6 +202,10 @@ void tick(Player *player, f32 dt) {
 		camera.eye += velocity.truncate(speed);
 		camera.at = camera.eye + camera_forward;
 	}
+
+    const vec3 aabb_offset = vec3(player->scale.x * 0.5f, 0.0f, 0.1f);
+	player->aabb.min = player->location - aabb_offset;
+	player->aabb.max = player->location + aabb_offset;
 
 	const Sound &steps_sound = sounds.player_steps;
 	if (player->velocity == vec3(0.0f)) {

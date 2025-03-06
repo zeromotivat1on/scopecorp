@@ -8,4 +8,13 @@ struct AABB {
 	vec3 max;
 };
 
-bool aabb_overlap(const AABB &a, const AABB &b);
+struct Sphere {
+    vec3 pos;
+    f32  radius;
+};
+
+bool overlap(const AABB &a, const AABB &b);
+bool overlap(const vec3 &point, const AABB &aabb);
+bool overlap(const vec3 &point, const Sphere &sphere);
+bool overlap(const Sphere &a, const Sphere &b);
+bool overlap(const Sphere &sphere, const AABB &aabb);
