@@ -7,6 +7,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 set(RUN_TREE_DIR "${CMAKE_SOURCE_DIR}/run_tree")
 
+set(GFX_API_LIST OPEN_GL DX12)
+set(GFX_API      OPEN_GL)
 option(INCLUDE_TRACY "Include tracy profiler" ON)
 
 add_subdirectory(src)

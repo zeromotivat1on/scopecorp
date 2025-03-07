@@ -36,8 +36,6 @@ int main() {
 	log("Preallocated memory storages: Persistent %.fmb | Frame %.fmb | Temp %.fmb",
 		(f32)pers_memory_size / 1024 / 1024, (f32)frame_memory_size / 1024 / 1024, (f32)temp_memory_size / 1024 / 1024);
 
-	init_input_table();
-
 	window = create_window(1280, 720, "Scopecorp", 0, 0);
 	if (!window) {
 		error("Failed to create window");
@@ -45,6 +43,8 @@ int main() {
 	}
 
 	register_event_callback(window, on_window_event);
+
+	init_input_table();
 
 	init_gfx(window);
 	set_gfx_features(GFX_FLAG_BLEND | GFX_FLAG_DEPTH | GFX_FLAG_SCISSOR |

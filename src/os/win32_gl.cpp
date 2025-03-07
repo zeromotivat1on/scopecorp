@@ -11,6 +11,10 @@
 #include "os/wglext.h"
 #include "os/window.h"
 
+#ifndef OPEN_GL
+#error OpenGL implementation is included, but OPEN_GL macro is not defined
+#endif
+
 // Also defined in win32.cpp
 struct Win32_Window {
 	const char *class_name;
@@ -119,6 +123,8 @@ static void wgl_load_procs() {
 }
 
 void init_gfx(Window *window) {
+    log("Platform: Windows | OpenGL");
+    
 	Win32_Window dummy_window = wgl_create_dummy_window(window);
 	wgl_create_dummy_context(&dummy_window);
 
