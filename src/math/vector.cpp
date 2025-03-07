@@ -582,3 +582,7 @@ vec3 lerp(const vec3 &a, const vec3 &b, f32 alpha) {
     else if (alpha >= 1.0f) return b;
     return a + alpha * (b - a);
 }
+
+vec3 abs(const vec3 &a) {
+    return vec3(absf(a.x), absf(a.y), absf(a.z));
+}

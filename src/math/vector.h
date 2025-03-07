@@ -157,3 +157,4 @@ vec3 forward(f32 yaw, f32 pitch);
 vec3 right(const vec3 &start, const vec3 &end, const vec3 &up);
 
 vec3 lerp(const vec3 &a, const vec3 &b, f32 alpha);
+vec3 abs(const vec3 &a);

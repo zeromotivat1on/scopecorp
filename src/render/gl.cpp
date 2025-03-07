@@ -69,6 +69,7 @@ static s32 gl_draw_mode(Draw_Mode mode) {
 	switch (mode) {
 	case DRAW_TRIANGLES:      return GL_TRIANGLES;
 	case DRAW_TRIANGLE_STRIP: return GL_TRIANGLE_STRIP;
+	case DRAW_LINES:          return GL_LINES;
 	default:
 		error("Failed to get open gl draw mode from given draw mode %d", mode);
 		return -1;
@@ -105,9 +106,9 @@ void draw(const Draw_Command *command) {
 	if (command->index_buffer_index != INVALID_INDEX) {
 		const auto &index_buffer = render_registry.index_buffers[command->index_buffer_index];
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer.id);
-		glDrawElementsInstanced(draw_mode, index_buffer.component_count, GL_UNSIGNED_INT, 0, command->instance_count);
+		glDrawElementsInstanced(draw_mode, index_buffer.index_count, GL_UNSIGNED_INT, 0, command->instance_count);
 	} else {
-		glDrawArraysInstanced(draw_mode, 0, vertex_buffer.component_count, command->instance_count);
+		glDrawArraysInstanced(draw_mode, 0, vertex_buffer.vertex_count, command->instance_count);
 	}
 
     {
@@ -153,18 +154,19 @@ static s32 gl_usage(Buffer_Usage_Type type) {
 	switch (type) {
 	case BUFFER_USAGE_STATIC:  return GL_STATIC_DRAW;
 	case BUFFER_USAGE_DYNAMIC: return GL_DYNAMIC_DRAW;
+	case BUFFER_USAGE_STREAM:  return GL_STREAM_DRAW;
 	default:
 		error("Failed to get open gl usage from given buffer usage %d", type);
 		return -1;
 	}
 }
 
-s32 create_vertex_buffer(Vertex_Attrib_Type *attribs, s32 attrib_count, const f32 *vertices, s32 vertex_count, Buffer_Usage_Type usage_type) {
+s32 create_vertex_buffer(Vertex_Attrib_Type *attribs, s32 attrib_count, const void *data, s32 vertex_count, Buffer_Usage_Type usage_type) {
 	assert(attrib_count <= MAX_VERTEX_LAYOUT_ATTRIBS);
 
 	Vertex_Buffer buffer = {0};
 	buffer.usage_type = usage_type;
-	buffer.component_count = vertex_count;
+	buffer.vertex_count = vertex_count;
 	memcpy(&buffer.layout.attribs, attribs, attrib_count * sizeof(Vertex_Attrib_Type));
 
 	u32 vbo;
@@ -174,12 +176,12 @@ s32 create_vertex_buffer(Vertex_Attrib_Type *attribs, s32 attrib_count, const f3
 	glBindVertexArray(buffer.id);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 
-	const s32 usage = gl_usage(usage_type);
-	glBufferData(GL_ARRAY_BUFFER, vertex_count * sizeof(f32), vertices, usage);
-
-	s32 stride = 0;
+	s32 vertex_size = 0;
 	for (s32 i = 0; i < attrib_count; ++i)
-		stride += vertex_attrib_size(attribs[i]);
+		vertex_size += vertex_attrib_size(attribs[i]);
+
+    const s32 usage = gl_usage(usage_type);
+	glBufferData(GL_ARRAY_BUFFER, vertex_count * vertex_size, data, usage);
 
 	for (s32 i = 0; i < attrib_count; ++i) {
 		const s32 dimension = vertex_attrib_dimension(attribs[i]);
@@ -189,7 +191,7 @@ s32 create_vertex_buffer(Vertex_Attrib_Type *attribs, s32 attrib_count, const f3
 			offset += vertex_attrib_size(attribs[j]);
 
 		glEnableVertexAttribArray(i);
-		glVertexAttribPointer(i, dimension, GL_FLOAT, GL_FALSE, stride, (void *)(u64)offset);
+		glVertexAttribPointer(i, dimension, GL_FLOAT, GL_FALSE, vertex_size, (void *)(u64)offset);
 	}
 
 	glBindVertexArray(0);
@@ -200,7 +202,7 @@ s32 create_vertex_buffer(Vertex_Attrib_Type *attribs, s32 attrib_count, const f3
 
 s32 create_index_buffer(u32 *indices, s32 count, Buffer_Usage_Type usage_type) {
 	Index_Buffer buffer;
-	buffer.component_count = count;
+	buffer.index_count = count;
 	buffer.usage_type = usage_type;
 
 	glGenBuffers(1, &buffer.id);

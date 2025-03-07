@@ -18,3 +18,6 @@ bool overlap(const vec3 &point, const AABB &aabb);
 bool overlap(const vec3 &point, const Sphere &sphere);
 bool overlap(const Sphere &a, const Sphere &b);
 bool overlap(const Sphere &sphere, const AABB &aabb);
+
+// Does not check if AABBs overlap, do it before calling this!
+AABB resolve(const AABB &moving, const AABB &stable);

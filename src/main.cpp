@@ -13,6 +13,7 @@
 
 #include "render/gfx.h"
 #include "render/draw.h"
+#include "render/debug_draw.h"
 #include "render/text.h"
 #include "render/viewport.h"
 #include "render/render_registry.h"
@@ -70,7 +71,8 @@ int main() {
 	text_draw_command = create_default_text_draw_command(atlas);
 
 	init_draw_queue(&draw_queue);
-
+    init_debug_geometry_draw_queue();
+    
 	world = push_struct(pers, World);
 	init_world(world);
 
@@ -93,7 +95,7 @@ int main() {
 			{ vec3(-0.5f,  1.0f, 0.0f), vec2(0.0f + uv_offset, 1.0f - uv_offset) },
 		};
 		Vertex_Attrib_Type attribs[] = { VERTEX_ATTRIB_F32_V3, VERTEX_ATTRIB_F32_V2 };
-		player.vertex_buffer_index = create_vertex_buffer(attribs, c_array_count(attribs), (f32 *)vertices, 5 * c_array_count(vertices), BUFFER_USAGE_STATIC);
+		player.vertex_buffer_index = create_vertex_buffer(attribs, c_array_count(attribs), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
 
 		u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
 		player.index_buffer_index = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
@@ -114,7 +116,7 @@ int main() {
 			{ vec3(-0.5f,  0.5f, 0.0f), vec2(0.0f, 1.0f) },
 		};
 		Vertex_Attrib_Type attribs[] = { VERTEX_ATTRIB_F32_V3, VERTEX_ATTRIB_F32_V2 };
-		ground.vertex_buffer_index = create_vertex_buffer(attribs, c_array_count(attribs), (f32 *)vertices, 5 * c_array_count(vertices), BUFFER_USAGE_STATIC);
+		ground.vertex_buffer_index = create_vertex_buffer(attribs, c_array_count(attribs), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
 
 		u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
 		ground.index_buffer_index = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
@@ -166,7 +168,7 @@ int main() {
 			{ vec3( 0.5f, -0.5f,  0.5f), vec2(1.0f, 1.0f) },
 		};
 		Vertex_Attrib_Type attribs[] = { VERTEX_ATTRIB_F32_V3, VERTEX_ATTRIB_F32_V2 };
-		cube.vertex_buffer_index = create_vertex_buffer(attribs, c_array_count(attribs), (f32 *)vertices, 5 * c_array_count(vertices), BUFFER_USAGE_STATIC);
+		cube.vertex_buffer_index = create_vertex_buffer(attribs, c_array_count(attribs), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
 
 		u32 indices[] = {
 			// Front face
@@ -196,7 +198,7 @@ int main() {
 			{ vec3(-1.0f,  1.0f, 0.0f), vec2(0.0f, 1.0f) },
 		};
 		Vertex_Attrib_Type attribs[] = { VERTEX_ATTRIB_F32_V3, VERTEX_ATTRIB_F32_V2 };
-		skybox.vertex_buffer_index = create_vertex_buffer(attribs, c_array_count(attribs), (f32 *)vertices, 5 * c_array_count(vertices), BUFFER_USAGE_STATIC);
+		skybox.vertex_buffer_index = create_vertex_buffer(attribs, c_array_count(attribs), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
 
 		u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
 		skybox.index_buffer_index = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
@@ -240,7 +242,8 @@ int main() {
 
 		// @Cleanup: flush before text draw as its overwritten by skybox, fix.
 		flush_draw_commands(&draw_queue);
-
+        flush_debug_geometry_draw_commands();
+        
 		debug_scope {
             PROFILE_SCOPE("Debug Stats Draw");
 
@@ -248,7 +251,7 @@ int main() {
 
 			const bool has_overlap = overlap(player.aabb, cube.aabb);
             if (has_overlap) {
-                player.location -= player.velocity;
+                player.aabb = resolve(player.aabb, cube.aabb);
             }
             
 			char text[256];

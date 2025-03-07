@@ -8,6 +8,7 @@ struct World;
 enum Draw_Mode {
 	DRAW_TRIANGLES,
 	DRAW_TRIANGLE_STRIP,
+	DRAW_LINES,
 };
 
 enum Draw_Command_Flags : u32 {
@@ -27,8 +28,8 @@ struct Draw_Command {
 };
 
 struct Draw_Queue {
-	Draw_Command *commands;
-	s32 count;
+	Draw_Command *commands = null;
+	s32 count = 0;
 };
 
 inline Draw_Queue draw_queue;
