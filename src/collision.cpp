@@ -32,41 +32,12 @@ bool overlap(const Sphere &sphere, const AABB &aabb) {
     return overlap(vec3(x, y, z), sphere);
 }
 
-AABB resolve(const AABB &moving, const AABB &stable) {
-    assert(overlap(moving, stable)); // intentionally in assert, as it should be done before
-    
-    AABB resolved = moving;
-    
-    const vec3 moving_size = abs(moving.max - moving.min);
-    const vec3 min_delta   = abs(moving.min - stable.min);
-    const vec3 max_delta   = abs(moving.max - stable.max);
-    
-    if (min_delta.x < moving_size.x) {
-        const f32 delta = moving_size.x - min_delta.x;
-        resolved.min.x -= delta;
-    }
-    if (max_delta.x < moving_size.x) {
-        const f32 delta = moving_size.x - max_delta.x;
-        resolved.max.x += delta;
-    }
+AABB resolve_moving_stable(const AABB &a, const AABB &b, const vec3 &velocity_a) {
+    const AABB moved_a = AABB{a.min + velocity_a, a.max + velocity_a};
+    assert(overlap(moved_a, b)); // intentionally in assert, as it should be done before
 
-    if (min_delta.y < moving_size.y) {
-        const f32 delta = moving_size.y - min_delta.y;
-        resolved.min.y -= delta;
-    }
-    if (max_delta.y < moving_size.y) {
-        const f32 delta = moving_size.y - max_delta.y;
-        resolved.max.y += delta;
-    }
-
-    if (min_delta.z < moving_size.z) {
-        const f32 delta = moving_size.z - min_delta.z;
-        resolved.min.z -= delta;
-    }
-    if (max_delta.z < moving_size.z) {
-        const f32 delta = moving_size.z - max_delta.z;
-        resolved.max.z += delta;
-    }
+    AABB resolved;
+    
     
     return resolved;
 }

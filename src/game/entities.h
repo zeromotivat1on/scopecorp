@@ -14,6 +14,13 @@ enum Entity_Type {
     E_STATIC_MESH
 };
 
+struct Entity_Draw_Data {
+    u32 flags = 0;
+    s32 vbi   = INVALID_INDEX;
+    s32 ibi   = INVALID_INDEX;
+    s32 mti   = INVALID_INDEX;
+};
+
 struct Entity {
     Entity_Type type = E_UNKNOWN;
     s32 id = INVALID_ENTITY_ID;
@@ -24,7 +31,7 @@ struct Entity {
 
     mat4 mvp;
 
-    u32 draw_flags = 0;
+    Entity_Draw_Data draw_data;
 };
 
 struct Flip_Book;
@@ -47,20 +54,12 @@ struct Player : Entity {
     Flip_Book *flip_book = null;
 
     AABB aabb;
-    
-    s32 vertex_buffer_index = INVALID_INDEX;
-    s32 index_buffer_index  = INVALID_INDEX;
-    s32 material_index      = INVALID_INDEX;
 };
 
 struct Static_Mesh : Entity {
     Static_Mesh() { type = E_STATIC_MESH; }
     
     AABB aabb;
-
-    s32 vertex_buffer_index = INVALID_INDEX;
-    s32 index_buffer_index  = INVALID_INDEX;
-    s32 material_index      = INVALID_INDEX;
 };
 
 struct Skybox : Entity {
@@ -68,8 +67,4 @@ struct Skybox : Entity {
 
     vec2 uv_scale = vec2(8.0f, 4.0f);
     vec3 uv_offset;
-    
-    s32 vertex_buffer_index = INVALID_INDEX;
-    s32 index_buffer_index  = INVALID_INDEX;
-    s32 material_index      = INVALID_INDEX;
 };

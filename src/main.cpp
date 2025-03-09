@@ -78,7 +78,7 @@ int main() {
 
 	Player &player = world->player;
 	{   // Create player.
-        player.draw_flags = DRAW_FLAG_ENTIRE_BUFFER;
+        player.draw_data.flags = DRAW_FLAG_ENTIRE_BUFFER;
         
         const auto &texture = render_registry.textures[texture_index_list.player_idle[DIRECTION_BACK]];
         const f32 scale_aspect = (f32)texture.width / texture.height;
@@ -86,7 +86,7 @@ int main() {
         const f32 x_scale = y_scale * scale_aspect;
 
 		player.scale = vec3(x_scale, y_scale, 1.0f);
-		player.material_index = material_index_list.player;
+		player.draw_data.mti = material_index_list.player;
 
         // Little uv offset as source textures have small transient border.
         const f32 uv_offset = 0.02f;
@@ -97,21 +97,21 @@ int main() {
 			{ vec3(-0.5f,  1.0f, 0.0f), vec2(0.0f + uv_offset, 1.0f - uv_offset) },
 		};
 		Vertex_Attrib_Type attribs[] = { VERTEX_ATTRIB_F32_V3, VERTEX_ATTRIB_F32_V2 };
-		player.vertex_buffer_index = create_vertex_buffer(attribs, c_array_count(attribs), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
+		player.draw_data.vbi = create_vertex_buffer(attribs, c_array_count(attribs), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
 
 		u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
-		player.index_buffer_index = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
+		player.draw_data.ibi = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
 	}
 
 	Static_Mesh &ground = world->static_meshes[world->static_meshes.add_default()];
 	{   // Create ground.
-        ground.draw_flags = DRAW_FLAG_ENTIRE_BUFFER;
+        ground.draw_data.flags = DRAW_FLAG_ENTIRE_BUFFER;
         
 		ground.scale = vec3(16.0f);
 		ground.rotation = quat_from_axis_angle(vec3_right, 90.0f);
-		ground.material_index = material_index_list.ground;
+		ground.draw_data.mti = material_index_list.ground;
 
-		set_material_uniform_value(ground.material_index, "u_scale", &ground.scale);
+		set_material_uniform_value(ground.draw_data.mti, "u_scale", &ground.scale);
 
 		Vertex_PU vertices[] = {
 			{ vec3( 0.5f,  0.5f, 0.0f), vec2(1.0f, 1.0f) },
@@ -120,21 +120,21 @@ int main() {
 			{ vec3(-0.5f,  0.5f, 0.0f), vec2(0.0f, 1.0f) },
 		};
 		Vertex_Attrib_Type attribs[] = { VERTEX_ATTRIB_F32_V3, VERTEX_ATTRIB_F32_V2 };
-		ground.vertex_buffer_index = create_vertex_buffer(attribs, c_array_count(attribs), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
+		ground.draw_data.vbi = create_vertex_buffer(attribs, c_array_count(attribs), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
 
 		u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
-		ground.index_buffer_index = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
+		ground.draw_data.ibi = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
 	}
 
 	Static_Mesh &cube = world->static_meshes[world->static_meshes.add_default()];
 	{   // Create cube.
-        cube.draw_flags = DRAW_FLAG_ENTIRE_BUFFER;
+        cube.draw_data.flags = DRAW_FLAG_ENTIRE_BUFFER;
 
 		cube.location = vec3(3.0f, 0.5f, 4.0f);
 		cube.aabb.min = cube.location - cube.scale * 0.5f;
 		cube.aabb.max = cube.aabb.min + cube.scale;
 
-		cube.material_index = material_index_list.cube;
+		cube.draw_data.mti = material_index_list.cube;
 
 		Vertex_PU vertices[] = {
 			// Front face
@@ -174,7 +174,7 @@ int main() {
 			{ vec3( 0.5f, -0.5f,  0.5f), vec2(1.0f, 1.0f) },
 		};
 		Vertex_Attrib_Type attribs[] = { VERTEX_ATTRIB_F32_V3, VERTEX_ATTRIB_F32_V2 };
-		cube.vertex_buffer_index = create_vertex_buffer(attribs, c_array_count(attribs), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
+		cube.draw_data.vbi = create_vertex_buffer(attribs, c_array_count(attribs), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
 
 		u32 indices[] = {
 			// Front face
@@ -190,14 +190,14 @@ int main() {
 			// Top face
 			20, 22, 21, 21, 22, 23
 		};
-		cube.index_buffer_index = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
+		cube.draw_data.ibi = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
 	}
 
 	Skybox &skybox = world->skybox;
 	{   // Create skybox.
-        skybox.draw_flags = DRAW_FLAG_ENTIRE_BUFFER | DRAW_FLAG_IGNORE_DEPTH;
+        skybox.draw_data.flags = DRAW_FLAG_ENTIRE_BUFFER | DRAW_FLAG_IGNORE_DEPTH;
         
-		skybox.material_index = material_index_list.skybox;
+		skybox.draw_data.mti = material_index_list.skybox;
 
 		Vertex_PU vertices[] = {
 			{ vec3( 1.0f,  1.0f, 0.0f), vec2(1.0f, 1.0f) },
@@ -206,10 +206,10 @@ int main() {
 			{ vec3(-1.0f,  1.0f, 0.0f), vec2(0.0f, 1.0f) },
 		};
 		Vertex_Attrib_Type attribs[] = { VERTEX_ATTRIB_F32_V3, VERTEX_ATTRIB_F32_V2 };
-		skybox.vertex_buffer_index = create_vertex_buffer(attribs, c_array_count(attribs), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
+		skybox.draw_data.vbi = create_vertex_buffer(attribs, c_array_count(attribs), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
 
 		u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
-		skybox.index_buffer_index = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
+		skybox.draw_data.ibi = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
 	}
 
 	Camera &camera = world->camera;
@@ -240,20 +240,21 @@ int main() {
         PROFILE_SCOPE("Game Frame");
 
 		poll_events(window);
-		tick(world, dt);
-        
+
         const bool has_overlap = overlap(player.aabb, cube.aabb);
-        const vec3 player_aabb_color = has_overlap ? vec3_green : vec3_red;
+        const vec3 aabb_color = has_overlap ? vec3_green : vec3_red;
         if (has_overlap) {
             //player.aabb = resolve(player.aabb, cube.aabb);
         }
-            
+
+        tick(world, dt);
+                    
 		set_listener_pos(player.location);
 		check_shader_hot_reload_queue(&shader_hot_reload_queue, dt);
 
 		clear_screen(vec4(0.9f, 0.4f, 0.5f, 1.0f)); // ugly bright pink
 		draw_world(world);
-        draw_debug_aabb(player.aabb, player_aabb_color);
+        draw_debug_aabb(player.aabb, aabb_color);
         
 		// @Cleanup: flush before text draw as its overwritten by skybox, fix.
 		flush(&world_draw_queue);

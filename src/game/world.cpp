@@ -25,19 +25,19 @@ void tick(World *world, f32 dt) {
 
 	auto &skybox = world->skybox;
 	skybox.uv_offset = camera->eye;
-	set_material_uniform_value(skybox.material_index, "u_scale", &skybox.uv_scale);
-	set_material_uniform_value(skybox.material_index, "u_offset", &skybox.uv_offset);
+	set_material_uniform_value(skybox.draw_data.mti, "u_scale", &skybox.uv_scale);
+	set_material_uniform_value(skybox.draw_data.mti, "u_offset", &skybox.uv_offset);
 
 	for (s32 i = 0; i < world->static_meshes.count; ++i) {
 		auto *mesh = world->static_meshes.items + i;
 		mesh->mvp = mat4_transform(mesh->location, mesh->rotation, mesh->scale) * view * proj;
-		set_material_uniform_value(mesh->material_index, "u_mvp", mesh->mvp.ptr());
+		set_material_uniform_value(mesh->draw_data.mti, "u_mvp", mesh->mvp.ptr());
 	}
 
 	auto &player = world->player;
 	tick(&player, dt);
 	player.mvp = mat4_transform(player.location, player.rotation, player.scale) * view * proj;
-	set_material_uniform_value(player.material_index, "u_mvp", player.mvp.ptr());
+	set_material_uniform_value(player.draw_data.mti, "u_mvp", player.mvp.ptr());
 
 	if (game_state.mode == MODE_GAME) {
 		// Editor camera should follow game one during gameplay.

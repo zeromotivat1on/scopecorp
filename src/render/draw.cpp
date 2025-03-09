@@ -38,39 +38,12 @@ void draw_world(const World *world) {
 	draw_entity(&world->player);
 }
 
-static Draw_Command draw_command_for(const Entity *e) {
-    Draw_Command command;
-    command.flags = e->draw_flags;
-    
-	switch (e->type) {
-	case E_STATIC_MESH: {
-		const auto *mesh = (Static_Mesh *)e;
-		command.vertex_buffer_index = mesh->vertex_buffer_index;
-		command.index_buffer_index  = mesh->index_buffer_index;
-		command.material_index      = mesh->material_index;
-		return command;
-	}
-	case E_PLAYER: {
-		const auto *player = (Player *)e;
-		command.vertex_buffer_index = player->vertex_buffer_index;
-		command.index_buffer_index  = player->index_buffer_index;
-		command.material_index      = player->material_index;
-		return command;
-	}
-	case E_SKYBOX: {
-		const auto *skybox = (Skybox *)e;
-		command.vertex_buffer_index = skybox->vertex_buffer_index;
-		command.index_buffer_index  = skybox->index_buffer_index;
-		command.material_index      = skybox->material_index;
-		return command;
-	}
-	default:
-		error("Failed to create draw command for entity of unknown type %d", e->type);
-		return {};
-	}
-}
-
 void draw_entity(const Entity *e) {
-	const auto command = draw_command_for(e);
+    Draw_Command command;
+    command.flags = e->draw_data.flags;
+    command.vertex_buffer_index = e->draw_data.vbi;
+    command.index_buffer_index  = e->draw_data.ibi;
+    command.material_index      = e->draw_data.mti;
+    
 	enqueue_draw_command(&world_draw_queue, &command);
 }

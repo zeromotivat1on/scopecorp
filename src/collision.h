@@ -19,5 +19,6 @@ bool overlap(const vec3 &point, const Sphere &sphere);
 bool overlap(const Sphere &a, const Sphere &b);
 bool overlap(const Sphere &sphere, const AABB &aabb);
 
-// Does not check if AABBs overlap, do it before calling this!
-AABB resolve(const AABB &moving, const AABB &stable);
+// Resolve functions do not check if geometry overlap, do it before calling them!
+
+AABB resolve_moving_stable(const AABB &a, const AABB &b, const vec3 &velocity_a);
