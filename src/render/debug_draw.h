@@ -3,8 +3,6 @@
 #include "math/vector.h"
 
 inline constexpr s32 MAX_DEBUG_DRAW_QUEUE_LINE_COUNT = 1024;
-inline constexpr s32 MAX_DEBUG_DRAW_QUEUE_VERTEX_COUNT = 2 * MAX_DEBUG_DRAW_QUEUE_LINE_COUNT;
-inline constexpr s32 MAX_DEBUG_DRAW_QUEUE_BUFFER_SIZE = 6 * MAX_DEBUG_DRAW_QUEUE_VERTEX_COUNT;
 
 struct Debug_Line {
     vec3 start;
@@ -20,8 +18,11 @@ struct Debug_Geometry_Draw_Queue {
 
 inline Debug_Geometry_Draw_Queue debug_draw_queue;
 
+struct AABB;
+
 void init_debug_geometry_draw_queue();
 void draw_debug_line(vec3 start, vec3 end, vec3 color);
 void draw_debug_box(vec3 points[8], vec3 color);
+void draw_debug_aabb(const AABB &aabb, vec3 color);
 
 void flush(Debug_Geometry_Draw_Queue* queue);

@@ -243,8 +243,9 @@ int main() {
 		tick(world, dt);
         
         const bool has_overlap = overlap(player.aabb, cube.aabb);
+        const vec3 player_aabb_color = has_overlap ? vec3_green : vec3_red;
         if (has_overlap) {
-            player.aabb = resolve(player.aabb, cube.aabb);
+            //player.aabb = resolve(player.aabb, cube.aabb);
         }
             
 		set_listener_pos(player.location);
@@ -252,8 +253,7 @@ int main() {
 
 		clear_screen(vec4(0.9f, 0.4f, 0.5f, 1.0f)); // ugly bright pink
 		draw_world(world);
-
-        draw_debug_line(vec3_zero, vec3(1.0f), vec3(1.0f, 0.0f, 0.0f));
+        draw_debug_aabb(player.aabb, player_aabb_color);
         
 		// @Cleanup: flush before text draw as its overwritten by skybox, fix.
 		flush(&world_draw_queue);
@@ -261,13 +261,7 @@ int main() {
         
 		debug_scope {
             PROFILE_SCOPE("Debug Stats Draw");
-
 			draw_dev_stats(atlas, world);
-            
-			char text[256];
-			s32 size = stbsp_snprintf(text, sizeof(text), "cube\n\tlocation %s\n\taabb %s %s\noverlap with player %s", to_string(cube.location), to_string(cube.aabb.min), to_string(cube.aabb.max), has_overlap ? "TRUE" : "FALSE");
-			vec2 pos = vec2(10.0f, viewport.height * 0.5f);
-			draw_text_immediate(text_draw_command, text, size, pos, vec3(1.0f));
 		}
 
 		swap_buffers(window);

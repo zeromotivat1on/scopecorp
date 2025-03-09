@@ -144,10 +144,17 @@ struct vec4 {
 	const f32 *ptr() const;
 };
 
-inline const vec3 vec3_zero    = vec3(0, 0, 0);
-inline const vec3 vec3_right   = vec3(1, 0, 0);
-inline const vec3 vec3_up      = vec3(0, 1, 0);
-inline const vec3 vec3_forward = vec3(0, 0, 1);
+inline const vec3 vec3_zero    = vec3( 0,  0,  0);
+inline const vec3 vec3_right   = vec3( 1,  0,  0);
+inline const vec3 vec3_left    = vec3(-1,  0,  0);
+inline const vec3 vec3_up      = vec3( 0,  1,  0);
+inline const vec3 vec3_down    = vec3( 0, -1,  0);
+inline const vec3 vec3_forward = vec3( 0,  0,  1);
+inline const vec3 vec3_back    = vec3( 0,  0, -1);
+
+inline const vec3 vec3_red   = vec3(1, 0, 0);
+inline const vec3 vec3_green = vec3(0, 1, 0);
+inline const vec3 vec3_blue  = vec3(0, 0, 1);
 
 // Uses static 2d buffer internally, for debug purposes only.
 const char *to_string(const vec3 &v);
