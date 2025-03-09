@@ -7,14 +7,14 @@
 
 #include "memory_storage.h"
 
-static constexpr s32 MAX_DEBUG_DRAW_VERTEX_COUNT = 2 * MAX_DEBUG_DRAW_QUEUE_LINE_COUNT;
+static constexpr s32 MAX_DEBUG_DRAW_VERTEX_COUNT = 2 * MAX_DEBUG_DRAW_LINE_COUNT;
 static constexpr s32 MAX_DEBUG_DRAW_BUFFER_SIZE  = 6 * MAX_DEBUG_DRAW_VERTEX_COUNT;
 
 static s32 debug_geometry_vbi = INVALID_INDEX;
 static s32 debug_geometry_mti = INVALID_INDEX;
 
 void init_debug_geometry_draw_queue() {
-    debug_draw_queue.lines = push_array(pers, MAX_DEBUG_DRAW_QUEUE_LINE_COUNT, Debug_Line);
+    debug_draw_queue.lines = push_array(pers, MAX_DEBUG_DRAW_LINE_COUNT, Debug_Line);
     debug_draw_queue.vertex_data = push_array(pers, MAX_DEBUG_DRAW_BUFFER_SIZE, f32);
     
     Vertex_Attrib_Type attribs[] = { VERTEX_ATTRIB_F32_V3, VERTEX_ATTRIB_F32_V3 };
@@ -26,7 +26,7 @@ void init_debug_geometry_draw_queue() {
 }
 
 void draw_debug_line(vec3 start, vec3 end, vec3 color) {
-    assert(debug_draw_queue.line_count < MAX_DEBUG_DRAW_QUEUE_LINE_COUNT);
+    assert(debug_draw_queue.line_count < MAX_DEBUG_DRAW_LINE_COUNT);
     debug_draw_queue.lines[debug_draw_queue.line_count] = Debug_Line{start, end, color};
     
     f32 *v = debug_draw_queue.vertex_data + 6 * 2 * debug_draw_queue.line_count;

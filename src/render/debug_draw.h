@@ -2,7 +2,7 @@
 
 #include "math/vector.h"
 
-inline constexpr s32 MAX_DEBUG_DRAW_QUEUE_LINE_COUNT = 1024;
+inline constexpr s32 MAX_DEBUG_DRAW_LINE_COUNT = 1024;
 
 struct Debug_Line {
     vec3 start;
