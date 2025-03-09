@@ -124,11 +124,9 @@ void tick(Player *player, f32 dt) {
 		} else {
 			player->flip_book = &flip_books.player_move[player->move_direction];
 			// @Cleanup: reset old flip book frame time if we've changed to new one.
-			if (player->flip_book) {
-				tick(player->flip_book, dt);
-				// @Cleanup: wrap this!!!
-				render_registry.materials[player->draw_data.mti].texture_index = current_frame(player->flip_book);
-			}
+            tick(player->flip_book, dt);
+            // @Cleanup: wrap this!!!
+            render_registry.materials[player->draw_data.mti].texture_index = current_frame(player->flip_book);
 		}
 
 		if (game_state.camera_behavior == STICK_TO_PLAYER) {
