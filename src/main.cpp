@@ -69,15 +69,17 @@ int main() {
 	Font *font = create_font(DIR_FONTS "consola.ttf");
 	Font_Atlas *atlas = bake_font_atlas(font, 33, 126, 16);
 	text_draw_command = create_default_text_draw_command(atlas);
-
-	init_draw_queue(&draw_queue);
-    init_debug_geometry_draw_queue();
     
 	world = push_struct(pers, World);
 	init_world(world);
 
+    init_draw_queue(&world_draw_queue, MAX_DRAW_QUEUE_SIZE);
+    init_debug_geometry_draw_queue();
+
 	Player &player = world->player;
 	{   // Create player.
+        player.draw_flags = DRAW_FLAG_ENTIRE_BUFFER;
+        
         const auto &texture = render_registry.textures[texture_index_list.player_idle[DIRECTION_BACK]];
         const f32 scale_aspect = (f32)texture.width / texture.height;
         const f32 y_scale = 1.0f * scale_aspect;
@@ -103,6 +105,8 @@ int main() {
 
 	Static_Mesh &ground = world->static_meshes[world->static_meshes.add_default()];
 	{   // Create ground.
+        ground.draw_flags = DRAW_FLAG_ENTIRE_BUFFER;
+        
 		ground.scale = vec3(16.0f);
 		ground.rotation = quat_from_axis_angle(vec3_right, 90.0f);
 		ground.material_index = material_index_list.ground;
@@ -124,6 +128,8 @@ int main() {
 
 	Static_Mesh &cube = world->static_meshes[world->static_meshes.add_default()];
 	{   // Create cube.
+        cube.draw_flags = DRAW_FLAG_ENTIRE_BUFFER;
+
 		cube.location = vec3(3.0f, 0.5f, 4.0f);
 		cube.aabb.min = cube.location - cube.scale * 0.5f;
 		cube.aabb.max = cube.aabb.min + cube.scale;
@@ -172,11 +178,11 @@ int main() {
 
 		u32 indices[] = {
 			// Front face
-			0,  1,  2,  1,  3,  2,
+			0,   1,  2,  1,  3,  2,
 			// Back face
-			4,  6,  5,  5,  6,  7,
+			4,   6,  5,  5,  6,  7,
 			// Left face
-			8,  9, 10,  9, 11, 10,
+			8,   9, 10,  9, 11, 10,
 			// Right face
 			12, 14, 13, 13, 14, 15,
 			// Bottom face
@@ -189,6 +195,8 @@ int main() {
 
 	Skybox &skybox = world->skybox;
 	{   // Create skybox.
+        skybox.draw_flags = DRAW_FLAG_ENTIRE_BUFFER | DRAW_FLAG_IGNORE_DEPTH;
+        
 		skybox.material_index = material_index_list.skybox;
 
 		Vertex_PU vertices[] = {
@@ -212,7 +220,7 @@ int main() {
 	camera.at = camera.eye + forward(camera.yaw, camera.pitch);
 	camera.up = vec3(0.0f, 1.0f, 0.0f);
 	camera.fov = 60.0f;
-	camera.near = 0.1f;
+	camera.near = 0.001f;
 	camera.far = 1000.0f;
 	camera.left = 0.0f;
 	camera.right = (f32)window->width;
@@ -233,26 +241,28 @@ int main() {
 
 		poll_events(window);
 		tick(world, dt);
-
+        
+        const bool has_overlap = overlap(player.aabb, cube.aabb);
+        if (has_overlap) {
+            player.aabb = resolve(player.aabb, cube.aabb);
+        }
+            
 		set_listener_pos(player.location);
 		check_shader_hot_reload_queue(&shader_hot_reload_queue, dt);
 
 		clear_screen(vec4(0.9f, 0.4f, 0.5f, 1.0f)); // ugly bright pink
-		enqueue_draw_world(&draw_queue, world);
+		draw_world(world);
 
+        draw_debug_line(vec3_zero, vec3(1.0f), vec3(1.0f, 0.0f, 0.0f));
+        
 		// @Cleanup: flush before text draw as its overwritten by skybox, fix.
-		flush_draw_commands(&draw_queue);
-        flush_debug_geometry_draw_commands();
+		flush(&world_draw_queue);
+        flush(&debug_draw_queue);
         
 		debug_scope {
             PROFILE_SCOPE("Debug Stats Draw");
 
 			draw_dev_stats(atlas, world);
-
-			const bool has_overlap = overlap(player.aabb, cube.aabb);
-            if (has_overlap) {
-                player.aabb = resolve(player.aabb, cube.aabb);
-            }
             
 			char text[256];
 			s32 size = stbsp_snprintf(text, sizeof(text), "cube\n\tlocation %s\n\taabb %s %s\noverlap with player %s", to_string(cube.location), to_string(cube.aabb.min), to_string(cube.aabb.max), has_overlap ? "TRUE" : "FALSE");

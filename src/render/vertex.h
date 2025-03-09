@@ -8,6 +8,7 @@ enum Vertex_Attrib_Type {
     VERTEX_ATTRIB_NULL,
     VERTEX_ATTRIB_F32_V2,
     VERTEX_ATTRIB_F32_V3,
+    VERTEX_ATTRIB_F32_V4,
 };
 
 struct Vertex_Layout {

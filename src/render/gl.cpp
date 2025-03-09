@@ -106,9 +106,28 @@ void draw(const Draw_Command *command) {
 	if (command->index_buffer_index != INVALID_INDEX) {
 		const auto &index_buffer = render_registry.index_buffers[command->index_buffer_index];
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer.id);
-		glDrawElementsInstanced(draw_mode, index_buffer.index_count, GL_UNSIGNED_INT, 0, command->instance_count);
+
+        s32 index_count = 0;
+        const void* index_ptr = null;
+        if (command->flags & DRAW_FLAG_ENTIRE_BUFFER) {
+            index_count = index_buffer.index_count;
+        } else {
+            index_count = command->draw_count;
+            index_ptr = 0; // @Todo: find offset pointer to index data using index offset
+        }
+        
+        glDrawElementsInstanced(draw_mode, index_count, GL_UNSIGNED_INT, index_ptr, command->instance_count);
 	} else {
-		glDrawArraysInstanced(draw_mode, 0, vertex_buffer.vertex_count, command->instance_count);
+        s32 vertex_count = 0;
+        s32 vertex_first = 0;
+        if (command->flags & DRAW_FLAG_ENTIRE_BUFFER) {
+            vertex_count = vertex_buffer.vertex_count;
+        } else {
+            vertex_count = command->draw_count;
+            vertex_first = command->draw_offset;
+        }
+        
+		glDrawArraysInstanced(draw_mode, vertex_first, vertex_count, command->instance_count);
 	}
 
     {
@@ -169,12 +188,11 @@ s32 create_vertex_buffer(Vertex_Attrib_Type *attribs, s32 attrib_count, const vo
 	buffer.vertex_count = vertex_count;
 	memcpy(&buffer.layout.attribs, attribs, attrib_count * sizeof(Vertex_Attrib_Type));
 
-	u32 vbo;
-	glGenBuffers(1, &vbo);
+	glGenBuffers(1, &buffer.handle);
 	glGenVertexArrays(1, &buffer.id);
 
 	glBindVertexArray(buffer.id);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+	glBindBuffer(GL_ARRAY_BUFFER, buffer.handle);
 
 	s32 vertex_size = 0;
 	for (s32 i = 0; i < attrib_count; ++i)
@@ -194,10 +212,22 @@ s32 create_vertex_buffer(Vertex_Attrib_Type *attribs, s32 attrib_count, const vo
 		glVertexAttribPointer(i, dimension, GL_FLOAT, GL_FALSE, vertex_size, (void *)(u64)offset);
 	}
 
-	glBindVertexArray(0);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
 
 	return render_registry.vertex_buffers.add(buffer);
+}
+
+void set_vertex_buffer_data(s32 vbi, const void *data, u32 size, u32 offset) {
+    const auto &buffer = render_registry.vertex_buffers[vbi];
+
+    glBindVertexArray(buffer.id);
+	glBindBuffer(GL_ARRAY_BUFFER, buffer.handle);
+
+    glBufferSubData(GL_ARRAY_BUFFER, offset, size, data);
+    
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
 }
 
 s32 create_index_buffer(u32 *indices, s32 count, Buffer_Usage_Type usage_type) {

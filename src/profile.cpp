@@ -23,7 +23,7 @@ Scope_Timer::~Scope_Timer() {
 
 void draw_dev_stats(const Font_Atlas *atlas, const World *world) {
 	const Player &player = world->player;
-	const Camera &camera = world->camera;
+	const Camera &camera = *desired_camera((World*)world);
 
 	static char text[256];
 	const vec3 text_color = vec3(1.0f);

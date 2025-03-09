@@ -16,6 +16,7 @@ void compile_game_shaders(Shader_Index_List *list)
 	list->pos_col = create_shader(DIR_SHADERS "pos_col.glsl");
 	list->pos_tex = create_shader(DIR_SHADERS "pos_tex.glsl");
 	list->pos_tex_scale = create_shader(DIR_SHADERS "pos_tex_scale.glsl");
+    list->debug_geometry = create_shader(DIR_SHADERS "debug_geometry.glsl");
 	list->player = create_shader(DIR_SHADERS "player.glsl");
 	list->text = create_shader(DIR_SHADERS "text.glsl");
 	list->skybox = create_shader(DIR_SHADERS "skybox.glsl");
@@ -62,8 +63,8 @@ void create_game_materials(Material_Index_List *list)
 
 	list->text = render_registry.materials.add(Material(shader_index_list.text, INVALID_INDEX));
 	const Uniform text_uniforms[] = {
-		Uniform("u_charmap",    UNIFORM_U32,      TEXT_RENDER_BATCH_SIZE),
-		Uniform("u_transforms", UNIFORM_F32_MAT4, TEXT_RENDER_BATCH_SIZE),
+		Uniform("u_charmap",    UNIFORM_U32,      TEXT_DRAW_BATCH_SIZE),
+		Uniform("u_transforms", UNIFORM_F32_MAT4, TEXT_DRAW_BATCH_SIZE),
 		Uniform("u_projection", UNIFORM_F32_MAT4),
 		Uniform("u_text_color", UNIFORM_F32_VEC3),
 	};

@@ -16,6 +16,7 @@ struct Shader_Index_List {
 	s32 pos_col;
 	s32 pos_tex;
 	s32 pos_tex_scale;
+	s32 debug_geometry;
 
 	s32 player;
 	s32 text;

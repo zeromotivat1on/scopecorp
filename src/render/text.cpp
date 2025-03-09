@@ -16,7 +16,7 @@ Text_Draw_Command *create_default_text_draw_command(Font_Atlas *atlas) {
 	auto *command = push_struct(pers, Text_Draw_Command);
 	*command = Text_Draw_Command();
 
-	command->flags |= DRAW_FLAG_IGNORE_DEPTH;
+	command->flags = DRAW_FLAG_ENTIRE_BUFFER | DRAW_FLAG_IGNORE_DEPTH;
 	command->draw_mode = DRAW_TRIANGLE_STRIP;
 	command->material_index = material_index_list.text;
 	command->atlas = atlas;
@@ -87,7 +87,7 @@ void draw_text_immediate(Text_Draw_Command *command, const char *text, u32 text_
 
 		command->charmap[work_index] = ci;
 
-		if (++work_index >= TEXT_RENDER_BATCH_SIZE) {
+		if (++work_index >= TEXT_DRAW_BATCH_SIZE) {
 			command->instance_count = work_index;
 			draw(command);
 			work_index = 0;

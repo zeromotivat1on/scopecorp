@@ -3,9 +3,8 @@
 #include "math/matrix.h"
 #include "render/draw.h"
 
-// Size of batch for text glyphs to render.
-// Must be the same as in shaders (text.glsl)
-inline constexpr s32 TEXT_RENDER_BATCH_SIZE = 128;
+// Size of batch for text glyphs to draw, must be the same as in shaders (text.glsl)
+inline constexpr s32 TEXT_DRAW_BATCH_SIZE = 128;
 
 struct vec2;
 struct vec3;
@@ -14,8 +13,8 @@ struct Font_Atlas;
 
 struct Text_Draw_Command : Draw_Command {
 	mat4 projection;
-	mat4 transforms[TEXT_RENDER_BATCH_SIZE];
-	u32  charmap[TEXT_RENDER_BATCH_SIZE];
+	mat4 transforms[TEXT_DRAW_BATCH_SIZE];
+	u32  charmap[TEXT_DRAW_BATCH_SIZE];
 
 	Font_Atlas *atlas = null;
 };
