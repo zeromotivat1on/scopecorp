@@ -32,12 +32,13 @@ bool overlap(const Sphere &sphere, const AABB &aabb) {
     return overlap(vec3(x, y, z), sphere);
 }
 
-AABB resolve_moving_stable(const AABB &a, const AABB &b, const vec3 &velocity_a) {
+vec3 resolve_moving_static(const AABB &a, const AABB &b, const vec3 &velocity_a) {
     const AABB moved_a = AABB{a.min + velocity_a, a.max + velocity_a};
-    assert(overlap(moved_a, b)); // intentionally in assert, as it should be done before
-
-    AABB resolved;
+    if (!overlap(moved_a, b)) return velocity_a;
     
+    vec3 resolved_velocity = vec3_zero;
+    // @Cleanup: return zero vector is generally fine for small velocities
+    // @Todo: resolve collision properly later
     
-    return resolved;
+    return resolved_velocity;
 }

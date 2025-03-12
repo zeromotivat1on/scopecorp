@@ -34,8 +34,9 @@ void tick(World *world, f32 dt) {
 		set_material_uniform_value(mesh->draw_data.mti, "u_mvp", mesh->mvp.ptr());
 	}
 
-	auto &player = world->player;
-	tick(&player, dt);
+	tick_player(world);
+
+    auto &player = world->player;
 	player.mvp = mat4_transform(player.location, player.rotation, player.scale) * view * proj;
 	set_material_uniform_value(player.draw_data.mti, "u_mvp", player.mvp.ptr());
 

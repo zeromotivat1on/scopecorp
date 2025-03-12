@@ -78,16 +78,17 @@ int main() {
 
 	Player &player = world->player;
 	{   // Create player.
-        player.draw_data.flags = DRAW_FLAG_ENTIRE_BUFFER;
-        
         const auto &texture = render_registry.textures[texture_index_list.player_idle[DIRECTION_BACK]];
         const f32 scale_aspect = (f32)texture.width / texture.height;
         const f32 y_scale = 1.0f * scale_aspect;
         const f32 x_scale = y_scale * scale_aspect;
 
 		player.scale = vec3(x_scale, y_scale, 1.0f);
-		player.draw_data.mti = material_index_list.player;
+        player.location = vec3(0.0f, MIN_F32, 0.0f);
 
+        player.draw_data.flags = DRAW_FLAG_ENTIRE_BUFFER;
+		player.draw_data.mti = material_index_list.player;
+        
         // Little uv offset as source textures have small transient border.
         const f32 uv_offset = 0.02f;
 		Vertex_PU vertices[4] = { // center in bottom mid point of quad
@@ -104,14 +105,19 @@ int main() {
 	}
 
 	Static_Mesh &ground = world->static_meshes[world->static_meshes.add_default()];
-	{   // Create ground.
-        ground.draw_data.flags = DRAW_FLAG_ENTIRE_BUFFER;
-        
-		ground.scale = vec3(16.0f);
-		ground.rotation = quat_from_axis_angle(vec3_right, 90.0f);
-		ground.draw_data.mti = material_index_list.ground;
+	{   // Create ground.        
+		ground.scale = vec3(16.0f, 16.0f, 0.0f);
+        ground.rotation = quat_from_axis_angle(vec3_right, 90.0f);
 
-		set_material_uniform_value(ground.draw_data.mti, "u_scale", &ground.scale);
+        const vec3 aabb_offset = vec3(16.0f, 0.0f, 16.0f);
+        ground.aabb.min = ground.location - aabb_offset * 0.5f;
+		ground.aabb.max = ground.aabb.min + aabb_offset;
+
+        ground.draw_data.flags = DRAW_FLAG_ENTIRE_BUFFER;
+        ground.draw_data.mti = material_index_list.ground;
+
+        static const vec3 uv_scale = vec3(16.0f);
+		set_material_uniform_value(ground.draw_data.mti, "u_scale", &uv_scale);
 
 		Vertex_PU vertices[] = {
 			{ vec3( 0.5f,  0.5f, 0.0f), vec2(1.0f, 1.0f) },
@@ -128,12 +134,11 @@ int main() {
 
 	Static_Mesh &cube = world->static_meshes[world->static_meshes.add_default()];
 	{   // Create cube.
-        cube.draw_data.flags = DRAW_FLAG_ENTIRE_BUFFER;
-
 		cube.location = vec3(3.0f, 0.5f, 4.0f);
 		cube.aabb.min = cube.location - cube.scale * 0.5f;
 		cube.aabb.max = cube.aabb.min + cube.scale;
 
+        cube.draw_data.flags = DRAW_FLAG_ENTIRE_BUFFER;
 		cube.draw_data.mti = material_index_list.cube;
 
 		Vertex_PU vertices[] = {
@@ -241,20 +246,22 @@ int main() {
 
 		poll_events(window);
 
-        const bool has_overlap = overlap(player.aabb, cube.aabb);
-        const vec3 aabb_color = has_overlap ? vec3_green : vec3_red;
-        if (has_overlap) {
-            //player.aabb = resolve(player.aabb, cube.aabb);
-        }
-
         tick(world, dt);
-                    
+        
 		set_listener_pos(player.location);
 		check_shader_hot_reload_queue(&shader_hot_reload_queue, dt);
 
 		clear_screen(vec4(0.9f, 0.4f, 0.5f, 1.0f)); // ugly bright pink
 		draw_world(world);
-        draw_debug_aabb(player.aabb, aabb_color);
+
+        const vec3 player_aabb_color = player.collide_mesh_index == INVALID_INDEX ? vec3_red : vec3_green;
+        draw_debug_aabb(player.aabb, player_aabb_color);
+
+        for (s32 i = 0; i < world->static_meshes.count; ++i) {
+            const auto &mesh = world->static_meshes[i];
+            const vec3 mesh_aabb_color = player.collide_mesh_index != i ? vec3_red : vec3_green; 
+            draw_debug_aabb(mesh.aabb, mesh_aabb_color);
+        }
         
 		// @Cleanup: flush before text draw as its overwritten by skybox, fix.
 		flush(&world_draw_queue);

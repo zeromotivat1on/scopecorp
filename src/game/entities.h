@@ -54,6 +54,8 @@ struct Player : Entity {
     Flip_Book *flip_book = null;
 
     AABB aabb;
+
+    s32 collide_mesh_index = INVALID_INDEX;
 };
 
 struct Static_Mesh : Entity {
