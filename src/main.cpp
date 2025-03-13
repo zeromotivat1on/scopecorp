@@ -262,6 +262,10 @@ int main() {
             const vec3 mesh_aabb_color = player.collide_mesh_index != i ? vec3_red : vec3_green; 
             draw_debug_aabb(mesh.aabb, mesh_aabb_color);
         }
+
+        const vec3 player_center_location = player.location + vec3(0.0f, player.scale.y * 0.5f, 0.0f);
+        vec3 player_velocity = player.velocity;
+        draw_debug_line(player_center_location, player_center_location + player_velocity.normalize() * 0.5f, vec3_red);
         
 		// @Cleanup: flush before text draw as its overwritten by skybox, fix.
 		flush(&world_draw_queue);
