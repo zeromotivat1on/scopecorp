@@ -67,10 +67,10 @@ vec3 resolve_moving_static(const AABB &a, const AABB &b, const vec3 &velocity_a)
     return resolved_velocity;
 }
 
-vec3 ray_from_mouse_position(const Camera *camera, s16 mouse_x, s16 mouse_y) {
+vec3 ray_from_mouse_position(const Camera *camera, const Viewport *viewport, s16 mouse_x, s16 mouse_y) {
     vec3 ray_nds;
-    ray_nds.x = (2.0f * mouse_x) / window->width - 1.0f;
-    ray_nds.y = 1.0f - (2.0f * mouse_y) / window->height;
+    ray_nds.x = (2.0f * (mouse_x - viewport->x)) / viewport->width - 1.0f;
+    ray_nds.y = 1.0f - (2.0f * (mouse_y - viewport->y)) / viewport->height;
     ray_nds.z = 1.0f;
 
     const vec4 ray_clip = vec4(ray_nds.x, ray_nds.y, -1.0f, 1.0f);

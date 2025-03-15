@@ -6,7 +6,7 @@ enum Viewport_Aspect_Type {
 };
 
 struct Viewport {
-    Viewport_Aspect_Type aspect_type = VIEWPORT_FILL_WINDOW;
+    Viewport_Aspect_Type aspect_type = VIEWPORT_4X3;
     
     s16 x = 0;
     s16 y = 0;

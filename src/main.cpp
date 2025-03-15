@@ -254,9 +254,10 @@ int main() {
 		clear_screen(vec4(0.9f, 0.4f, 0.5f, 1.0f)); // ugly bright pink
 		draw_world(world);
 
-        const Ray ray = Ray{world->camera.eye, ray_from_mouse_position(&world->camera, input_table.mouse_x, input_table.mouse_y)};
+        auto *camera = desired_camera(world);
+        const Ray ray = Ray{camera->eye, ray_from_mouse_position(camera, &viewport, input_table.mouse_x, input_table.mouse_y)};
         const vec3 ray_end_pos = ray.direction * 10.0f;
-        draw_debug_line(world->camera.eye, ray_end_pos, vec3_blue);
+        draw_debug_line(camera->eye, ray_end_pos, vec3_blue);
 
         vec3 player_aabb_color = vec3_red;
         if (player.collide_mesh_index != INVALID_INDEX) player_aabb_color = vec3_green;

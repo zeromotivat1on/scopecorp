@@ -28,4 +28,5 @@ bool overlap(const Ray &ray, const AABB &aabb);
 vec3 resolve_moving_static(const AABB &a, const AABB &b, const vec3 &velocity_a);
 
 struct Camera;
-vec3 ray_from_mouse_position(const Camera *camera, s16 mouse_x, s16 mouse_y);
+struct Viewport;
+vec3 ray_from_mouse_position(const Camera *camera, const Viewport *viewport, s16 mouse_x, s16 mouse_y);

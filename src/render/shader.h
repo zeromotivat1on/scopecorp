@@ -1,6 +1,6 @@
 #pragma once
 
-#include "uniform.h"
+#include "render/uniform.h"
 
 inline constexpr s32 MAX_SHADER_SIZE = KB(8);
 

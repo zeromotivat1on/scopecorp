@@ -28,7 +28,3 @@ void on_viewport_resize(Camera *camera, const Viewport *viewport) {
 	camera->bottom = viewport->y;
 	camera->top = (f32)viewport->y + viewport->height;
 }
-
-void ray_from_mouse_position(s16 x, s16 y, vec3 *start, vec3 *end) {
-    
-}

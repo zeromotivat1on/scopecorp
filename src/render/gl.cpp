@@ -347,7 +347,6 @@ bool recreate_shader(s32 shader_index) {
         pop(temp, MAX_SHADER_SIZE);
     };
 
-
 	if (!parse_shader_source((char *)shader_src, vertex_src, fragment_src)) {
         error("Failed to parse shader %s", shader.path);
         return false;
