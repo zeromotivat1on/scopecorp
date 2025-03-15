@@ -1,6 +1,6 @@
  #pragma once
 
-inline constexpr s32 MAX_DRAW_QUEUE_SIZE = 64;
+inline constexpr s32 MAX_DRAW_QUEUE_SIZE = 1024;
 
 struct Entity;
 struct World;

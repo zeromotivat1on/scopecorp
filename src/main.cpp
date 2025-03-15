@@ -24,6 +24,8 @@
 #include "game/game.h"
 #include "editor/hot_reload.h"
 
+extern s32 draw_call_count;
+
 static void on_window_event(Window *window, Window_Event *event) {
 	handle_event(window, event);
 }
@@ -279,6 +281,8 @@ int main() {
         }
 
 		// @Cleanup: flush before text draw as its overwritten by skybox, fix.
+        draw_call_count = world_draw_queue.count;
+        
 		flush(&world_draw_queue);
         flush(&debug_draw_queue);
         
