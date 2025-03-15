@@ -309,11 +309,12 @@ s32 create_shader(const char *path) {
 
 	shader_src[shader_size] = '\0';
 
-	char *vertex_src = (char *)push(temp, MAX_SHADER_SIZE);
-	defer { pop(temp, MAX_SHADER_SIZE); };
-
+	char *vertex_src   = (char *)push(temp, MAX_SHADER_SIZE);
 	char *fragment_src = (char *)push(temp, MAX_SHADER_SIZE);
-	defer { pop(temp, MAX_SHADER_SIZE); };
+    defer {
+        pop(temp, MAX_SHADER_SIZE);
+        pop(temp, MAX_SHADER_SIZE);
+    };
 
 	if (!parse_shader_source((char *)shader_src, vertex_src, fragment_src)) {
         error("Failed to parse shader %s", path);
@@ -339,11 +340,13 @@ bool recreate_shader(s32 shader_index) {
 
 	shader_src[shader_size] = '\0';
 
-	char *vertex_src = (char *)push(temp, MAX_SHADER_SIZE);
-	defer { pop(temp, MAX_SHADER_SIZE); };
-
+    char *vertex_src   = (char *)push(temp, MAX_SHADER_SIZE);
 	char *fragment_src = (char *)push(temp, MAX_SHADER_SIZE);
-	defer { pop(temp, MAX_SHADER_SIZE); };
+    defer {
+        pop(temp, MAX_SHADER_SIZE);
+        pop(temp, MAX_SHADER_SIZE);
+    };
+
 
 	if (!parse_shader_source((char *)shader_src, vertex_src, fragment_src)) {
         error("Failed to parse shader %s", shader.path);

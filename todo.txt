@@ -3,6 +3,3 @@
 
 - Enqueue draw command order is crucial for expected output, we need to add sort/priority
   of submitted draw commands. Also possible to add additional draw queues, e.g for ui.
-
-- Change syntax of shader regions (like @vertex_begin ... @vertex_end), it will become
-  more clean and less error prone.

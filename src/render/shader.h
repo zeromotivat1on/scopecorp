@@ -4,9 +4,6 @@
 
 inline constexpr s32 MAX_SHADER_SIZE = KB(8);
 
-inline const char *vertex_region_name   = "[vertex]";
-inline const char *fragment_region_name = "[fragment]";
-
 struct Shader {
 	u32 id;
 	const char *path;

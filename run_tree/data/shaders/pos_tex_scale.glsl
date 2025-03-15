@@ -1,4 +1,4 @@
-[vertex]
+@vertex_begin
 #version 460 core
 
 layout (location = 0) in vec3 v_vertex;
@@ -14,8 +14,9 @@ void main()
     gl_Position = u_mvp * vec4(v_vertex.xyz, 1.0f);
     f_uv = v_uv * u_scale;
 }
+@vertex_end
 
-[fragment]
+@fragment_begin
 #version 460 core
 
 in vec2 f_uv;
@@ -28,3 +29,4 @@ void main()
     //out_color = vec4(1.0f);
     out_color = texture(u_sampler, f_uv);
 }
+@fragment_end

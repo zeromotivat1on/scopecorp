@@ -1,4 +1,4 @@
-[vertex]
+@vertex_begin
 #version 460 core
 
 layout (location = 0) in vec3 v_vertex;
@@ -19,8 +19,9 @@ void main()
     uv += 0.5f;
     f_uv = (uv + vec2(u_offset) * 0.01f) * u_scale;
 }
+@vertex_end
 
-[fragment]
+@fragment_begin
 #version 460 core
 
 in vec2 f_uv;
@@ -32,3 +33,4 @@ void main()
 {
     out_color = texture(u_sampler, f_uv);
 }
+@fragment_end

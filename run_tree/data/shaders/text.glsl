@@ -1,4 +1,4 @@
-[vertex]
+@vertex_begin
 #version 460 core
 
 layout (location = 0) in vec2 v_vertex; // vec2 pos
@@ -16,8 +16,9 @@ void main()
     f_tex_coords.y = 1.0f - v_vertex.y; // vertical flip
     f_instance_id = gl_InstanceID;
 }
+@vertex_end
 
-[fragment]
+@fragment_begin
 #version 460 core
 
 in vec2 f_tex_coords;
@@ -33,3 +34,4 @@ void main()
     vec4 sampled = vec4(1.0f, 1.0f, 1.0f, texture(u_text_sampler_array, vec3(f_tex_coords.xy, u_charmap[f_instance_id])).r);
     out_color = vec4(u_text_color, 1.0f) * sampled;
 }
+@fragment_end
