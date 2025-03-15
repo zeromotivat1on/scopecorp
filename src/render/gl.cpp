@@ -292,36 +292,6 @@ static u32 gl_link_program(u32 vertex_shader, u32 fragment_shader) {
 	return program;
 }
 
-static void parse_shader_source(const char *path, const char *shader_src, char *vertex_src, char *fragment_src) {
-	static const u64 vertex_region_name_size = strlen(vertex_region_name);
-	static const u64 fragment_region_name_size = strlen(fragment_region_name);
-
-	const char *vertex_region = strstr(shader_src, vertex_region_name);
-	if (!vertex_region) {
-		error("Failed to find vertex region in shader %s", path);
-		return;
-	}
-
-	const char *fragment_region = strstr(shader_src, fragment_region_name);
-	if (!fragment_region) {
-		error("Failed to find fragment region in shader %s", path);
-		return;
-	}
-
-	vertex_region += vertex_region_name_size;
-	const s32 vertex_src_size = (s32)(fragment_region - vertex_region);
-
-	fragment_region += fragment_region_name_size;
-	const char *end_pos = shader_src + strlen(shader_src);
-	const s32 fragment_src_size = (s32)(end_pos - fragment_region);
-
-	memcpy(vertex_src, vertex_region, vertex_src_size);
-	vertex_src[vertex_src_size] = '\0';
-
-	memcpy(fragment_src, fragment_region, fragment_src_size);
-	fragment_src[fragment_src_size] = '\0';
-}
-
 s32 create_shader(const char *path) {
 	char timer_string[256];
 	stbsp_snprintf(timer_string, sizeof(timer_string), "%s from %s took", __FUNCTION__, path);
@@ -345,7 +315,10 @@ s32 create_shader(const char *path) {
 	char *fragment_src = (char *)push(temp, MAX_SHADER_SIZE);
 	defer { pop(temp, MAX_SHADER_SIZE); };
 
-	parse_shader_source(path, (char *)shader_src, vertex_src, fragment_src);
+	if (!parse_shader_source((char *)shader_src, vertex_src, fragment_src)) {
+        error("Failed to parse shader %s", path);
+        return INVALID_INDEX;
+    }
 
 	const u32 vertex_shader = gl_create_shader(GL_VERTEX_SHADER, vertex_src);
 	const u32 fragment_shader = gl_create_shader(GL_FRAGMENT_SHADER, fragment_src);
@@ -354,12 +327,14 @@ s32 create_shader(const char *path) {
 	return render_registry.shaders.add(shader);
 }
 
-bool recreate_shader(Shader *shader) {
+bool recreate_shader(s32 shader_index) {
+    auto &shader = render_registry.shaders[shader_index];
+    
 	u64 shader_size = 0;
 	u8 *shader_src = (u8 *)push(temp, MAX_SHADER_SIZE);
 	defer { pop(temp, MAX_SHADER_SIZE); };
 
-	if (!read_file(shader->path, shader_src, MAX_SHADER_SIZE, &shader_size))
+	if (!read_file(shader.path, shader_src, MAX_SHADER_SIZE, &shader_size))
 		return false;
 
 	shader_src[shader_size] = '\0';
@@ -370,14 +345,17 @@ bool recreate_shader(Shader *shader) {
 	char *fragment_src = (char *)push(temp, MAX_SHADER_SIZE);
 	defer { pop(temp, MAX_SHADER_SIZE); };
 
-	parse_shader_source(shader->path, (char *)shader_src, vertex_src, fragment_src);
-
+	if (!parse_shader_source((char *)shader_src, vertex_src, fragment_src)) {
+        error("Failed to parse shader %s", shader.path);
+        return false;
+    }
+    
 	// We are free to delete old shader program at this stage.
-	glDeleteProgram(shader->id);
+	glDeleteProgram(shader.id);
 
 	const u32 vertex_shader = gl_create_shader(GL_VERTEX_SHADER, vertex_src);
 	const u32 fragment_shader = gl_create_shader(GL_FRAGMENT_SHADER, fragment_src);
-	shader->id = gl_link_program(vertex_shader, fragment_shader);
+	shader.id = gl_link_program(vertex_shader, fragment_shader);
 
 	return true;
 }

@@ -28,5 +28,7 @@ inline Shader_Index_List shader_index_list;
 void compile_game_shaders(Shader_Index_List *list);
 
 s32  create_shader(const char *path);
-bool recreate_shader(Shader *shader);
+bool recreate_shader(s32 shader_index);
 s32  find_shader_by_file(Shader_Index_List *list, const char *path);
+
+bool parse_shader_source(const char *shader_src, char *vertex_src, char *fragment_src);

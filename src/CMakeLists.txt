@@ -13,7 +13,7 @@ add_executable(${GAME_EXE}
                 audio/al.cpp audio/sound.cpp
                 game/game.cpp game/player_control.cpp game/world.cpp
                 editor/hot_reload.cpp
-                render/debug_draw.cpp render/draw.cpp render/gl.cpp render/glad.cpp render/render_registry.cpp render/text.cpp render/vertex.cpp)
+                render/debug_draw.cpp render/draw.cpp render/gl.cpp render/glad.cpp render/render_registry.cpp render/shader.cpp render/text.cpp render/vertex.cpp)
 
 target_precompile_headers(${GAME_EXE} PUBLIC pch.h)
 target_include_directories(${GAME_EXE} PRIVATE "${PROJECT_SOURCE_DIR}/src")

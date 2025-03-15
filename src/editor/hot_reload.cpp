@@ -7,8 +7,9 @@
 
 // @Cleanup: do not need this as recreate_shader exists now?
 bool hot_reload_shader(s32 shader_index) {
-	auto &shader = render_registry.shaders[shader_index];
-	if (recreate_shader(&shader)) {
+    const auto &shader = render_registry.shaders[shader_index];
+
+	if (recreate_shader(shader_index)) {
 		log("Hot reloaded shader %s", shader.path);
 		return true;
 	}
