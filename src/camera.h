@@ -29,6 +29,8 @@ struct Camera {
 	f32	top;
 };
 
+struct Viewport;
+
 mat4 camera_view(const Camera *camera);
 mat4 camera_projection(const Camera *camera);
-void on_viewport_resize(Camera *camera, struct Viewport *viewport);
+void on_viewport_resize(Camera *camera, const Viewport *viewport);

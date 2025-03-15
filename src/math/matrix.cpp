@@ -2,6 +2,9 @@
 #include "math/matrix.h"
 #include "math/quat.h"
 #include "math/math_core.h"
+
+#include "log.h"
+
 #include <string.h>
 
 // Matrix2
@@ -736,4 +739,84 @@ mat4 mat4_orthographic(f32 l, f32 r, f32 b, f32 t, f32 n, f32 f) {
 	result[3][2] = -(f + n) / (f - n);
 	result[3][3] =  1.0f;
 	return result;
+}
+
+mat4 inverse(const mat4 &m) {
+    mat4 minv = m;
+    
+	// 2x2 sub-determinants required to calculate 4x4 determinant
+	const f32 det2_01_01 = minv[0][0] * minv[1][1] - minv[0][1] * minv[1][0];
+	const f32 det2_01_02 = minv[0][0] * minv[1][2] - minv[0][2] * minv[1][0];
+	const f32 det2_01_03 = minv[0][0] * minv[1][3] - minv[0][3] * minv[1][0];
+	const f32 det2_01_12 = minv[0][1] * minv[1][2] - minv[0][2] * minv[1][1];
+	const f32 det2_01_13 = minv[0][1] * minv[1][3] - minv[0][3] * minv[1][1];
+	const f32 det2_01_23 = minv[0][2] * minv[1][3] - minv[0][3] * minv[1][2];
+
+	// 3x3 sub-determinants required to calculate 4x4 determinant
+	const f32 det3_201_012 = minv[2][0] * det2_01_12 - minv[2][1] * det2_01_02 + minv[2][2] * det2_01_01;
+	const f32 det3_201_013 = minv[2][0] * det2_01_13 - minv[2][1] * det2_01_03 + minv[2][3] * det2_01_01;
+	const f32 det3_201_023 = minv[2][0] * det2_01_23 - minv[2][2] * det2_01_03 + minv[2][3] * det2_01_02;
+	const f32 det3_201_123 = minv[2][1] * det2_01_23 - minv[2][2] * det2_01_13 + minv[2][3] * det2_01_12;
+
+	const f32 det = ( - det3_201_123 * minv[3][0] + det3_201_023 * minv[3][1] - det3_201_013 * minv[3][2] + det3_201_012 * minv[3][3] );
+
+	if (absf(det) < MATRIX_INV_EPSILON ) {
+        error("Failed to inverse mat4");
+		return mat4_identity();
+	}
+
+	const f32 det_inv = 1.0f / det;
+
+	// remaining 2x2 sub-determinants
+	const f32 det2_03_01 = minv[0][0] * minv[3][1] - minv[0][1] * minv[3][0];
+	const f32 det2_03_02 = minv[0][0] * minv[3][2] - minv[0][2] * minv[3][0];
+	const f32 det2_03_03 = minv[0][0] * minv[3][3] - minv[0][3] * minv[3][0];
+	const f32 det2_03_12 = minv[0][1] * minv[3][2] - minv[0][2] * minv[3][1];
+	const f32 det2_03_13 = minv[0][1] * minv[3][3] - minv[0][3] * minv[3][1];
+	const f32 det2_03_23 = minv[0][2] * minv[3][3] - minv[0][3] * minv[3][2];
+
+	const f32 det2_13_01 = minv[1][0] * minv[3][1] - minv[1][1] * minv[3][0];
+	const f32 det2_13_02 = minv[1][0] * minv[3][2] - minv[1][2] * minv[3][0];
+	const f32 det2_13_03 = minv[1][0] * minv[3][3] - minv[1][3] * minv[3][0];
+	const f32 det2_13_12 = minv[1][1] * minv[3][2] - minv[1][2] * minv[3][1];
+	const f32 det2_13_13 = minv[1][1] * minv[3][3] - minv[1][3] * minv[3][1];
+	const f32 det2_13_23 = minv[1][2] * minv[3][3] - minv[1][3] * minv[3][2];
+
+	// remaining 3x3 sub-determinants
+	const f32 det3_203_012 = minv[2][0] * det2_03_12 - minv[2][1] * det2_03_02 + minv[2][2] * det2_03_01;
+	const f32 det3_203_013 = minv[2][0] * det2_03_13 - minv[2][1] * det2_03_03 + minv[2][3] * det2_03_01;
+	const f32 det3_203_023 = minv[2][0] * det2_03_23 - minv[2][2] * det2_03_03 + minv[2][3] * det2_03_02;
+	const f32 det3_203_123 = minv[2][1] * det2_03_23 - minv[2][2] * det2_03_13 + minv[2][3] * det2_03_12;
+
+	const f32 det3_213_012 = minv[2][0] * det2_13_12 - minv[2][1] * det2_13_02 + minv[2][2] * det2_13_01;
+	const f32 det3_213_013 = minv[2][0] * det2_13_13 - minv[2][1] * det2_13_03 + minv[2][3] * det2_13_01;
+	const f32 det3_213_023 = minv[2][0] * det2_13_23 - minv[2][2] * det2_13_03 + minv[2][3] * det2_13_02;
+	const f32 det3_213_123 = minv[2][1] * det2_13_23 - minv[2][2] * det2_13_13 + minv[2][3] * det2_13_12;
+
+	const f32 det3_301_012 = minv[3][0] * det2_01_12 - minv[3][1] * det2_01_02 + minv[3][2] * det2_01_01;
+	const f32 det3_301_013 = minv[3][0] * det2_01_13 - minv[3][1] * det2_01_03 + minv[3][3] * det2_01_01;
+	const f32 det3_301_023 = minv[3][0] * det2_01_23 - minv[3][2] * det2_01_03 + minv[3][3] * det2_01_02;
+	const f32 det3_301_123 = minv[3][1] * det2_01_23 - minv[3][2] * det2_01_13 + minv[3][3] * det2_01_12;
+
+	minv[0][0] = - det3_213_123 * det_inv;
+	minv[1][0] = + det3_213_023 * det_inv;
+	minv[2][0] = - det3_213_013 * det_inv;
+	minv[3][0] = + det3_213_012 * det_inv;
+
+	minv[0][1] = + det3_203_123 * det_inv;
+	minv[1][1] = - det3_203_023 * det_inv;
+	minv[2][1] = + det3_203_013 * det_inv;
+	minv[3][1] = - det3_203_012 * det_inv;
+
+	minv[0][2] = + det3_301_123 * det_inv;
+	minv[1][2] = - det3_301_023 * det_inv;
+	minv[2][2] = + det3_301_013 * det_inv;
+	minv[3][2] = - det3_301_012 * det_inv;
+
+	minv[0][3] = - det3_201_123 * det_inv;
+	minv[1][3] = + det3_201_023 * det_inv;
+	minv[2][3] = - det3_201_013 * det_inv;
+	minv[3][3] = + det3_201_012 * det_inv;
+
+	return minv;
 }

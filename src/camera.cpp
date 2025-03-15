@@ -21,10 +21,14 @@ mat4 camera_projection(const Camera *c) {
 	return mat4_identity();
 }
 
-void on_viewport_resize(Camera *camera, Viewport *viewport) {
+void on_viewport_resize(Camera *camera, const Viewport *viewport) {
 	camera->aspect = (f32)viewport->width / viewport->height;
 	camera->left = viewport->x;
 	camera->right = (f32)viewport->x + viewport->width;
 	camera->bottom = viewport->y;
 	camera->top = (f32)viewport->y + viewport->height;
+}
+
+void ray_from_mouse_position(s16 x, s16 y, vec3 *start, vec3 *end) {
+    
 }

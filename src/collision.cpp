@@ -1,7 +1,13 @@
 #include "pch.h"
 #include "collision.h"
 #include "assertion.h"
+#include "camera.h"
+
 #include "math/math_core.h"
+
+#include "render/viewport.h"
+
+#include "os/window.h"
 
 bool overlap(const AABB &a, const AABB &b) {
 	return a.max.x >= b.min.x && a.min.x <= b.max.x
@@ -32,6 +38,24 @@ bool overlap(const Sphere &sphere, const AABB &aabb) {
     return overlap(vec3(x, y, z), sphere);
 }
 
+bool overlap(const Ray &ray, const AABB &aabb) {
+    f32 tmin = 0.0f;
+    f32 tmax = MAX_F32;
+
+    vec3 ray_dir_inv = vec3(1);
+    ray_dir_inv /= ray.direction;
+    
+    for (s32 d = 0; d < 3; ++d) {
+        const f32 t1 = (aabb.min[d] - ray.origin[d]) * ray_dir_inv[d];
+        const f32 t2 = (aabb.max[d] - ray.origin[d]) * ray_dir_inv[d];
+
+        tmin = min(max(t1, tmin), max(t2, tmin));
+        tmax = max(min(t1, tmax), min(t2, tmax));
+    }
+
+    return tmin <= tmax;
+}
+
 vec3 resolve_moving_static(const AABB &a, const AABB &b, const vec3 &velocity_a) {
     const AABB moved_a = AABB{a.min + velocity_a, a.max + velocity_a};
     if (!overlap(moved_a, b)) return velocity_a;
@@ -41,4 +65,19 @@ vec3 resolve_moving_static(const AABB &a, const AABB &b, const vec3 &velocity_a)
     // @Todo: resolve collision properly later
     
     return resolved_velocity;
+}
+
+vec3 ray_from_mouse_position(const Camera *camera, s16 mouse_x, s16 mouse_y) {
+    vec3 ray_nds;
+    ray_nds.x = (2.0f * mouse_x) / window->width - 1.0f;
+    ray_nds.y = 1.0f - (2.0f * mouse_y) / window->height;
+    ray_nds.z = 1.0f;
+
+    const vec4 ray_clip = vec4(ray_nds.x, ray_nds.y, -1.0f, 1.0f);
+    vec4 ray_eye = inverse(camera_projection(camera)) * ray_clip;
+    ray_eye.z = -1.0f;
+    ray_eye.w =  0.0f;
+
+    const vec4 ray_world = inverse(camera_view(camera)) * ray_eye;
+    return normalize(ray_world.to_vec3());
 }

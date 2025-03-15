@@ -7,7 +7,7 @@
 
 struct quat;
 
-inline constexpr f32 MATRIX_EPSILON	= 1e-06f;
+inline constexpr f32 MATRIX_EPSILON	    = 1e-06f;
 inline constexpr f32 MATRIX_INV_EPSILON	= 1e-14f;
 
 struct mat2 {
@@ -175,3 +175,5 @@ mat4 mat4_transform(const vec3& location, const quat& rotation, const vec3& scal
 mat4 mat4_view(const vec3& eye, const vec3& at, const vec3& up);
 mat4 mat4_perspective(f32 rfovy, f32 aspect, f32 n, f32 f);
 mat4 mat4_orthographic(f32 l, f32 r, f32 b, f32 t, f32 n, f32 f);
+
+mat4 inverse(const mat4 &m);

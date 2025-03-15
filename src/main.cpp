@@ -254,19 +254,29 @@ int main() {
 		clear_screen(vec4(0.9f, 0.4f, 0.5f, 1.0f)); // ugly bright pink
 		draw_world(world);
 
-        const vec3 player_aabb_color = player.collide_mesh_index == INVALID_INDEX ? vec3_red : vec3_green;
+        const Ray ray = Ray{world->camera.eye, ray_from_mouse_position(&world->camera, input_table.mouse_x, input_table.mouse_y)};
+        const vec3 ray_end_pos = ray.direction * 10.0f;
+        draw_debug_line(world->camera.eye, ray_end_pos, vec3_blue);
+
+        vec3 player_aabb_color = vec3_red;
+        if (player.collide_mesh_index != INVALID_INDEX) player_aabb_color = vec3_green;
+        if (overlap(ray, player.aabb))                  player_aabb_color = vec3_blue;
+
         draw_debug_aabb(player.aabb, player_aabb_color);
+
+        const vec3 player_center_location = player.location + vec3(0.0f, player.scale.y * 0.5f, 0.0f);
+        draw_debug_line(player_center_location, player_center_location + normalize(player.velocity) * 0.5f, vec3_red);
 
         for (s32 i = 0; i < world->static_meshes.count; ++i) {
             const auto &mesh = world->static_meshes[i];
-            const vec3 mesh_aabb_color = player.collide_mesh_index != i ? vec3_red : vec3_green; 
+
+            vec3 mesh_aabb_color = vec3_red;
+            if (player.collide_mesh_index == i) mesh_aabb_color = vec3_green;
+            if (overlap(ray, mesh.aabb))        mesh_aabb_color = vec3_blue;
+            
             draw_debug_aabb(mesh.aabb, mesh_aabb_color);
         }
 
-        const vec3 player_center_location = player.location + vec3(0.0f, player.scale.y * 0.5f, 0.0f);
-        vec3 player_velocity = player.velocity;
-        draw_debug_line(player_center_location, player_center_location + player_velocity.normalize() * 0.5f, vec3_red);
-        
 		// @Cleanup: flush before text draw as its overwritten by skybox, fix.
 		flush(&world_draw_queue);
         flush(&debug_draw_queue);

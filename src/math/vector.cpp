@@ -561,6 +561,21 @@ const char* to_string(const vec3 &v) {
     return buffer;
 }
 
+vec2 normalize(const vec2 &v) {
+    const f32 linv = sqrt_inv(v.x * v.x + v.y * v.y);
+    return vec2(v.x * linv, v.y * linv);
+}
+
+vec3 normalize(const vec3 &v) {
+    const f32 linv = sqrt_inv(v.x * v.x + v.y * v.y + v.z * v.z);
+    return vec3(v.x * linv, v.y * linv, v.z * linv);
+}
+
+vec4 normalize(const vec4 &v) {
+    const f32 linv = sqrt_inv(v.x * v.x + v.y * v.y + v.z * v.z + v.w * v.w);
+    return vec4(v.x * linv, v.y * linv, v.z * linv, v.w * linv);
+}
+
 vec3 forward(const vec3 &start, const vec3 &end) {
     return (end - start).normalize();
 }

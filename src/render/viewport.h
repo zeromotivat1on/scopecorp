@@ -1,11 +1,12 @@
 #pragma once
 
 enum Viewport_Aspect_Type {
+    VIEWPORT_FILL_WINDOW,
     VIEWPORT_4X3,
 };
 
 struct Viewport {
-    Viewport_Aspect_Type aspect_type = VIEWPORT_4X3;
+    Viewport_Aspect_Type aspect_type = VIEWPORT_FILL_WINDOW;
     
     s16 x = 0;
     s16 y = 0;
@@ -14,5 +15,7 @@ struct Viewport {
 };
 
 inline Viewport viewport;
+
+struct vec3;
 
 void resize_viewport(Viewport *viewport, s16 width, s16 height);

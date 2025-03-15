@@ -35,6 +35,11 @@ T min(const T &a, const T &b) {
 }
 
 template<typename T>
+T max(const T &a, const T &b) {
+	return a > b ? a : b;
+}
+
+template<typename T>
 T clamp(const T &n, const T &min, const T &max) {
 	return (n < min) ? min : (n > max ? max : n);
 }

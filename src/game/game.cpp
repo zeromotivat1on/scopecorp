@@ -63,7 +63,7 @@ void handle_event(Window *window, Window_Event *event) {
 	}
 
 	if (event->type == EVENT_MOUSE) {
-
+        
 	}
 
 	if (event->type == EVENT_QUIT) {
@@ -73,25 +73,25 @@ void handle_event(Window *window, Window_Event *event) {
 
 const char *to_string(Game_Mode mode) {
 	switch (mode) {
-	case MODE_GAME: return "GAME";
+	case MODE_GAME:   return "GAME";
 	case MODE_EDITOR: return "EDITOR";
-	default: return "UNKNOWN";
+	default:          return "UNKNOWN";
 	}
 }
 
 const char *to_string(Camera_Behavior behavior) {
 	switch (behavior) {
-	case IGNORE_PLAYER: return "IGNORE_PLAYER";
+	case IGNORE_PLAYER:   return "IGNORE_PLAYER";
 	case STICK_TO_PLAYER: return "STICK_TO_PLAYER";
-	case FOLLOW_PLAYER: return "FOLLOW_PLAYER";
-	default: return "UNKNOWN";
+	case FOLLOW_PLAYER:   return "FOLLOW_PLAYER";
+	default:              return "UNKNOWN";
 	}
 }
 
 const char *to_string(Player_Movement_Behavior behavior) {
 	switch (behavior) {
-	case MOVE_INDEPENDENT: return "MOVE_INDEPENDENT";
+	case MOVE_INDEPENDENT:        return "MOVE_INDEPENDENT";
 	case MOVE_RELATIVE_TO_CAMERA: return "MOVE_RELATIVE_TO_CAMERA";
-	default: return "UNKNOWN";
+	default:                      return "UNKNOWN";
 	}
 }

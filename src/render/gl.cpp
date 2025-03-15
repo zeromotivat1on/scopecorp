@@ -147,6 +147,10 @@ void draw(const Draw_Command *command) {
 void resize_viewport(Viewport *viewport, s16 width, s16 height)
 {
 	switch (viewport->aspect_type) {
+    case VIEWPORT_FILL_WINDOW:
+        viewport->width = width;
+		viewport->height = height;
+        break;
 	case VIEWPORT_4X3:
 		viewport->width = width;
 		viewport->height = height;
