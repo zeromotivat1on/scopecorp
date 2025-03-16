@@ -77,6 +77,8 @@ static s32 gl_draw_mode(Draw_Mode mode) {
 }
 
 void draw(const Draw_Command *command) {
+	if (command->flags & DRAW_FLAG_SKIP_DRAW) return;
+    
 	if (command->flags & DRAW_FLAG_IGNORE_DEPTH) glDepthMask(GL_FALSE);
 
     if (command->flags & DRAW_FLAG_WIREFRAME) {
@@ -86,10 +88,10 @@ void draw(const Draw_Command *command) {
     
 	const s32 draw_mode = gl_draw_mode(command->draw_mode);
 
-	const auto &material = render_registry.materials[command->material_index];
-	const auto &shader   = render_registry.shaders[material.shader_index];
-	glUseProgram(shader.id);
-
+    const auto &material = render_registry.materials[command->material_index];
+    const auto &shader   = render_registry.shaders[material.shader_index];
+    glUseProgram(shader.id);
+     
 	for (s32 i = 0; i < material.uniform_count; ++i)
 		sync_uniform(material.uniforms + i);
 

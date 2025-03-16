@@ -266,30 +266,30 @@ int main() {
         const vec3 ray_end_pos = ray.direction * 10.0f;
         draw_debug_line(camera->eye, ray_end_pos, vec3_blue);
 
-        const auto &player_aabb = world->aabbs[player.aabb_index];
-        
-        vec3 player_aabb_color = vec3_red;
-        if (player.collide_aabb_index != INVALID_INDEX) player_aabb_color = vec3_green;
-        if (overlap(ray, player_aabb))                  player_aabb_color = vec3_blue;
-
-        draw_debug_aabb(player_aabb, player_aabb_color);
-
         const vec3 player_center_location = player.location + vec3(0.0f, player.scale.y * 0.5f, 0.0f);
         draw_debug_line(player_center_location, player_center_location + normalize(player.velocity) * 0.5f, vec3_red);
 
-        for (s32 i = 0; i < world->aabbs.count; ++i) {            
+        const vec3 target = camera->eye;
+        const s32 closest_overlapped_aabb = find_closest_overlapped_aabb(ray, world, target);
+        
+        for (s32 i = 0; i < world->aabbs.count; ++i) {        
             const auto &aabb = world->aabbs[i];
 
             vec3 aabb_color = vec3_red;
-            if (player.collide_aabb_index == i) aabb_color = vec3_green;
-            if (overlap(ray, aabb))             aabb_color = vec3_blue;
-            
+            if (i == player.collide_aabb_index) aabb_color = vec3_green;
+            if (i == closest_overlapped_aabb)   aabb_color = vec3_blue;
+
+            if (i == player.aabb_index) {
+                if (player.collide_aabb_index != INVALID_INDEX) aabb_color = vec3_green;
+            }
+    
             draw_debug_aabb(aabb, aabb_color);
         }
 
-		// @Cleanup: flush before text draw as its overwritten by skybox, fix.
+        // Send draw call count to dev stats.
         draw_call_count = world_draw_queue.count;
-        
+
+		// @Cleanup: flush before text draw as its overwritten by skybox, fix.        
 		flush(&world_draw_queue);
         flush(&debug_draw_queue);
         

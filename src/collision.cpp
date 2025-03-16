@@ -1,13 +1,15 @@
 #include "pch.h"
 #include "collision.h"
 #include "assertion.h"
+#include "profile.h"
 #include "camera.h"
+#include "memory_storage.h"
 
 #include "math/math_core.h"
 
 #include "render/viewport.h"
 
-#include "os/window.h"
+#include "game/world.h"
 
 bool overlap(const AABB &a, const AABB &b) {
 	return a.max.x >= b.min.x && a.min.x <= b.max.x
@@ -38,7 +40,7 @@ bool overlap(const Sphere &sphere, const AABB &aabb) {
     return overlap(vec3(x, y, z), sphere);
 }
 
-bool overlap(const Ray &ray, const AABB &aabb) {
+bool overlap(const Ray &ray, const AABB &aabb, f32 *near) {
     f32 tmin = 0.0f;
     f32 tmax = MAX_F32;
 
@@ -53,7 +55,42 @@ bool overlap(const Ray &ray, const AABB &aabb) {
         tmax = max(min(t1, tmax), min(t2, tmax));
     }
 
+    if (near) *near = tmin;
+    
     return tmin <= tmax;
+}
+
+s32 find_closest_overlapped_aabb(const Ray &ray, const World *world, const vec3 &target) {
+    PROFILE_SCOPE(__FUNCTION__);
+    
+    s32  count     = 0;
+    f32* distances = push_array(frame, world->aabbs.count, f32);
+    s32* indices   = push_array(frame, world->aabbs.count, s32);
+    defer {
+        pop_array(frame, world->aabbs.count, f32);
+        pop_array(frame, world->aabbs.count, s32);
+    };
+
+    for (s32 i = 0; i < world->aabbs.count; ++i) {
+        auto &aabb = world->aabbs[i];
+        f32 near = 0.0f;
+        if (overlap(ray, aabb, &near)) {
+            indices  [count] = i;
+            distances[count] = near;
+            count++;
+        }
+    }
+    
+    s32 closest_aabb_index = INVALID_INDEX;
+    f32 min_distance = MAX_F32;
+    for (s32 i = 0; i < count; ++i) {
+        if (distances[i] < min_distance) {
+            min_distance = distances[i];
+            closest_aabb_index = indices[i];
+        }
+    }
+
+    return closest_aabb_index;
 }
 
 vec3 resolve_moving_static(const AABB &a, const AABB &b, const vec3 &velocity_a) {

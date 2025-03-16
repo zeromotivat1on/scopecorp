@@ -15,6 +15,7 @@ enum Draw_Command_Flags : u32 {
 	DRAW_FLAG_IGNORE_DEPTH  = 0x1,
     DRAW_FLAG_WIREFRAME     = 0x2, // draw as lines and disable face culling
     DRAW_FLAG_ENTIRE_BUFFER = 0x4, // ignore offset/count, draw entire vertex/index buffer
+    DRAW_FLAG_SKIP_DRAW     = 0x8,
 };
 
 struct Draw_Command {

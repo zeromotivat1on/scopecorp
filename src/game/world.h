@@ -28,9 +28,3 @@ void tick(World *world, f32 dt);
 Camera *desired_camera(World *world);
 
 s32 create_static_mesh(World *world);
-
-
-template<typename T>
-s32 create_entity(World *world) {
-    static_assert(T == Static_Mesh);
-}
