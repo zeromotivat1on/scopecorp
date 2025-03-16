@@ -202,21 +202,24 @@ void tick_player(World* world) {
 		camera.at = camera.eye + camera_forward;
 	}
 
-    player.collide_mesh_index = INVALID_INDEX;
+    player.collide_aabb_index = INVALID_INDEX;
+    auto &player_aabb = world->aabbs[player.aabb_index];
     
-    for (s32 i = 0; i < world->static_meshes.count; ++i) {
-        const auto &mesh = world->static_meshes[i];
-        const vec3 resolved_velocity = resolve_moving_static(player.aabb, mesh.aabb, player.velocity);
+    for (s32 i = 0; i < world->aabbs.count; ++i) {
+        if (i == player.aabb_index) continue;
+        
+        const auto &aabb = world->aabbs[i];
+        const vec3 resolved_velocity = resolve_moving_static(player_aabb, aabb, player.velocity);
         if (resolved_velocity != player.velocity) {
             player.velocity = resolved_velocity;
-            player.collide_mesh_index = i;
+            player.collide_aabb_index = i;
             break;
         }
     }
 
     if (player.velocity == vec3_zero) {
         render_registry.materials[player.draw_data.mti].texture_index = texture_index_list.player_idle[player.move_direction];
-    } else {        
+    } else {
         player.flip_book = &flip_books.player_move[player.move_direction];
         tick(player.flip_book, dt);
         render_registry.materials[player.draw_data.mti].texture_index = current_frame(player.flip_book);
@@ -225,8 +228,8 @@ void tick_player(World* world) {
     player.location += player.velocity;
     
     const vec3 aabb_offset = vec3(player.scale.x * 0.5f, 0.0f, player.scale.x * 0.3f);
-	player.aabb.min = player.location - aabb_offset;
-	player.aabb.max = player.location + aabb_offset + vec3(0.0f, player.scale.y, 0.0f);
+	player_aabb.min = player.location - aabb_offset;
+	player_aabb.max = player.location + aabb_offset + vec3(0.0f, player.scale.y, 0.0f);
             
 	const Sound &steps_sound = sounds.player_steps;
 	if (player.velocity == vec3(0.0f)) {

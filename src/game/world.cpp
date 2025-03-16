@@ -12,6 +12,7 @@ void init_world(World *world) {
 	*world = World();
 
 	world->static_meshes = Sparse_Array<Static_Mesh>(MAX_STATIC_MESHES);
+	world->aabbs         = Sparse_Array<AABB>(MAX_AABBS);
 }
 
 void tick(World *world, f32 dt) {
@@ -52,4 +53,10 @@ Camera *desired_camera(World *world) {
 
 	error("Failed to get desired camera from world in unknown game mode %d", game_state.mode);
 	return null;
+}
+
+s32 create_static_mesh(World *world) {
+    const s32 index = world->static_meshes.add_default();
+    world->static_meshes[index].aabb_index = world->aabbs.add_default();
+    return index;
 }

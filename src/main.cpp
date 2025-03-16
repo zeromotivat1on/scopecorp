@@ -85,6 +85,8 @@ int main() {
         const f32 y_scale = 1.0f * scale_aspect;
         const f32 x_scale = y_scale * scale_aspect;
 
+        player.aabb_index = world->aabbs.add_default();
+        
 		player.scale = vec3(x_scale, y_scale, 1.0f);
         player.location = vec3(0.0f, MIN_F32, 0.0f);
 
@@ -106,14 +108,15 @@ int main() {
 		player.draw_data.ibi = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
 	}
 
-	Static_Mesh &ground = world->static_meshes[world->static_meshes.add_default()];
+	Static_Mesh &ground = world->static_meshes[create_static_mesh(world)];
 	{   // Create ground.        
 		ground.scale = vec3(16.0f, 16.0f, 0.0f);
         ground.rotation = quat_from_axis_angle(vec3_right, 90.0f);
 
+        auto &aabb = world->aabbs[ground.aabb_index];
         const vec3 aabb_offset = vec3(16.0f, 0.0f, 16.0f);
-        ground.aabb.min = ground.location - aabb_offset * 0.5f;
-		ground.aabb.max = ground.aabb.min + aabb_offset;
+        aabb.min = ground.location - aabb_offset * 0.5f;
+		aabb.max = aabb.min + aabb_offset;
 
         ground.draw_data.flags = DRAW_FLAG_ENTIRE_BUFFER;
         ground.draw_data.mti = material_index_list.ground;
@@ -134,11 +137,13 @@ int main() {
 		ground.draw_data.ibi = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
 	}
 
-	Static_Mesh &cube = world->static_meshes[world->static_meshes.add_default()];
+	Static_Mesh &cube = world->static_meshes[create_static_mesh(world)];
 	{   // Create cube.
 		cube.location = vec3(3.0f, 0.5f, 4.0f);
-		cube.aabb.min = cube.location - cube.scale * 0.5f;
-		cube.aabb.max = cube.aabb.min + cube.scale;
+
+        auto &aabb = world->aabbs[cube.aabb_index];
+		aabb.min = cube.location - cube.scale * 0.5f;
+		aabb.max = aabb.min + cube.scale;
 
         cube.draw_data.flags = DRAW_FLAG_ENTIRE_BUFFER;
 		cube.draw_data.mti = material_index_list.cube;
@@ -261,23 +266,25 @@ int main() {
         const vec3 ray_end_pos = ray.direction * 10.0f;
         draw_debug_line(camera->eye, ray_end_pos, vec3_blue);
 
+        const auto &player_aabb = world->aabbs[player.aabb_index];
+        
         vec3 player_aabb_color = vec3_red;
-        if (player.collide_mesh_index != INVALID_INDEX) player_aabb_color = vec3_green;
-        if (overlap(ray, player.aabb))                  player_aabb_color = vec3_blue;
+        if (player.collide_aabb_index != INVALID_INDEX) player_aabb_color = vec3_green;
+        if (overlap(ray, player_aabb))                  player_aabb_color = vec3_blue;
 
-        draw_debug_aabb(player.aabb, player_aabb_color);
+        draw_debug_aabb(player_aabb, player_aabb_color);
 
         const vec3 player_center_location = player.location + vec3(0.0f, player.scale.y * 0.5f, 0.0f);
         draw_debug_line(player_center_location, player_center_location + normalize(player.velocity) * 0.5f, vec3_red);
 
-        for (s32 i = 0; i < world->static_meshes.count; ++i) {
-            const auto &mesh = world->static_meshes[i];
+        for (s32 i = 0; i < world->aabbs.count; ++i) {            
+            const auto &aabb = world->aabbs[i];
 
-            vec3 mesh_aabb_color = vec3_red;
-            if (player.collide_mesh_index == i) mesh_aabb_color = vec3_green;
-            if (overlap(ray, mesh.aabb))        mesh_aabb_color = vec3_blue;
+            vec3 aabb_color = vec3_red;
+            if (player.collide_aabb_index == i) aabb_color = vec3_green;
+            if (overlap(ray, aabb))             aabb_color = vec3_blue;
             
-            draw_debug_aabb(mesh.aabb, mesh_aabb_color);
+            draw_debug_aabb(aabb, aabb_color);
         }
 
 		// @Cleanup: flush before text draw as its overwritten by skybox, fix.

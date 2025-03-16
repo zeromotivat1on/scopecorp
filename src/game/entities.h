@@ -53,15 +53,17 @@ struct Player : Entity {
     
     Flip_Book *flip_book = null;
 
-    AABB aabb;
+    //AABB aabb;
+    s32 aabb_index;
 
-    s32 collide_mesh_index = INVALID_INDEX;
+    s32 collide_aabb_index = INVALID_INDEX;
 };
 
 struct Static_Mesh : Entity {
     Static_Mesh() { type = E_STATIC_MESH; }
     
-    AABB aabb;
+    //AABB aabb;
+    s32 aabb_index;
 };
 
 struct Skybox : Entity {

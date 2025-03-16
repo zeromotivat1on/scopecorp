@@ -34,7 +34,8 @@ void draw_dev_stats(const Font_Atlas *atlas, const World *world) {
 	vec2 pos;
 
 	{   // Entity data.
-		text_size = (s32)stbsp_snprintf(text, sizeof(text), "player\n\tlocation %s\n\tvelocity %s\n\taabb %s %s", to_string(player.location), to_string(player.velocity), to_string(player.aabb.min), to_string(player.aabb.max));
+        const auto &player_aabb = world->aabbs[player.aabb_index];
+		text_size = (s32)stbsp_snprintf(text, sizeof(text), "player\n\tlocation %s\n\tvelocity %s\n\taabb %s %s", to_string(player.location), to_string(player.velocity), to_string(player_aabb.min), to_string(player_aabb.max));
 		pos.x = padding;
 		pos.y = (f32)viewport.height - atlas->line_height;
 		draw_text_immediate_with_shadow(text_draw_command, text, text_size, pos, vec3_white, shadow_offset, vec3_black);
