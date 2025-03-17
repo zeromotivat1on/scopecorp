@@ -63,7 +63,7 @@ void handle_event(Window *window, Window_Event *event) {
 	}
 
 	if (event->type == EVENT_MOUSE) {
-        
+        click(event->key_code, event->key_pressed);
 	}
 
 	if (event->type == EVENT_QUIT) {

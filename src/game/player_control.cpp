@@ -13,12 +13,21 @@
 #include "audio/al.h"
 #include "audio/sound.h"
 
+#include "render/viewport.h"
 #include "render/texture.h"
 #include "render/render_registry.h"
 
 void press(s32 key, bool pressed) {
     if (pressed && key == KEY_R && input_table.key_states[KEY_CTRL]) {
         world->player.location = vec3_zero;
+    }
+}
+
+void click(s32 key, bool pressed) {
+    if (pressed && key == MOUSE_LEFT) {
+        const auto *camera = desired_camera(world);
+        const Ray ray = Ray{camera->eye, ray_from_mouse_position(camera, &viewport, input_table.mouse_x, input_table.mouse_y)};
+        world->selected_aabb_index = find_closest_overlapped_aabb(ray, world);
     }
 }
 

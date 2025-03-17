@@ -262,22 +262,15 @@ int main() {
 		clear_screen(vec4(0.9f, 0.4f, 0.5f, 1.0f)); // ugly bright pink
 		draw_world(world);
 
-        auto *camera = desired_camera(world);
-        const Ray ray = Ray{camera->eye, ray_from_mouse_position(camera, &viewport, input_table.mouse_x, input_table.mouse_y)};
-        const vec3 ray_end_pos = ray.direction * 10.0f;
-        draw_debug_line(camera->eye, ray_end_pos, vec3_blue);
-
         const vec3 player_center_location = player.location + vec3(0.0f, player.scale.y * 0.5f, 0.0f);
         draw_debug_line(player_center_location, player_center_location + normalize(player.velocity) * 0.5f, vec3_red);
-
-        const s32 closest_overlapped_aabb = find_closest_overlapped_aabb(ray, world);
         
-        for (s32 i = 0; i < world->aabbs.count; ++i) {
+        for (s32 i = 0; i < world->aabbs.count; ++i) {            
             const auto &aabb = world->aabbs[i];
 
             vec3 aabb_color = vec3_red;
-            if (i == player.collide_aabb_index) aabb_color = vec3_green;
-            if (i == closest_overlapped_aabb)   aabb_color = vec3_blue;
+            if (i == world->selected_aabb_index) aabb_color = vec3_yellow;
+            if (i == player.collide_aabb_index)  aabb_color = vec3_green;
 
             if (i == player.aabb_index) {
                 if (player.collide_aabb_index != INVALID_INDEX) aabb_color = vec3_green;

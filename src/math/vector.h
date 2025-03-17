@@ -152,11 +152,12 @@ struct vec4 {
 #define vec3_forward vec3( 0,  0,  1)
 #define vec3_back    vec3( 0,  0, -1)
 
-#define vec3_red   vec3(1, 0, 0)
-#define vec3_green vec3(0, 1, 0)
-#define vec3_blue  vec3(0, 0, 1)
-#define vec3_black vec3(0, 0, 0)
-#define vec3_white vec3(1, 1, 1)
+#define vec3_red    vec3(1, 0, 0)
+#define vec3_green  vec3(0, 1, 0)
+#define vec3_blue   vec3(0, 0, 1)
+#define vec3_black  vec3(0, 0, 0)
+#define vec3_white  vec3(1, 1, 1)
+#define vec3_yellow vec3(1, 1, 0)
 
 // Uses static 2d buffer internally, for debug purposes only.
 const char *to_string(const vec3 &v);

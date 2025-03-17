@@ -19,6 +19,8 @@ struct World {
 
 	Sparse_Array<Static_Mesh> static_meshes;
 	Sparse_Array<AABB>        aabbs;
+
+    s32 selected_aabb_index = INVALID_INDEX;
 };
 
 inline World *world = null;
