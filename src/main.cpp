@@ -35,7 +35,8 @@ int main() {
     const s64 startup_counter = performance_counter();
     
     void *vm = allocate_core();
-
+    if (!vm) return 1;
+    
 	log("Preallocated memory storages: Persistent %.fmb | Frame %.fmb | Temp %.fmb",
 		(f32)pers_memory_size / 1024 / 1024, (f32)frame_memory_size / 1024 / 1024, (f32)temp_memory_size / 1024 / 1024);
 
@@ -269,10 +270,9 @@ int main() {
         const vec3 player_center_location = player.location + vec3(0.0f, player.scale.y * 0.5f, 0.0f);
         draw_debug_line(player_center_location, player_center_location + normalize(player.velocity) * 0.5f, vec3_red);
 
-        const vec3 target = camera->eye;
-        const s32 closest_overlapped_aabb = find_closest_overlapped_aabb(ray, world, target);
+        const s32 closest_overlapped_aabb = find_closest_overlapped_aabb(ray, world);
         
-        for (s32 i = 0; i < world->aabbs.count; ++i) {        
+        for (s32 i = 0; i < world->aabbs.count; ++i) {
             const auto &aabb = world->aabbs[i];
 
             vec3 aabb_color = vec3_red;

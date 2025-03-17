@@ -60,33 +60,20 @@ bool overlap(const Ray &ray, const AABB &aabb, f32 *near) {
     return tmin <= tmax;
 }
 
-s32 find_closest_overlapped_aabb(const Ray &ray, const World *world, const vec3 &target) {
+s32 find_closest_overlapped_aabb(const Ray &ray, const World *world) {
     PROFILE_SCOPE(__FUNCTION__);
-    
-    s32  count     = 0;
-    f32* distances = push_array(frame, world->aabbs.count, f32);
-    s32* indices   = push_array(frame, world->aabbs.count, s32);
-    defer {
-        pop_array(frame, world->aabbs.count, f32);
-        pop_array(frame, world->aabbs.count, s32);
-    };
-
-    for (s32 i = 0; i < world->aabbs.count; ++i) {
-        auto &aabb = world->aabbs[i];
-        f32 near = 0.0f;
-        if (overlap(ray, aabb, &near)) {
-            indices  [count] = i;
-            distances[count] = near;
-            count++;
-        }
-    }
     
     s32 closest_aabb_index = INVALID_INDEX;
     f32 min_distance = MAX_F32;
-    for (s32 i = 0; i < count; ++i) {
-        if (distances[i] < min_distance) {
-            min_distance = distances[i];
-            closest_aabb_index = indices[i];
+    for (s32 i = 0; i < world->aabbs.count; ++i) {
+        auto &aabb = world->aabbs[i];
+
+        f32 near = 0.0f;
+        if (!overlap(ray, aabb, &near)) continue;
+        
+        if (near < min_distance) {
+            min_distance = near;
+            closest_aabb_index = i;
         }
     }
 

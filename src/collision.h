@@ -29,7 +29,7 @@ bool overlap(const Sphere &a, const Sphere &b);
 bool overlap(const Sphere &sphere, const AABB &aabb);
 bool overlap(const Ray &ray, const AABB &aabb, f32 *near = null);
 
-s32 find_closest_overlapped_aabb(const Ray &ray, const World *world, const vec3 &target);
+s32 find_closest_overlapped_aabb(const Ray &ray, const World *world);
 
 vec3 resolve_moving_static(const AABB &a, const AABB &b, const vec3 &velocity_a);
 
