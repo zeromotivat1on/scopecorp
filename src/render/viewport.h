@@ -6,6 +6,7 @@ enum Viewport_Aspect_Type {
 };
 
 struct Viewport {
+    // @Todo: fix render for 4x3 aspect ratio.
     Viewport_Aspect_Type aspect_type = VIEWPORT_FILL_WINDOW;
     
     s16 x = 0;

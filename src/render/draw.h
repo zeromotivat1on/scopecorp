@@ -12,7 +12,7 @@ enum Draw_Mode {
 };
 
 enum Draw_Command_Flags : u32 {
-	DRAW_FLAG_IGNORE_DEPTH  = 0x1,
+	DRAW_FLAG_IGNORE_DEPTH  = 0x1, // do not write to depth buffer
     DRAW_FLAG_WIREFRAME     = 0x2, // draw as lines and disable face culling
     DRAW_FLAG_ENTIRE_BUFFER = 0x4, // ignore offset/count, draw entire vertex/index buffer
     DRAW_FLAG_SKIP_DRAW     = 0x8,
@@ -47,3 +47,7 @@ void draw_world(const World *world);
 void draw_entity(const Entity *e);
 
 void draw(const Draw_Command *command);
+
+void start_frame_buffer_draw(s32 fbi);
+void end_frame_buffer_draw();
+void draw_frame_buffer(s32 fbi);

@@ -89,7 +89,6 @@ static s32 gl_texture_type(u32 flags) {
 
 void draw(const Draw_Command *command) {
 	if (command->flags & DRAW_FLAG_SKIP_DRAW) return;
-    
 	if (command->flags & DRAW_FLAG_IGNORE_DEPTH) glDepthMask(GL_FALSE);
 
     if (command->flags & DRAW_FLAG_WIREFRAME) {
@@ -155,6 +154,53 @@ void draw(const Draw_Command *command) {
         glBindVertexArray(0);
         glUseProgram(0);
     }
+}
+
+void start_frame_buffer_draw(s32 fbi) {
+    glBindFramebuffer(GL_FRAMEBUFFER, render_registry.frame_buffers[fbi].id);
+}
+
+void end_frame_buffer_draw() {
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+static s32 create_quad_vertex_buffer() {
+    struct Vertex_Quad { vec2 pos; vec2 uv; };
+    Vertex_Quad vertices[] = {
+        { vec2( 1.0f,  1.0f), vec2(1.0f, 1.0f) },
+        { vec2( 1.0f, -1.0f), vec2(1.0f, 0.0f) },
+        { vec2(-1.0f, -1.0f), vec2(0.0f, 0.0f) },
+        { vec2(-1.0f,  1.0f), vec2(0.0f, 1.0f) },
+    };
+    Vertex_Attrib_Type attribs[] = { VERTEX_ATTRIB_F32_V2, VERTEX_ATTRIB_F32_V2 };
+    return create_vertex_buffer(attribs, c_array_count(attribs), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);    
+}
+
+static s32 create_quad_index_buffer() {
+    u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
+    return create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
+}
+
+void draw_frame_buffer(s32 fbi) {
+    static s32 vertex_buffer_index = create_quad_vertex_buffer();
+    static s32 index_buffer_index  = create_quad_index_buffer();
+    static s32 shader_index        = create_shader(DIR_SHADERS "framebuffer.glsl");
+    static s32 material_index      = render_registry.materials.add(Material(shader_index, render_registry.frame_buffers[fbi].color_attachment));
+    
+    glDisable(GL_DEPTH_TEST);
+        
+    clear_screen(vec3_red, CLEAR_FLAG_COLOR);
+
+    // Draw frame buffer screen quad texture we've rendered on earlier.
+    Draw_Command command;
+    command.flags = DRAW_FLAG_ENTIRE_BUFFER;
+    command.draw_mode = DRAW_TRIANGLES;
+    command.vertex_buffer_index = vertex_buffer_index;
+    command.index_buffer_index  = index_buffer_index;
+    command.material_index = material_index;
+    draw(&command);
+
+    glEnable(GL_DEPTH_TEST);
 }
 
 void resize_viewport(Viewport *viewport, s16 width, s16 height)

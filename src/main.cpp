@@ -24,29 +24,10 @@
 #include "game/game.h"
 #include "editor/hot_reload.h"
 
-#include "render/glad.h"
-
 extern s32 draw_call_count;
 
 static void on_window_event(Window *window, Window_Event *event) {
 	handle_event(window, event);
-}
-
-static s32 create_quad_vertex_buffer() {
-    struct Vertex_Quad { vec2 pos; vec2 uv; };
-    Vertex_Quad vertices[] = {
-        { vec2( 1.0f,  1.0f), vec2(1.0f, 1.0f) },
-        { vec2( 1.0f, -1.0f), vec2(1.0f, 0.0f) },
-        { vec2(-1.0f, -1.0f), vec2(0.0f, 0.0f) },
-        { vec2(-1.0f,  1.0f), vec2(0.0f, 1.0f) },
-    };
-    Vertex_Attrib_Type attribs[] = { VERTEX_ATTRIB_F32_V2, VERTEX_ATTRIB_F32_V2 };
-    return create_vertex_buffer(attribs, c_array_count(attribs), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);    
-}
-
-static s32 create_quad_index_buffer() {
-    u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
-    return create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
 }
 
 int main() {
@@ -280,9 +261,7 @@ int main() {
 		set_listener_pos(player.location);
 		check_shader_hot_reload_queue(&shader_hot_reload_queue, dt);
 
-        const auto &frame_buffer = render_registry.frame_buffers[viewport.frame_buffer_index];
-        glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer.id);
-        
+        start_frame_buffer_draw(viewport.frame_buffer_index);
 		clear_screen(vec3_white, CLEAR_FLAG_COLOR | CLEAR_FLAG_DEPTH);
 		draw_world(world);
 
@@ -304,33 +283,15 @@ int main() {
 		// @Cleanup: flush before text draw as its overwritten by skybox, fix.        
 		flush(&world_draw_queue);
         flush(&debug_draw_queue);
-
+        
         debug_scope {
             PROFILE_SCOPE("Debug Stats Draw");
 			draw_dev_stats(atlas, world);
 		}
 
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        glDisable(GL_DEPTH_TEST);
+        end_frame_buffer_draw();
+        draw_frame_buffer(viewport.frame_buffer_index);
         
-        clear_screen(vec3_red, CLEAR_FLAG_COLOR);
-
-        static s32 vertex_buffer_index = create_quad_vertex_buffer();
-        static s32 index_buffer_index  = create_quad_index_buffer();
-        static s32 shader_index        = create_shader(DIR_SHADERS "framebuffer.glsl");
-        static s32 material_index      = render_registry.materials.add(Material(shader_index, render_registry.frame_buffers[viewport.frame_buffer_index].color_attachment));
-
-        // Draw framebuffer texture we've rendered on earlier.
-        Draw_Command command;
-        command.flags = DRAW_FLAG_ENTIRE_BUFFER;
-        command.draw_mode = DRAW_TRIANGLES;
-        command.vertex_buffer_index = vertex_buffer_index;
-        command.index_buffer_index  = index_buffer_index;
-        command.material_index = material_index;
-        draw(&command);
-
-        glEnable(GL_DEPTH_TEST);
-
 		swap_buffers(window);
         PROFILE_FRAME("Game Frame");
         
