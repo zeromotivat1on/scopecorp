@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "render/draw.h"
 #include "render/debug_draw.h"
+#include "render/viewport.h"
 
 #include "game/world.h"
 #include "game/entities.h"

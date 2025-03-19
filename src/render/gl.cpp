@@ -7,6 +7,7 @@
 #include "render/uniform.h"
 #include "render/material.h"
 #include "render/texture.h"
+#include "render/frame_buffer.h"
 #include "render/index_buffer.h"
 #include "render/vertex_buffer.h"
 #include "render/render_registry.h"
@@ -60,9 +61,11 @@ void remove_gfx_features(u32 flags) {
     set_gfx_features(gfx_features);
 }
 
-void clear_screen(vec4 color) {
-	glClearColor(color.x, color.y, color.z, color.w);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+void clear_screen(vec3 color, u32 flags) {
+	glClearColor(color.x, color.y, color.z, 1.0f);
+
+    if (flags & CLEAR_FLAG_COLOR) glClear(GL_COLOR_BUFFER_BIT);
+    if (flags & CLEAR_FLAG_DEPTH) glClear(GL_DEPTH_BUFFER_BIT);
 }
 
 static s32 gl_draw_mode(Draw_Mode mode) {
@@ -71,9 +74,17 @@ static s32 gl_draw_mode(Draw_Mode mode) {
 	case DRAW_TRIANGLE_STRIP: return GL_TRIANGLE_STRIP;
 	case DRAW_LINES:          return GL_LINES;
 	default:
-		error("Failed to get open gl draw mode from given draw mode %d", mode);
+		error("Failed to get GL draw mode from given draw mode %d", mode);
 		return -1;
 	}
+}
+
+static s32 gl_texture_type(u32 flags) {
+	if (flags & TEXTURE_TYPE_2D)       return GL_TEXTURE_2D;
+    if (flags & TEXTURE_TYPE_2D_ARRAY) return GL_TEXTURE_2D_ARRAY;
+    
+    error("Failed to get GL texture type from flags 0x%X", flags);
+    return -1;
 }
 
 void draw(const Draw_Command *command) {
@@ -97,8 +108,8 @@ void draw(const Draw_Command *command) {
 
 	if (material.texture_index != INVALID_INDEX) {
 		const auto &texture = render_registry.textures[material.texture_index];
-		if (texture.flags & TEXTURE_FLAG_2D_ARRAY) glBindTexture(GL_TEXTURE_2D_ARRAY, texture.id);
-		else glBindTexture(GL_TEXTURE_2D, texture.id);
+        const s32 texture_type = gl_texture_type(texture.flags);
+		glBindTexture(texture_type, texture.id);
 		glActiveTexture(GL_TEXTURE0);
 	}
 
@@ -173,6 +184,66 @@ void resize_viewport(Viewport *viewport, s16 width, s16 height)
 
 	glViewport(viewport->x, viewport->y, viewport->width, viewport->height);
 	glScissor(viewport->x, viewport->y, viewport->width, viewport->height);
+
+    if (viewport->frame_buffer_index != INVALID_INDEX) {
+        recreate_frame_buffer(viewport->frame_buffer_index, viewport->width, viewport->height);
+        log("Recreated viewport frame buffer %dx%d", viewport->width, viewport->height);
+    }
+}
+
+s32 create_frame_buffer(s16 width, s16 height, u32 attachment_flags) {
+    Frame_Buffer frame_buffer;
+    glGenFramebuffers(1, &frame_buffer.id);
+    frame_buffer.attachment_flags = attachment_flags;
+
+    const s32 frame_buffer_index = render_registry.frame_buffers.add(frame_buffer);
+    recreate_frame_buffer(frame_buffer_index, width, height);
+
+    return frame_buffer_index;
+}
+
+void recreate_frame_buffer(s32 frame_buffer_index, s16 width, s16 height) {
+    auto &frame_buffer = render_registry.frame_buffers[frame_buffer_index];
+    frame_buffer.width = width;
+    frame_buffer.height = height;
+
+    glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer.id);
+
+    if (frame_buffer.attachment_flags & FRAME_BUFFER_ATTACHMENT_FLAG_COLOR) {
+        // @Todo: resize texture instead of full recreate.
+        if (frame_buffer.color_attachment != INVALID_INDEX) {
+            delete_texture(frame_buffer.color_attachment);
+            frame_buffer.color_attachment = INVALID_INDEX;
+        }
+
+        frame_buffer.color_attachment = create_texture(TEXTURE_TYPE_2D |
+                                                       TEXTURE_FORMAT_RGB_8 |
+                                                       TEXTURE_FILTER_NEAREST,
+                                                       width, height, null);
+ 
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, render_registry.textures[frame_buffer.color_attachment].id, 0);
+    }
+
+    if (frame_buffer.attachment_flags & FRAME_BUFFER_ATTACHMENT_FLAG_DEPTH_STENCIL) {
+        if (frame_buffer.depth_stencil_attachment != INVALID_INDEX) {
+            delete_texture(frame_buffer.depth_stencil_attachment);
+            frame_buffer.depth_stencil_attachment = INVALID_INDEX;
+        }
+
+        frame_buffer.depth_stencil_attachment = create_texture(TEXTURE_TYPE_2D |
+                                                               TEXTURE_FORMAT_DEPTH_24_STENCIL_8 |
+                                                               TEXTURE_FILTER_NEAREST,
+                                                               width, height, null);
+        
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, render_registry.textures[frame_buffer.depth_stencil_attachment].id, 0);
+    }
+
+    const u32 status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if (status != GL_FRAMEBUFFER_COMPLETE) {
+        warn("Framebuffer %d is not complete, status 0x%X", frame_buffer_index, status);
+    }
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 static s32 gl_usage(Buffer_Usage_Type type) {
@@ -181,7 +252,7 @@ static s32 gl_usage(Buffer_Usage_Type type) {
 	case BUFFER_USAGE_DYNAMIC: return GL_DYNAMIC_DRAW;
 	case BUFFER_USAGE_STREAM:  return GL_STREAM_DRAW;
 	default:
-		error("Failed to get open gl usage from given buffer usage %d", type);
+		error("Failed to get GL usage from given buffer usage %d", type);
 		return -1;
 	}
 }
@@ -487,9 +558,6 @@ s32 create_texture(const char *path) {
 	stbsp_snprintf(timer_string, sizeof(timer_string), "%s from %s took", __FUNCTION__, path);
 	SCOPE_TIMER(timer_string);
 
-	Texture texture = {0};
-	texture.path = path;
-
 	stbi_set_flip_vertically_on_load(true);
 	defer { stbi_set_flip_vertically_on_load(false); };
 
@@ -501,15 +569,119 @@ s32 create_texture(const char *path) {
 		return INVALID_INDEX;
 	}
 
-	u8 *data = stbi_load_from_memory(buffer, (s32)buffer_size, &texture.width, &texture.height, &texture.color_channel_count, 4);
+    s32 width, height;
+	u8 *data = stbi_load_from_memory(buffer, (s32)buffer_size, &width, &height, null, 4);
 	if (!data) {
 		error("Failed to load texture %s, stbi reason %s", path, stbi_failure_reason());
 		return INVALID_INDEX;
 	}
 
-	texture.id = gl_create_texture(data, texture.width, texture.height);
+    constexpr u32 flags = TEXTURE_TYPE_2D | TEXTURE_FORMAT_RGBA_8 |TEXTURE_WRAP_REPEAT | TEXTURE_FILTER_NEAREST | TEXTURE_HAS_MIPMAPS;
+	return create_texture(flags, width, height, data);
+}
 
-	return render_registry.textures.add(texture);
+static s32 gl_texture_format(u32 flags) {
+    if (flags & TEXTURE_FORMAT_RGB_8)              return GL_RGB;
+    if (flags & TEXTURE_FORMAT_RGBA_8)             return GL_RGBA;
+    if (flags & TEXTURE_FORMAT_DEPTH_24_STENCIL_8) return GL_DEPTH_STENCIL;
+    
+    error("Failed to get GL texture format from flags 0x%X", flags);
+    return -1;
+}
+
+static s32 gl_texture_internal_format(u32 flags) {
+    if (flags & TEXTURE_FORMAT_RGB_8)              return GL_RGB8;
+    if (flags & TEXTURE_FORMAT_RGBA_8)             return GL_RGBA8;
+    if (flags & TEXTURE_FORMAT_DEPTH_24_STENCIL_8) return GL_DEPTH24_STENCIL8;
+    
+    error("Failed to get GL texture internal format from flags 0x%X", flags);
+    return -1;
+}
+
+static s32 gl_texture_data_type(u32 flags) {
+    if (flags & TEXTURE_FORMAT_RGB_8)              return GL_UNSIGNED_BYTE;
+    if (flags & TEXTURE_FORMAT_RGBA_8)             return GL_UNSIGNED_BYTE;
+    if (flags & TEXTURE_FORMAT_DEPTH_24_STENCIL_8) return GL_UNSIGNED_INT_24_8;
+    
+    error("Failed to get GL texture data type from flags 0x%X", flags);
+    return -1;
+}
+
+static s32 gl_texture_wrap(u32 flags) {
+    if (flags & TEXTURE_WRAP_REPEAT) return GL_REPEAT;
+    if (flags & TEXTURE_WRAP_CLAMP)  return GL_CLAMP_TO_EDGE;    
+    return -1;
+}
+
+static s32 gl_texture_min_filter(u32 flags) {
+    if (flags & TEXTURE_HAS_MIPMAPS) {
+        if (flags & TEXTURE_FILTER_LINEAR)  return GL_LINEAR_MIPMAP_LINEAR;
+        if (flags & TEXTURE_FILTER_NEAREST) return GL_NEAREST_MIPMAP_LINEAR;
+    } else {
+        if (flags & TEXTURE_FILTER_LINEAR)  return GL_LINEAR;
+        if (flags & TEXTURE_FILTER_NEAREST) return GL_NEAREST;
+    }
+    return -1;
+}
+
+static s32 gl_texture_mag_filter(u32 flags) {
+    if (flags & TEXTURE_FILTER_LINEAR)  return GL_LINEAR;
+    if (flags & TEXTURE_FILTER_NEAREST) return GL_NEAREST;
+    return -1;
+}
+
+s32 create_texture(u32 flags, s32 width, s32 height, void *data) {
+    Texture texture = {0};
+    texture.flags = flags;
+    texture.width = width;
+    texture.height = height;
+
+    glGenTextures(1, &texture.id);
+
+    const s32 type            = gl_texture_type(flags);
+    const s32 format          = gl_texture_format(flags);
+    const s32 internal_format = gl_texture_internal_format(flags);
+    const s32 data_type       = gl_texture_data_type(flags);
+
+    if (type < 0 || format < 0 || internal_format < 0 || data_type < 0) {
+        error("Failed to create texture with flags 0x%X", flags);
+        return INVALID_INDEX;
+    }
+    
+	glBindTexture(type, texture.id);
+
+    // @Todo: properly set data based on texture type.
+    glTexImage2D(type, 0, internal_format, width, height, 0, format, data_type, data);
+        
+    if (const s32 wrap = gl_texture_wrap(flags); wrap > 0) {
+        glTexParameteri(type, GL_TEXTURE_WRAP_S, wrap);
+        glTexParameteri(type, GL_TEXTURE_WRAP_T, wrap);
+    }
+
+    if (const s32 filter = gl_texture_min_filter(flags); filter > 0) {
+        glTexParameteri(type, GL_TEXTURE_MIN_FILTER, filter);
+    }
+
+    if (const s32 filter = gl_texture_mag_filter(flags); filter > 0) {
+        glTexParameteri(type, GL_TEXTURE_MAG_FILTER, filter);
+    }
+        
+    if (flags & TEXTURE_HAS_MIPMAPS) glGenerateMipmap(type);
+
+	glBindTexture(type, 0);
+    
+    return render_registry.textures.add(texture);
+}
+
+void delete_texture(s32 texture_index) {
+    auto *texture = render_registry.textures.find(texture_index);
+    if (!texture) {
+        warn("Failed to delete invalid texture %d", texture_index);
+        return;
+    }
+
+    glDeleteTextures(1, &texture->id);
+    render_registry.textures.remove(texture_index);
 }
 
 Font_Atlas *bake_font_atlas(const Font *font, u32 start_charcode, u32 end_charcode, s16 font_size) {
@@ -522,12 +694,11 @@ Font_Atlas *bake_font_atlas(const Font *font, u32 start_charcode, u32 end_charco
 	atlas->start_charcode = start_charcode;
 	atlas->end_charcode = end_charcode;
 
-	Texture texture;
+	Texture texture = {0};
 	glGenTextures(1, &texture.id);
-	texture.flags |= TEXTURE_FLAG_2D_ARRAY;
+	texture.flags = TEXTURE_TYPE_2D_ARRAY | TEXTURE_FORMAT_RGBA_8;
 	texture.width = font_size;
 	texture.height = font_size;
-	texture.color_channel_count = 4;
 	texture.path = "texture for glyph batch rendering";
 
 	atlas->texture_index = render_registry.textures.add(texture);
@@ -539,12 +710,12 @@ Font_Atlas *bake_font_atlas(const Font *font, u32 start_charcode, u32 end_charco
 
 void rescale_font_atlas(Font_Atlas *atlas, s16 font_size) {
 	if (atlas->texture_index == INVALID_INDEX) {
-		error("Failed to rescale font atlas as texture is not valid");
+		error("Failed to rescale font atlas with invalid texture");
 		return;
 	}
 
 	auto &texture = render_registry.textures[atlas->texture_index];
-	assert(texture.flags & TEXTURE_FLAG_2D_ARRAY);
+	assert(texture.flags & TEXTURE_TYPE_2D_ARRAY);
 
 	texture.width = font_size;
 	texture.height = font_size;
@@ -565,7 +736,7 @@ void rescale_font_atlas(Font_Atlas *atlas, s16 font_size) {
 	glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &max_layers);
 	assert(charcode_count <= (u32)max_layers);
 
-	// stbtt rasterizes glyphs as 8bpp, so tell open gl to use 1 byte per color channel.
+	// stbtt rasterizes glyphs as 8bpp, so tell GL to use 1 byte per color channel.
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
 	glBindTexture(GL_TEXTURE_2D_ARRAY, texture.id);

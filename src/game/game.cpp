@@ -15,7 +15,7 @@ void handle_event(Window *window, Window_Event *event) {
 	// @Todo: use input action.
 	if (event->type == EVENT_RESIZE) {
 		resize_viewport(&viewport, window->width, window->height);
-
+        
 		on_viewport_resize(&world->camera, &viewport);
 		world->ed_camera = world->camera;
 

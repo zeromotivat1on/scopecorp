@@ -4,11 +4,12 @@
 
 void init_render_registry(Render_Registry *registry)
 {
-	registry->vertex_buffers = Slot_Array<Vertex_Buffer>(MAX_VERTEX_BUFFERS);
-	registry->index_buffers  = Slot_Array<Index_Buffer>(MAX_INDEX_BUFFERS);
-	registry->shaders        = Slot_Array<Shader>(MAX_SHADERS);
-	registry->textures       = Slot_Array<Texture>(MAX_TEXTURES);
-	registry->materials      = Slot_Array<Material>(MAX_MATERIALS);
+	registry->frame_buffers  = Sparse_Array<Frame_Buffer>(MAX_FRAME_BUFFERS);
+	registry->vertex_buffers = Sparse_Array<Vertex_Buffer>(MAX_VERTEX_BUFFERS);
+	registry->index_buffers  = Sparse_Array<Index_Buffer>(MAX_INDEX_BUFFERS);
+	registry->shaders        = Sparse_Array<Shader>(MAX_SHADERS);
+	registry->textures       = Sparse_Array<Texture>(MAX_TEXTURES);
+	registry->materials      = Sparse_Array<Material>(MAX_MATERIALS);
 }
 
 void compile_game_shaders(Shader_Index_List *list)
