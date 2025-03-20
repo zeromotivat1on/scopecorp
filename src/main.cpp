@@ -57,7 +57,9 @@ int main() {
 
 	init_render_registry(&render_registry);
 
-    viewport.frame_buffer_index = create_frame_buffer(window->width, window->height, FRAME_BUFFER_ATTACHMENT_FLAG_COLOR | FRAME_BUFFER_ATTACHMENT_FLAG_DEPTH_STENCIL);
+    const Texture_Format_Type color_attachment_formats[] = { TEXTURE_FORMAT_RGB_8, TEXTURE_FORMAT_RED_INTEGER };
+    const Texture_Format_Type depth_attachment_format = TEXTURE_FORMAT_DEPTH_24_STENCIL_8;
+    viewport.frame_buffer_index = create_frame_buffer(window->width, window->height, color_attachment_formats, c_array_count(color_attachment_formats), depth_attachment_format);
 
 	load_game_textures(&texture_index_list);
 	compile_game_shaders(&shader_index_list);
@@ -95,17 +97,20 @@ int main() {
 
         player.draw_data.flags = DRAW_FLAG_ENTIRE_BUFFER;
 		player.draw_data.mti = material_index_list.player;
+
+        static const vec3 uv_scale = vec3(1.0f);
+		set_material_uniform_value(player.draw_data.mti, "u_uv_scale", &uv_scale);
         
         // Little uv offset as source textures have small transient border.
         const f32 uv_offset = 0.02f;
-		Vertex_PU vertices[4] = { // center in bottom mid point of quad
-			{ vec3( 0.5f,  1.0f, 0.0f), vec2(1.0f - uv_offset, 1.0f - uv_offset) },
-			{ vec3( 0.5f,  0.0f, 0.0f), vec2(1.0f - uv_offset, 0.0f + uv_offset) },
-			{ vec3(-0.5f,  0.0f, 0.0f), vec2(0.0f + uv_offset, 0.0f + uv_offset) },
-			{ vec3(-0.5f,  1.0f, 0.0f), vec2(0.0f + uv_offset, 1.0f - uv_offset) },
+		Vertex_Entity vertices[4] = { // center in bottom mid point of quad
+			{ vec3( 0.5f,  1.0f, 0.0f), vec2(1.0f - uv_offset, 1.0f - uv_offset), player.id },
+			{ vec3( 0.5f,  0.0f, 0.0f), vec2(1.0f - uv_offset, 0.0f + uv_offset), player.id },
+			{ vec3(-0.5f,  0.0f, 0.0f), vec2(0.0f + uv_offset, 0.0f + uv_offset), player.id },
+			{ vec3(-0.5f,  1.0f, 0.0f), vec2(0.0f + uv_offset, 1.0f - uv_offset), player.id },
 		};
-		Vertex_Attrib_Type attribs[] = { VERTEX_ATTRIB_F32_V3, VERTEX_ATTRIB_F32_V2 };
-		player.draw_data.vbi = create_vertex_buffer(attribs, c_array_count(attribs), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
+		Vertex_Component_Type components[] = { VERTEX_F32_3, VERTEX_F32_2, VERTEX_U32 };
+		player.draw_data.vbi = create_vertex_buffer(components, c_array_count(components), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
 
 		u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
 		player.draw_data.ibi = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
@@ -125,16 +130,16 @@ int main() {
         ground.draw_data.mti = material_index_list.ground;
 
         static const vec3 uv_scale = vec3(16.0f);
-		set_material_uniform_value(ground.draw_data.mti, "u_scale", &uv_scale);
+		set_material_uniform_value(ground.draw_data.mti, "u_uv_scale", &uv_scale);
 
-		Vertex_PU vertices[] = {
-			{ vec3( 0.5f,  0.5f, 0.0f), vec2(1.0f, 1.0f) },
-			{ vec3( 0.5f, -0.5f, 0.0f), vec2(1.0f, 0.0f) },
-			{ vec3(-0.5f, -0.5f, 0.0f), vec2(0.0f, 0.0f) },
-			{ vec3(-0.5f,  0.5f, 0.0f), vec2(0.0f, 1.0f) },
+		Vertex_Entity vertices[] = {
+			{ vec3( 0.5f,  0.5f, 0.0f), vec2(1.0f, 1.0f), ground.id },
+			{ vec3( 0.5f, -0.5f, 0.0f), vec2(1.0f, 0.0f), ground.id },
+			{ vec3(-0.5f, -0.5f, 0.0f), vec2(0.0f, 0.0f), ground.id },
+			{ vec3(-0.5f,  0.5f, 0.0f), vec2(0.0f, 1.0f), ground.id },
 		};
-		Vertex_Attrib_Type attribs[] = { VERTEX_ATTRIB_F32_V3, VERTEX_ATTRIB_F32_V2 };
-		ground.draw_data.vbi = create_vertex_buffer(attribs, c_array_count(attribs), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
+		Vertex_Component_Type components[] = { VERTEX_F32_3, VERTEX_F32_2, VERTEX_U32 };
+		ground.draw_data.vbi = create_vertex_buffer(components, c_array_count(components), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
 
 		u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
 		ground.draw_data.ibi = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
@@ -151,45 +156,48 @@ int main() {
         cube.draw_data.flags = DRAW_FLAG_ENTIRE_BUFFER;
 		cube.draw_data.mti = material_index_list.cube;
 
-		Vertex_PU vertices[] = {
+        static const vec3 uv_scale = vec3(1.0f);
+		set_material_uniform_value(cube.draw_data.mti, "u_uv_scale", &uv_scale);
+        
+		Vertex_Entity vertices[] = {
 			// Front face
-			{ vec3(-0.5f,  0.5f,  0.5f), vec2(0.0f, 0.0f) },
-			{ vec3( 0.5f,  0.5f,  0.5f), vec2(1.0f, 0.0f) },
-			{ vec3(-0.5f, -0.5f,  0.5f), vec2(0.0f, 1.0f) },
-			{ vec3( 0.5f, -0.5f,  0.5f), vec2(1.0f, 1.0f) },
+			{ vec3(-0.5f,  0.5f,  0.5f), vec2(0.0f, 0.0f), cube.id },
+			{ vec3( 0.5f,  0.5f,  0.5f), vec2(1.0f, 0.0f), cube.id },
+			{ vec3(-0.5f, -0.5f,  0.5f), vec2(0.0f, 1.0f), cube.id },
+			{ vec3( 0.5f, -0.5f,  0.5f), vec2(1.0f, 1.0f), cube.id },
 
 			// Back face
-			{ vec3(-0.5f,  0.5f, -0.5f), vec2(0.0f, 0.0f) },
-			{ vec3( 0.5f,  0.5f, -0.5f), vec2(1.0f, 0.0f) },
-			{ vec3(-0.5f, -0.5f, -0.5f), vec2(0.0f, 1.0f) },
-			{ vec3( 0.5f, -0.5f, -0.5f), vec2(1.0f, 1.0f) },
+			{ vec3(-0.5f,  0.5f, -0.5f), vec2(0.0f, 0.0f), cube.id },
+			{ vec3( 0.5f,  0.5f, -0.5f), vec2(1.0f, 0.0f), cube.id },
+			{ vec3(-0.5f, -0.5f, -0.5f), vec2(0.0f, 1.0f), cube.id },
+			{ vec3( 0.5f, -0.5f, -0.5f), vec2(1.0f, 1.0f), cube.id },
 
 			// Left face
-			{ vec3(-0.5f,  0.5f, -0.5f), vec2(0.0f, 0.0f) },
-			{ vec3(-0.5f,  0.5f,  0.5f), vec2(1.0f, 0.0f) },
-			{ vec3(-0.5f, -0.5f, -0.5f), vec2(0.0f, 1.0f) },
-			{ vec3(-0.5f, -0.5f,  0.5f), vec2(1.0f, 1.0f) },
+			{ vec3(-0.5f,  0.5f, -0.5f), vec2(0.0f, 0.0f), cube.id },
+			{ vec3(-0.5f,  0.5f,  0.5f), vec2(1.0f, 0.0f), cube.id },
+			{ vec3(-0.5f, -0.5f, -0.5f), vec2(0.0f, 1.0f), cube.id },
+			{ vec3(-0.5f, -0.5f,  0.5f), vec2(1.0f, 1.0f), cube.id },
 
 			// Right face
-			{ vec3( 0.5f,  0.5f, -0.5f), vec2(0.0f, 0.0f) },
-			{ vec3( 0.5f,  0.5f,  0.5f), vec2(1.0f, 0.0f) },
-			{ vec3( 0.5f, -0.5f, -0.5f), vec2(0.0f, 1.0f) },
-			{ vec3( 0.5f, -0.5f,  0.5f), vec2(1.0f, 1.0f) },
+			{ vec3( 0.5f,  0.5f, -0.5f), vec2(0.0f, 0.0f), cube.id },
+			{ vec3( 0.5f,  0.5f,  0.5f), vec2(1.0f, 0.0f), cube.id },
+			{ vec3( 0.5f, -0.5f, -0.5f), vec2(0.0f, 1.0f), cube.id },
+			{ vec3( 0.5f, -0.5f,  0.5f), vec2(1.0f, 1.0f), cube.id },
 
 			// Top face
-			{ vec3(-0.5f,  0.5f, -0.5f), vec2(0.0f, 0.0f) },
-			{ vec3( 0.5f,  0.5f, -0.5f), vec2(1.0f, 0.0f) },
-			{ vec3(-0.5f,  0.5f,  0.5f), vec2(0.0f, 1.0f) },
-			{ vec3( 0.5f,  0.5f,  0.5f), vec2(1.0f, 1.0f) },
+			{ vec3(-0.5f,  0.5f, -0.5f), vec2(0.0f, 0.0f), cube.id },
+			{ vec3( 0.5f,  0.5f, -0.5f), vec2(1.0f, 0.0f), cube.id },
+			{ vec3(-0.5f,  0.5f,  0.5f), vec2(0.0f, 1.0f), cube.id },
+			{ vec3( 0.5f,  0.5f,  0.5f), vec2(1.0f, 1.0f), cube.id },
 
 			// Bottom face
-			{ vec3(-0.5f, -0.5f, -0.5f), vec2(0.0f, 0.0f) },
-			{ vec3( 0.5f, -0.5f, -0.5f), vec2(1.0f, 0.0f) },
-			{ vec3(-0.5f, -0.5f,  0.5f), vec2(0.0f, 1.0f) },
-			{ vec3( 0.5f, -0.5f,  0.5f), vec2(1.0f, 1.0f) },
+			{ vec3(-0.5f, -0.5f, -0.5f), vec2(0.0f, 0.0f), cube.id },
+			{ vec3( 0.5f, -0.5f, -0.5f), vec2(1.0f, 0.0f), cube.id },
+			{ vec3(-0.5f, -0.5f,  0.5f), vec2(0.0f, 1.0f), cube.id },
+			{ vec3( 0.5f, -0.5f,  0.5f), vec2(1.0f, 1.0f), cube.id },
 		};
-		Vertex_Attrib_Type attribs[] = { VERTEX_ATTRIB_F32_V3, VERTEX_ATTRIB_F32_V2 };
-		cube.draw_data.vbi = create_vertex_buffer(attribs, c_array_count(attribs), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
+		Vertex_Component_Type components[] = { VERTEX_F32_3, VERTEX_F32_2, VERTEX_U32 };
+		cube.draw_data.vbi = create_vertex_buffer(components, c_array_count(components), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
 
 		u32 indices[] = {
 			// Front face
@@ -220,8 +228,8 @@ int main() {
 			{ vec3(-1.0f, -1.0f, 0.0f), vec2(0.0f, 0.0f) },
 			{ vec3(-1.0f,  1.0f, 0.0f), vec2(0.0f, 1.0f) },
 		};
-		Vertex_Attrib_Type attribs[] = { VERTEX_ATTRIB_F32_V3, VERTEX_ATTRIB_F32_V2 };
-		skybox.draw_data.vbi = create_vertex_buffer(attribs, c_array_count(attribs), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
+		Vertex_Component_Type components[] = { VERTEX_F32_3, VERTEX_F32_2 };
+		skybox.draw_data.vbi = create_vertex_buffer(components, c_array_count(components), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
 
 		u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
 		skybox.draw_data.ibi = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
@@ -290,7 +298,7 @@ int main() {
 		}
 
         end_frame_buffer_draw();
-        draw_frame_buffer(viewport.frame_buffer_index);
+        draw_frame_buffer(viewport.frame_buffer_index, 0);
         
 		swap_buffers(window);
         PROFILE_FRAME("Game Frame");

@@ -2,22 +2,19 @@
 
 #include "math/vector.h"
 
-inline constexpr s32 MAX_VERTEX_LAYOUT_ATTRIBS = 4;
+inline constexpr s32 MAX_VERTEX_LAYOUT_SIZE = 8;
 
-enum Vertex_Attrib_Type {
-    VERTEX_ATTRIB_NULL,
-    VERTEX_ATTRIB_F32_V2,
-    VERTEX_ATTRIB_F32_V3,
-    VERTEX_ATTRIB_F32_V4,
+enum Vertex_Component_Type {
+    VERTEX_U32,
+    VERTEX_F32,
+    VERTEX_F32_2,
+    VERTEX_F32_3,
+    VERTEX_F32_4,
 };
 
 struct Vertex_Layout {
-    Vertex_Attrib_Type attribs[MAX_VERTEX_LAYOUT_ATTRIBS];
-};
-
-struct Vertex_PC {
-    vec3 pos;
-    vec3 col;
+    Vertex_Component_Type components[MAX_VERTEX_LAYOUT_SIZE];
+    s32 component_count = 0;
 };
 
 struct Vertex_PU {
@@ -25,5 +22,11 @@ struct Vertex_PU {
     vec2 uv;
 };
 
-s32 vertex_attrib_dimension(Vertex_Attrib_Type type);
-s32 vertex_attrib_size(Vertex_Attrib_Type type);
+struct Vertex_Entity {
+    vec3 pos;
+    vec2 uv;
+    s32  entity_id;
+};
+
+s32 vertex_component_dimension(Vertex_Component_Type type);
+s32 vertex_component_size(Vertex_Component_Type type);

@@ -2,29 +2,46 @@
 
 inline constexpr s32 MAX_TEXTURE_SIZE = KB(256);
 
-enum Texture_Flags : u32 {
-    TEXTURE_TYPE_2D                   = 0x1,
-    TEXTURE_TYPE_2D_ARRAY             = 0x2,
-    
-    TEXTURE_FORMAT_RGB_8              = 0x4,
-    TEXTURE_FORMAT_RGBA_8             = 0x8,
-    TEXTURE_FORMAT_DEPTH_24_STENCIL_8 = 0x10,
-    
-    TEXTURE_WRAP_REPEAT               = 0x20,
-	TEXTURE_WRAP_CLAMP                = 0x40,
-    
-	TEXTURE_FILTER_LINEAR             = 0x80,
-	TEXTURE_FILTER_NEAREST            = 0x100,
+enum Texture_Type {
+    TEXTURE_TYPE_NONE,
+    TEXTURE_TYPE_2D,
+    TEXTURE_TYPE_2D_ARRAY,
+};
 
-    TEXTURE_HAS_MIPMAPS               = 0x200,
+enum Texture_Format_Type {
+    TEXTURE_FORMAT_NONE,
+    TEXTURE_FORMAT_RED_INTEGER,
+    TEXTURE_FORMAT_RGB_8,
+    TEXTURE_FORMAT_RGBA_8,
+    TEXTURE_FORMAT_DEPTH_24_STENCIL_8,
+};
+
+enum Texture_Wrap_Type {
+    TEXTURE_WRAP_NONE,
+    TEXTURE_WRAP_REPEAT,
+	TEXTURE_WRAP_CLAMP,
+};
+
+enum Texture_Filter_Type {
+    TEXTURE_FILTER_NONE,
+    TEXTURE_FILTER_LINEAR,
+	TEXTURE_FILTER_NEAREST,
+};
+
+enum Texture_Flags : u32 {
+    TEXTURE_HAS_MIPMAPS = 0x1,
 };
 
 struct Texture {
 	u32 id;
-	u32 flags;
-	s32 width;
+    s32 width;
 	s32 height;
-	const char *path;
+    u32 flags = 0;
+    Texture_Type        type;
+    Texture_Format_Type format;
+    Texture_Wrap_Type   wrap;
+    Texture_Filter_Type filter;
+	const char *path = null;
 };
 
 struct Texture_Index_List {
@@ -40,6 +57,9 @@ inline Texture_Index_List texture_index_list;
 
 void load_game_textures(Texture_Index_List *list);
 s32 create_texture(const char *path);
-s32 create_texture(u32 flags, s32 width, s32 height, void *data);
+s32 create_texture(Texture_Type type, Texture_Format_Type format, s32 width, s32 height, void *data);
+void set_texture_wrap(s32 texture_index, Texture_Wrap_Type wrap);
+void set_texture_filter(s32 texture_index, Texture_Filter_Type filter);
+void generate_texture_mipmaps(s32 texture_index);
 //s32 create_texture(Texture_Type type, Texture_Format_Type format, Texture_Wrap_Type wrap, Texture_Filter_Type filter, s32 width, s32 height, void *data, u32 flags);
 void delete_texture(s32 texture_index);

@@ -6,12 +6,14 @@
 #include "stb_sprintf.h"
 
 #include "os/time.h"
+#include "os/input.h"
 
 #include "game/game.h"
 #include "game/world.h"
 
 #include "render/text.h"
 #include "render/viewport.h"
+#include "render/frame_buffer.h"
 
 s32 draw_call_count = 0;
 
@@ -56,6 +58,13 @@ void draw_dev_stats(const Font_Atlas *atlas, const World *world) {
 		pos.x = viewport.width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
 		pos.y -= atlas->line_height;
 		draw_text_immediate_with_shadow(text_draw_command, text, text_size, pos, vec3_white, shadow_offset, vec3_black);
+
+        /*
+        text_size = (s32)stbsp_snprintf(text, sizeof(text), "frame buffer pixel data %d", read_frame_buffer_pixel(input_table.mouse_x, input_table.mouse_y));
+		pos.x = viewport.width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
+		pos.y -= atlas->line_height;
+		draw_text_immediate_with_shadow(text_draw_command, text, text_size, pos, vec3_white, shadow_offset, vec3_black);
+        */
 	}
 
 	{   // Controls.

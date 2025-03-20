@@ -32,14 +32,14 @@ void tick(World *world, f32 dt) {
 	for (s32 i = 0; i < world->static_meshes.count; ++i) {
 		auto *mesh = world->static_meshes.items + i;
 		mesh->mvp = mat4_transform(mesh->location, mesh->rotation, mesh->scale) * view * proj;
-		set_material_uniform_value(mesh->draw_data.mti, "u_mvp", mesh->mvp.ptr());
+		set_material_uniform_value(mesh->draw_data.mti, "u_transform", mesh->mvp.ptr());
 	}
 
 	tick_player(world);
 
     auto &player = world->player;
 	player.mvp = mat4_transform(player.location, player.rotation, player.scale) * view * proj;
-	set_material_uniform_value(player.draw_data.mti, "u_mvp", player.mvp.ptr());
+	set_material_uniform_value(player.draw_data.mti, "u_transform", player.mvp.ptr());
 
 	if (game_state.mode == MODE_GAME) {
 		// Editor camera should follow game one during gameplay.

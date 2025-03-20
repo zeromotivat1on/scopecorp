@@ -10,14 +10,11 @@ struct Shader {
 };
 
 struct Shader_Index_List {
-	s32 pos_col;
-	s32 pos_tex;
-	s32 pos_tex_scale;
-	s32 debug_geometry;
-
-	s32 player;
+	s32 entity;
 	s32 text;
 	s32 skybox;
+	s32 frame_buffer;
+    s32 debug_geometry;
 };
 
 inline Shader_Index_List shader_index_list;

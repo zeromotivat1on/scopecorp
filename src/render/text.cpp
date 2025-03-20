@@ -30,8 +30,8 @@ Text_Draw_Command *create_default_text_draw_command(Font_Atlas *atlas) {
 		1.0f, 1.0f,
 		1.0f, 0.0f,
 	};
-	Vertex_Attrib_Type attribs[] = { VERTEX_ATTRIB_F32_V2 };
-	command->vertex_buffer_index = create_vertex_buffer(attribs, c_array_count(attribs), vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
+	Vertex_Component_Type components[] = { VERTEX_F32_2 };
+	command->vertex_buffer_index = create_vertex_buffer(components, c_array_count(components), vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
 
 	return command;
 }

@@ -4,9 +4,9 @@ enum Uniform_Type {
 	UNIFORM_NULL,
 	UNIFORM_U32,
 	UNIFORM_F32,
-	UNIFORM_F32_VEC2,
-	UNIFORM_F32_VEC3,
-	UNIFORM_F32_MAT4,
+	UNIFORM_F32_2,
+	UNIFORM_F32_3,
+	UNIFORM_F32_4X4,
 };
 
 enum Uniform_Flags : u32 {
@@ -15,7 +15,7 @@ enum Uniform_Flags : u32 {
 
 struct Uniform {
 	Uniform() = default;
-	Uniform(const char *name, Uniform_Type type, s32 count = 1)
+	Uniform(const char *name, Uniform_Type type, s32 count)
 		: name(name), type(type), count(count) {}
 
 	const char *name  = null;

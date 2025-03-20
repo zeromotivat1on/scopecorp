@@ -47,7 +47,3 @@ void draw_world(const World *world);
 void draw_entity(const Entity *e);
 
 void draw(const Draw_Command *command);
-
-void start_frame_buffer_draw(s32 fbi);
-void end_frame_buffer_draw();
-void draw_frame_buffer(s32 fbi);

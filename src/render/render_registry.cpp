@@ -2,8 +2,7 @@
 #include "render/render_registry.h"
 #include "render/text.h"
 
-void init_render_registry(Render_Registry *registry)
-{
+void init_render_registry(Render_Registry *registry) {
 	registry->frame_buffers  = Sparse_Array<Frame_Buffer>(MAX_FRAME_BUFFERS);
 	registry->vertex_buffers = Sparse_Array<Vertex_Buffer>(MAX_VERTEX_BUFFERS);
 	registry->index_buffers  = Sparse_Array<Index_Buffer>(MAX_INDEX_BUFFERS);
@@ -12,19 +11,15 @@ void init_render_registry(Render_Registry *registry)
 	registry->materials      = Sparse_Array<Material>(MAX_MATERIALS);
 }
 
-void compile_game_shaders(Shader_Index_List *list)
-{
-	list->pos_col = create_shader(DIR_SHADERS "pos_col.glsl");
-	list->pos_tex = create_shader(DIR_SHADERS "pos_tex.glsl");
-	list->pos_tex_scale = create_shader(DIR_SHADERS "pos_tex_scale.glsl");
-    list->debug_geometry = create_shader(DIR_SHADERS "debug_geometry.glsl");
-	list->player = create_shader(DIR_SHADERS "player.glsl");
+void compile_game_shaders(Shader_Index_List *list) {
+    list->entity = create_shader(DIR_SHADERS "entity.glsl");
 	list->text = create_shader(DIR_SHADERS "text.glsl");
 	list->skybox = create_shader(DIR_SHADERS "skybox.glsl");
+    list->frame_buffer = create_shader(DIR_SHADERS "frame_buffer.glsl");
+    list->debug_geometry = create_shader(DIR_SHADERS "debug_geometry.glsl");
 }
 
-void load_game_textures(Texture_Index_List *list)
-{
+void load_game_textures(Texture_Index_List *list) {
 	list->skybox = create_texture(DIR_TEXTURES "skybox.png");
 	list->stone  = create_texture(DIR_TEXTURES "stone.png");
 	list->grass  = create_texture(DIR_TEXTURES "grass.png");
@@ -55,36 +50,48 @@ void load_game_textures(Texture_Index_List *list)
 	list->player_move[DIRECTION_FORWARD][3] = create_texture(DIR_TEXTURES "player_move_forward_4.png");
 }
 
-void create_game_materials(Material_Index_List *list)
-{
-	const Uniform u_mvp = Uniform("u_mvp", UNIFORM_F32_MAT4, 1);
-
-	list->player = render_registry.materials.add(Material(shader_index_list.player, INVALID_INDEX));
-	add_material_uniforms(list->player, &u_mvp);
-
-	list->text = render_registry.materials.add(Material(shader_index_list.text, INVALID_INDEX));
-	const Uniform text_uniforms[] = {
-		Uniform("u_charmap",    UNIFORM_U32,      TEXT_DRAW_BATCH_SIZE),
-		Uniform("u_transforms", UNIFORM_F32_MAT4, TEXT_DRAW_BATCH_SIZE),
-		Uniform("u_projection", UNIFORM_F32_MAT4),
-		Uniform("u_text_color", UNIFORM_F32_VEC3),
+void create_game_materials(Material_Index_List *list) {
+    const Uniform text_uniforms[] = {
+        Uniform("u_transforms", UNIFORM_F32_4X4, TEXT_DRAW_BATCH_SIZE),
+        Uniform("u_projection", UNIFORM_F32_4X4, 1),
+        Uniform("u_charmap",    UNIFORM_U32,     TEXT_DRAW_BATCH_SIZE),
+        Uniform("u_text_color", UNIFORM_F32_3,   1),
 	};
-	add_material_uniforms(list->text, text_uniforms, c_array_count(text_uniforms));
+        
+    const Uniform entity_uniforms[] = {
+        Uniform("u_transform", UNIFORM_F32_4X4, 1),
+        Uniform("u_uv_scale",  UNIFORM_F32_2, 1),
+    };
 
-	list->skybox = render_registry.materials.add(Material(shader_index_list.skybox, texture_index_list.skybox));
-	const Uniform skybox_uniforms[] = {
-		Uniform("u_scale", UNIFORM_F32_VEC2),
-		Uniform("u_offset", UNIFORM_F32_VEC3),
+    const Uniform skybox_uniforms[] = {
+		Uniform("u_scale",  UNIFORM_F32_2, 1),
+		Uniform("u_offset", UNIFORM_F32_3, 1),
 	};
-	add_material_uniforms(list->skybox, skybox_uniforms, c_array_count(skybox_uniforms));
 
-	list->ground = render_registry.materials.add(Material(shader_index_list.pos_tex_scale, texture_index_list.grass));
-	const Uniform ground_uniforms[] = {
-		u_mvp,
-		Uniform("u_scale", UNIFORM_F32_VEC2),
-	};
-	add_material_uniforms(list->ground, ground_uniforms, c_array_count(ground_uniforms));
+    const s32 text_uniform_count   = c_array_count(text_uniforms);
+    const s32 entity_uniform_count = c_array_count(entity_uniforms);
+    const s32 skybox_uniform_count = c_array_count(skybox_uniforms);
 
-	list->cube = render_registry.materials.add(Material(shader_index_list.pos_tex, texture_index_list.stone));
-	add_material_uniforms(list->cube, &u_mvp);
+    const s32 text_shader   = shader_index_list.text;
+    const s32 entity_shader = shader_index_list.entity;
+    const s32 skybox_shader = shader_index_list.skybox;
+
+    const s32 skybox_texture = texture_index_list.skybox;
+    const s32 ground_texture = texture_index_list.grass;
+    const s32 cube_texture   = texture_index_list.stone;
+    
+    list->text = render_registry.materials.add(Material(text_shader, INVALID_INDEX));
+	add_material_uniforms(list->text, text_uniforms, text_uniform_count);
+    
+	list->skybox = render_registry.materials.add(Material(skybox_shader, skybox_texture));
+	add_material_uniforms(list->skybox, skybox_uniforms, skybox_uniform_count);
+
+    list->player = render_registry.materials.add(Material(entity_shader, INVALID_INDEX));
+	add_material_uniforms(list->player, entity_uniforms, entity_uniform_count);
+
+	list->ground = render_registry.materials.add(Material(entity_shader, ground_texture));
+	add_material_uniforms(list->ground, entity_uniforms, entity_uniform_count);
+
+	list->cube = render_registry.materials.add(Material(entity_shader, cube_texture));
+    add_material_uniforms(list->cube, entity_uniforms, entity_uniform_count);
 }

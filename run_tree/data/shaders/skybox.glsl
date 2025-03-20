@@ -9,8 +9,7 @@ out vec2 f_uv;
 uniform vec2 u_scale;
 uniform vec3 u_offset;
 
-void main()
-{
+void main() {
     gl_Position = vec4(v_vertex.xyz, 1.0f);
     
     float depth_scale = 1.0f - (u_offset.z * 0.005f);
@@ -29,8 +28,7 @@ out vec4 out_color;
 
 uniform sampler2D u_sampler;
 
-void main()
-{
+void main() {
     out_color = texture(u_sampler, f_uv);
 }
 @fragment_end

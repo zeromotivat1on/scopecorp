@@ -18,10 +18,10 @@ void init_debug_geometry_draw_queue() {
     debug_draw_queue.lines = push_array(pers, MAX_DEBUG_DRAW_LINE_COUNT, Debug_Line);
     debug_draw_queue.vertex_data = push_array(pers, MAX_DEBUG_DRAW_BUFFER_SIZE, f32);
     
-    Vertex_Attrib_Type attribs[] = { VERTEX_ATTRIB_F32_V3, VERTEX_ATTRIB_F32_V3 };
-    debug_geometry_vbi = create_vertex_buffer(attribs, c_array_count(attribs), null, MAX_DEBUG_DRAW_VERTEX_COUNT, BUFFER_USAGE_STREAM);
+    Vertex_Component_Type components[] = { VERTEX_F32_3, VERTEX_F32_3 };
+    debug_geometry_vbi = create_vertex_buffer(components, c_array_count(components), null, MAX_DEBUG_DRAW_VERTEX_COUNT, BUFFER_USAGE_STREAM);
 
-    const Uniform u_mvp = Uniform("u_mvp", UNIFORM_F32_MAT4, 1);
+    const Uniform u_mvp = Uniform("u_transform", UNIFORM_F32_4X4, 1);
     debug_geometry_mti = render_registry.materials.add(Material(shader_index_list.debug_geometry, INVALID_INDEX));
     add_material_uniforms(debug_geometry_mti, &u_mvp);
 }
@@ -76,8 +76,8 @@ void flush(Debug_Geometry_Draw_Queue* queue) {
     Camera *camera = desired_camera(world);
 	const mat4 view = camera_view(camera);
 	const mat4 proj = camera_projection(camera);
-    const mat4 mvp = mat4_identity() * view * proj;
-    set_material_uniform_value(debug_geometry_mti, "u_mvp", mvp.ptr());
+    const mat4 vp = view * proj;
+    set_material_uniform_value(debug_geometry_mti, "u_transform", vp.ptr());
     
     set_vertex_buffer_data(debug_geometry_vbi, queue->vertex_data, 6 * 2 * queue->line_count * sizeof(f32));
 
