@@ -85,6 +85,8 @@ int main() {
 
 	Player &player = world->player;
 	{   // Create player.
+        player.id = 1;
+        
         const auto &texture = render_registry.textures[texture_index_list.player_idle[DIRECTION_BACK]];
         const f32 scale_aspect = (f32)texture.width / texture.height;
         const f32 y_scale = 1.0f * scale_aspect;
@@ -109,7 +111,7 @@ int main() {
 			{ vec3(-0.5f,  0.0f, 0.0f), vec2(0.0f + uv_offset, 0.0f + uv_offset), player.id },
 			{ vec3(-0.5f,  1.0f, 0.0f), vec2(0.0f + uv_offset, 1.0f - uv_offset), player.id },
 		};
-		Vertex_Component_Type components[] = { VERTEX_F32_3, VERTEX_F32_2, VERTEX_U32 };
+		Vertex_Component_Type components[] = { VERTEX_F32_3, VERTEX_F32_2, VERTEX_S32 };
 		player.draw_data.vbi = create_vertex_buffer(components, c_array_count(components), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
 
 		u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
@@ -117,7 +119,9 @@ int main() {
 	}
 
 	Static_Mesh &ground = world->static_meshes[create_static_mesh(world)];
-	{   // Create ground.        
+	{   // Create ground.
+        ground.id = 10;
+                
 		ground.scale = vec3(16.0f, 16.0f, 0.0f);
         ground.rotation = quat_from_axis_angle(vec3_right, 90.0f);
 
@@ -138,7 +142,7 @@ int main() {
 			{ vec3(-0.5f, -0.5f, 0.0f), vec2(0.0f, 0.0f), ground.id },
 			{ vec3(-0.5f,  0.5f, 0.0f), vec2(0.0f, 1.0f), ground.id },
 		};
-		Vertex_Component_Type components[] = { VERTEX_F32_3, VERTEX_F32_2, VERTEX_U32 };
+		Vertex_Component_Type components[] = { VERTEX_F32_3, VERTEX_F32_2, VERTEX_S32 };
 		ground.draw_data.vbi = create_vertex_buffer(components, c_array_count(components), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
 
 		u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
@@ -147,6 +151,8 @@ int main() {
 
 	Static_Mesh &cube = world->static_meshes[create_static_mesh(world)];
 	{   // Create cube.
+        cube.id = 20;
+                
 		cube.location = vec3(3.0f, 0.5f, 4.0f);
 
         auto &aabb = world->aabbs[cube.aabb_index];
@@ -196,7 +202,7 @@ int main() {
 			{ vec3(-0.5f, -0.5f,  0.5f), vec2(0.0f, 1.0f), cube.id },
 			{ vec3( 0.5f, -0.5f,  0.5f), vec2(1.0f, 1.0f), cube.id },
 		};
-		Vertex_Component_Type components[] = { VERTEX_F32_3, VERTEX_F32_2, VERTEX_U32 };
+		Vertex_Component_Type components[] = { VERTEX_F32_3, VERTEX_F32_2, VERTEX_S32 };
 		cube.draw_data.vbi = create_vertex_buffer(components, c_array_count(components), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
 
 		u32 indices[] = {
@@ -261,15 +267,15 @@ int main() {
     
 	while (alive(window)) {
         PROFILE_SCOPE("Game Frame");
-
+        start_frame_buffer_draw(viewport.frame_buffer_index);
+ 
 		poll_events(window);
-
+        
         tick(world, dt);
         
 		set_listener_pos(player.location);
 		check_shader_hot_reload_queue(&shader_hot_reload_queue, dt);
 
-        start_frame_buffer_draw(viewport.frame_buffer_index);
 		clear_screen(vec3_white, CLEAR_FLAG_COLOR | CLEAR_FLAG_DEPTH);
 		draw_world(world);
 
@@ -281,8 +287,16 @@ int main() {
             draw_debug_aabb(world->aabbs[player.collide_aabb_index], vec3_green);
         }
 
-        if (world->selected_aabb_index != INVALID_INDEX) {
-            draw_debug_aabb(world->aabbs[world->selected_aabb_index], vec3_yellow);
+        if (world->selected_entity_id != INVALID_ENTITY_ID) {
+            if (world->selected_entity_id == player.id) {
+                draw_debug_aabb(world->aabbs[player.aabb_index], vec3_yellow);
+            } else {
+                for (s32 i = 0; i < world->static_meshes.count; ++i) {
+                    const auto &mesh = world->static_meshes[i];
+                    if (mesh.id == world->selected_entity_id)
+                        draw_debug_aabb(world->aabbs[mesh.aabb_index], vec3_yellow);
+                }
+            }
         }
         
         // Send draw call count to dev stats.

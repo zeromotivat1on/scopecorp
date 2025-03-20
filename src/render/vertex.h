@@ -5,6 +5,7 @@
 inline constexpr s32 MAX_VERTEX_LAYOUT_SIZE = 8;
 
 enum Vertex_Component_Type {
+    VERTEX_S32,
     VERTEX_U32,
     VERTEX_F32,
     VERTEX_F32_2,

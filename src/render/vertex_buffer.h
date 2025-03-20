@@ -16,5 +16,5 @@ struct Vertex_Buffer {
 	Vertex_Layout layout;
 };
 
-s32 create_vertex_buffer(Vertex_Component_Type *components, s32 component_count, const void *data, s32 vertex_count, Buffer_Usage_Type usage_type);
+s32 create_vertex_buffer(const Vertex_Component_Type *components, s32 component_count, const void *data, s32 vertex_count, Buffer_Usage_Type usage_type);
 void set_vertex_buffer_data(s32 vbi, const void *data, u32 size, u32 offset = 0);

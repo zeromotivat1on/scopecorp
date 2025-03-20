@@ -22,6 +22,7 @@
 
 #include "os/file.h"
 
+#include <malloc.h>
 #include <string.h>
 
 void set_gfx_features(u32 flags) {
@@ -158,6 +159,131 @@ void draw(const Draw_Command *command) {
     }
 }
 
+void resize_viewport(Viewport *viewport, s16 width, s16 height)
+{
+	switch (viewport->aspect_type) {
+    case VIEWPORT_FILL_WINDOW:
+        viewport->width = width;
+		viewport->height = height;
+        break;
+	case VIEWPORT_4X3:
+		viewport->width = width;
+		viewport->height = height;
+
+		if (width * 3 > height * 4) {
+			viewport->width = height * 4 / 3;
+			viewport->x = (width - viewport->width) / 2;
+		} else {
+			viewport->height = width * 3 / 4;
+			viewport->y = (height - viewport->height) / 2;
+		}
+
+		break;
+	default:
+		error("Failed to resize viewport with unknown aspect type %d", viewport->aspect_type);
+		break;
+	}
+
+	glViewport(viewport->x, viewport->y, viewport->width, viewport->height);
+	glScissor(viewport->x, viewport->y, viewport->width, viewport->height);
+
+    if (viewport->frame_buffer_index != INVALID_INDEX) {
+        recreate_frame_buffer(viewport->frame_buffer_index, viewport->width, viewport->height);
+        log("Recreated viewport frame buffer %dx%d", viewport->width, viewport->height);
+    }
+}
+
+s32 create_frame_buffer(s16 width, s16 height, const Texture_Format_Type *color_attachment_formats, s32 color_attachment_count, Texture_Format_Type depth_attachment_format) {
+    assert(color_attachment_count <= MAX_FRAME_BUFFER_COLOR_ATTACHMENTS);
+    
+    Frame_Buffer frame_buffer;
+    glGenFramebuffers(1, &frame_buffer.id);
+    glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer.id);
+
+    for (s32 i = 0; i < MAX_FRAME_BUFFER_COLOR_ATTACHMENTS; ++i)
+        frame_buffer.color_attachments[i] = INVALID_INDEX;
+
+    u32 *gl_attachments = (u32 *)alloca(color_attachment_count * sizeof(u32));
+    for (s32 i = 0; i < color_attachment_count; ++i)
+        gl_attachments[i] = GL_COLOR_ATTACHMENT0 + i;
+        
+    glDrawBuffers(color_attachment_count, gl_attachments);
+    
+    frame_buffer.color_attachment_count = color_attachment_count;
+    memcpy(frame_buffer.color_attachment_formats, color_attachment_formats, color_attachment_count * sizeof(Texture_Format_Type));
+
+    frame_buffer.depth_attachment        = INVALID_INDEX;
+    frame_buffer.depth_attachment_format = depth_attachment_format;
+    
+    const s32 fbi = render_registry.frame_buffers.add(frame_buffer);
+    recreate_frame_buffer(fbi, width, height);
+    
+    return fbi;
+}
+
+void recreate_frame_buffer(s32 fbi, s16 width, s16 height) {
+    auto &frame_buffer = render_registry.frame_buffers[fbi];
+
+    frame_buffer.width = width;
+    frame_buffer.height = height;
+
+    glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer.id);
+    
+    for (s32 i = 0; i < frame_buffer.color_attachment_count; ++i) {
+        s32 attachment = frame_buffer.color_attachments[i];
+        if (attachment != INVALID_INDEX) delete_texture(attachment);
+
+        const auto format = frame_buffer.color_attachment_formats[i];
+        attachment = create_texture(TEXTURE_TYPE_2D, format, width, height, null);
+        set_texture_filter(attachment, TEXTURE_FILTER_LINEAR);
+        
+        const auto &texture = render_registry.textures[attachment];
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, texture.id, 0);
+        
+        frame_buffer.color_attachments[i] = attachment;
+    }
+
+    {
+        s32 attachment = frame_buffer.depth_attachment;
+        if (attachment != INVALID_INDEX) delete_texture(attachment);
+
+        const auto format = frame_buffer.depth_attachment_format;
+        attachment = create_texture(TEXTURE_TYPE_2D, format, width, height, null);
+        set_texture_filter(attachment, TEXTURE_FILTER_LINEAR);
+        
+        const auto &texture = render_registry.textures[attachment];
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, texture.id, 0);
+        
+        frame_buffer.depth_attachment = attachment;
+    }
+    
+    const u32 status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if (status != GL_FRAMEBUFFER_COMPLETE) {
+        warn("Framebuffer %d is not complete, status 0x%X", fbi, status);
+    }
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+s32 read_frame_buffer_pixel(s32 fbi, s32 color_attachment_index, s32 x, s32 y) {
+    const auto &frame_buffer = render_registry.frame_buffers[fbi];
+    assert(color_attachment_index < frame_buffer.color_attachment_count);
+    
+    glReadBuffer(GL_COLOR_ATTACHMENT0 + color_attachment_index);
+    if (const u32 err = glGetError(); err != 0) {
+        error("GL read buffer error 0x%X", err);
+    }
+
+    s32 pixel = -1;
+    y = viewport.height - y - 1;
+    glReadPixels(x, y, 1, 1, GL_RED_INTEGER, GL_INT, &pixel);
+    if (const u32 err = glGetError(); err != 0) {
+        error("GL read pixels error 0x%X", err);
+    }
+    
+    return pixel;
+}
+
 void start_frame_buffer_draw(s32 fbi) {
     glBindFramebuffer(GL_FRAMEBUFFER, render_registry.frame_buffers[fbi].id);
 }
@@ -204,118 +330,6 @@ void draw_frame_buffer(s32 fbi, s32 color_attachment_index) {
     glEnable(GL_DEPTH_TEST);
 }
 
-void resize_viewport(Viewport *viewport, s16 width, s16 height)
-{
-	switch (viewport->aspect_type) {
-    case VIEWPORT_FILL_WINDOW:
-        viewport->width = width;
-		viewport->height = height;
-        break;
-	case VIEWPORT_4X3:
-		viewport->width = width;
-		viewport->height = height;
-
-		if (width * 3 > height * 4) {
-			viewport->width = height * 4 / 3;
-			viewport->x = (width - viewport->width) / 2;
-		} else {
-			viewport->height = width * 3 / 4;
-			viewport->y = (height - viewport->height) / 2;
-		}
-
-		break;
-	default:
-		error("Failed to resize viewport with unknown aspect type %d", viewport->aspect_type);
-		break;
-	}
-
-	glViewport(viewport->x, viewport->y, viewport->width, viewport->height);
-	glScissor(viewport->x, viewport->y, viewport->width, viewport->height);
-
-    if (viewport->frame_buffer_index != INVALID_INDEX) {
-        recreate_frame_buffer(viewport->frame_buffer_index, viewport->width, viewport->height);
-        log("Recreated viewport frame buffer %dx%d", viewport->width, viewport->height);
-    }
-}
-
-s32 create_frame_buffer(s16 width, s16 height, const Texture_Format_Type *color_attachment_formats, s32 color_attachment_count, Texture_Format_Type depth_attachment_format) {
-    assert(color_attachment_count <= MAX_FRAME_BUFFER_COLOR_ATTACHMENTS);
-    
-    Frame_Buffer frame_buffer;
-    glGenFramebuffers(1, &frame_buffer.id);
-
-    for (s32 i = 0; i < MAX_FRAME_BUFFER_COLOR_ATTACHMENTS; ++i)
-        frame_buffer.color_attachments[i] = INVALID_INDEX;
-
-    frame_buffer.color_attachment_count = color_attachment_count;
-    memcpy(frame_buffer.color_attachment_formats, color_attachment_formats, color_attachment_count * sizeof(Texture_Format_Type));
-
-    frame_buffer.depth_attachment        = INVALID_INDEX;
-    frame_buffer.depth_attachment_format = depth_attachment_format;
-    
-    const s32 fbi = render_registry.frame_buffers.add(frame_buffer);
-    recreate_frame_buffer(fbi, width, height);
-
-    return fbi;
-}
-
-void recreate_frame_buffer(s32 fbi, s16 width, s16 height) {
-    auto &frame_buffer = render_registry.frame_buffers[fbi];
-
-    frame_buffer.width = width;
-    frame_buffer.height = height;
-
-    glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer.id);
-
-    for (s32 i = 0; i < frame_buffer.color_attachment_count; ++i) {
-        s32 attachment = frame_buffer.color_attachments[i];
-        if (attachment != INVALID_INDEX) delete_texture(attachment);
-
-        const auto format = frame_buffer.color_attachment_formats[i];
-        attachment = create_texture(TEXTURE_TYPE_2D, format, width, height, null);
-        set_texture_filter(attachment, TEXTURE_FILTER_LINEAR);
-        
-        const auto &texture = render_registry.textures[attachment];
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, texture.id, 0);
-        
-        frame_buffer.color_attachments[i] = attachment;
-    }
-
-    {
-        s32 attachment = frame_buffer.depth_attachment;
-        if (attachment != INVALID_INDEX) delete_texture(attachment);
-
-        const auto format = frame_buffer.depth_attachment_format;
-        attachment = create_texture(TEXTURE_TYPE_2D, format, width, height, null);
-        set_texture_filter(attachment, TEXTURE_FILTER_LINEAR);
-        
-        const auto &texture = render_registry.textures[attachment];
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, texture.id, 0);
-        
-        frame_buffer.depth_attachment = attachment;
-    }
-    
-    const u32 status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-    if (status != GL_FRAMEBUFFER_COMPLETE) {
-        warn("Framebuffer %d is not complete, status 0x%X", fbi, status);
-    }
-
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-}
-
-s32 read_frame_buffer_pixel(s32 x, s32 y) {
-    s32 pixel_data = 0;
-    glReadBuffer(GL_COLOR_ATTACHMENT0);
-    if (const u32 err = glGetError(); err != 0) {
-        error("GL read buffer error 0x%X", err);
-    }
-    glReadPixels(x, y, 1, 1, GL_RED_INTEGER, GL_INT, &pixel_data);
-    if (const u32 err = glGetError(); err != 0) {
-        error("GL read pixels error 0x%X", err);
-    }
-    return pixel_data;
-}
-
 static s32 gl_usage(Buffer_Usage_Type type) {
 	switch (type) {
 	case BUFFER_USAGE_STATIC:  return GL_STATIC_DRAW;
@@ -329,6 +343,7 @@ static s32 gl_usage(Buffer_Usage_Type type) {
 
 static s32 gl_vertex_data_type(Vertex_Component_Type type) {
     switch (type) {
+	case VERTEX_S32:   return GL_INT;
 	case VERTEX_U32:   return GL_UNSIGNED_INT;
 	case VERTEX_F32_2: return GL_FLOAT;
 	case VERTEX_F32_3: return GL_FLOAT;
@@ -339,7 +354,7 @@ static s32 gl_vertex_data_type(Vertex_Component_Type type) {
     }
 }
 
-s32 create_vertex_buffer(Vertex_Component_Type *components, s32 component_count, const void *data, s32 vertex_count, Buffer_Usage_Type usage_type) {
+s32 create_vertex_buffer(const Vertex_Component_Type *components, s32 component_count, const void *data, s32 vertex_count, Buffer_Usage_Type usage_type) {
 	assert(component_count <= MAX_VERTEX_LAYOUT_SIZE);
 
 	Vertex_Buffer buffer = {0};
@@ -370,7 +385,11 @@ s32 create_vertex_buffer(Vertex_Component_Type *components, s32 component_count,
 
         const s32 data_type = gl_vertex_data_type(components[i]);
 		glEnableVertexAttribArray(i);
-		glVertexAttribPointer(i, dimension, data_type, GL_FALSE, vertex_size, (void *)(u64)offset);
+
+        if (components[i] == VERTEX_S32 || components[i] == VERTEX_U32)
+            glVertexAttribIPointer(i, dimension, data_type, vertex_size, (void *)(u64)offset);
+        else
+            glVertexAttribPointer(i, dimension, data_type, GL_FALSE, vertex_size, (void *)(u64)offset);
 	}
 
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -620,23 +639,6 @@ void sync_uniform(const Uniform *uniform) {
 	}
 }
 
-static u32 gl_create_texture(void *data, s32 width, s32 height) {
-	u32 texture;
-	glGenTextures(1, &texture);
-	glBindTexture(GL_TEXTURE_2D, texture);
-
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-	glGenerateMipmap(GL_TEXTURE_2D);
-
-	glBindTexture(GL_TEXTURE_2D, 0);
-	return texture;
-}
-
 s32 create_texture(const char *path) {
 	char timer_string[256];
 	stbsp_snprintf(timer_string, sizeof(timer_string), "%s from %s took", __FUNCTION__, path);
@@ -695,7 +697,7 @@ static s32 gl_texture_internal_format(Texture_Format_Type format) {
 static s32 gl_texture_data_type(Texture_Format_Type format) {
     switch (format) {
         //case TEXTURE_FORMAT_RED_INTEGER:        return GL_INT32;
-    case TEXTURE_FORMAT_RED_INTEGER:        return GL_UNSIGNED_BYTE;
+    case TEXTURE_FORMAT_RED_INTEGER:        return GL_INT;
     case TEXTURE_FORMAT_RGB_8:              return GL_UNSIGNED_BYTE;
     case TEXTURE_FORMAT_RGBA_8:             return GL_UNSIGNED_BYTE;
     case TEXTURE_FORMAT_DEPTH_24_STENCIL_8: return GL_UNSIGNED_INT_24_8;

@@ -20,7 +20,7 @@ struct Frame_Buffer {
 
 s32  create_frame_buffer(s16 width, s16 height, const Texture_Format_Type *color_attachment_formats, s32 color_attachment_count, Texture_Format_Type depth_attachment_format);
 void recreate_frame_buffer(s32 fbi, s16 width, s16 height);
-s32  read_frame_buffer_pixel(s32 x, s32 y); // read from currently used frame buffer
+s32 read_frame_buffer_pixel(s32 fbi, s32 color_attachment_index, s32 x, s32 y);
 
 void start_frame_buffer_draw(s32 fbi);
 void end_frame_buffer_draw();

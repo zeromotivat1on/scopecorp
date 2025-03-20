@@ -59,12 +59,10 @@ void draw_dev_stats(const Font_Atlas *atlas, const World *world) {
 		pos.y -= atlas->line_height;
 		draw_text_immediate_with_shadow(text_draw_command, text, text_size, pos, vec3_white, shadow_offset, vec3_black);
 
-        /*
-        text_size = (s32)stbsp_snprintf(text, sizeof(text), "frame buffer pixel data %d", read_frame_buffer_pixel(input_table.mouse_x, input_table.mouse_y));
+        text_size = (s32)stbsp_snprintf(text, sizeof(text), "selected entity id %d", world->selected_entity_id);
 		pos.x = viewport.width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
 		pos.y -= atlas->line_height;
 		draw_text_immediate_with_shadow(text_draw_command, text, text_size, pos, vec3_white, shadow_offset, vec3_black);
-        */
 	}
 
 	{   // Controls.

@@ -21,6 +21,7 @@ struct World {
 	Sparse_Array<AABB>        aabbs;
 
     s32 selected_aabb_index = INVALID_INDEX;
+    s32 selected_entity_id  = INVALID_ENTITY_ID;
 };
 
 inline World *world = null;

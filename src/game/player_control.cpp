@@ -25,9 +25,7 @@ void press(s32 key, bool pressed) {
 
 void click(s32 key, bool pressed) {
     if (pressed && key == MOUSE_LEFT) {
-        const auto *camera = desired_camera(world);
-        const Ray ray = Ray{camera->eye, ray_from_mouse_position(camera, &viewport, input_table.mouse_x, input_table.mouse_y)};
-        world->selected_aabb_index = find_closest_overlapped_aabb(ray, world);
+        world->selected_entity_id = read_frame_buffer_pixel(viewport.frame_buffer_index, 1, input_table.mouse_x, input_table.mouse_y);
     }
 }
 
