@@ -6,6 +6,7 @@
 #include "log.h"
 #include "profile.h"
 
+#include "render/draw.h"
 #include "render/material.h"
 
 void init_world(World *world) {
@@ -13,6 +14,14 @@ void init_world(World *world) {
 
 	world->static_meshes = Sparse_Array<Static_Mesh>(MAX_STATIC_MESHES);
 	world->aabbs         = Sparse_Array<AABB>(MAX_AABBS);
+}
+
+static void try_mark_mouse_picked_entity(Entity *e) {
+    if (e->id == world->selected_entity_id) {
+        e->draw_data.flags |= DRAW_FLAG_WIREFRAME;
+    } else {
+        e->draw_data.flags &= ~DRAW_FLAG_WIREFRAME;
+    }
 }
 
 void tick(World *world, f32 dt) {
@@ -25,12 +34,14 @@ void tick(World *world, f32 dt) {
 	const mat4 proj = camera_projection(camera);
 
 	auto &skybox = world->skybox;
+    try_mark_mouse_picked_entity(&skybox);
 	skybox.uv_offset = camera->eye;
 	set_material_uniform_value(skybox.draw_data.mti, "u_scale", &skybox.uv_scale);
 	set_material_uniform_value(skybox.draw_data.mti, "u_offset", &skybox.uv_offset);
 
 	for (s32 i = 0; i < world->static_meshes.count; ++i) {
 		auto *mesh = world->static_meshes.items + i;
+        try_mark_mouse_picked_entity(mesh);
 		mesh->mvp = mat4_transform(mesh->location, mesh->rotation, mesh->scale) * view * proj;
 		set_material_uniform_value(mesh->draw_data.mti, "u_transform", mesh->mvp.ptr());
 	}
@@ -38,6 +49,7 @@ void tick(World *world, f32 dt) {
 	tick_player(world);
 
     auto &player = world->player;
+    try_mark_mouse_picked_entity(&player);
 	player.mvp = mat4_transform(player.location, player.rotation, player.scale) * view * proj;
 	set_material_uniform_value(player.draw_data.mti, "u_transform", player.mvp.ptr());
 

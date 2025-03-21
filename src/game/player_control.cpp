@@ -27,6 +27,10 @@ void click(s32 key, bool pressed) {
     if (pressed && key == MOUSE_LEFT) {
         world->selected_entity_id = read_frame_buffer_pixel(viewport.frame_buffer_index, 1, input_table.mouse_x, input_table.mouse_y);
     }
+
+    if (pressed && key == MOUSE_RIGHT) {
+        world->selected_entity_id = INVALID_ENTITY_ID;
+    }
 }
 
 void tick_player(World* world) {

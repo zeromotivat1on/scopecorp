@@ -224,6 +224,8 @@ int main() {
 
 	Skybox &skybox = world->skybox;
 	{   // Create skybox.
+        skybox.id = 999;
+
         skybox.draw_data.flags = DRAW_FLAG_ENTIRE_BUFFER | DRAW_FLAG_IGNORE_DEPTH;
         
 		skybox.draw_data.mti = material_index_list.skybox;
@@ -287,6 +289,7 @@ int main() {
             draw_debug_aabb(world->aabbs[player.collide_aabb_index], vec3_green);
         }
 
+#if 0
         if (world->selected_entity_id != INVALID_ENTITY_ID) {
             if (world->selected_entity_id == player.id) {
                 draw_debug_aabb(world->aabbs[player.aabb_index], vec3_yellow);
@@ -298,6 +301,7 @@ int main() {
                 }
             }
         }
+#endif
         
         // Send draw call count to dev stats.
         draw_call_count = world_draw_queue.count;

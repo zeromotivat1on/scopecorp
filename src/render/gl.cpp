@@ -98,6 +98,10 @@ void draw(const Draw_Command *command) {
         glDisable(GL_CULL_FACE);
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     }
+
+    if (command->flags & DRAW_FLAG_OUTLINE) {
+        
+    }
     
 	const s32 draw_mode = gl_draw_mode(command->draw_mode);
 
