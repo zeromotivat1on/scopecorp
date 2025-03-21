@@ -1,4 +1,4 @@
-@vertex_begin
+#begin vertex
 #version 460 core
 
 layout (location = 0) in vec3 v_location;
@@ -17,9 +17,9 @@ void main() {
     f_uv = v_uv * u_uv_scale;
     f_entity_id = v_entity_id;
 }
-@vertex_end
+#end vertex
 
-@fragment_begin
+#begin fragment
 #version 460 core
 
 layout (location = 0) in vec2     f_uv;
@@ -35,4 +35,4 @@ void main() {
     out_color = texture(u_sampler, f_uv);
     out_entity_id = f_entity_id;
 }
-@fragment_end
+#end fragment

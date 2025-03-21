@@ -41,7 +41,7 @@ void draw_text_immediate(Text_Draw_Command *command, const char *text, u32 text_
 
 	// @Cleanup: create function for this.
 	render_registry.materials[command->material_index].texture_index = atlas->texture_index;
-	set_material_uniform_value(command->material_index, "u_text_color", &color);
+	set_material_uniform_value(command->material_index, "u_color", &color);
 
 	// As charmap and transforms array are static arrays and won't be moved,
 	// we can just make uniforms dirty, so they will be synced with gpu later.

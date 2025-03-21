@@ -5,10 +5,10 @@
 
 #include <string.h>
 
-static const char *vertex_region_begin_name   = "@vertex_begin";
-static const char *vertex_region_end_name     = "@vertex_end";
-static const char *fragment_region_begin_name = "@fragment_begin";
-static const char *fragment_region_end_name   = "@fragment_end";
+static const char *vertex_region_begin_name   = "#begin vertex";
+static const char *vertex_region_end_name     = "#end vertex";
+static const char *fragment_region_begin_name = "#begin fragment";
+static const char *fragment_region_end_name   = "#end fragment";
 
 static bool parse_shader_region(const char *shader_src, char *region_src, const char *region_begin_name, const char *region_end_name) {
     const char *region_begin = strstr(shader_src, region_begin_name);

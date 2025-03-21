@@ -55,7 +55,7 @@ void create_game_materials(Material_Index_List *list) {
         Uniform("u_transforms", UNIFORM_F32_4X4, TEXT_DRAW_BATCH_SIZE),
         Uniform("u_projection", UNIFORM_F32_4X4, 1),
         Uniform("u_charmap",    UNIFORM_U32,     TEXT_DRAW_BATCH_SIZE),
-        Uniform("u_text_color", UNIFORM_F32_3,   1),
+        Uniform("u_color",      UNIFORM_F32_3,   1),
 	};
         
     const Uniform entity_uniforms[] = {

@@ -1,10 +1,10 @@
-@vertex_begin
+#begin vertex
 #version 460 core
 
 layout (location = 0) in vec3 v_location;
 layout (location = 1) in vec2 v_uv;
 
-out vec2 f_uv;
+layout (location = 0) out vec2 f_uv;
 
 uniform vec2 u_scale;
 uniform vec3 u_offset;
@@ -18,9 +18,9 @@ void main() {
     uv += 0.5f;
     f_uv = (uv + vec2(u_offset) * 0.01f) * u_scale;
 }
-@vertex_end
+#end vertex
 
-@fragment_begin
+#begin fragment
 #version 460 core
 
 layout (location = 0) in vec2 f_uv;
@@ -34,4 +34,4 @@ void main() {
     out_color = texture(u_sampler, f_uv);
     out_entity_id = -1;
 }
-@fragment_end
+#end fragment

@@ -1,28 +1,27 @@
-@vertex_begin
+#begin vertex
 #version 460 core
 
 layout (location = 0) in vec2 v_location;
 layout (location = 1) in vec2 v_uv;
 
-out vec2 f_uv;
+layout (location = 0) out vec2 f_uv;
 
-void main()
-{
+void main() {
     gl_Position = vec4(v_location, 0.0f, 1.0f);
     f_uv = v_uv;
 }
-@vertex_end
+#end vertex
 
-@fragment_begin
+#begin fragment
 #version 460 core
 
-in vec2 f_uv;
-out vec4 out_color;
+layout (location = 0) in vec2 f_uv;
+
+layout (location = 0) out vec4 out_color;
 
 uniform sampler2D u_sampler;
 
-void main()
-{
+void main() {
     out_color = texture(u_sampler, f_uv);
 }
-@fragment_end
+#end fragment
