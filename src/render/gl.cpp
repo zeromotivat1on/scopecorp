@@ -270,16 +270,10 @@ s32 read_frame_buffer_pixel(s32 fbi, s32 color_attachment_index, s32 x, s32 y) {
     assert(color_attachment_index < frame_buffer.color_attachment_count);
     
     glReadBuffer(GL_COLOR_ATTACHMENT0 + color_attachment_index);
-    if (const u32 err = glGetError(); err != 0) {
-        error("GL read buffer error 0x%X", err);
-    }
 
     s32 pixel = -1;
-    y = viewport.height - y - 1;
+    y = viewport.height - y - 1; // invert as gl framebuffer y goes up, but mouse y goes down
     glReadPixels(x, y, 1, 1, GL_RED_INTEGER, GL_INT, &pixel);
-    if (const u32 err = glGetError(); err != 0) {
-        error("GL read pixels error 0x%X", err);
-    }
     
     return pixel;
 }
