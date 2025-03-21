@@ -51,7 +51,7 @@ int main() {
 	init_input_table();
 
 	init_gfx(window);
-	set_gfx_features(GFX_FLAG_BLEND | GFX_FLAG_DEPTH | GFX_FLAG_SCISSOR |
+	set_gfx_features(GFX_FLAG_BLEND | GFX_FLAG_DEPTH | GFX_FLAG_SCISSOR | GFX_FLAG_STENCIL |
                      GFX_FLAG_CULL_BACK_FACE | GFX_FLAG_WINDING_CCW);
 	set_vsync(false);
 
@@ -278,7 +278,7 @@ int main() {
 		set_listener_pos(player.location);
 		check_shader_hot_reload_queue(&shader_hot_reload_queue, dt);
 
-		clear_screen(vec3_white, CLEAR_FLAG_COLOR | CLEAR_FLAG_DEPTH);
+		clear_screen(vec3_white, CLEAR_FLAG_COLOR | CLEAR_FLAG_DEPTH | CLEAR_FLAG_STENCIL);
 		draw_world(world);
 
         const vec3 player_center_location = player.location + vec3(0.0f, player.scale.y * 0.5f, 0.0f);

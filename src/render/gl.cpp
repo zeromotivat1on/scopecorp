@@ -50,6 +50,10 @@ void set_gfx_features(u32 flags) {
 		glEnable(GL_DEPTH_TEST);
 		glDepthFunc(GL_LESS);
 	}
+
+    if (flags & GFX_FLAG_STENCIL) {
+        glEnable(GL_STENCIL_TEST);
+    }
 }
 
 void add_gfx_features(u32 flags) {
@@ -65,8 +69,9 @@ void remove_gfx_features(u32 flags) {
 void clear_screen(vec3 color, u32 flags) {
 	glClearColor(color.x, color.y, color.z, 1.0f);
 
-    if (flags & CLEAR_FLAG_COLOR) glClear(GL_COLOR_BUFFER_BIT);
-    if (flags & CLEAR_FLAG_DEPTH) glClear(GL_DEPTH_BUFFER_BIT);
+    if (flags & CLEAR_FLAG_COLOR)   glClear(GL_COLOR_BUFFER_BIT);
+    if (flags & CLEAR_FLAG_DEPTH)   glClear(GL_DEPTH_BUFFER_BIT);
+    if (flags & CLEAR_FLAG_STENCIL) glClear(GL_STENCIL_BUFFER_BIT);
 }
 
 static s32 gl_draw_mode(Draw_Mode mode) {
