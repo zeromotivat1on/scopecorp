@@ -3,26 +3,29 @@
 #include "math/vector.h"
 #include "math/quat.h"
 
-#include "collision.h"
-
 inline constexpr s32 INVALID_ENTITY_ID = -1;
 
 enum Entity_Type {
-    E_UNKNOWN,
-    E_PLAYER,
-    E_SKYBOX,
-    E_STATIC_MESH
+    ENTITY_NONE,
+    ENTITY_PLAYER,
+    ENTITY_SKYBOX,
+    ENTITY_STATIC_MESH
+};
+
+enum Entity_FLag : u32 {
+    ENTITY_FLAG_OUTLINE   = 0x1,
+    ENTITY_FLAG_WIREFRAME = 0x2,
 };
 
 struct Entity_Draw_Data {
-    u32 flags = 0;
-    s32 vbi   = INVALID_INDEX;
-    s32 ibi   = INVALID_INDEX;
-    s32 mti   = INVALID_INDEX;
+    s32 vbi = INVALID_INDEX;
+    s32 ibi = INVALID_INDEX;
+    s32 mti = INVALID_INDEX;
 };
 
 struct Entity {
-    Entity_Type type = E_UNKNOWN;
+    u32 flags = 0;
+    Entity_Type type = ENTITY_NONE;
     s32 id = INVALID_ENTITY_ID;
     
     vec3 location;
@@ -37,7 +40,7 @@ struct Entity {
 struct Flip_Book;
 
 struct Player : Entity {
-    Player() { type = E_PLAYER; }
+    Player() { type = ENTITY_PLAYER; }
     
     f32 move_speed      = 3.0f;
     f32 ed_camera_speed = 4.0f;
@@ -58,13 +61,13 @@ struct Player : Entity {
 };
 
 struct Static_Mesh : Entity {
-    Static_Mesh() { type = E_STATIC_MESH; }
+    Static_Mesh() { type = ENTITY_STATIC_MESH; }
     
     s32 aabb_index = INVALID_INDEX;
 };
 
 struct Skybox : Entity {
-    Skybox() { type = E_SKYBOX; }
+    Skybox() { type = ENTITY_SKYBOX; }
 
     vec2 uv_scale = vec2(8.0f, 4.0f);
     vec3 uv_offset;

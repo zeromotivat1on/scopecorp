@@ -1,9 +1,18 @@
  #pragma once
 
 inline constexpr s32 MAX_DRAW_QUEUE_SIZE = 1024;
+inline constexpr s32 MAX_DRAW_COMMAND_UNIFORMS = 16;
 
 struct Entity;
 struct World;
+struct Window;
+struct vec3;
+
+enum Clear_Screen_Flag {
+    CLEAR_FLAG_COLOR,
+    CLEAR_FLAG_DEPTH,
+    CLEAR_FLAG_STENCIL,
+};
 
 enum Draw_Mode {
 	DRAW_TRIANGLES,
@@ -11,24 +20,122 @@ enum Draw_Mode {
 	DRAW_LINES,
 };
 
-enum Draw_Command_Flag : u32 {
-	DRAW_FLAG_IGNORE_DEPTH  = 0x1, // do not write to depth buffer
-    DRAW_FLAG_WIREFRAME     = 0x2, // draw as lines and disable face culling
-    DRAW_FLAG_ENTIRE_BUFFER = 0x4, // ignore offset/count, draw entire vertex/index buffer
-    DRAW_FLAG_SKIP_DRAW     = 0x8,
-    DRAW_FLAG_OUTLINE       = 0x10,
+enum Draw_Flag : u32 {
+    DRAW_FLAG_ENTIRE_BUFFER  = 0x4,  // ignore offset/count, draw entire vertex/index buffer
+    DRAW_FLAG_SCISSOR_TEST   = 0x40,
+    DRAW_FLAG_CULL_FACE_TEST = 0x80,
+    DRAW_FLAG_BLEND_TEST     = 0x100,
+    DRAW_FLAG_DEPTH_TEST     = 0x200,
+    DRAW_FLAG_STENCIL_TEST   = 0x400,
+    DRAW_FLAG_RESET          = 0x800, // reset render state after draw call
+};
+
+enum Polygon_Mode {
+    POLYGON_FILL,
+    POLYGON_LINE,
+    POLYGON_POINT,
+};
+
+enum Winding_Type {
+    WINDING_CLOCKWISE,
+    WINDING_COUNTER_CLOCKWISE,
+};
+
+enum Cull_Face_Type {
+    CULL_FACE_BACK,
+    CULL_FACE_FRONT,
+};
+
+enum Blend_Test_Function_Type {
+    BLEND_TEST_SOURCE_ALPHA,
+    BLEND_TEST_ONE_MINUS_SOURCE_ALPHA,
+};
+
+enum Depth_Test_Function_Type {
+    DEPTH_TEST_LESS,
+};
+
+enum Depth_Test_Mask_Type {
+    DEPTH_TEST_ENABLE,
+    DEPTH_TEST_DISABLE,
+};
+
+enum Stencil_Test_Operation_Type {
+    STENCIL_TEST_KEEP,
+    STENCIL_TEST_REPLACE,
+};
+
+enum Stencil_Test_Function_Type {
+    STENCIL_TEST_ALWAYS,
+    STENCIL_TEST_EQUAL,
+    STENCIL_TEST_NOT_EQUAL,
+};
+
+struct Scissor_Test {
+    s32 x;
+    s32 y;
+    s32 width;
+    s32 height;
+};
+
+struct Cull_Face_Test {
+    Cull_Face_Type type;
+    Winding_Type   winding;
+};
+
+struct Blend_Test {
+    Blend_Test_Function_Type source;
+    Blend_Test_Function_Type destination;
+};
+
+struct Depth_Test {
+    Depth_Test_Function_Type function;
+    Depth_Test_Mask_Type     mask;
+};
+
+struct Stencil_Test_Operation {
+    Stencil_Test_Operation_Type stencil_failed;
+    Stencil_Test_Operation_Type depth_failed;
+    Stencil_Test_Operation_Type both_passed;
+};
+
+struct Stencil_Test_Function {
+    Stencil_Test_Function_Type type;
+    u8 comparator;
+    u8 mask;
+};
+
+struct Stencil_Test {
+    Stencil_Test_Operation operation;
+    Stencil_Test_Function  function;
+    u8 mask;
 };
 
 struct Draw_Command {
 	u32 flags = 0;
-	Draw_Mode draw_mode = DRAW_TRIANGLES;
+    
+	Draw_Mode    draw_mode = DRAW_TRIANGLES;
+	Polygon_Mode polygon_mode = POLYGON_FILL;
 
+    Scissor_Test   scissor_test;
+    Cull_Face_Test cull_face_test;
+    Blend_Test     blend_test;
+    Depth_Test     depth_test;
+    Stencil_Test   stencil_test;
+
+	s32 frame_buffer_index  = INVALID_INDEX;
 	s32 vertex_buffer_index = INVALID_INDEX;
 	s32 index_buffer_index  = INVALID_INDEX;
-	s32 material_index      = INVALID_INDEX;
 
-    s32 draw_count  = 0; // amount of vertices/indices to draw
-    s32 draw_offset = 0; // offset in vertex/index buffer
+    s32 shader_index  = INVALID_INDEX;
+	s32 texture_index = INVALID_INDEX;
+    
+    s32 uniform_count = 0;
+    s32 uniform_indices      [MAX_DRAW_COMMAND_UNIFORMS];
+    s32 uniform_value_offsets[MAX_DRAW_COMMAND_UNIFORMS];
+
+    s32 buffer_element_count  = 0;
+    s32 buffer_element_offset = 0;
     
 	s32 instance_count = 1;
 };
@@ -40,11 +147,15 @@ struct Draw_Queue {
 
 inline Draw_Queue world_draw_queue;
 
+void init_draw(Window *window);
+void set_vsync(bool enable);
+void swap_buffers(Window *window);
+void clear_screen(vec3 color, u32 flags);
+
 void init_draw_queue(Draw_Queue *queue, s32 size);
 void enqueue_draw_command(Draw_Queue *queue, const Draw_Command *command);
 void flush(Draw_Queue *queue);
 
 void draw_world(const World *world);
 void draw_entity(const Entity *e);
-
 void draw(const Draw_Command *command);

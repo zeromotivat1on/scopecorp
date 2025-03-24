@@ -1,5 +1,4 @@
 #include "pch.h"
-#include "render/gfx.h"
 #include "render/glad.h"
 #include "render/draw.h"
 #include "render/text.h"
@@ -25,53 +24,15 @@
 #include <malloc.h>
 #include <string.h>
 
-void set_gfx_features(u32 flags) {
-    gfx_features = flags;
-    
-	if (flags & GFX_FLAG_BLEND) {
-		glEnable(GL_BLEND);
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	}
-
-	if (flags & GFX_FLAG_CULL_BACK_FACE) {
-		glEnable(GL_CULL_FACE);
-		glCullFace(GL_BACK);
-	}
-
-	if (flags & GFX_FLAG_WINDING_CCW) {
-		glFrontFace(GL_CCW);
-	}
-
-	if (flags & GFX_FLAG_SCISSOR) {
-		glEnable(GL_SCISSOR_TEST);
-	}
-
-	if (flags & GFX_FLAG_DEPTH) {
-		glEnable(GL_DEPTH_TEST);
-		glDepthFunc(GL_LESS);
-	}
-
-    if (flags & GFX_FLAG_STENCIL) {
-        glEnable(GL_STENCIL_TEST);
-    }
-}
-
-void add_gfx_features(u32 flags) {
-    gfx_features |= flags;
-    set_gfx_features(gfx_features);
-}
-
-void remove_gfx_features(u32 flags) {
-    gfx_features &= ~flags;
-    set_gfx_features(gfx_features);
-}
-
 void clear_screen(vec3 color, u32 flags) {
 	glClearColor(color.x, color.y, color.z, 1.0f);
-
+    glDepthMask(GL_TRUE);
+    
     if (flags & CLEAR_FLAG_COLOR)   glClear(GL_COLOR_BUFFER_BIT);
     if (flags & CLEAR_FLAG_DEPTH)   glClear(GL_DEPTH_BUFFER_BIT);
     if (flags & CLEAR_FLAG_STENCIL) glClear(GL_STENCIL_BUFFER_BIT);
+    
+    glDepthMask(GL_FALSE);
 }
 
 static s32 gl_draw_mode(Draw_Mode mode) {
@@ -80,7 +41,88 @@ static s32 gl_draw_mode(Draw_Mode mode) {
 	case DRAW_TRIANGLE_STRIP: return GL_TRIANGLE_STRIP;
 	case DRAW_LINES:          return GL_LINES;
 	default:
-		error("Failed to get GL draw mode from given draw mode %d", mode);
+		error("Failed to get GL draw mode from given mode %d", mode);
+		return -1;
+	}
+}
+
+static s32 gl_polygon_mode(Polygon_Mode mode) {
+	switch (mode) {
+	case POLYGON_FILL:  return GL_FILL;
+	case POLYGON_LINE:  return GL_LINE;
+	case POLYGON_POINT: return GL_POINT;
+	default:
+		error("Failed to get GL polygon mode from given mode %d", mode);
+		return -1;
+	}
+}
+
+static s32 gl_winding(Winding_Type type) {
+	switch (type) {
+	case WINDING_CLOCKWISE:         return GL_CW;
+	case WINDING_COUNTER_CLOCKWISE: return GL_CCW;
+	default:
+		error("Failed to get GL winding type from type %d", type);
+		return -1;
+	}
+}
+
+static s32 gl_blend_function(Blend_Test_Function_Type function) {
+	switch (function) {
+	case BLEND_TEST_SOURCE_ALPHA:           return GL_SRC_ALPHA;
+	case BLEND_TEST_ONE_MINUS_SOURCE_ALPHA: return GL_ONE_MINUS_SRC_ALPHA;
+	default:
+		error("Failed to get GL winding function from function %d", function);
+		return -1;
+	}
+}
+
+static s32 gl_cull_face(Cull_Face_Type type) {
+	switch (type) {
+	case CULL_FACE_BACK:  return GL_BACK;
+	case CULL_FACE_FRONT: return GL_FRONT;
+	default:
+		error("Failed to get GL cull face type from type %d", type);
+		return -1;
+	}
+}
+
+static s32 gl_depth_function(Depth_Test_Function_Type function) {
+	switch (function) {
+	case DEPTH_TEST_LESS: return GL_LESS;
+	default:
+		error("Failed to get GL depth test function from function %d", function);
+		return -1;
+	}
+}
+
+static s32 gl_depth_mask(Depth_Test_Mask_Type mask) {
+	switch (mask) {
+	case DEPTH_TEST_ENABLE:  return GL_TRUE;
+	case DEPTH_TEST_DISABLE: return GL_FALSE;
+	default:
+		error("Failed to get GL depth test mask from mask %d", mask);
+		return -1;
+	}
+}
+
+static s32 gl_stencil_operation(Stencil_Test_Operation_Type operation) {
+	switch (operation) {
+	case STENCIL_TEST_KEEP:    return GL_KEEP;
+	case STENCIL_TEST_REPLACE: return GL_REPLACE;
+	default:
+		error("Failed to get GL stencil test operation from operation %d", operation);
+		return -1;
+	}
+}
+
+static s32 gl_stencil_function(Stencil_Test_Function_Type function) {
+	switch (function) {
+	case STENCIL_TEST_ALWAYS:    return GL_ALWAYS;
+	case STENCIL_TEST_EQUAL:     return GL_EQUAL;
+	case STENCIL_TEST_NOT_EQUAL: return GL_NOTEQUAL;
+	default:
+		error("Failed to get GL stencil test function from function %d", function);
 		return -1;
 	}
 }
@@ -95,75 +137,147 @@ static s32 gl_texture_type(Texture_Type type) {
     }
 }
 
-void draw(const Draw_Command *command) {
-	if (command->flags & DRAW_FLAG_SKIP_DRAW) return;
-	if (command->flags & DRAW_FLAG_IGNORE_DEPTH) glDepthMask(GL_FALSE);
-
-    if (command->flags & DRAW_FLAG_WIREFRAME) {
-        glDisable(GL_CULL_FACE);
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+void draw(const Draw_Command *command) {    
+    {
+        const s32 mode = gl_polygon_mode(command->polygon_mode);
+        glPolygonMode(GL_FRONT_AND_BACK, mode);
     }
 
-    if (command->flags & DRAW_FLAG_OUTLINE) {
+    if (command->flags & DRAW_FLAG_SCISSOR_TEST) {
+        const auto &test = command->scissor_test;
         
+        glEnable(GL_SCISSOR_TEST);
+        glScissor(test.x, test.y, test.width, test.height);
     }
     
-	const s32 draw_mode = gl_draw_mode(command->draw_mode);
+    if (command->flags & DRAW_FLAG_CULL_FACE_TEST) {
+        const auto &test = command->cull_face_test;
 
-    const auto &material = render_registry.materials[command->material_index];
-    const auto &shader   = render_registry.shaders[material.shader_index];
-    glUseProgram(shader.id);
+        const s32 face    = gl_cull_face(test.type);
+        const s32 winding = gl_winding(test.winding);
+        
+        glEnable(GL_CULL_FACE);
+		glCullFace(face);
+        glFrontFace(winding);
+    }
+
+    if (command->flags & DRAW_FLAG_BLEND_TEST) {
+        const auto &test = command->blend_test;
+        
+        const s32 source      = gl_blend_function(test.source);
+        const s32 destination = gl_blend_function(test.destination);
+        
+        glEnable(GL_BLEND);
+        glBlendFunc(source, destination);
+    }
+    
+    if (command->flags & DRAW_FLAG_DEPTH_TEST) {
+        const auto &test = command->depth_test;
+
+        const s32 function = gl_depth_function(test.function);
+        const s32 mask     = gl_depth_mask(test.mask);
+        
+        glEnable(GL_DEPTH_TEST);
+        glDepthFunc(function);
+        glDepthMask(mask);
+    }
+
+    if (command->flags & DRAW_FLAG_STENCIL_TEST) {
+        const auto &test = command->stencil_test;
+        
+        const s32 stencil_failed = gl_stencil_operation(test.operation.stencil_failed);
+        const s32 depth_failed   = gl_stencil_operation(test.operation.depth_failed);
+        const s32 both_passed    = gl_stencil_operation(test.operation.both_passed);
+        const s32 function_type  = gl_stencil_function(test.function.type);
+        
+        glEnable(GL_STENCIL_TEST);
+        glStencilOp(stencil_failed, depth_failed, both_passed);
+        glStencilFunc(function_type, test.function.comparator, test.function.mask);
+        glStencilMask(command->stencil_test.mask);
+    }
+    
+    if (command->frame_buffer_index != INVALID_INDEX) {
+        const auto &frame_buffer = render_registry.frame_buffers[command->frame_buffer_index];
+        glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer.id);
+    }
+
+    if (command->shader_index != INVALID_INDEX) {
+        const auto &shader = render_registry.shaders[command->shader_index];
+        glUseProgram(shader.id);
+    }
      
-	for (s32 i = 0; i < material.uniform_count; ++i)
-		sync_uniform(material.uniforms + i);
+	for (s32 i = 0; i < command->uniform_count; ++i) {
+        send_uniform_value_to_gpu(command->shader_index,
+                                  command->uniform_indices[i],
+                                  command->uniform_value_offsets[i]);
+    }
 
-	if (material.texture_index != INVALID_INDEX) {
-		const auto &texture = render_registry.textures[material.texture_index];
-        const s32 gl_type = gl_texture_type(texture.type);
-		glBindTexture(gl_type, texture.id);
+	if (command->texture_index != INVALID_INDEX) {
+		const auto &texture = render_registry.textures[command->texture_index];
+        const s32 type      = gl_texture_type(texture.type);
+        
+		glBindTexture(type, texture.id);
 		glActiveTexture(GL_TEXTURE0);
 	}
 
-	const auto &vertex_buffer = render_registry.vertex_buffers[command->vertex_buffer_index];
-	glBindVertexArray(vertex_buffer.id);
+    if (command->vertex_buffer_index != INVALID_INDEX) {
+        const auto &vertex_buffer = render_registry.vertex_buffers[command->vertex_buffer_index];
+        glBindVertexArray(vertex_buffer.id);
 
-	if (command->index_buffer_index != INVALID_INDEX) {
-		const auto &index_buffer = render_registry.index_buffers[command->index_buffer_index];
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer.id);
-
-        s32 index_count = 0;
-        const void* index_ptr = null;
-        if (command->flags & DRAW_FLAG_ENTIRE_BUFFER) {
-            index_count = index_buffer.index_count;
-        } else {
-            index_count = command->draw_count;
-            index_ptr = 0; // @Todo: find offset pointer to index data using index offset
-        }
+        const s32 draw_mode = gl_draw_mode(command->draw_mode);
         
-        glDrawElementsInstanced(draw_mode, index_count, GL_UNSIGNED_INT, index_ptr, command->instance_count);
-	} else {
-        s32 vertex_count = 0;
-        s32 vertex_first = 0;
-        if (command->flags & DRAW_FLAG_ENTIRE_BUFFER) {
-            vertex_count = vertex_buffer.vertex_count;
-        } else {
-            vertex_count = command->draw_count;
-            vertex_first = command->draw_offset;
-        }
-        
-		glDrawArraysInstanced(draw_mode, vertex_first, vertex_count, command->instance_count);
-	}
+        if (command->index_buffer_index != INVALID_INDEX) {
+            const auto &index_buffer = render_registry.index_buffers[command->index_buffer_index];
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer.id);
 
-    {
+            s32 index_count = 0;
+            const void* index_ptr = null;
+            if (command->flags & DRAW_FLAG_ENTIRE_BUFFER) {
+                index_count = index_buffer.index_count;
+            } else {
+                index_count = command->buffer_element_count;
+                index_ptr = 0; // @Todo: find offset pointer to index data using index offset
+            }
+        
+            glDrawElementsInstanced(draw_mode, index_count, GL_UNSIGNED_INT, index_ptr, command->instance_count);
+        } else {
+            s32 vertex_count = 0;
+            s32 vertex_first = 0;
+            if (command->flags & DRAW_FLAG_ENTIRE_BUFFER) {
+                vertex_count = vertex_buffer.vertex_count;
+            } else {
+                vertex_count = command->buffer_element_count;
+                vertex_first = command->buffer_element_offset;
+            }
+        
+            glDrawArraysInstanced(draw_mode, vertex_first, vertex_count, command->instance_count);
+        }
+    }
+    
+    if (command->flags & DRAW_FLAG_RESET) {
         PROFILE_SCOPE("Reset GL state after draw call");
-        
-        glEnable(GL_CULL_FACE);
-        glDepthMask(GL_TRUE);
+
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+        glDisable(GL_SCISSOR_TEST);
+        glDisable(GL_CULL_FACE);
+        glDisable(GL_BLEND);
+        glDisable(GL_DEPTH_TEST);
+        glDisable(GL_STENCIL_TEST);
+
+        glStencilFunc(GL_ALWAYS, 1, 0xFF);
+        glStencilMask(0xFF);
+        
+        glDepthMask(GL_FALSE);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
         glBindTexture(GL_TEXTURE_2D, 0);
         glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+        
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
+        
         glUseProgram(0);
     }
 }
@@ -194,7 +308,6 @@ void resize_viewport(Viewport *viewport, s16 width, s16 height)
 	}
 
 	glViewport(viewport->x, viewport->y, viewport->width, viewport->height);
-	glScissor(viewport->x, viewport->y, viewport->width, viewport->height);
 
     if (viewport->frame_buffer_index != INVALID_INDEX) {
         recreate_frame_buffer(viewport->frame_buffer_index, viewport->width, viewport->height);
@@ -277,12 +390,14 @@ void recreate_frame_buffer(s32 fbi, s16 width, s16 height) {
 s32 read_frame_buffer_pixel(s32 fbi, s32 color_attachment_index, s32 x, s32 y) {
     const auto &frame_buffer = render_registry.frame_buffers[fbi];
     assert(color_attachment_index < frame_buffer.color_attachment_count);
-    
+
+    glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer.id);
     glReadBuffer(GL_COLOR_ATTACHMENT0 + color_attachment_index);
 
     s32 pixel = -1;
     y = viewport.height - y - 1; // invert as gl framebuffer y goes up, but mouse y goes down
     glReadPixels(x, y, 1, 1, GL_RED_INTEGER, GL_INT, &pixel);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
     
     return pixel;
 }
@@ -315,22 +430,35 @@ static s32 create_quad_index_buffer() {
 void draw_frame_buffer(s32 fbi, s32 color_attachment_index) {
     static s32 vertex_buffer_index = create_quad_vertex_buffer();
     static s32 index_buffer_index  = create_quad_index_buffer();
-    static s32 material_index      = render_registry.materials.add(Material(shader_index_list.frame_buffer, render_registry.frame_buffers[fbi].color_attachments[color_attachment_index]));
+    static s32 material_index      = create_material(shader_index_list.frame_buffer, render_registry.frame_buffers[fbi].color_attachments[color_attachment_index]);
     
-    glDisable(GL_DEPTH_TEST);
-        
-    clear_screen(vec3_red, CLEAR_FLAG_COLOR);
-
     // Draw frame buffer screen quad texture we've rendered on earlier.
     Draw_Command command;
-    command.flags = DRAW_FLAG_ENTIRE_BUFFER;
-    command.draw_mode = DRAW_TRIANGLES;
+    command.flags = DRAW_FLAG_SCISSOR_TEST | DRAW_FLAG_CULL_FACE_TEST | DRAW_FLAG_ENTIRE_BUFFER;
+    command.draw_mode    = DRAW_TRIANGLES;
+    command.polygon_mode = POLYGON_FILL;
+    command.scissor_test.x      = viewport.x;
+    command.scissor_test.y      = viewport.y;
+    command.scissor_test.width  = viewport.width;
+    command.scissor_test.height = viewport.height;
+    command.cull_face_test.type    = CULL_FACE_BACK;
+    command.cull_face_test.winding = WINDING_COUNTER_CLOCKWISE;
     command.vertex_buffer_index = vertex_buffer_index;
     command.index_buffer_index  = index_buffer_index;
-    command.material_index = material_index;
+
+    const auto &material  = render_registry.materials[material_index];
+    command.shader_index  = material.shader_index;
+    command.texture_index = material.texture_index;
+    command.uniform_count = material.uniform_count;
+
+    for (s32 i = 0; i < material.uniform_count; ++i) {
+        command.uniform_indices[i]       = material.uniform_indices[i];
+        command.uniform_value_offsets[i] = material.uniform_value_offsets[i];
+    }
+    
     draw(&command);
 
-    glEnable(GL_DEPTH_TEST);
+    //glEnable(GL_DEPTH_TEST);
 }
 
 static s32 gl_usage(Buffer_Usage_Type type) {
@@ -561,83 +689,29 @@ s32 find_shader_by_file(Shader_Index_List *list, const char *path) {
 	return INVALID_INDEX;
 }
 
-void add_material_uniforms(s32 material_index, const Uniform *uniforms, s32 count) {
-	auto &material     = render_registry.materials[material_index];
-	const auto &shader = render_registry.shaders[material.shader_index];
-	assert(material.uniform_count + count <= MAX_MATERIAL_UNIFORMS);
+void send_uniform_value_to_gpu(s32 shader_index, s32 uniform_index, u32 offset) {
+    const auto &cache = render_registry.uniform_value_cache;
+    assert(offset < cache.size);
 
-	for (s32 i = 0; i < count; ++i) {
-		auto *src_uniform = uniforms + i;
-		auto *dst_uniform = material.uniforms + material.uniform_count + i;
-		memcpy(dst_uniform, src_uniform, sizeof(Uniform));
-
-        dst_uniform->location = glGetUniformLocation(shader.id, dst_uniform->name);
-        if (dst_uniform->location == -1)
-            error("Failed to get uniform location with invalid name %s", dst_uniform->name);
-	}
-
-	material.uniform_count += count;
-}
-
-Uniform *find_material_uniform(s32 material_index, const char *name) {
-	auto &material = render_registry.materials[material_index];
-
-	Uniform *uniform = null;
-	for (s32 i = 0; i < material.uniform_count; ++i) {
-		if (strcmp(material.uniforms[i].name, name) == 0)
-			return material.uniforms + i;
-	}
-
-	return null;
-}
-
-void set_material_uniform_value(s32 material_index, const char *name, const void *data) {
-	Uniform *uniform = find_material_uniform(material_index, name);
-	if (!uniform) {
-		error("Failed to set material uniform %s value as its not found", name);
-		return;
-	}
-
-	uniform->value = data;
-	uniform->flags |= UNIFORM_FLAG_DIRTY;
-}
-
-void mark_material_uniform_dirty(s32 material_index, const char *name) {
-	Uniform *uniform = find_material_uniform(material_index, name);
-	if (!uniform) {
-		error("Failed to mark material uniform %s dirty as its not found", name);
-		return;
-	}
-
-	uniform->flags |= UNIFORM_FLAG_DIRTY;
-}
-
-void sync_uniform(const Uniform *uniform) {
-	if (uniform->type == UNIFORM_NULL) {
-		warn("Tried to sync uniform of null type %p", uniform);
-		return;
-	}
-
-	if (!(uniform->flags & UNIFORM_FLAG_DIRTY)) return;
-
-	switch (uniform->type) {
-	case UNIFORM_U32:
-		glUniform1uiv(uniform->location, uniform->count, (u32 *)uniform->value);
-		break;
-    case UNIFORM_F32:
-		glUniform1fv(uniform->location, uniform->count, (f32 *)uniform->value);
-		break;
-	case UNIFORM_F32_2:
-		glUniform2fv(uniform->location, uniform->count, (f32 *)uniform->value);
-		break;
-	case UNIFORM_F32_3:
-		glUniform3fv(uniform->location, uniform->count, (f32 *)uniform->value);
-		break;
-	case UNIFORM_F32_4X4:
-		glUniformMatrix4fv(uniform->location, uniform->count, GL_FALSE, (f32 *)uniform->value);
-		break;
+    const auto &uniform = render_registry.uniforms[uniform_index];
+    const auto &shader  = render_registry.shaders[shader_index];
+    const s32 location  = glGetUniformLocation(shader.id, uniform.name);
+    
+    if (location < 0) {
+        error("Failed to get location from uniform %s", uniform.name);
+        return;
+    }
+    
+    const void *data = (u8 *)cache.data + offset;
+    
+    switch (uniform.type) {
+	case UNIFORM_U32:     glUniform1uiv(location, uniform.count, (u32 *)data); break;
+    case UNIFORM_F32:     glUniform1fv(location,  uniform.count, (f32 *)data); break;
+    case UNIFORM_F32_2:   glUniform2fv(location,  uniform.count, (f32 *)data); break;
+    case UNIFORM_F32_3:   glUniform3fv(location,  uniform.count, (f32 *)data); break;
+	case UNIFORM_F32_4X4: glUniformMatrix4fv(location, uniform.count, GL_FALSE, (f32 *)data); break;
 	default:
-		error("Failed to sync uniform of unknown type %d", uniform->type);
+		error("Failed to sync uniform of unknown type %d", uniform.type);
 		break;
 	}
 }
@@ -827,15 +901,6 @@ Font_Atlas *bake_font_atlas(const Font *font, u32 start_charcode, u32 end_charco
 	atlas->metrics = push_array(pers, charcode_count, Font_Glyph_Metric);
 	atlas->start_charcode = start_charcode;
 	atlas->end_charcode = end_charcode;
-
-	//Texture texture = {0};
-	//glGenTextures(1, &texture.id);
-	//texture.flags = TEXTURE_TYPE_2D_ARRAY | TEXTURE_FORMAT_RGBA_8;
-	//texture.width = font_size;
-	//texture.height = font_size;
-	//texture.path = "texture for glyph batch rendering";
-
-	//atlas->texture_index = render_registry.textures.add(texture);
 	atlas->texture_index = create_texture(TEXTURE_TYPE_2D_ARRAY, TEXTURE_FORMAT_RGBA_8, font_size, font_size, null);
 
 	rescale_font_atlas(atlas, font_size);

@@ -18,9 +18,9 @@ void init_world(World *world) {
 
 static void try_mark_mouse_picked_entity(Entity *e) {
     if (e->id == world->selected_entity_id) {
-        e->draw_data.flags |= DRAW_FLAG_WIREFRAME;
+        e->flags |= ENTITY_FLAG_OUTLINE;
     } else {
-        e->draw_data.flags &= ~DRAW_FLAG_WIREFRAME;
+        e->flags &= ~ENTITY_FLAG_OUTLINE;
     }
 }
 

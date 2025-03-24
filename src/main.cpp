@@ -11,7 +11,6 @@
 #include "os/window.h"
 #include "os/time.h"
 
-#include "render/gfx.h"
 #include "render/draw.h"
 #include "render/debug_draw.h"
 #include "render/text.h"
@@ -25,10 +24,6 @@
 #include "editor/hot_reload.h"
 
 extern s32 draw_call_count;
-
-static void on_window_event(Window *window, Window_Event *event) {
-	handle_event(window, event);
-}
 
 int main() {
     PROFILE_START(startup, "Startup");    
@@ -46,13 +41,11 @@ int main() {
 		return 1;
 	}
 
-	register_event_callback(window, on_window_event);
+	register_event_callback(window, handle_window_event);
     
 	init_input_table();
 
-	init_gfx(window);
-	set_gfx_features(GFX_FLAG_BLEND | GFX_FLAG_DEPTH | GFX_FLAG_SCISSOR | GFX_FLAG_STENCIL |
-                     GFX_FLAG_CULL_BACK_FACE | GFX_FLAG_WINDING_CCW);
+	init_draw(window);
 	set_vsync(false);
 
 	init_render_registry(&render_registry);
@@ -95,9 +88,8 @@ int main() {
         player.aabb_index = world->aabbs.add_default();
         
 		player.scale = vec3(x_scale, y_scale, 1.0f);
-        player.location = vec3(0.0f, MIN_F32, 0.0f);
+        player.location = vec3(0.0f, F32_MIN, 0.0f);
 
-        player.draw_data.flags = DRAW_FLAG_ENTIRE_BUFFER;
 		player.draw_data.mti = material_index_list.player;
 
         static const vec3 uv_scale = vec3(1.0f);
@@ -130,7 +122,6 @@ int main() {
         aabb.min = ground.location - aabb_offset * 0.5f;
 		aabb.max = aabb.min + aabb_offset;
 
-        ground.draw_data.flags = DRAW_FLAG_ENTIRE_BUFFER;
         ground.draw_data.mti = material_index_list.ground;
 
         static const vec3 uv_scale = vec3(16.0f);
@@ -159,7 +150,6 @@ int main() {
 		aabb.min = cube.location - cube.scale * 0.5f;
 		aabb.max = aabb.min + cube.scale;
 
-        cube.draw_data.flags = DRAW_FLAG_ENTIRE_BUFFER;
 		cube.draw_data.mti = material_index_list.cube;
 
         static const vec3 uv_scale = vec3(1.0f);
@@ -226,15 +216,13 @@ int main() {
 	{   // Create skybox.
         skybox.id = 999;
 
-        skybox.draw_data.flags = DRAW_FLAG_ENTIRE_BUFFER | DRAW_FLAG_IGNORE_DEPTH;
-        
 		skybox.draw_data.mti = material_index_list.skybox;
 
 		Vertex_PU vertices[] = {
-			{ vec3( 1.0f,  1.0f, 0.0f), vec2(1.0f, 1.0f) },
-			{ vec3( 1.0f, -1.0f, 0.0f), vec2(1.0f, 0.0f) },
-			{ vec3(-1.0f, -1.0f, 0.0f), vec2(0.0f, 0.0f) },
-			{ vec3(-1.0f,  1.0f, 0.0f), vec2(0.0f, 1.0f) },
+			{ vec3( 1.0f,  1.0f, 1.0f - F32_EPSILON), vec2(1.0f, 1.0f) },
+			{ vec3( 1.0f, -1.0f, 1.0f - F32_EPSILON), vec2(1.0f, 0.0f) },
+			{ vec3(-1.0f, -1.0f, 1.0f - F32_EPSILON), vec2(0.0f, 0.0f) },
+			{ vec3(-1.0f,  1.0f, 1.0f - F32_EPSILON), vec2(0.0f, 1.0f) },
 		};
 		Vertex_Component_Type components[] = { VERTEX_F32_3, VERTEX_F32_2 };
 		skybox.draw_data.vbi = create_vertex_buffer(components, c_array_count(components), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
@@ -269,7 +257,6 @@ int main() {
     
 	while (alive(window)) {
         PROFILE_SCOPE("Game Frame");
-        start_frame_buffer_draw(viewport.frame_buffer_index);
  
 		poll_events(window);
         
@@ -278,6 +265,10 @@ int main() {
 		set_listener_pos(player.location);
 		check_shader_hot_reload_queue(&shader_hot_reload_queue, dt);
 
+        Draw_Command framebuffer_command;
+        framebuffer_command.frame_buffer_index = viewport.frame_buffer_index;
+        draw(&framebuffer_command);
+        
 		clear_screen(vec3_white, CLEAR_FLAG_COLOR | CLEAR_FLAG_DEPTH | CLEAR_FLAG_STENCIL);
 		draw_world(world);
 
@@ -288,26 +279,12 @@ int main() {
             draw_debug_aabb(world->aabbs[player.aabb_index],         vec3_green);
             draw_debug_aabb(world->aabbs[player.collide_aabb_index], vec3_green);
         }
-
-#if 0
-        if (world->selected_entity_id != INVALID_ENTITY_ID) {
-            if (world->selected_entity_id == player.id) {
-                draw_debug_aabb(world->aabbs[player.aabb_index], vec3_yellow);
-            } else {
-                for (s32 i = 0; i < world->static_meshes.count; ++i) {
-                    const auto &mesh = world->static_meshes[i];
-                    if (mesh.id == world->selected_entity_id)
-                        draw_debug_aabb(world->aabbs[mesh.aabb_index], vec3_yellow);
-                }
-            }
-        }
-#endif
         
         // Send draw call count to dev stats.
         draw_call_count = world_draw_queue.count;
 
 		// @Cleanup: flush before text draw as its overwritten by skybox, fix.        
-		flush(&world_draw_queue);
+		flush(&world_draw_queue);        
         flush(&debug_draw_queue);
         
         debug_scope {
@@ -315,7 +292,11 @@ int main() {
 			draw_dev_stats(atlas, world);
 		}
 
-        end_frame_buffer_draw();
+        framebuffer_command.flags |= DRAW_FLAG_RESET;
+        framebuffer_command.frame_buffer_index = INVALID_INDEX;
+        draw(&framebuffer_command);
+
+        clear_screen(vec3_red, CLEAR_FLAG_COLOR);
         draw_frame_buffer(viewport.frame_buffer_index, 0);
         
 		swap_buffers(window);

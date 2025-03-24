@@ -15,6 +15,7 @@ struct Shader_Index_List {
 	s32 skybox;
 	s32 frame_buffer;
     s32 debug_geometry;
+    s32 outline;
 };
 
 inline Shader_Index_List shader_index_list;

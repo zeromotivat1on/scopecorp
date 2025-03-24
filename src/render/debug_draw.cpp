@@ -21,9 +21,9 @@ void init_debug_geometry_draw_queue() {
     Vertex_Component_Type components[] = { VERTEX_F32_3, VERTEX_F32_3 };
     debug_geometry_vbi = create_vertex_buffer(components, c_array_count(components), null, MAX_DEBUG_DRAW_VERTEX_COUNT, BUFFER_USAGE_STREAM);
 
-    const Uniform u_mvp = Uniform("u_transform", UNIFORM_F32_4X4, 1);
-    debug_geometry_mti = render_registry.materials.add(Material(shader_index_list.debug_geometry, INVALID_INDEX));
-    add_material_uniforms(debug_geometry_mti, &u_mvp);
+    const s32 u_mvp = create_uniform("u_transform", UNIFORM_F32_4X4, 1);
+    debug_geometry_mti = create_material(shader_index_list.debug_geometry, INVALID_INDEX);
+    set_material_uniforms(debug_geometry_mti, &u_mvp, 1);
 }
 
 void draw_debug_line(vec3 start, vec3 end, vec3 color) {
@@ -81,11 +81,32 @@ void flush(Debug_Geometry_Draw_Queue* queue) {
     
     set_vertex_buffer_data(debug_geometry_vbi, queue->vertex_data, 6 * 2 * queue->line_count * sizeof(f32));
 
-    Draw_Command command;
-    command.draw_mode = DRAW_LINES;
+    Draw_Command command{};
+    command.flags = DRAW_FLAG_SCISSOR_TEST | DRAW_FLAG_CULL_FACE_TEST | DRAW_FLAG_DEPTH_TEST | DRAW_FLAG_RESET;
+    command.draw_mode    = DRAW_LINES;
+    command.polygon_mode = POLYGON_FILL;
+    command.scissor_test.x      = viewport.x;
+    command.scissor_test.y      = viewport.y;
+    command.scissor_test.width  = viewport.width;
+    command.scissor_test.height = viewport.height;
+    command.cull_face_test.type    = CULL_FACE_BACK;
+    command.cull_face_test.winding = WINDING_COUNTER_CLOCKWISE;
+    command.depth_test.function = DEPTH_TEST_LESS;
+    command.depth_test.mask     = DEPTH_TEST_ENABLE;
+    command.frame_buffer_index  = viewport.frame_buffer_index;
     command.vertex_buffer_index = debug_geometry_vbi;
-    command.material_index = debug_geometry_mti;
-    command.draw_count = 2 * queue->line_count;
+
+    const auto &material  = render_registry.materials[debug_geometry_mti];
+    command.shader_index  = material.shader_index;
+    command.uniform_count = material.uniform_count;
+
+    for (s32 i = 0; i < material.uniform_count; ++i) {
+        command.uniform_indices[i]       = material.uniform_indices[i];
+        command.uniform_value_offsets[i] = material.uniform_value_offsets[i];
+    }
+
+    command.buffer_element_count = 2 * queue->line_count;
+    
     draw(&command);
     
     queue->line_count = 0;

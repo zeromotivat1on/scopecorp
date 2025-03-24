@@ -42,7 +42,7 @@ bool overlap(const Sphere &sphere, const AABB &aabb) {
 
 bool overlap(const Ray &ray, const AABB &aabb, f32 *near) {
     f32 tmin = 0.0f;
-    f32 tmax = MAX_F32;
+    f32 tmax = F32_MAX;
 
     vec3 ray_dir_inv = vec3(1);
     ray_dir_inv /= ray.direction;
@@ -64,7 +64,7 @@ s32 find_closest_overlapped_aabb(const Ray &ray, const World *world) {
     PROFILE_SCOPE(__FUNCTION__);
     
     s32 closest_aabb_index = INVALID_INDEX;
-    f32 min_distance = MAX_F32;
+    f32 min_distance = F32_MAX;
     for (s32 i = 0; i < world->aabbs.count; ++i) {
         auto &aabb = world->aabbs[i];
 

@@ -6,7 +6,7 @@ struct Flip_Book {
 	s32 frames[MAX_FLIP_BOOK_FRAMES]; // texture indices from render registry
 	s32 frame_count = 0;
 	s32 current_frame_index = 0;
-	f32 switch_frame_time = MAX_F32; // amount of time to switch to next frame
+	f32 switch_frame_time = F32_MAX; // amount of time to switch to next frame
 	f32 frame_time = 0.0f;
 };
 

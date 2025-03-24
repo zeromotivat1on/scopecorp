@@ -11,7 +11,7 @@
 #include "render/text.h"
 #include "render/viewport.h"
 
-void handle_event(Window *window, Window_Event *event) {
+void handle_window_event(Window *window, Window_Event *event) {
 	// @Todo: use input action.
 	if (event->type == EVENT_RESIZE) {
         if (window->width != viewport.width || window->height != viewport.height) {
