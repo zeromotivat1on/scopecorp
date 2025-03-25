@@ -259,26 +259,42 @@ void draw(const Draw_Command *command) {
 
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-        glDisable(GL_SCISSOR_TEST);
-        glDisable(GL_CULL_FACE);
-        glDisable(GL_BLEND);
-        glDisable(GL_DEPTH_TEST);
-        glDisable(GL_STENCIL_TEST);
+        if (command->flags & DRAW_FLAG_SCISSOR_TEST)   glDisable(GL_SCISSOR_TEST);
+        if (command->flags & DRAW_FLAG_CULL_FACE_TEST) glDisable(GL_CULL_FACE);
+        if (command->flags & DRAW_FLAG_BLEND_TEST)     glDisable(GL_BLEND);
 
-        glStencilFunc(GL_ALWAYS, 1, 0xFF);
-        glStencilMask(0xFF);
-        
-        glDepthMask(GL_FALSE);
+        if (command->flags & DRAW_FLAG_DEPTH_TEST) {
+            glDisable(GL_DEPTH_TEST);
+            glDepthMask(GL_FALSE);
+        }
 
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        if (command->flags & DRAW_FLAG_STENCIL_TEST) {
+            glDisable(GL_STENCIL_TEST);
+            glStencilFunc(GL_ALWAYS, 1, 0xFF);
+            glStencilMask(0xFF);
+        }
 
-        glBindTexture(GL_TEXTURE_2D, 0);
-        glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+        if (command->frame_buffer_index != INVALID_INDEX) {
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        }
         
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-        glBindVertexArray(0);
-        
-        glUseProgram(0);
+        if (command->texture_index != INVALID_INDEX) {
+            const auto &texture = render_registry.textures[command->texture_index];
+            const s32 type      = gl_texture_type(texture.type);
+            glBindTexture(type, 0);
+        }
+
+        if (command->index_buffer_index != INVALID_INDEX) {
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        }
+
+        if (command->vertex_buffer_index != INVALID_INDEX) {
+            glBindVertexArray(0);
+        }
+
+        if (command->shader_index != INVALID_INDEX) {
+            glUseProgram(0);
+        }
     }
 }
 

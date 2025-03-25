@@ -284,7 +284,7 @@ int main() {
         draw_call_count = world_draw_queue.count;
 
 		// @Cleanup: flush before text draw as its overwritten by skybox, fix.        
-		flush(&world_draw_queue);        
+		flush(&world_draw_queue);
         flush(&debug_draw_queue);
         
         debug_scope {
@@ -292,8 +292,7 @@ int main() {
 			draw_dev_stats(atlas, world);
 		}
 
-        framebuffer_command.flags |= DRAW_FLAG_RESET;
-        framebuffer_command.frame_buffer_index = INVALID_INDEX;
+        framebuffer_command.flags = DRAW_FLAG_RESET;
         draw(&framebuffer_command);
 
         clear_screen(vec3_red, CLEAR_FLAG_COLOR);

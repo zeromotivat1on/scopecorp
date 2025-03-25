@@ -93,7 +93,6 @@ void flush(Debug_Geometry_Draw_Queue* queue) {
     command.cull_face_test.winding = WINDING_COUNTER_CLOCKWISE;
     command.depth_test.function = DEPTH_TEST_LESS;
     command.depth_test.mask     = DEPTH_TEST_ENABLE;
-    command.frame_buffer_index  = viewport.frame_buffer_index;
     command.vertex_buffer_index = debug_geometry_vbi;
 
     const auto &material  = render_registry.materials[debug_geometry_mti];

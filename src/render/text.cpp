@@ -45,7 +45,6 @@ Text_Draw_Command *create_default_text_draw_command(Font_Atlas *atlas) {
     }
     
 	command->atlas = atlas;
-    command->frame_buffer_index = viewport.frame_buffer_index;
     
 	f32 vertices[] = {
 		0.0f, 1.0f,

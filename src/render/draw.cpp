@@ -62,7 +62,6 @@ void draw_entity(const Entity *e) {
     command.stencil_test.function.comparator = 1;
     command.stencil_test.function.mask       = 0xFF;
     command.stencil_test.mask = 0x00;
-    command.frame_buffer_index  = viewport.frame_buffer_index;
     command.vertex_buffer_index = e->draw_data.vbi;
     command.index_buffer_index  = e->draw_data.ibi;
 
