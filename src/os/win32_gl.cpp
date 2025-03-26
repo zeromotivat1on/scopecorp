@@ -2,7 +2,6 @@
 #include "log.h"
 #include "profile.h"
 
-#include "render/draw.h"
 #include "render/glad.h"
 
 #define VC_EXTRALEAN 1
@@ -122,7 +121,7 @@ static void wgl_load_procs() {
 #undef load
 }
 
-void init_draw(Window *window) {
+void init_render(Window *window) {
     log("Platform: Windows | OpenGL");
     
 	Win32_Window dummy_window = wgl_create_dummy_window(window);

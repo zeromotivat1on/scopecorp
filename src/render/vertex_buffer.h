@@ -1,6 +1,6 @@
 #pragma once
 
-#include "vertex.h"
+#include "render/vertex.h"
 
 enum Buffer_Usage_Type {
 	BUFFER_USAGE_STATIC,
@@ -17,4 +17,4 @@ struct Vertex_Buffer {
 };
 
 s32 create_vertex_buffer(const Vertex_Component_Type *components, s32 component_count, const void *data, s32 vertex_count, Buffer_Usage_Type usage_type);
-void set_vertex_buffer_data(s32 vbi, const void *data, u32 size, u32 offset = 0);
+void set_vertex_buffer_data(s32 vertex_buffer_index, const void *data, u32 size, u32 offset);

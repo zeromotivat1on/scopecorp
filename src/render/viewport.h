@@ -18,6 +18,4 @@ struct Viewport {
 
 inline Viewport viewport;
 
-struct vec3;
-
 void resize_viewport(Viewport *viewport, s16 width, s16 height);

@@ -1,7 +1,7 @@
  #pragma once
 
-inline constexpr s32 MAX_DRAW_QUEUE_SIZE = 1024;
-inline constexpr s32 MAX_DRAW_COMMAND_UNIFORMS = 16;
+inline constexpr s32 MAX_RENDER_QUEUE_SIZE = 1024;
+inline constexpr s32 MAX_RENDER_COMMAND_UNIFORMS = 16;
 
 struct Entity;
 struct World;
@@ -14,20 +14,20 @@ enum Clear_Screen_Flag {
     CLEAR_FLAG_STENCIL,
 };
 
-enum Draw_Mode {
-	DRAW_TRIANGLES,
-	DRAW_TRIANGLE_STRIP,
-	DRAW_LINES,
+enum Render_Mode {
+	RENDER_TRIANGLES,
+	RENDER_TRIANGLE_STRIP,
+	RENDER_LINES,
 };
 
-enum Draw_Flag : u32 {
-    DRAW_FLAG_ENTIRE_BUFFER  = 0x4,  // ignore offset/count, draw entire vertex/index buffer
-    DRAW_FLAG_SCISSOR_TEST   = 0x40,
-    DRAW_FLAG_CULL_FACE_TEST = 0x80,
-    DRAW_FLAG_BLEND_TEST     = 0x100,
-    DRAW_FLAG_DEPTH_TEST     = 0x200,
-    DRAW_FLAG_STENCIL_TEST   = 0x400,
-    DRAW_FLAG_RESET          = 0x800, // reset render state after draw call
+enum Render_Flag : u32 {
+    //RENDER_FLAG_ENTIRE_BUFFER  = 0x4,  // ignore offset/count, draw entire vertex/index buffer
+    RENDER_FLAG_SCISSOR_TEST   = 0x1,
+    RENDER_FLAG_CULL_FACE_TEST = 0x2,
+    RENDER_FLAG_BLEND_TEST     = 0x4,
+    RENDER_FLAG_DEPTH_TEST     = 0x8,
+    RENDER_FLAG_STENCIL_TEST   = 0x10,
+    RENDER_FLAG_RESET          = 0x80000000, // reset render state after draw call
 };
 
 enum Polygon_Mode {
@@ -111,10 +111,10 @@ struct Stencil_Test {
     u8 mask;
 };
 
-struct Draw_Command {
+struct Render_Command {
 	u32 flags = 0;
     
-	Draw_Mode    draw_mode = DRAW_TRIANGLES;
+	Render_Mode  render_mode  = RENDER_TRIANGLES;
 	Polygon_Mode polygon_mode = POLYGON_FILL;
 
     Scissor_Test   scissor_test;
@@ -131,8 +131,8 @@ struct Draw_Command {
 	s32 texture_index = INVALID_INDEX;
     
     s32 uniform_count = 0;
-    s32 uniform_indices      [MAX_DRAW_COMMAND_UNIFORMS];
-    s32 uniform_value_offsets[MAX_DRAW_COMMAND_UNIFORMS];
+    s32 uniform_indices      [MAX_RENDER_COMMAND_UNIFORMS];
+    s32 uniform_value_offsets[MAX_RENDER_COMMAND_UNIFORMS];
 
     s32 buffer_element_count  = 0;
     s32 buffer_element_offset = 0;
@@ -140,22 +140,21 @@ struct Draw_Command {
 	s32 instance_count = 1;
 };
 
-struct Draw_Queue {
-	Draw_Command *commands = null;
-	s32 count = 0;
+struct Render_Queue {
+	Render_Command *commands = null;
+	s32 size     = 0;
+	s32 capacity = 0;
 };
 
-inline Draw_Queue world_draw_queue;
+inline Render_Queue entity_render_queue;
 
-void init_draw(Window *window);
-void set_vsync(bool enable);
+// @Cleanup: move these to separate header.
+void init_render(Window *window);
 void swap_buffers(Window *window);
+void set_vsync(bool enable);
 void clear_screen(vec3 color, u32 flags);
 
-void init_draw_queue(Draw_Queue *queue, s32 size);
-void enqueue_draw_command(Draw_Queue *queue, const Draw_Command *command);
-void flush(Draw_Queue *queue);
-
-void draw_world(const World *world);
-void draw_entity(const Entity *e);
-void draw(const Draw_Command *command);
+void init_render_queue(Render_Queue *queue, s32 capacity);
+void enqueue(Render_Queue *queue, const Render_Command *command);
+void flush(Render_Queue *queue);
+void submit(const Render_Command *command);

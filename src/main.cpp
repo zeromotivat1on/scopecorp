@@ -11,11 +11,11 @@
 #include "os/window.h"
 #include "os/time.h"
 
-#include "render/draw.h"
-#include "render/debug_draw.h"
-#include "render/text.h"
 #include "render/viewport.h"
+#include "render/render_command.h"
 #include "render/render_registry.h"
+#include "render/geometry_draw.h"
+#include "render/text.h"
 
 #include "audio/sound.h"
 
@@ -45,9 +45,9 @@ int main() {
     
 	init_input_table();
 
-	init_draw(window);
+	init_render(window);
 	set_vsync(false);
-
+    
 	init_render_registry(&render_registry);
 
     const Texture_Format_Type color_attachment_formats[] = { TEXTURE_FORMAT_RGB_8, TEXTURE_FORMAT_RED_INTEGER };
@@ -73,8 +73,8 @@ int main() {
 	world = push_struct(pers, World);
 	init_world(world);
 
-    init_draw_queue(&world_draw_queue, MAX_DRAW_QUEUE_SIZE);
-    init_debug_geometry_draw_queue();
+    init_render_queue(&entity_render_queue, MAX_RENDER_QUEUE_SIZE);
+    init_geo_draw();
 
 	Player &player = world->player;
 	{   // Create player.
@@ -90,10 +90,10 @@ int main() {
 		player.scale = vec3(x_scale, y_scale, 1.0f);
         player.location = vec3(0.0f, F32_MIN, 0.0f);
 
-		player.draw_data.mti = material_index_list.player;
+		player.draw_data.material_index = material_index_list.player;
 
         static const vec3 uv_scale = vec3(1.0f);
-		set_material_uniform_value(player.draw_data.mti, "u_uv_scale", &uv_scale);
+		set_material_uniform_value(player.draw_data.material_index, "u_uv_scale", &uv_scale);
         
         // Little uv offset as source textures have small transient border.
         const f32 uv_offset = 0.02f;
@@ -104,10 +104,10 @@ int main() {
 			{ vec3(-0.5f,  1.0f, 0.0f), vec2(0.0f + uv_offset, 1.0f - uv_offset), player.id },
 		};
 		Vertex_Component_Type components[] = { VERTEX_F32_3, VERTEX_F32_2, VERTEX_S32 };
-		player.draw_data.vbi = create_vertex_buffer(components, c_array_count(components), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
+		player.draw_data.vertex_buffer_index = create_vertex_buffer(components, c_array_count(components), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
 
 		u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
-		player.draw_data.ibi = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
+		player.draw_data.index_buffer_index = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
 	}
 
 	Static_Mesh &ground = world->static_meshes[create_static_mesh(world)];
@@ -122,10 +122,10 @@ int main() {
         aabb.min = ground.location - aabb_offset * 0.5f;
 		aabb.max = aabb.min + aabb_offset;
 
-        ground.draw_data.mti = material_index_list.ground;
+        ground.draw_data.material_index = material_index_list.ground;
 
         static const vec3 uv_scale = vec3(16.0f);
-		set_material_uniform_value(ground.draw_data.mti, "u_uv_scale", &uv_scale);
+		set_material_uniform_value(ground.draw_data.material_index, "u_uv_scale", &uv_scale);
 
 		Vertex_Entity vertices[] = {
 			{ vec3( 0.5f,  0.5f, 0.0f), vec2(1.0f, 1.0f), ground.id },
@@ -134,10 +134,10 @@ int main() {
 			{ vec3(-0.5f,  0.5f, 0.0f), vec2(0.0f, 1.0f), ground.id },
 		};
 		Vertex_Component_Type components[] = { VERTEX_F32_3, VERTEX_F32_2, VERTEX_S32 };
-		ground.draw_data.vbi = create_vertex_buffer(components, c_array_count(components), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
+		ground.draw_data.vertex_buffer_index = create_vertex_buffer(components, c_array_count(components), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
 
 		u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
-		ground.draw_data.ibi = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
+		ground.draw_data.index_buffer_index = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
 	}
 
 	Static_Mesh &cube = world->static_meshes[create_static_mesh(world)];
@@ -150,10 +150,10 @@ int main() {
 		aabb.min = cube.location - cube.scale * 0.5f;
 		aabb.max = aabb.min + cube.scale;
 
-		cube.draw_data.mti = material_index_list.cube;
+		cube.draw_data.material_index = material_index_list.cube;
 
         static const vec3 uv_scale = vec3(1.0f);
-		set_material_uniform_value(cube.draw_data.mti, "u_uv_scale", &uv_scale);
+		set_material_uniform_value(cube.draw_data.material_index, "u_uv_scale", &uv_scale);
         
 		Vertex_Entity vertices[] = {
 			// Front face
@@ -193,7 +193,7 @@ int main() {
 			{ vec3( 0.5f, -0.5f,  0.5f), vec2(1.0f, 1.0f), cube.id },
 		};
 		Vertex_Component_Type components[] = { VERTEX_F32_3, VERTEX_F32_2, VERTEX_S32 };
-		cube.draw_data.vbi = create_vertex_buffer(components, c_array_count(components), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
+		cube.draw_data.vertex_buffer_index = create_vertex_buffer(components, c_array_count(components), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
 
 		u32 indices[] = {
 			// Front face
@@ -209,14 +209,14 @@ int main() {
 			// Top face
 			20, 22, 21, 21, 22, 23
 		};
-		cube.draw_data.ibi = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
+		cube.draw_data.index_buffer_index = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
 	}
 
 	Skybox &skybox = world->skybox;
 	{   // Create skybox.
         skybox.id = 999;
 
-		skybox.draw_data.mti = material_index_list.skybox;
+		skybox.draw_data.material_index = material_index_list.skybox;
 
 		Vertex_PU vertices[] = {
 			{ vec3( 1.0f,  1.0f, 1.0f - F32_EPSILON), vec2(1.0f, 1.0f) },
@@ -225,10 +225,10 @@ int main() {
 			{ vec3(-1.0f,  1.0f, 1.0f - F32_EPSILON), vec2(0.0f, 1.0f) },
 		};
 		Vertex_Component_Type components[] = { VERTEX_F32_3, VERTEX_F32_2 };
-		skybox.draw_data.vbi = create_vertex_buffer(components, c_array_count(components), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
+		skybox.draw_data.vertex_buffer_index = create_vertex_buffer(components, c_array_count(components), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
 
 		u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
-		skybox.draw_data.ibi = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
+		skybox.draw_data.index_buffer_index = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
 	}
 
 	Camera &camera = world->camera;
@@ -265,38 +265,38 @@ int main() {
 		set_listener_pos(player.location);
 		check_shader_hot_reload_queue(&shader_hot_reload_queue, dt);
 
-        Draw_Command framebuffer_command;
+        Render_Command framebuffer_command;
         framebuffer_command.frame_buffer_index = viewport.frame_buffer_index;
-        draw(&framebuffer_command);
+        submit(&framebuffer_command);
         
 		clear_screen(vec3_white, CLEAR_FLAG_COLOR | CLEAR_FLAG_DEPTH | CLEAR_FLAG_STENCIL);
 		draw_world(world);
 
         const vec3 player_center_location = player.location + vec3(0.0f, player.scale.y * 0.5f, 0.0f);
-        draw_debug_line(player_center_location, player_center_location + normalize(player.velocity) * 0.5f, vec3_red);
+        draw_geo_line(player_center_location, player_center_location + normalize(player.velocity) * 0.5f, vec3_red);
 
         if (player.collide_aabb_index != INVALID_INDEX) {
-            draw_debug_aabb(world->aabbs[player.aabb_index],         vec3_green);
-            draw_debug_aabb(world->aabbs[player.collide_aabb_index], vec3_green);
+            draw_geo_aabb(world->aabbs[player.aabb_index],         vec3_green);
+            draw_geo_aabb(world->aabbs[player.collide_aabb_index], vec3_green);
         }
         
         // Send draw call count to dev stats.
-        draw_call_count = world_draw_queue.count;
+        draw_call_count = entity_render_queue.size;
 
 		// @Cleanup: flush before text draw as its overwritten by skybox, fix.        
-		flush(&world_draw_queue);
-        flush(&debug_draw_queue);
+		flush(&entity_render_queue);
+        flush_geo_draw();
         
         debug_scope {
             PROFILE_SCOPE("Debug Stats Draw");
 			draw_dev_stats(atlas, world);
 		}
 
-        framebuffer_command.flags = DRAW_FLAG_RESET;
-        draw(&framebuffer_command);
+        framebuffer_command.flags = RENDER_FLAG_RESET;
+        submit(&framebuffer_command);
 
         clear_screen(vec3_red, CLEAR_FLAG_COLOR);
-        draw_frame_buffer(viewport.frame_buffer_index, 0);
+        render_frame_buffer(viewport.frame_buffer_index, 0);
         
 		swap_buffers(window);
         PROFILE_FRAME("Game Frame");

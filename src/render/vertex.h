@@ -31,3 +31,5 @@ struct Vertex_Entity {
 
 s32 vertex_component_dimension(Vertex_Component_Type type);
 s32 vertex_component_size(Vertex_Component_Type type);
+s32 vertex_layout_dimension(const Vertex_Layout *layout);
+s32 vertex_layout_size(const Vertex_Layout *layout);

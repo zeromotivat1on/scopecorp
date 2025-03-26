@@ -1,6 +1,5 @@
 #include "pch.h"
 #include "render/glad.h"
-#include "render/draw.h"
 #include "render/text.h"
 #include "render/shader.h"
 #include "render/uniform.h"
@@ -9,6 +8,7 @@
 #include "render/frame_buffer.h"
 #include "render/index_buffer.h"
 #include "render/vertex_buffer.h"
+#include "render/render_command.h"
 #include "render/render_registry.h"
 #include "render/viewport.h"
 
@@ -35,11 +35,11 @@ void clear_screen(vec3 color, u32 flags) {
     glDepthMask(GL_FALSE);
 }
 
-static s32 gl_draw_mode(Draw_Mode mode) {
+static s32 gl_draw_mode(Render_Mode mode) {
 	switch (mode) {
-	case DRAW_TRIANGLES:      return GL_TRIANGLES;
-	case DRAW_TRIANGLE_STRIP: return GL_TRIANGLE_STRIP;
-	case DRAW_LINES:          return GL_LINES;
+	case RENDER_TRIANGLES:      return GL_TRIANGLES;
+	case RENDER_TRIANGLE_STRIP: return GL_TRIANGLE_STRIP;
+	case RENDER_LINES:          return GL_LINES;
 	default:
 		error("Failed to get GL draw mode from given mode %d", mode);
 		return -1;
@@ -137,20 +137,20 @@ static s32 gl_texture_type(Texture_Type type) {
     }
 }
 
-void draw(const Draw_Command *command) {    
+void submit(const Render_Command *command) {    
     {
         const s32 mode = gl_polygon_mode(command->polygon_mode);
         glPolygonMode(GL_FRONT_AND_BACK, mode);
     }
 
-    if (command->flags & DRAW_FLAG_SCISSOR_TEST) {
+    if (command->flags & RENDER_FLAG_SCISSOR_TEST) {
         const auto &test = command->scissor_test;
         
         glEnable(GL_SCISSOR_TEST);
         glScissor(test.x, test.y, test.width, test.height);
     }
     
-    if (command->flags & DRAW_FLAG_CULL_FACE_TEST) {
+    if (command->flags & RENDER_FLAG_CULL_FACE_TEST) {
         const auto &test = command->cull_face_test;
 
         const s32 face    = gl_cull_face(test.type);
@@ -161,7 +161,7 @@ void draw(const Draw_Command *command) {
         glFrontFace(winding);
     }
 
-    if (command->flags & DRAW_FLAG_BLEND_TEST) {
+    if (command->flags & RENDER_FLAG_BLEND_TEST) {
         const auto &test = command->blend_test;
         
         const s32 source      = gl_blend_function(test.source);
@@ -171,7 +171,7 @@ void draw(const Draw_Command *command) {
         glBlendFunc(source, destination);
     }
     
-    if (command->flags & DRAW_FLAG_DEPTH_TEST) {
+    if (command->flags & RENDER_FLAG_DEPTH_TEST) {
         const auto &test = command->depth_test;
 
         const s32 function = gl_depth_function(test.function);
@@ -182,7 +182,7 @@ void draw(const Draw_Command *command) {
         glDepthMask(mask);
     }
 
-    if (command->flags & DRAW_FLAG_STENCIL_TEST) {
+    if (command->flags & RENDER_FLAG_STENCIL_TEST) {
         const auto &test = command->stencil_test;
         
         const s32 stencil_failed = gl_stencil_operation(test.operation.stencil_failed);
@@ -224,52 +224,51 @@ void draw(const Draw_Command *command) {
         const auto &vertex_buffer = render_registry.vertex_buffers[command->vertex_buffer_index];
         glBindVertexArray(vertex_buffer.id);
 
-        const s32 draw_mode = gl_draw_mode(command->draw_mode);
+        const s32 render_mode = gl_draw_mode(command->render_mode);
         
         if (command->index_buffer_index != INVALID_INDEX) {
             const auto &index_buffer = render_registry.index_buffers[command->index_buffer_index];
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer.id);
 
-            s32 index_count = 0;
-            const void* index_ptr = null;
-            if (command->flags & DRAW_FLAG_ENTIRE_BUFFER) {
-                index_count = index_buffer.index_count;
-            } else {
-                index_count = command->buffer_element_count;
-                index_ptr = 0; // @Todo: find offset pointer to index data using index offset
-            }
-        
-            glDrawElementsInstanced(draw_mode, index_count, GL_UNSIGNED_INT, index_ptr, command->instance_count);
+            const s32 index_count = command->buffer_element_count;
+            const void* index_ptr = (void *)(u64)command->buffer_element_offset;
+            glDrawElementsInstanced(render_mode, index_count, GL_UNSIGNED_INT, index_ptr, command->instance_count);
         } else {
-            s32 vertex_count = 0;
-            s32 vertex_first = 0;
-            if (command->flags & DRAW_FLAG_ENTIRE_BUFFER) {
-                vertex_count = vertex_buffer.vertex_count;
-            } else {
-                vertex_count = command->buffer_element_count;
-                vertex_first = command->buffer_element_offset;
-            }
-        
-            glDrawArraysInstanced(draw_mode, vertex_first, vertex_count, command->instance_count);
+            const s32 vertex_count = command->buffer_element_count;
+            const s32 vertex_first = command->buffer_element_offset;
+            glDrawArraysInstanced(render_mode, vertex_first, vertex_count, command->instance_count);
         }
     }
     
-    if (command->flags & DRAW_FLAG_RESET) {
+    if (command->flags & RENDER_FLAG_RESET) {
         PROFILE_SCOPE("Reset GL state after draw call");
 
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-        if (command->flags & DRAW_FLAG_SCISSOR_TEST)   glDisable(GL_SCISSOR_TEST);
-        if (command->flags & DRAW_FLAG_CULL_FACE_TEST) glDisable(GL_CULL_FACE);
-        if (command->flags & DRAW_FLAG_BLEND_TEST)     glDisable(GL_BLEND);
+        if (command->flags & RENDER_FLAG_SCISSOR_TEST) {
+            glDisable(GL_SCISSOR_TEST);
+            glScissor(0, 0, 0, 0);
+        }
 
-        if (command->flags & DRAW_FLAG_DEPTH_TEST) {
+        if (command->flags & RENDER_FLAG_CULL_FACE_TEST) {
+            glDisable(GL_CULL_FACE);
+            glCullFace(GL_BACK);
+            glFrontFace(GL_CCW);
+        }
+        
+        if (command->flags & RENDER_FLAG_BLEND_TEST) {
+            glDisable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        }
+
+        if (command->flags & RENDER_FLAG_DEPTH_TEST) {
             glDisable(GL_DEPTH_TEST);
             glDepthMask(GL_FALSE);
         }
 
-        if (command->flags & DRAW_FLAG_STENCIL_TEST) {
+        if (command->flags & RENDER_FLAG_STENCIL_TEST) {
             glDisable(GL_STENCIL_TEST);
+            glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
             glStencilFunc(GL_ALWAYS, 1, 0xFF);
             glStencilMask(0xFF);
         }
@@ -418,14 +417,6 @@ s32 read_frame_buffer_pixel(s32 fbi, s32 color_attachment_index, s32 x, s32 y) {
     return pixel;
 }
 
-void start_frame_buffer_draw(s32 fbi) {
-    glBindFramebuffer(GL_FRAMEBUFFER, render_registry.frame_buffers[fbi].id);
-}
-
-void end_frame_buffer_draw() {
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-}
-
 static s32 create_quad_vertex_buffer() {
     struct Vertex_Quad { vec2 pos; vec2 uv; };
     Vertex_Quad vertices[] = {
@@ -443,15 +434,14 @@ static s32 create_quad_index_buffer() {
     return create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
 }
 
-void draw_frame_buffer(s32 fbi, s32 color_attachment_index) {
+void render_frame_buffer(s32 fbi, s32 color_attachment_index) {
     static s32 vertex_buffer_index = create_quad_vertex_buffer();
     static s32 index_buffer_index  = create_quad_index_buffer();
     static s32 material_index      = create_material(shader_index_list.frame_buffer, render_registry.frame_buffers[fbi].color_attachments[color_attachment_index]);
     
-    // Draw frame buffer screen quad texture we've rendered on earlier.
-    Draw_Command command;
-    command.flags = DRAW_FLAG_SCISSOR_TEST | DRAW_FLAG_CULL_FACE_TEST | DRAW_FLAG_ENTIRE_BUFFER;
-    command.draw_mode    = DRAW_TRIANGLES;
+    Render_Command command = {};
+    command.flags = RENDER_FLAG_SCISSOR_TEST | RENDER_FLAG_CULL_FACE_TEST;
+    command.render_mode  = RENDER_TRIANGLES;
     command.polygon_mode = POLYGON_FILL;
     command.scissor_test.x      = viewport.x;
     command.scissor_test.y      = viewport.y;
@@ -471,10 +461,11 @@ void draw_frame_buffer(s32 fbi, s32 color_attachment_index) {
         command.uniform_indices[i]       = material.uniform_indices[i];
         command.uniform_value_offsets[i] = material.uniform_value_offsets[i];
     }
-    
-    draw(&command);
 
-    //glEnable(GL_DEPTH_TEST);
+    const auto &index_buffer = render_registry.index_buffers[index_buffer_index];
+    command.buffer_element_count = index_buffer.index_count;
+    
+    submit(&command);
 }
 
 static s32 gl_usage(Buffer_Usage_Type type) {
@@ -545,8 +536,8 @@ s32 create_vertex_buffer(const Vertex_Component_Type *components, s32 component_
 	return render_registry.vertex_buffers.add(buffer);
 }
 
-void set_vertex_buffer_data(s32 vbi, const void *data, u32 size, u32 offset) {
-    const auto &buffer = render_registry.vertex_buffers[vbi];
+void set_vertex_buffer_data(s32 vertex_buffer_index, const void *data, u32 size, u32 offset) {
+    const auto &buffer = render_registry.vertex_buffers[vertex_buffer_index];
 
     glBindVertexArray(buffer.id);
 	glBindBuffer(GL_ARRAY_BUFFER, buffer.handle);

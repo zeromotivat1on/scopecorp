@@ -19,7 +19,7 @@
 
 void press(s32 key, bool pressed) {
     if (pressed && key == KEY_R && input_table.key_states[KEY_CTRL]) {
-        world->player.location = vec3_zero;
+        world->player.location = vec3(0.0f, F32_MIN, 0.0f);
     }
 }
 
@@ -229,11 +229,11 @@ void tick_player(World* world) {
     }
 
     if (player.velocity == vec3_zero) {
-        render_registry.materials[player.draw_data.mti].texture_index = texture_index_list.player_idle[player.move_direction];
+        render_registry.materials[player.draw_data.material_index].texture_index = texture_index_list.player_idle[player.move_direction];
     } else {
         player.flip_book = &flip_books.player_move[player.move_direction];
         tick(player.flip_book, dt);
-        render_registry.materials[player.draw_data.mti].texture_index = current_frame(player.flip_book);
+        render_registry.materials[player.draw_data.material_index].texture_index = current_frame(player.flip_book);
     }
             
     player.location += player.velocity;

@@ -31,3 +31,6 @@ void tick(World *world, f32 dt);
 Camera *desired_camera(World *world);
 
 s32 create_static_mesh(World *world);
+
+void draw_world(const World *world);
+void draw_entity(const Entity *e);

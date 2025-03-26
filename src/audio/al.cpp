@@ -3,13 +3,15 @@
 #include "audio/alc.h"
 #include "audio/sound.h"
 
+#include "math/vector.h"
+
+#include "os/file.h"
+
 #include "log.h"
 #include "profile.h"
 #include "memory_eater.h"
 #include "memory_storage.h"
 #include "stb_sprintf.h"
-
-#include "os/file.h"
 
 #include <string.h>
 
@@ -125,4 +127,8 @@ Sound create_sound(const char *path, u32 flags) {
 	alSourcei(sound.source, AL_BUFFER, sound.buffer);
 
 	return sound;
+}
+
+void set_listener_pos(vec3 pos) {
+	alListener3f(AL_POSITION, pos.x, pos.y, pos.z);
 }

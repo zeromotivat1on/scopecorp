@@ -8,12 +8,12 @@ endif()
 add_executable(${GAME_EXE}
                 assert.cpp camera.cpp collision.cpp flip_book.cpp font.cpp log.cpp main.cpp memory_storage.cpp pch.cpp profile.cpp
                 # work_queue.cpp work_queue.h
-                os/file.cpp
+                os/os.cpp
                 math/matrix.cpp math/math.cpp math/quat.cpp math/vector.cpp
-                audio/al.cpp audio/sound.cpp
+                audio/al.cpp audio/audio.cpp
                 game/game.cpp game/player_control.cpp game/world.cpp
                 editor/hot_reload.cpp
-                render/debug_draw.cpp render/draw.cpp render/gl.cpp render/glad.cpp render/render_registry.cpp render/shader.cpp render/text.cpp render/vertex.cpp)
+                render/gl.cpp render/glad.cpp render/render.cpp)
 
 target_precompile_headers(${GAME_EXE} PUBLIC pch.h)
 target_include_directories(${GAME_EXE} PRIVATE "${PROJECT_SOURCE_DIR}/src")
