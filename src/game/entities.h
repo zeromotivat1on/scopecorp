@@ -18,9 +18,9 @@ enum Entity_FLag : u32 {
 };
 
 struct Entity_Draw_Data {
-    s32 vertex_buffer_index = INVALID_INDEX;
+    s32 vertex_array_index = INVALID_INDEX;
     s32 index_buffer_index = INVALID_INDEX;
-    s32 material_index = INVALID_INDEX;
+    s32 material_index     = INVALID_INDEX;
 };
 
 struct Entity {

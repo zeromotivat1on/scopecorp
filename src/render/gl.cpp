@@ -220,9 +220,9 @@ void submit(const Render_Command *command) {
 		glActiveTexture(GL_TEXTURE0);
 	}
 
-    if (command->vertex_buffer_index != INVALID_INDEX) {
-        const auto &vertex_buffer = render_registry.vertex_buffers[command->vertex_buffer_index];
-        glBindVertexArray(vertex_buffer.id);
+    if (command->vertex_array_index != INVALID_INDEX) {
+        const auto &vertex_array = render_registry.vertex_arrays[command->vertex_array_index];
+        glBindVertexArray(vertex_array.id);
 
         const s32 render_mode = gl_draw_mode(command->render_mode);
         
@@ -287,7 +287,7 @@ void submit(const Render_Command *command) {
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
         }
 
-        if (command->vertex_buffer_index != INVALID_INDEX) {
+        if (command->vertex_array_index != INVALID_INDEX) {
             glBindVertexArray(0);
         }
 
@@ -417,16 +417,27 @@ s32 read_frame_buffer_pixel(s32 fbi, s32 color_attachment_index, s32 x, s32 y) {
     return pixel;
 }
 
-static s32 create_quad_vertex_buffer() {
+static s32 create_quad_vertex_array() {
     struct Vertex_Quad { vec2 pos; vec2 uv; };
-    Vertex_Quad vertices[] = {
+    const Vertex_Quad vertices[] = {
         { vec2( 1.0f,  1.0f), vec2(1.0f, 1.0f) },
         { vec2( 1.0f, -1.0f), vec2(1.0f, 0.0f) },
         { vec2(-1.0f, -1.0f), vec2(0.0f, 0.0f) },
         { vec2(-1.0f,  1.0f), vec2(0.0f, 1.0f) },
     };
-    Vertex_Component_Type components[] = { VERTEX_F32_2, VERTEX_F32_2 };
-    return create_vertex_buffer(components, c_array_count(components), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);    
+
+    const s32 vertex_buffer_index = create_vertex_buffer(vertices, c_array_count(vertices) * sizeof(Vertex_PU), BUFFER_USAGE_STATIC);
+    
+    const Vertex_Array_Binding bindings[] = {
+        {
+            vertex_buffer_index, 2, {
+                { VERTEX_F32_2, 0 },
+                { VERTEX_F32_2, 0 },
+            }
+        },
+    };
+
+    return create_vertex_array(bindings, c_array_count(bindings));
 }
 
 static s32 create_quad_index_buffer() {
@@ -435,7 +446,7 @@ static s32 create_quad_index_buffer() {
 }
 
 void render_frame_buffer(s32 fbi, s32 color_attachment_index) {
-    static s32 vertex_buffer_index = create_quad_vertex_buffer();
+    static s32 vertex_array_index = create_quad_vertex_array();
     static s32 index_buffer_index  = create_quad_index_buffer();
     static s32 material_index      = create_material(shader_index_list.frame_buffer, render_registry.frame_buffers[fbi].color_attachments[color_attachment_index]);
     
@@ -449,7 +460,7 @@ void render_frame_buffer(s32 fbi, s32 color_attachment_index) {
     command.scissor_test.height = viewport.height;
     command.cull_face_test.type    = CULL_FACE_BACK;
     command.cull_face_test.winding = WINDING_COUNTER_CLOCKWISE;
-    command.vertex_buffer_index = vertex_buffer_index;
+    command.vertex_array_index = vertex_array_index;
     command.index_buffer_index  = index_buffer_index;
 
     const auto &material  = render_registry.materials[material_index];
@@ -492,46 +503,15 @@ static s32 gl_vertex_data_type(Vertex_Component_Type type) {
     }
 }
 
-s32 create_vertex_buffer(const Vertex_Component_Type *components, s32 component_count, const void *data, s32 vertex_count, Buffer_Usage_Type usage_type) {
-	assert(component_count <= MAX_VERTEX_LAYOUT_SIZE);
-
+s32 create_vertex_buffer(const void *data, u32 size, Buffer_Usage_Type usage) {
 	Vertex_Buffer buffer = {0};
-	buffer.usage_type = usage_type;
-	buffer.vertex_count = vertex_count;
-    buffer.layout.component_count = component_count;
-	memcpy(&buffer.layout.components, components, component_count * sizeof(Vertex_Component_Type));
+	buffer.size  = size;
+	buffer.usage = usage;
 
-	glGenBuffers(1, &buffer.handle);
-	glGenVertexArrays(1, &buffer.id);
-
-	glBindVertexArray(buffer.id);
-	glBindBuffer(GL_ARRAY_BUFFER, buffer.handle);
-
-	s32 vertex_size = 0;
-	for (s32 i = 0; i < component_count; ++i)
-		vertex_size += vertex_component_size(components[i]);
-
-    const s32 usage = gl_usage(usage_type);
-	glBufferData(GL_ARRAY_BUFFER, vertex_count * vertex_size, data, usage);
-
-	for (s32 i = 0; i < component_count; ++i) {
-		const s32 dimension = vertex_component_dimension(components[i]);
-
-		s32 offset = 0;
-		for (s32 j = 0; j < i; ++j)
-			offset += vertex_component_size(components[j]);
-
-        const s32 data_type = gl_vertex_data_type(components[i]);
-		glEnableVertexAttribArray(i);
-
-        if (components[i] == VERTEX_S32 || components[i] == VERTEX_U32)
-            glVertexAttribIPointer(i, dimension, data_type, vertex_size, (void *)(u64)offset);
-        else
-            glVertexAttribPointer(i, dimension, data_type, GL_FALSE, vertex_size, (void *)(u64)offset);
-	}
-
+	glGenBuffers(1, &buffer.id);
+	glBindBuffer(GL_ARRAY_BUFFER, buffer.id);
+	glBufferData(GL_ARRAY_BUFFER, size, data, gl_usage(usage));
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindVertexArray(0);
 
 	return render_registry.vertex_buffers.add(buffer);
 }
@@ -539,16 +519,63 @@ s32 create_vertex_buffer(const Vertex_Component_Type *components, s32 component_
 void set_vertex_buffer_data(s32 vertex_buffer_index, const void *data, u32 size, u32 offset) {
     const auto &buffer = render_registry.vertex_buffers[vertex_buffer_index];
 
-    glBindVertexArray(buffer.id);
-	glBindBuffer(GL_ARRAY_BUFFER, buffer.handle);
-
-    glBufferSubData(GL_ARRAY_BUFFER, offset, size, data);
-    
+	glBindBuffer(GL_ARRAY_BUFFER, buffer.id);
+    glBufferSubData(GL_ARRAY_BUFFER, offset, size, data);    
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
 }
 
-s32 create_index_buffer(u32 *indices, s32 count, Buffer_Usage_Type usage_type) {
+s32 create_vertex_array(const Vertex_Array_Binding *bindings, s32 binding_count) {
+    Vertex_Array array;
+    array.binding_count = binding_count;
+    memcpy(array.bindings, bindings, binding_count * sizeof(Vertex_Array_Binding));
+    
+    glGenVertexArrays(1, &array.id);
+    glBindVertexArray(array.id);
+
+    s32 binding_index = 0;
+    for (s32 i = 0; i < binding_count; ++i) {
+        assert(binding_index < MAX_VERTEX_ARRAY_BINDINGS);
+        
+        const auto &binding = bindings[i];
+        const auto &vertex_buffer = render_registry.vertex_buffers[binding.vertex_buffer_index];
+        
+        glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer.id);
+
+        s32 vertex_size = 0;
+        for (s32 j = 0; j < binding.layout_size; ++j)
+            vertex_size += vertex_component_size(binding.layout[j].type);
+    
+        for (s32 j = 0; j < binding.layout_size; ++j) {
+            const auto &component = binding.layout[j];
+            
+            s32 offset = 0;
+            for (s32 k = 0; k < j; ++k)
+                offset += vertex_component_size(binding.layout[k].type);
+
+            const s32 data_type = gl_vertex_data_type(component.type);
+            const s32 dimension = vertex_component_dimension(component.type);
+
+            glEnableVertexAttribArray(binding_index);
+            
+            if (component.type == VERTEX_S32 || component.type == VERTEX_U32)
+                glVertexAttribIPointer(binding_index, dimension, data_type, vertex_size, (void *)(u64)offset);
+            else
+                glVertexAttribPointer(binding_index, dimension, data_type, component.normalize, vertex_size, (void *)(u64)offset);
+            
+            assert(component.advance_rate <= 4);
+            glVertexAttribDivisor(binding_index, component.advance_rate);
+
+            binding_index++;
+        }
+	}
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
+
+    return render_registry.vertex_arrays.add(array);
+}
+
+s32 create_index_buffer(const u32 *indices, s32 count, Buffer_Usage_Type usage_type) {
 	Index_Buffer buffer;
 	buffer.index_count = count;
 	buffer.usage_type = usage_type;

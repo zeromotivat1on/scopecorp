@@ -10,17 +10,19 @@
 
 #include "render/text.h"
 #include "render/viewport.h"
+#include "render/material.h"
 
 void handle_window_event(Window *window, Window_Event *event) {
 	// @Todo: use input action.
 	if (event->type == EVENT_RESIZE) {
         if (window->width != viewport.width || window->height != viewport.height) {
             resize_viewport(&viewport, window->width, window->height);
+            viewport.orthographic_projection = mat4_orthographic(0, viewport.width, 0, viewport.height, -1, 1);
             
             on_viewport_resize(&world->camera, &viewport);
             world->ed_camera = world->camera;
-            
-            on_viewport_resize(text_draw_command, &viewport);
+
+            set_material_uniform_value(text_draw_buffer.material_index, "u_projection", &viewport.orthographic_projection);
         }
 	}
 

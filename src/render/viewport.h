@@ -1,5 +1,7 @@
 #pragma once
 
+#include "math/matrix.h"
+
 enum Viewport_Aspect_Type {
     VIEWPORT_FILL_WINDOW,
     VIEWPORT_4X3,
@@ -14,6 +16,8 @@ struct Viewport {
     s16 width  = 0;
     s16 height = 0;
     s32 frame_buffer_index = INVALID_INDEX;
+
+    mat4 orthographic_projection;
 };
 
 inline Viewport viewport;

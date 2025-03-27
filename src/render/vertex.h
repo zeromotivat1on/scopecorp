@@ -2,8 +2,6 @@
 
 #include "math/vector.h"
 
-inline constexpr s32 MAX_VERTEX_LAYOUT_SIZE = 8;
-
 enum Vertex_Component_Type {
     VERTEX_S32,
     VERTEX_U32,
@@ -11,11 +9,6 @@ enum Vertex_Component_Type {
     VERTEX_F32_2,
     VERTEX_F32_3,
     VERTEX_F32_4,
-};
-
-struct Vertex_Layout {
-    Vertex_Component_Type components[MAX_VERTEX_LAYOUT_SIZE];
-    s32 component_count = 0;
 };
 
 struct Vertex_PU {
@@ -31,5 +24,3 @@ struct Vertex_Entity {
 
 s32 vertex_component_dimension(Vertex_Component_Type type);
 s32 vertex_component_size(Vertex_Component_Type type);
-s32 vertex_layout_dimension(const Vertex_Layout *layout);
-s32 vertex_layout_size(const Vertex_Layout *layout);

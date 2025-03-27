@@ -68,12 +68,12 @@ int main() {
 
 	Font *font = create_font(DIR_FONTS "consola.ttf");
 	Font_Atlas *atlas = bake_font_atlas(font, 33, 126, 16);
-	text_draw_command = create_default_text_draw_command(atlas);
     
 	world = push_struct(pers, World);
 	init_world(world);
 
     init_render_queue(&entity_render_queue, MAX_RENDER_QUEUE_SIZE);
+    init_text_draw(atlas);
     init_geo_draw();
 
 	Player &player = world->player;
@@ -97,16 +97,28 @@ int main() {
         
         // Little uv offset as source textures have small transient border.
         const f32 uv_offset = 0.02f;
-		Vertex_Entity vertices[4] = { // center in bottom mid point of quad
+		const Vertex_Entity vertices[4] = { // center in bottom mid point of quad
 			{ vec3( 0.5f,  1.0f, 0.0f), vec2(1.0f - uv_offset, 1.0f - uv_offset), player.id },
 			{ vec3( 0.5f,  0.0f, 0.0f), vec2(1.0f - uv_offset, 0.0f + uv_offset), player.id },
 			{ vec3(-0.5f,  0.0f, 0.0f), vec2(0.0f + uv_offset, 0.0f + uv_offset), player.id },
 			{ vec3(-0.5f,  1.0f, 0.0f), vec2(0.0f + uv_offset, 1.0f - uv_offset), player.id },
 		};
-		Vertex_Component_Type components[] = { VERTEX_F32_3, VERTEX_F32_2, VERTEX_S32 };
-		player.draw_data.vertex_buffer_index = create_vertex_buffer(components, c_array_count(components), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
+        
+        const s32 vertex_buffer_index = create_vertex_buffer(vertices, c_array_count(vertices) * sizeof(Vertex_Entity), BUFFER_USAGE_STATIC);
+        
+        const Vertex_Array_Binding bindings[] = {
+            {
+                vertex_buffer_index, 3, {
+                    { VERTEX_F32_3, 0 },
+                    { VERTEX_F32_2, 0 },
+                    { VERTEX_S32,   1 },
+                }
+            },
+        };
+        
+		player.draw_data.vertex_array_index = create_vertex_array(bindings, c_array_count(bindings));
 
-		u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
+		const u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
 		player.draw_data.index_buffer_index = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
 	}
 
@@ -127,16 +139,28 @@ int main() {
         static const vec3 uv_scale = vec3(16.0f);
 		set_material_uniform_value(ground.draw_data.material_index, "u_uv_scale", &uv_scale);
 
-		Vertex_Entity vertices[] = {
+		const Vertex_Entity vertices[] = {
 			{ vec3( 0.5f,  0.5f, 0.0f), vec2(1.0f, 1.0f), ground.id },
 			{ vec3( 0.5f, -0.5f, 0.0f), vec2(1.0f, 0.0f), ground.id },
 			{ vec3(-0.5f, -0.5f, 0.0f), vec2(0.0f, 0.0f), ground.id },
 			{ vec3(-0.5f,  0.5f, 0.0f), vec2(0.0f, 1.0f), ground.id },
 		};
-		Vertex_Component_Type components[] = { VERTEX_F32_3, VERTEX_F32_2, VERTEX_S32 };
-		ground.draw_data.vertex_buffer_index = create_vertex_buffer(components, c_array_count(components), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
+        
+        const s32 vertex_buffer_index = create_vertex_buffer(vertices, c_array_count(vertices) * sizeof(Vertex_Entity), BUFFER_USAGE_STATIC);
+        
+        const Vertex_Array_Binding bindings[] = {
+            {
+                vertex_buffer_index, 3, {
+                    { VERTEX_F32_3, 0 },
+                    { VERTEX_F32_2, 0 },
+                    { VERTEX_S32,   1 },
+                }
+            },
+        };
+        
+		ground.draw_data.vertex_array_index = create_vertex_array(bindings, c_array_count(bindings));
 
-		u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
+		const u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
 		ground.draw_data.index_buffer_index = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
 	}
 
@@ -152,10 +176,10 @@ int main() {
 
 		cube.draw_data.material_index = material_index_list.cube;
 
-        static const vec3 uv_scale = vec3(1.0f);
+        const vec3 uv_scale = vec3(1.0f);
 		set_material_uniform_value(cube.draw_data.material_index, "u_uv_scale", &uv_scale);
         
-		Vertex_Entity vertices[] = {
+		const Vertex_Entity vertices[] = {
 			// Front face
 			{ vec3(-0.5f,  0.5f,  0.5f), vec2(0.0f, 0.0f), cube.id },
 			{ vec3( 0.5f,  0.5f,  0.5f), vec2(1.0f, 0.0f), cube.id },
@@ -192,10 +216,22 @@ int main() {
 			{ vec3(-0.5f, -0.5f,  0.5f), vec2(0.0f, 1.0f), cube.id },
 			{ vec3( 0.5f, -0.5f,  0.5f), vec2(1.0f, 1.0f), cube.id },
 		};
-		Vertex_Component_Type components[] = { VERTEX_F32_3, VERTEX_F32_2, VERTEX_S32 };
-		cube.draw_data.vertex_buffer_index = create_vertex_buffer(components, c_array_count(components), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
 
-		u32 indices[] = {
+        const s32 vertex_buffer_index = create_vertex_buffer(vertices, c_array_count(vertices) * sizeof(Vertex_Entity), BUFFER_USAGE_STATIC);
+
+        const Vertex_Array_Binding bindings[] = {
+            {
+                vertex_buffer_index, 3, {
+                    { VERTEX_F32_3, 0 },
+                    { VERTEX_F32_2, 0 },
+                    { VERTEX_S32,   1 },
+                }
+            },
+        };
+        
+		cube.draw_data.vertex_array_index = create_vertex_array(bindings, c_array_count(bindings));
+
+		const u32 indices[] = {
 			// Front face
 			0,   1,  2,  1,  3,  2,
 			// Back face
@@ -209,6 +245,7 @@ int main() {
 			// Top face
 			20, 22, 21, 21, 22, 23
 		};
+        
 		cube.draw_data.index_buffer_index = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
 	}
 
@@ -224,10 +261,21 @@ int main() {
 			{ vec3(-1.0f, -1.0f, 1.0f - F32_EPSILON), vec2(0.0f, 0.0f) },
 			{ vec3(-1.0f,  1.0f, 1.0f - F32_EPSILON), vec2(0.0f, 1.0f) },
 		};
-		Vertex_Component_Type components[] = { VERTEX_F32_3, VERTEX_F32_2 };
-		skybox.draw_data.vertex_buffer_index = create_vertex_buffer(components, c_array_count(components), (f32 *)vertices, c_array_count(vertices), BUFFER_USAGE_STATIC);
 
-		u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
+        const s32 vertex_buffer_index = create_vertex_buffer(vertices, c_array_count(vertices) * sizeof(Vertex_PU), BUFFER_USAGE_STATIC);
+
+        const Vertex_Array_Binding bindings[] = {
+            {
+                vertex_buffer_index, 2, {
+                    { VERTEX_F32_3, 0 },
+                    { VERTEX_F32_2, 0 },
+                }
+            },
+        };
+        
+		skybox.draw_data.vertex_array_index = create_vertex_array(bindings, c_array_count(bindings));
+        
+		const u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
 		skybox.draw_data.index_buffer_index = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
 	}
 
@@ -259,7 +307,6 @@ int main() {
         PROFILE_SCOPE("Game Frame");
  
 		poll_events(window);
-        
         tick(world, dt);
         
 		set_listener_pos(player.location);
@@ -286,6 +333,7 @@ int main() {
 		// @Cleanup: flush before text draw as its overwritten by skybox, fix.        
 		flush(&entity_render_queue);
         flush_geo_draw();
+        flush_text_draw();
         
         debug_scope {
             PROFILE_SCOPE("Debug Stats Draw");

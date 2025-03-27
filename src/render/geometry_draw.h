@@ -9,8 +9,8 @@ struct AABB;
 struct Geometry_Draw_Buffer {
     f32 *vertex_data = null;
     s32 vertex_count = 0;
-    s32 vertex_buffer_index = INVALID_INDEX;
-    s32 material_index      = INVALID_INDEX;
+    s32 vertex_array_index = INVALID_INDEX;
+    s32 material_index     = INVALID_INDEX;
 };
 
 inline Geometry_Draw_Buffer geometry_draw_buffer;

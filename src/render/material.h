@@ -15,7 +15,6 @@ struct Material {
 
 struct Material_Index_List {
 	s32 player;
-	s32 text;
 	s32 skybox;
 	s32 ground;
 	s32 cube;

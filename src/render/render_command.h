@@ -21,7 +21,6 @@ enum Render_Mode {
 };
 
 enum Render_Flag : u32 {
-    //RENDER_FLAG_ENTIRE_BUFFER  = 0x4,  // ignore offset/count, draw entire vertex/index buffer
     RENDER_FLAG_SCISSOR_TEST   = 0x1,
     RENDER_FLAG_CULL_FACE_TEST = 0x2,
     RENDER_FLAG_BLEND_TEST     = 0x4,
@@ -123,9 +122,9 @@ struct Render_Command {
     Depth_Test     depth_test;
     Stencil_Test   stencil_test;
 
-	s32 frame_buffer_index  = INVALID_INDEX;
-	s32 vertex_buffer_index = INVALID_INDEX;
-	s32 index_buffer_index  = INVALID_INDEX;
+	s32 frame_buffer_index = INVALID_INDEX;
+	s32 vertex_array_index = INVALID_INDEX;
+	s32 index_buffer_index = INVALID_INDEX;
 
     s32 shader_index  = INVALID_INDEX;
 	s32 texture_index = INVALID_INDEX;
