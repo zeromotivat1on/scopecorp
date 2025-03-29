@@ -36,7 +36,7 @@ struct Vertex_Array {
 };
 
 s32 create_vertex_buffer(const void *data, u32 size, Buffer_Usage_Type usage);
-s32 create_vertex_array(const Vertex_Array_Binding *bindings, s32 binding_count);
 void set_vertex_buffer_data(s32 vertex_buffer_index, const void *data, u32 size, u32 offset);
 
+s32 create_vertex_array(const Vertex_Array_Binding *bindings, s32 binding_count);
 s32 vertex_array_vertex_count(s32 vertex_array_index);

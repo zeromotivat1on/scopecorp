@@ -562,7 +562,6 @@ s32 create_vertex_array(const Vertex_Array_Binding *bindings, s32 binding_count)
             else
                 glVertexAttribPointer(binding_index, dimension, data_type, component.normalize, vertex_size, (void *)(u64)offset);
             
-            assert(component.advance_rate <= 4);
             glVertexAttribDivisor(binding_index, component.advance_rate);
 
             binding_index++;
