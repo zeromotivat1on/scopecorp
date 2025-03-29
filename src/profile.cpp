@@ -11,11 +11,10 @@
 #include "game/game.h"
 #include "game/world.h"
 
+#include "render/render_stats.h"
 #include "render/text.h"
 #include "render/viewport.h"
 #include "render/frame_buffer.h"
-
-s32 draw_call_count = 0;
 
 Scope_Timer::Scope_Timer(const char *info)
     : info(info), start(performance_counter()) {}
@@ -25,9 +24,12 @@ Scope_Timer::~Scope_Timer() {
     log("%s %.2fms", info, seconds * 1000.0f);
 }
 
-void draw_dev_stats(const Font_Atlas *atlas, const World *world) {
+void draw_dev_stats() {
+    PROFILE_SCOPE(__FUNCTION__);
+    
+    const auto *atlas = text_draw_buffer.atlas;
 	const Player &player = world->player;
-	const Camera &camera = *desired_camera((World*)world);
+	const Camera &camera = *desired_camera(world);
 
 	static char text[256];
 	const f32 padding = atlas->font_size * 0.5f;
@@ -49,7 +51,7 @@ void draw_dev_stats(const Font_Atlas *atlas, const World *world) {
 	}
 
 	{   // Runtime stats.
-		text_size = (s32)stbsp_snprintf(text, sizeof(text), "%.2fms %.ffps %dx%d %s", world->dt * 1000.0f, 1 / world->dt, viewport.width, viewport.height, build_type_name);
+		text_size = (s32)stbsp_snprintf(text, sizeof(text), "%.2fms %.ffps %dx%d %s", average_dt * 1000.0f, average_fps, viewport.width, viewport.height, build_type_name);
 		pos.x = viewport.width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
 		pos.y = (f32)viewport.height - atlas->line_height;
 		draw_text_with_shadow(text, text_size, pos, vec3_white, shadow_offset, vec3_black);

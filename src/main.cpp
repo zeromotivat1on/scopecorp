@@ -14,6 +14,7 @@
 #include "render/viewport.h"
 #include "render/render_command.h"
 #include "render/render_registry.h"
+#include "render/render_stats.h"
 #include "render/geometry_draw.h"
 #include "render/text.h"
 
@@ -296,7 +297,7 @@ int main() {
 
 	world->ed_camera = camera;
 
-	f32 dt = 0.0f;
+	delta_time = 0.0f;
 	s64 begin_counter = performance_counter();
 	const f32 frequency = (f32)performance_frequency();
 
@@ -307,39 +308,27 @@ int main() {
         PROFILE_SCOPE("Game Frame");
  
 		poll_events(window);
-        tick(world, dt);
-        
+        tick(world, delta_time);        
 		set_listener_pos(player.location);
-		check_shader_hot_reload_queue(&shader_hot_reload_queue, dt);
+		check_shader_hot_reload_queue(&shader_hot_reload_queue, delta_time);
 
         Render_Command framebuffer_command;
         framebuffer_command.frame_buffer_index = viewport.frame_buffer_index;
         submit(&framebuffer_command);
         
 		clear_screen(vec3_white, CLEAR_FLAG_COLOR | CLEAR_FLAG_DEPTH | CLEAR_FLAG_STENCIL);
-		draw_world(world);
 
-        const vec3 player_center_location = player.location + vec3(0.0f, player.scale.y * 0.5f, 0.0f);
-        draw_geo_line(player_center_location, player_center_location + normalize(player.velocity) * 0.5f, vec3_red);
+        draw_world(world);
 
-        if (player.collide_aabb_index != INVALID_INDEX) {
-            draw_geo_aabb(world->aabbs[player.aabb_index],         vec3_green);
-            draw_geo_aabb(world->aabbs[player.collide_aabb_index], vec3_green);
-        }
+        debug_scope { draw_geo_debug(); }
+        debug_scope { draw_dev_stats(); }
+
+        update_render_stats();
         
-        // Send draw call count to dev stats.
-        draw_call_count = entity_render_queue.size;
-
-		// @Cleanup: flush before text draw as its overwritten by skybox, fix.        
 		flush(&entity_render_queue);
         flush_geo_draw();
         flush_text_draw();
-        
-        debug_scope {
-            PROFILE_SCOPE("Debug Stats Draw");
-			draw_dev_stats(atlas, world);
-		}
-
+                
         framebuffer_command.flags = RENDER_FLAG_RESET;
         submit(&framebuffer_command);
 
@@ -352,12 +341,12 @@ int main() {
 		clear(frame);
 
 		const s64 end_counter = performance_counter();
-		dt = (end_counter - begin_counter) / frequency;
+		delta_time = (end_counter - begin_counter) / frequency;
 		begin_counter = end_counter;
 
 		debug_scope {
 			// If dt is too large, we could have resumed from a breakpoint.
-			if (dt > 1.0f) dt = 0.16f;
+			if (delta_time > 1.0f) delta_time = 0.16f;
 		}
 	}
 

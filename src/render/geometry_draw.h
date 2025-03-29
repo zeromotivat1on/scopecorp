@@ -17,6 +17,9 @@ inline Geometry_Draw_Buffer geometry_draw_buffer;
 
 void init_geo_draw();
 void draw_geo_line(vec3 start, vec3 end, vec3 color);
-void draw_geo_box(vec3 points[8], vec3 color);
+void draw_geo_arrow(vec3 start, vec3 end, vec3 color);
+void draw_geo_box(const vec3 points[8], vec3 color);
 void draw_geo_aabb(const AABB &aabb, vec3 color);
 void flush_geo_draw();
+
+void draw_geo_debug();

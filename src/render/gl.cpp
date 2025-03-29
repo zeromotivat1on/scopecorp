@@ -1002,10 +1002,10 @@ void rescale_font_atlas(Font_Atlas *atlas, s16 font_size) {
 		// @Cleanup: looks nasty, should come up with better solution.
 		// Now we bake bitmap using stbtt and 'rescale' it to font size square one.
 		// Maybe use stbtt_MakeGlyphBitmap at least?
-		for (int y = 0; y < h; ++y) {
-			for (int x = 0; x < w; ++x) {
-				int src_index = y * w + x;
-				int dest_index = (y + y_offset) * font_size + (x + x_offset);
+		for (s32 y = 0; y < h; ++y) {
+			for (s32 x = 0; x < w; ++x) {
+				s32 src_index = y * w + x;
+				s32 dest_index = (y + y_offset) * font_size + (x + x_offset);
 				if (dest_index >= 0 && dest_index < font_size * font_size)
 					bitmap[dest_index] = stb_bitmap[src_index];
 			}

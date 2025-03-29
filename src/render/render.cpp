@@ -2,6 +2,7 @@
 #include "render/viewport.h"
 #include "render/render_registry.h"
 #include "render/render_command.h"
+#include "render/render_stats.h"
 #include "render/geometry_draw.h"
 #include "render/text.h"
 
@@ -282,7 +283,52 @@ void draw_geo_line(vec3 start, vec3 end, vec3 color) {
     geometry_draw_buffer.vertex_count += 2;
 }
 
-void draw_geo_box(vec3 points[8], vec3 color) {
+void draw_geo_arrow(vec3 start, vec3 end, vec3 color) {
+    static const f32 size = 0.04f;
+    static const f32 arrow_step = 30.0f; // In degrees
+    static const f32 arrow_sin[45] = {
+        0.0f, 0.5f, 0.866025f, 1.0f, 0.866025f, 0.5f, -0.0f, -0.5f, -0.866025f,
+        -1.0f, -0.866025f, -0.5f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f
+    };
+    static const f32 arrow_cos[45] = {
+        1.0f, 0.866025f, 0.5f, -0.0f, -0.5f, -0.866026f, -1.0f, -0.866025f, -0.5f, 0.0f,
+        0.5f, 0.866026f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f
+    };
+
+    draw_geo_line(start, end, color);
+
+    vec3 forward     = normalize(end - start);
+	const vec3 right = normalize(vec3_up.cross(forward));
+	const vec3 up    = forward.cross(right);
+    forward *= size;
+    
+    f32 degrees = 0.0f;
+    for (int i = 0; degrees < 360.0f; degrees += arrow_step, ++i) {
+        f32 scale;
+        vec3 v1, v2;
+
+        scale = 0.5f * size * arrow_cos[i];
+        v1 = (end - forward) + (right * scale);
+
+        scale = 0.5f * size * arrow_sin[i];
+        v1 += up * scale;
+
+        scale = 0.5f * size * arrow_cos[i + 1];
+        v2 = (end - forward) + (right * scale);
+
+        scale = 0.5f * size * arrow_sin[i + 1];
+        v2 += up * scale;
+
+        draw_geo_line(v1, end, color);
+        draw_geo_line(v1, v2,  color);
+    }
+}
+
+void draw_geo_box(const vec3 points[8], vec3 color) {
     for (int i = 0; i < 4; ++i) {
         draw_geo_line(points[i],     points[(i + 1) % 4],       color);
         draw_geo_line(points[i + 4], points[((i + 1) % 4) + 4], color);
@@ -304,12 +350,12 @@ void draw_geo_aabb(const AABB &aabb, vec3 color) {
 }
 
 void flush_geo_draw() {
-    PROFILE_SCOPE("Flush Geometry Render Queue");
+    PROFILE_SCOPE(__FUNCTION__);
     
     if (geometry_draw_buffer.vertex_count == 0) return;
     
     Render_Command command = {};
-    command.flags = RENDER_FLAG_SCISSOR_TEST | RENDER_FLAG_CULL_FACE_TEST | RENDER_FLAG_DEPTH_TEST | RENDER_FLAG_RESET;
+    command.flags = RENDER_FLAG_SCISSOR_TEST | RENDER_FLAG_CULL_FACE_TEST | RENDER_FLAG_RESET;
     command.render_mode  = RENDER_LINES;
     command.polygon_mode = POLYGON_FILL;
     command.scissor_test.x      = viewport.x;
@@ -339,6 +385,17 @@ void flush_geo_draw() {
     submit(&command);
     
     geometry_draw_buffer.vertex_count = 0;
+}
+
+void draw_geo_debug() {
+    const auto &player = world->player;
+    const vec3 player_center_location = player.location + vec3(0.0f, player.scale.y * 0.5f, 0.0f);
+    draw_geo_arrow(player_center_location, player_center_location + normalize(player.velocity) * 0.5f, vec3_red);
+
+    if (player.collide_aabb_index != INVALID_INDEX) {
+        draw_geo_aabb(world->aabbs[player.aabb_index],         vec3_green);
+        draw_geo_aabb(world->aabbs[player.collide_aabb_index], vec3_green);
+    }
 }
 
 void init_text_draw(Font_Atlas *atlas) {
@@ -437,6 +494,8 @@ void draw_text_with_shadow(const char *text, u32 text_size, vec2 pos, vec3 color
 }
 
 void flush_text_draw() {
+    PROFILE_SCOPE(__FUNCTION__);
+
     if (text_draw_buffer.char_count == 0) return;
     
     Render_Command command = {};
@@ -552,8 +611,8 @@ s32 find_material_uniform(s32 material_index, const char *name) {
 }
 
 void set_material_uniforms(s32 material_index, const s32 *uniform_indices, s32 count) {
-	auto &material     = render_registry.materials[material_index];
-	const auto &shader = render_registry.shaders[material.shader_index];
+    auto &material = render_registry.materials[material_index];
+    assert(material.uniform_count == 0);
 
     material.uniform_count = count;
     memcpy(material.uniform_indices, uniform_indices, count * sizeof(s32));
@@ -676,4 +735,25 @@ bool parse_shader_source(const char *shader_src, char *vertex_src, char *fragmen
     }
 
     return true;
+}
+
+void update_render_stats() {
+    constexpr s32 dt_frame_count = 1024;
+    static f32 previous_dt_table[dt_frame_count];
+    
+    frame_index++;
+    previous_dt_table[frame_index % dt_frame_count] = delta_time;
+
+    if (frame_index % dt_frame_count == 0) {
+        f32 dt_sum  = 0.0f;
+        for (s32 i = 0; i < dt_frame_count; ++i)
+            dt_sum  += previous_dt_table[i];
+        
+        average_dt  = dt_sum / dt_frame_count;
+        average_fps = 1.0f / average_dt;
+    }
+    
+    draw_call_count = entity_render_queue.size +
+        (s32)(geometry_draw_buffer.vertex_count > 0) +
+        (s32)(text_draw_buffer.char_count > 0);
 }
