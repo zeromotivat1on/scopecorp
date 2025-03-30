@@ -215,12 +215,12 @@ void submit(const Render_Command *command) {
     if (command->shader_index != INVALID_INDEX) {
         const auto &shader = render_registry.shaders[command->shader_index];
         glUseProgram(shader.id);
-    }
-     
-	for (s32 i = 0; i < command->uniform_count; ++i) {
-        send_uniform_value_to_gpu(command->shader_index,
-                                  command->uniform_indices[i],
-                                  command->uniform_value_offsets[i]);
+        
+        for (s32 i = 0; i < command->uniform_count; ++i) {
+            send_uniform_value_to_gpu(command->shader_index,
+                                      command->uniform_indices[i],
+                                      command->uniform_value_offsets[i]);
+        }
     }
 
 	if (command->texture_index != INVALID_INDEX) {
