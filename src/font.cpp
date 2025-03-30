@@ -45,6 +45,11 @@ s32 line_width_px(const Font_Atlas *atlas, const char *text, s32 text_size) {
 			continue;
 		}
 
+        if (text[i] == '\n') {
+            width = 0;
+            continue;
+        }
+
 		const u32 ci = text[i] - atlas->start_charcode;
 		const Font_Glyph_Metric *metric = atlas->metrics + ci;
 		width += metric->advance_width;

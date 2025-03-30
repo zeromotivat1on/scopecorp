@@ -175,9 +175,13 @@ void resize_viewport(Viewport *viewport, s16 width, s16 height) {
 		break;
 	}
 
+
     if (viewport->frame_buffer_index != INVALID_INDEX) {
-        recreate_frame_buffer(viewport->frame_buffer_index, viewport->width, viewport->height);
-        log("Recreated viewport frame buffer %dx%d", viewport->width, viewport->height);
+        const s16 width  = (s16)((f32)viewport->width  * viewport->resolution_scale);
+        const s16 height = (s16)((f32)viewport->height * viewport->resolution_scale);
+    
+        recreate_frame_buffer(viewport->frame_buffer_index, width, height);
+        log("Recreated viewport frame buffer %dx%d", width, height);
     }
 }
 
@@ -193,14 +197,16 @@ void draw_world(const World *world) {
 }
 
 void draw_entity(const Entity *e) {
+    const auto &viewport_frame_buffer = render_registry.frame_buffers[viewport.frame_buffer_index];
+
     Render_Command command = {};
     command.flags = RENDER_FLAG_SCISSOR | RENDER_FLAG_CULL_FACE | RENDER_FLAG_BLEND | RENDER_FLAG_DEPTH | RENDER_FLAG_RESET;
     command.render_mode  = RENDER_TRIANGLES;
     command.polygon_mode = POLYGON_FILL;
     command.scissor.x      = 0;
     command.scissor.y      = 0;
-    command.scissor.width  = viewport.width;
-    command.scissor.height = viewport.height;
+    command.scissor.width  = viewport_frame_buffer.width;
+    command.scissor.height = viewport_frame_buffer.height;
     command.cull_face.type    = CULL_FACE_BACK;
     command.cull_face.winding = WINDING_COUNTER_CLOCKWISE;
     command.blend.source      = BLEND_SOURCE_ALPHA;
@@ -382,15 +388,17 @@ void flush_geo_draw() {
     PROFILE_SCOPE(__FUNCTION__);
     
     if (geometry_draw_buffer.vertex_count == 0) return;
-    
+
+    const auto &viewport_frame_buffer = render_registry.frame_buffers[viewport.frame_buffer_index];
+        
     Render_Command command = {};
     command.flags = RENDER_FLAG_SCISSOR | RENDER_FLAG_CULL_FACE | RENDER_FLAG_RESET;
     command.render_mode  = RENDER_LINES;
     command.polygon_mode = POLYGON_FILL;
     command.scissor.x      = 0;
     command.scissor.y      = 0;
-    command.scissor.width  = viewport.width;
-    command.scissor.height = viewport.height;
+    command.scissor.width  = viewport_frame_buffer.width;
+    command.scissor.height = viewport_frame_buffer.height;
     command.cull_face.type    = CULL_FACE_BACK;
     command.cull_face.winding = WINDING_COUNTER_CLOCKWISE;
     command.depth.function = DEPTH_LESS;
@@ -526,15 +534,17 @@ void flush_text_draw() {
     PROFILE_SCOPE(__FUNCTION__);
 
     if (text_draw_buffer.char_count == 0) return;
-    
+
+    const auto &viewport_frame_buffer = render_registry.frame_buffers[viewport.frame_buffer_index];
+        
     Render_Command command = {};
     command.flags = RENDER_FLAG_SCISSOR | RENDER_FLAG_CULL_FACE | RENDER_FLAG_BLEND | RENDER_FLAG_DEPTH | RENDER_FLAG_RESET;
 	command.render_mode  = RENDER_TRIANGLE_STRIP;
     command.polygon_mode = POLYGON_FILL;
     command.scissor.x      = 0;
     command.scissor.y      = 0;
-    command.scissor.width  = viewport.width;
-    command.scissor.height = viewport.height;
+    command.scissor.width  = viewport_frame_buffer.width;
+    command.scissor.height = viewport_frame_buffer.height;
     command.cull_face.type    = CULL_FACE_BACK;
     command.cull_face.winding = WINDING_COUNTER_CLOCKWISE;
     command.blend.source      = BLEND_SOURCE_ALPHA;

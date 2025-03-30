@@ -18,6 +18,8 @@ struct Viewport {
     s32 frame_buffer_index = INVALID_INDEX;
 
     mat4 orthographic_projection;
+
+    f32 resolution_scale = 1.0f; // applied for frame buffer
 };
 
 inline Viewport viewport;

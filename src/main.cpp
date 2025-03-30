@@ -50,6 +50,7 @@ int main() {
 	init_render_registry(&render_registry);
 
     viewport.aspect_type = VIEWPORT_4X3;
+    viewport.resolution_scale = 1.0f;
     
     const Texture_Format_Type color_attachments[] = { TEXTURE_FORMAT_RGB_8, TEXTURE_FORMAT_RED_INTEGER };
     viewport.frame_buffer_index = create_frame_buffer(window->width, window->height,
@@ -284,6 +285,8 @@ int main() {
 
     log("Startup took %.2fs", (performance_counter() - startup_counter) / (f32)performance_frequency());
     PROFILE_END(startup);
+
+    const auto &viewport_frame_buffer = render_registry.frame_buffers[viewport.frame_buffer_index];
     
 	while (alive(window)) {
         PROFILE_SCOPE("Game Frame");
@@ -297,12 +300,12 @@ int main() {
         frame_buffer_command.flags = RENDER_FLAG_VIEWPORT | RENDER_FLAG_SCISSOR;
         frame_buffer_command.viewport.x = 0;
         frame_buffer_command.viewport.y = 0;
-        frame_buffer_command.viewport.width  = viewport.width;
-        frame_buffer_command.viewport.height = viewport.height;
+        frame_buffer_command.viewport.width  = viewport_frame_buffer.width;
+        frame_buffer_command.viewport.height = viewport_frame_buffer.height;
         frame_buffer_command.scissor.x = 0;
         frame_buffer_command.scissor.y = 0;
-        frame_buffer_command.scissor.width  = viewport.width;
-        frame_buffer_command.scissor.height = viewport.height;
+        frame_buffer_command.scissor.width  = viewport_frame_buffer.width;
+        frame_buffer_command.scissor.height = viewport_frame_buffer.height;
         frame_buffer_command.frame_buffer_index = viewport.frame_buffer_index;
         submit(&frame_buffer_command);
 

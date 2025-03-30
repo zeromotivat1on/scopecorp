@@ -392,8 +392,8 @@ s32 read_frame_buffer_pixel(s32 fbi, s32 color_attachment_index, s32 x, s32 y) {
     glReadBuffer(GL_COLOR_ATTACHMENT0 + color_attachment_index);
 
     s32 pixel = -1;
-    x -= viewport.x;
-    y = viewport.height - y - 1; // invert as gl framebuffer y goes up, but mouse y goes down
+    x = (s32)((f32)(x - viewport.x) * viewport.resolution_scale);
+    y = (s32)((f32)(viewport.height - y - 1) * viewport.resolution_scale);
     glReadPixels(x, y, 1, 1, GL_RED_INTEGER, GL_INT, &pixel);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     

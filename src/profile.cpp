@@ -7,14 +7,15 @@
 
 #include "os/time.h"
 #include "os/input.h"
+#include "os/window.h"
 
 #include "game/game.h"
 #include "game/world.h"
 
-#include "render/render_stats.h"
 #include "render/text.h"
 #include "render/viewport.h"
-#include "render/frame_buffer.h"
+#include "render/render_stats.h"
+#include "render/render_registry.h"
 
 Scope_Timer::Scope_Timer(const char *info)
     : info(info), start(performance_counter()) {}
@@ -51,30 +52,46 @@ void draw_dev_stats() {
 	}
 
 	{   // Runtime stats.
-		text_size = (s32)stbsp_snprintf(text, sizeof(text), "%.2fms %.ffps %dx%d %s", average_dt * 1000.0f, average_fps, viewport.width, viewport.height, build_type_name);
-		pos.x = viewport.width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
+		text_size = (s32)stbsp_snprintf(text, sizeof(text), "%.2fms %.ffps %s", average_dt * 1000.0f, average_fps, build_type_name);
+		pos.x = viewport.width - line_width_px(atlas, text, text_size) - padding;
 		pos.y = (f32)viewport.height - atlas->line_height;
 		draw_text_with_shadow(text, text_size, pos, vec3_white, shadow_offset, vec3_black);
 
-        text_size = (s32)stbsp_snprintf(text, sizeof(text), "draw calls %d", draw_call_count);
-		pos.x = viewport.width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
+        text_size = (s32)stbsp_snprintf(text, sizeof(text), "window %dx%d", window->width, window->height);
+		pos.x = viewport.width - line_width_px(atlas, text, text_size) - padding;
 		pos.y -= atlas->line_height;
 		draw_text_with_shadow(text, text_size, pos, vec3_white, shadow_offset, vec3_black);
 
+        text_size = (s32)stbsp_snprintf(text, sizeof(text), "viewport %dx%d", viewport.width, viewport.height);
+		pos.x = viewport.width - line_width_px(atlas, text, text_size) - padding;
+		pos.y -= atlas->line_height;
+		draw_text_with_shadow(text, text_size, pos, vec3_white, shadow_offset, vec3_black);
+
+        const auto &viewport_frame_buffer = render_registry.frame_buffers[viewport.frame_buffer_index];
+        text_size = (s32)stbsp_snprintf(text, sizeof(text), "framebuffer %dx%d", viewport_frame_buffer.width, viewport_frame_buffer.height);
+		pos.x = viewport.width - line_width_px(atlas, text, text_size) - padding;
+		pos.y -= atlas->line_height;
+		draw_text_with_shadow(text, text_size, pos, vec3_white, shadow_offset, vec3_black);
+        
+        text_size = (s32)stbsp_snprintf(text, sizeof(text), "draw calls %d", draw_call_count);
+		pos.x = viewport.width - line_width_px(atlas, text, text_size) - padding;
+		pos.y -= 3 * atlas->line_height;
+		draw_text_with_shadow(text, text_size, pos, vec3_white, shadow_offset, vec3_black);
+
         text_size = (s32)stbsp_snprintf(text, sizeof(text), "selected entity id %d", world->selected_entity_id);
-		pos.x = viewport.width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
+		pos.x = viewport.width - line_width_px(atlas, text, text_size) - padding;
 		pos.y -= atlas->line_height;
 		draw_text_with_shadow(text, text_size, pos, vec3_white, shadow_offset, vec3_black);
 	}
 
 	{   // Controls.
 		text_size = (s32)stbsp_snprintf(text, sizeof(text), "F1 %s F2 %s F3 %s", to_string(game_state.mode), to_string(game_state.camera_behavior), to_string(game_state.player_movement_behavior));
-		pos.x = viewport.width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
+		pos.x = viewport.width - line_width_px(atlas, text, text_size) - padding;
 		pos.y = padding;
 		draw_text_with_shadow(text, text_size, pos, vec3_white, shadow_offset, vec3_black);
 
 		text_size = (s32)stbsp_snprintf(text, sizeof(text), "Shift/Control + Arrows - force move/rotate game camera");
-		pos.x = viewport.width - line_width_px(atlas, text, (s32)strlen(text)) - padding;
+		pos.x = viewport.width - line_width_px(atlas, text, text_size) - padding;
 		pos.y += atlas->line_height;
 		draw_text_with_shadow(text, text_size, pos, vec3_white, shadow_offset, vec3_black);
 	}
