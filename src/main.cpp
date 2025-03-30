@@ -24,8 +24,6 @@
 #include "game/game.h"
 #include "editor/hot_reload.h"
 
-extern s32 draw_call_count;
-
 int main() {
     PROFILE_START(startup, "Startup");    
     const s64 startup_counter = performance_counter();
@@ -51,9 +49,12 @@ int main() {
     
 	init_render_registry(&render_registry);
 
-    const Texture_Format_Type color_attachment_formats[] = { TEXTURE_FORMAT_RGB_8, TEXTURE_FORMAT_RED_INTEGER };
-    const Texture_Format_Type depth_attachment_format = TEXTURE_FORMAT_DEPTH_24_STENCIL_8;
-    viewport.frame_buffer_index = create_frame_buffer(window->width, window->height, color_attachment_formats, c_array_count(color_attachment_formats), depth_attachment_format);
+    viewport.aspect_type = VIEWPORT_4X3;
+    
+    const Texture_Format_Type color_attachments[] = { TEXTURE_FORMAT_RGB_8, TEXTURE_FORMAT_RED_INTEGER };
+    viewport.frame_buffer_index = create_frame_buffer(window->width, window->height,
+                                                      color_attachments, COUNT(color_attachments),
+                                                      TEXTURE_FORMAT_DEPTH_24_STENCIL_8);
 
 	load_game_textures(&texture_index_list);
 	compile_game_shaders(&shader_index_list);
@@ -63,7 +64,7 @@ int main() {
     init_audio_context();
 	load_game_sounds(&sounds);
 
-	Hot_Reload_List hot_reload_list = {0};
+	Hot_Reload_List hot_reload_list = {};
 	register_hot_reload_dir(&hot_reload_list, DIR_SHADERS, on_shader_changed_externally);
 	start_hot_reload_thread(&hot_reload_list);
 
@@ -110,12 +111,12 @@ int main() {
         binding.layout[0] = { VERTEX_F32_3, 0 };
         binding.layout[1] = { VERTEX_F32_2, 0 };
         binding.layout[2] = { VERTEX_S32,   1 };
-        binding.vertex_buffer_index = create_vertex_buffer(vertices, c_array_count(vertices) * sizeof(Vertex_Entity), BUFFER_USAGE_STATIC);
+        binding.vertex_buffer_index = create_vertex_buffer(vertices, COUNT(vertices) * sizeof(Vertex_Entity), BUFFER_USAGE_STATIC);
         
 		player.draw_data.vertex_array_index = create_vertex_array(&binding, 1);
 
 		const u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
-		player.draw_data.index_buffer_index = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
+		player.draw_data.index_buffer_index = create_index_buffer(indices, COUNT(indices), BUFFER_USAGE_STATIC);
 	}
 
 	Static_Mesh &ground = world->static_meshes[create_static_mesh(world)];
@@ -147,12 +148,12 @@ int main() {
         binding.layout[0] = { VERTEX_F32_3, 0 };
         binding.layout[1] = { VERTEX_F32_2, 0 };
         binding.layout[2] = { VERTEX_S32,   1 };
-        binding.vertex_buffer_index = create_vertex_buffer(vertices, c_array_count(vertices) * sizeof(Vertex_Entity), BUFFER_USAGE_STATIC);
+        binding.vertex_buffer_index = create_vertex_buffer(vertices, COUNT(vertices) * sizeof(Vertex_Entity), BUFFER_USAGE_STATIC);
         
 		ground.draw_data.vertex_array_index = create_vertex_array(&binding, 1);
 
 		const u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
-		ground.draw_data.index_buffer_index = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
+		ground.draw_data.index_buffer_index = create_index_buffer(indices, COUNT(indices), BUFFER_USAGE_STATIC);
 	}
 
 	Static_Mesh &cube = world->static_meshes[create_static_mesh(world)];
@@ -213,7 +214,7 @@ int main() {
         binding.layout[0] = { VERTEX_F32_3, 0 };
         binding.layout[1] = { VERTEX_F32_2, 0 };
         binding.layout[2] = { VERTEX_S32,   1 };
-        binding.vertex_buffer_index = create_vertex_buffer(vertices, c_array_count(vertices) * sizeof(Vertex_Entity), BUFFER_USAGE_STATIC);
+        binding.vertex_buffer_index = create_vertex_buffer(vertices, COUNT(vertices) * sizeof(Vertex_Entity), BUFFER_USAGE_STATIC);
                 
 		cube.draw_data.vertex_array_index = create_vertex_array(&binding, 1);
 
@@ -232,7 +233,7 @@ int main() {
 			20, 22, 21, 21, 22, 23
 		};
         
-		cube.draw_data.index_buffer_index = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
+		cube.draw_data.index_buffer_index = create_index_buffer(indices, COUNT(indices), BUFFER_USAGE_STATIC);
 	}
 
 	Skybox &skybox = world->skybox;
@@ -252,12 +253,12 @@ int main() {
         binding.layout_size = 2;
         binding.layout[0] = { VERTEX_F32_3, 0 };
         binding.layout[1] = { VERTEX_F32_2, 0 };
-        binding.vertex_buffer_index = create_vertex_buffer(vertices, c_array_count(vertices) * sizeof(Vertex_PU), BUFFER_USAGE_STATIC);
+        binding.vertex_buffer_index = create_vertex_buffer(vertices, COUNT(vertices) * sizeof(Vertex_PU), BUFFER_USAGE_STATIC);
                 
 		skybox.draw_data.vertex_array_index = create_vertex_array(&binding, 1);
         
 		const u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
-		skybox.draw_data.index_buffer_index = create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
+		skybox.draw_data.index_buffer_index = create_index_buffer(indices, COUNT(indices), BUFFER_USAGE_STATIC);
 	}
 
 	Camera &camera = world->camera;
@@ -286,18 +287,33 @@ int main() {
     
 	while (alive(window)) {
         PROFILE_SCOPE("Game Frame");
- 
+
 		poll_events(window);
         tick(world, delta_time);        
 		set_listener_pos(player.location);
 		check_shader_hot_reload_queue(&shader_hot_reload_queue, delta_time);
 
-        Render_Command framebuffer_command;
-        framebuffer_command.frame_buffer_index = viewport.frame_buffer_index;
-        submit(&framebuffer_command);
-        
-		clear_screen(vec3_white, CLEAR_FLAG_COLOR | CLEAR_FLAG_DEPTH | CLEAR_FLAG_STENCIL);
+        Render_Command frame_buffer_command = {};
+        frame_buffer_command.flags = RENDER_FLAG_VIEWPORT | RENDER_FLAG_SCISSOR;
+        frame_buffer_command.viewport.x = 0;
+        frame_buffer_command.viewport.y = 0;
+        frame_buffer_command.viewport.width  = viewport.width;
+        frame_buffer_command.viewport.height = viewport.height;
+        frame_buffer_command.scissor.x = 0;
+        frame_buffer_command.scissor.y = 0;
+        frame_buffer_command.scissor.width  = viewport.width;
+        frame_buffer_command.scissor.height = viewport.height;
+        frame_buffer_command.frame_buffer_index = viewport.frame_buffer_index;
+        submit(&frame_buffer_command);
 
+        {
+            Render_Command command = {};
+            command.flags = RENDER_FLAG_CLEAR;
+            command.clear.color = vec3_white;
+            command.clear.flags = CLEAR_FLAG_COLOR | CLEAR_FLAG_DEPTH | CLEAR_FLAG_STENCIL;
+            submit(&command);
+        }
+        
         draw_world(world);
 
         debug_scope { draw_geo_debug(); }
@@ -308,12 +324,19 @@ int main() {
 		flush(&entity_render_queue);
         flush_geo_draw();
         flush_text_draw();
-                
-        framebuffer_command.flags = RENDER_FLAG_RESET;
-        submit(&framebuffer_command);
+         
+        frame_buffer_command.flags = RENDER_FLAG_RESET;
+        submit(&frame_buffer_command);
 
-        clear_screen(vec3_red, CLEAR_FLAG_COLOR);
-        render_frame_buffer(viewport.frame_buffer_index, 0);
+        {
+            Render_Command command = {};
+            command.flags = RENDER_FLAG_CLEAR;
+            command.clear.color = vec3_black;
+            command.clear.flags = CLEAR_FLAG_COLOR;
+            submit(&command);
+        }
+        
+        draw_frame_buffer(viewport.frame_buffer_index, 0);
         
 		swap_buffers(window);
         PROFILE_FRAME("Game Frame");

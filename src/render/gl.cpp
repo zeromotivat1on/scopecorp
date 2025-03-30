@@ -21,18 +21,14 @@
 
 #include "os/file.h"
 
-#include <malloc.h>
 #include <string.h>
 
-void clear_screen(vec3 color, u32 flags) {
-	glClearColor(color.x, color.y, color.z, 1.0f);
-    glDepthMask(GL_TRUE);
-    
-    if (flags & CLEAR_FLAG_COLOR)   glClear(GL_COLOR_BUFFER_BIT);
-    if (flags & CLEAR_FLAG_DEPTH)   glClear(GL_DEPTH_BUFFER_BIT);
-    if (flags & CLEAR_FLAG_STENCIL) glClear(GL_STENCIL_BUFFER_BIT);
-    
-    glDepthMask(GL_FALSE);
+static u32 gl_clear_buffer_bits(u32 flags) {
+    u32 bits = 0;
+    if (flags & CLEAR_FLAG_COLOR)   bits |= GL_COLOR_BUFFER_BIT;
+    if (flags & CLEAR_FLAG_DEPTH)   bits |= GL_DEPTH_BUFFER_BIT;
+    if (flags & CLEAR_FLAG_STENCIL) bits |= GL_STENCIL_BUFFER_BIT;
+    return bits;
 }
 
 static s32 gl_draw_mode(Render_Mode mode) {
@@ -69,8 +65,8 @@ static s32 gl_winding(Winding_Type type) {
 
 static s32 gl_blend_function(Blend_Test_Function_Type function) {
 	switch (function) {
-	case BLEND_TEST_SOURCE_ALPHA:           return GL_SRC_ALPHA;
-	case BLEND_TEST_ONE_MINUS_SOURCE_ALPHA: return GL_ONE_MINUS_SRC_ALPHA;
+	case BLEND_SOURCE_ALPHA:           return GL_SRC_ALPHA;
+	case BLEND_ONE_MINUS_SOURCE_ALPHA: return GL_ONE_MINUS_SRC_ALPHA;
 	default:
 		error("Failed to get GL winding function from function %d", function);
 		return -1;
@@ -89,7 +85,7 @@ static s32 gl_cull_face(Cull_Face_Type type) {
 
 static s32 gl_depth_function(Depth_Test_Function_Type function) {
 	switch (function) {
-	case DEPTH_TEST_LESS: return GL_LESS;
+	case DEPTH_LESS: return GL_LESS;
 	default:
 		error("Failed to get GL depth test function from function %d", function);
 		return -1;
@@ -98,8 +94,8 @@ static s32 gl_depth_function(Depth_Test_Function_Type function) {
 
 static s32 gl_depth_mask(Depth_Test_Mask_Type mask) {
 	switch (mask) {
-	case DEPTH_TEST_ENABLE:  return GL_TRUE;
-	case DEPTH_TEST_DISABLE: return GL_FALSE;
+	case DEPTH_ENABLE:  return GL_TRUE;
+	case DEPTH_DISABLE: return GL_FALSE;
 	default:
 		error("Failed to get GL depth test mask from mask %d", mask);
 		return -1;
@@ -108,8 +104,8 @@ static s32 gl_depth_mask(Depth_Test_Mask_Type mask) {
 
 static s32 gl_stencil_operation(Stencil_Test_Operation_Type operation) {
 	switch (operation) {
-	case STENCIL_TEST_KEEP:    return GL_KEEP;
-	case STENCIL_TEST_REPLACE: return GL_REPLACE;
+	case STENCIL_KEEP:    return GL_KEEP;
+	case STENCIL_REPLACE: return GL_REPLACE;
 	default:
 		error("Failed to get GL stencil test operation from operation %d", operation);
 		return -1;
@@ -118,9 +114,9 @@ static s32 gl_stencil_operation(Stencil_Test_Operation_Type operation) {
 
 static s32 gl_stencil_function(Stencil_Test_Function_Type function) {
 	switch (function) {
-	case STENCIL_TEST_ALWAYS:    return GL_ALWAYS;
-	case STENCIL_TEST_EQUAL:     return GL_EQUAL;
-	case STENCIL_TEST_NOT_EQUAL: return GL_NOTEQUAL;
+	case STENCIL_ALWAYS:    return GL_ALWAYS;
+	case STENCIL_EQUAL:     return GL_EQUAL;
+	case STENCIL_NOT_EQUAL: return GL_NOTEQUAL;
 	default:
 		error("Failed to get GL stencil test function from function %d", function);
 		return -1;
@@ -143,57 +139,72 @@ void submit(const Render_Command *command) {
         glPolygonMode(GL_FRONT_AND_BACK, mode);
     }
 
-    if (command->flags & RENDER_FLAG_SCISSOR_TEST) {
-        const auto &test = command->scissor_test;
-        
-        glEnable(GL_SCISSOR_TEST);
-        glScissor(test.x, test.y, test.width, test.height);
+    if (command->flags & RENDER_FLAG_VIEWPORT) {
+        const auto &viewport = command->viewport;
+        glViewport(viewport.x, viewport.y, viewport.width, viewport.height);
     }
     
-    if (command->flags & RENDER_FLAG_CULL_FACE_TEST) {
-        const auto &test = command->cull_face_test;
+    if (command->flags & RENDER_FLAG_SCISSOR) {
+        const auto &scissor = command->scissor;
+        
+        glEnable(GL_SCISSOR_TEST);
+        glScissor(scissor.x, scissor.y, scissor.width, scissor.height);
+    }
 
-        const s32 face    = gl_cull_face(test.type);
-        const s32 winding = gl_winding(test.winding);
+    if (command->flags & RENDER_FLAG_CLEAR) {
+        const auto &clear = command->clear;
+        const u32 bits = gl_clear_buffer_bits(clear.flags);
+
+        glDepthMask(GL_TRUE);
+        glClearColor(clear.color[0], clear.color[1], clear.color[2], 1.0f);
+        glClear(bits);
+        glDepthMask(GL_FALSE);
+    }
+    
+    if (command->flags & RENDER_FLAG_CULL_FACE) {
+        const auto &cull_face = command->cull_face;
+
+        const s32 face    = gl_cull_face(cull_face.type);
+        const s32 winding = gl_winding(cull_face.winding);
         
         glEnable(GL_CULL_FACE);
 		glCullFace(face);
         glFrontFace(winding);
     }
 
-    if (command->flags & RENDER_FLAG_BLEND_TEST) {
-        const auto &test = command->blend_test;
+    if (command->flags & RENDER_FLAG_BLEND) {
+        const auto &blend = command->blend;
         
-        const s32 source      = gl_blend_function(test.source);
-        const s32 destination = gl_blend_function(test.destination);
+        const s32 source      = gl_blend_function(blend.source);
+        const s32 destination = gl_blend_function(blend.destination);
         
         glEnable(GL_BLEND);
         glBlendFunc(source, destination);
     }
     
-    if (command->flags & RENDER_FLAG_DEPTH_TEST) {
-        const auto &test = command->depth_test;
+    if (command->flags & RENDER_FLAG_DEPTH) {
+        const auto &depth = command->depth;
 
-        const s32 function = gl_depth_function(test.function);
-        const s32 mask     = gl_depth_mask(test.mask);
+        const s32 function = gl_depth_function(depth.function);
+        const s32 mask     = gl_depth_mask(depth.mask);
         
         glEnable(GL_DEPTH_TEST);
         glDepthFunc(function);
         glDepthMask(mask);
     }
 
-    if (command->flags & RENDER_FLAG_STENCIL_TEST) {
-        const auto &test = command->stencil_test;
+    if (command->flags & RENDER_FLAG_STENCIL) {
+        const auto &stencil = command->stencil;
         
-        const s32 stencil_failed = gl_stencil_operation(test.operation.stencil_failed);
-        const s32 depth_failed   = gl_stencil_operation(test.operation.depth_failed);
-        const s32 both_passed    = gl_stencil_operation(test.operation.both_passed);
-        const s32 function_type  = gl_stencil_function(test.function.type);
+        const s32 stencil_failed = gl_stencil_operation(stencil.operation.stencil_failed);
+        const s32 depth_failed   = gl_stencil_operation(stencil.operation.depth_failed);
+        const s32 both_passed    = gl_stencil_operation(stencil.operation.both_passed);
+        const s32 function_type  = gl_stencil_function(stencil.function.type);
         
         glEnable(GL_STENCIL_TEST);
         glStencilOp(stencil_failed, depth_failed, both_passed);
-        glStencilFunc(function_type, test.function.comparator, test.function.mask);
-        glStencilMask(command->stencil_test.mask);
+        glStencilFunc(function_type, stencil.function.comparator, stencil.function.mask);
+        glStencilMask(command->stencil.mask);
     }
     
     if (command->frame_buffer_index != INVALID_INDEX) {
@@ -245,28 +256,32 @@ void submit(const Render_Command *command) {
 
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-        if (command->flags & RENDER_FLAG_SCISSOR_TEST) {
+        if (command->flags & RENDER_FLAG_VIEWPORT) {
+            glViewport(0, 0, 0, 0);
+        }
+        
+        if (command->flags & RENDER_FLAG_SCISSOR) {
             glDisable(GL_SCISSOR_TEST);
             glScissor(0, 0, 0, 0);
         }
 
-        if (command->flags & RENDER_FLAG_CULL_FACE_TEST) {
+        if (command->flags & RENDER_FLAG_CULL_FACE) {
             glDisable(GL_CULL_FACE);
             glCullFace(GL_BACK);
             glFrontFace(GL_CCW);
         }
         
-        if (command->flags & RENDER_FLAG_BLEND_TEST) {
+        if (command->flags & RENDER_FLAG_BLEND) {
             glDisable(GL_BLEND);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         }
 
-        if (command->flags & RENDER_FLAG_DEPTH_TEST) {
+        if (command->flags & RENDER_FLAG_DEPTH) {
             glDisable(GL_DEPTH_TEST);
             glDepthMask(GL_FALSE);
         }
 
-        if (command->flags & RENDER_FLAG_STENCIL_TEST) {
+        if (command->flags & RENDER_FLAG_STENCIL) {
             glDisable(GL_STENCIL_TEST);
             glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
             glStencilFunc(GL_ALWAYS, 1, 0xFF);
@@ -297,39 +312,6 @@ void submit(const Render_Command *command) {
     }
 }
 
-void resize_viewport(Viewport *viewport, s16 width, s16 height)
-{
-	switch (viewport->aspect_type) {
-    case VIEWPORT_FILL_WINDOW:
-        viewport->width = width;
-		viewport->height = height;
-        break;
-	case VIEWPORT_4X3:
-		viewport->width = width;
-		viewport->height = height;
-
-		if (width * 3 > height * 4) {
-			viewport->width = height * 4 / 3;
-			viewport->x = (width - viewport->width) / 2;
-		} else {
-			viewport->height = width * 3 / 4;
-			viewport->y = (height - viewport->height) / 2;
-		}
-
-		break;
-	default:
-		error("Failed to resize viewport with unknown aspect type %d", viewport->aspect_type);
-		break;
-	}
-
-	glViewport(viewport->x, viewport->y, viewport->width, viewport->height);
-
-    if (viewport->frame_buffer_index != INVALID_INDEX) {
-        recreate_frame_buffer(viewport->frame_buffer_index, viewport->width, viewport->height);
-        log("Recreated viewport frame buffer %dx%d", viewport->width, viewport->height);
-    }
-}
-
 s32 create_frame_buffer(s16 width, s16 height, const Texture_Format_Type *color_attachment_formats, s32 color_attachment_count, Texture_Format_Type depth_attachment_format) {
     assert(color_attachment_count <= MAX_FRAME_BUFFER_COLOR_ATTACHMENTS);
     
@@ -340,7 +322,7 @@ s32 create_frame_buffer(s16 width, s16 height, const Texture_Format_Type *color_
     for (s32 i = 0; i < MAX_FRAME_BUFFER_COLOR_ATTACHMENTS; ++i)
         frame_buffer.color_attachments[i] = INVALID_INDEX;
 
-    u32 *gl_attachments = (u32 *)alloca(color_attachment_count * sizeof(u32));
+    u32 gl_attachments[MAX_FRAME_BUFFER_COLOR_ATTACHMENTS];
     for (s32 i = 0; i < color_attachment_count; ++i)
         gl_attachments[i] = GL_COLOR_ATTACHMENT0 + i;
         
@@ -364,7 +346,7 @@ void recreate_frame_buffer(s32 fbi, s16 width, s16 height) {
     frame_buffer.width = width;
     frame_buffer.height = height;
 
-    glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer.id);
+    glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer.id);	
     
     for (s32 i = 0; i < frame_buffer.color_attachment_count; ++i) {
         s32 attachment = frame_buffer.color_attachments[i];
@@ -410,6 +392,7 @@ s32 read_frame_buffer_pixel(s32 fbi, s32 color_attachment_index, s32 x, s32 y) {
     glReadBuffer(GL_COLOR_ATTACHMENT0 + color_attachment_index);
 
     s32 pixel = -1;
+    x -= viewport.x;
     y = viewport.height - y - 1; // invert as gl framebuffer y goes up, but mouse y goes down
     glReadPixels(x, y, 1, 1, GL_RED_INTEGER, GL_INT, &pixel);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -426,52 +409,43 @@ static s32 create_quad_vertex_array() {
         { vec2(-1.0f,  1.0f), vec2(0.0f, 1.0f) },
     };
 
-    const s32 vertex_buffer_index = create_vertex_buffer(vertices, c_array_count(vertices) * sizeof(Vertex_PU), BUFFER_USAGE_STATIC);
-    
-    const Vertex_Array_Binding bindings[] = {
-        {
-            vertex_buffer_index, 2, {
-                { VERTEX_F32_2, 0 },
-                { VERTEX_F32_2, 0 },
-            }
-        },
-    };
+    Vertex_Array_Binding binding = {};
+    binding.layout_size = 2;
+    binding.layout[0] = { VERTEX_F32_2, 0 };
+    binding.layout[1] = { VERTEX_F32_2, 0 };
+    binding.vertex_buffer_index = create_vertex_buffer(vertices, COUNT(vertices) * sizeof(Vertex_Quad), BUFFER_USAGE_STATIC);
 
-    return create_vertex_array(bindings, c_array_count(bindings));
+    return create_vertex_array(&binding, 1);
 }
 
 static s32 create_quad_index_buffer() {
-    u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
-    return create_index_buffer(indices, c_array_count(indices), BUFFER_USAGE_STATIC);
+    const u32 indices[] = { 0, 2, 1, 2, 0, 3 };
+    return create_index_buffer(indices, COUNT(indices), BUFFER_USAGE_STATIC);
 }
 
-void render_frame_buffer(s32 fbi, s32 color_attachment_index) {
+void draw_frame_buffer(s32 fbi, s32 color_attachment_index) {
     static s32 vertex_array_index = create_quad_vertex_array();
-    static s32 index_buffer_index  = create_quad_index_buffer();
-    static s32 material_index      = create_material(shader_index_list.frame_buffer, render_registry.frame_buffers[fbi].color_attachments[color_attachment_index]);
+    static s32 index_buffer_index = create_quad_index_buffer();
+    static s32 material_index     = create_material(shader_index_list.frame_buffer, render_registry.frame_buffers[fbi].color_attachments[color_attachment_index]);
     
     Render_Command command = {};
-    command.flags = RENDER_FLAG_SCISSOR_TEST | RENDER_FLAG_CULL_FACE_TEST;
+    command.flags = RENDER_FLAG_VIEWPORT | RENDER_FLAG_SCISSOR | RENDER_FLAG_CULL_FACE;
     command.render_mode  = RENDER_TRIANGLES;
     command.polygon_mode = POLYGON_FILL;
-    command.scissor_test.x      = viewport.x;
-    command.scissor_test.y      = viewport.y;
-    command.scissor_test.width  = viewport.width;
-    command.scissor_test.height = viewport.height;
-    command.cull_face_test.type    = CULL_FACE_BACK;
-    command.cull_face_test.winding = WINDING_COUNTER_CLOCKWISE;
+    command.viewport.x      = viewport.x;
+    command.viewport.y      = viewport.y;
+    command.viewport.width  = viewport.width;
+    command.viewport.height = viewport.height;
+    command.scissor.x      = viewport.x;
+    command.scissor.y      = viewport.y;
+    command.scissor.width  = viewport.width;
+    command.scissor.height = viewport.height;
+    command.cull_face.type    = CULL_FACE_BACK;
+    command.cull_face.winding = WINDING_COUNTER_CLOCKWISE;
     command.vertex_array_index = vertex_array_index;
-    command.index_buffer_index  = index_buffer_index;
+    command.index_buffer_index = index_buffer_index;
 
-    const auto &material  = render_registry.materials[material_index];
-    command.shader_index  = material.shader_index;
-    command.texture_index = material.texture_index;
-    command.uniform_count = material.uniform_count;
-
-    for (s32 i = 0; i < material.uniform_count; ++i) {
-        command.uniform_indices[i]       = material.uniform_indices[i];
-        command.uniform_value_offsets[i] = material.uniform_value_offsets[i];
-    }
+    fill_render_command_with_material_data(material_index, &command);
 
     const auto &index_buffer = render_registry.index_buffers[index_buffer_index];
     command.buffer_element_count = index_buffer.index_count;

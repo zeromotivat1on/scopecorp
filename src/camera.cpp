@@ -3,6 +3,7 @@
 #include "log.h"
 
 #include "math/math_core.h"
+#include "math/matrix.h"
 
 #include "render/viewport.h"
 

@@ -66,7 +66,7 @@ inline const char* build_type_name = "RELEASE";
 #define GB(n) (MB(n) * 1024ui64)
 #define TB(n) (GB(n) * 1024ui64)
 
-#define c_array_count(a) sizeof(a) / sizeof((a)[0])
+#define COUNT(a) sizeof(a) / sizeof((a)[0])
 
 #define CONCAT_(a, b) a ## b 
 #define CONCAT(a, b) CONCAT_(a, b)

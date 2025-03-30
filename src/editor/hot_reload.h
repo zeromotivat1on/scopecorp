@@ -11,8 +11,8 @@ inline constexpr f32 HOT_RELOAD_CHECK_INTERVAL = 0.1f; // in seconds
 typedef void (*Hot_Reload_Callback)(const char *filename);
 
 struct Hot_Reload_Directory {
-	const char *path;
-	Hot_Reload_Callback callback;
+	const char *path = null;
+	Hot_Reload_Callback callback = null;
 };
 
 struct Hot_Reload_List {

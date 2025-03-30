@@ -9,6 +9,8 @@
 #include "game/world.h"
 #include "game/entities.h"
 
+#include "os/window.h"
+
 #include "log.h"
 #include "profile.h"
 #include "memory_storage.h"
@@ -94,9 +96,9 @@ void create_game_materials(Material_Index_List *list) {
         create_uniform("u_color",     UNIFORM_F32_3,   1),
 	};
 
-    const s32 entity_uniform_count  = c_array_count(entity_uniforms);
-    const s32 skybox_uniform_count  = c_array_count(skybox_uniforms);
-    const s32 outline_uniform_count = c_array_count(outline_uniforms);
+    const s32 entity_uniform_count  = COUNT(entity_uniforms);
+    const s32 skybox_uniform_count  = COUNT(skybox_uniforms);
+    const s32 outline_uniform_count = COUNT(outline_uniforms);
 
     const s32 text_shader    = shader_index_list.text;
     const s32 entity_shader  = shader_index_list.entity;
@@ -147,6 +149,36 @@ void flush(Render_Queue *queue) {
 	queue->size = 0;
 }
 
+void resize_viewport(Viewport *viewport, s16 width, s16 height) {
+	switch (viewport->aspect_type) {
+    case VIEWPORT_FILL_WINDOW:
+        viewport->width = width;
+		viewport->height = height;
+        break;
+	case VIEWPORT_4X3:
+		viewport->width = width;
+		viewport->height = height;
+
+		if (width * 3 > height * 4) {
+			viewport->width = height * 4 / 3;
+			viewport->x = (width - viewport->width) / 2;
+		} else {
+			viewport->height = width * 3 / 4;
+			viewport->y = (height - viewport->height) / 2;
+		}
+
+		break;
+	default:
+		error("Failed to resize viewport with unknown aspect type %d", viewport->aspect_type);
+		break;
+	}
+
+    if (viewport->frame_buffer_index != INVALID_INDEX) {
+        recreate_frame_buffer(viewport->frame_buffer_index, viewport->width, viewport->height);
+        log("Recreated viewport frame buffer %dx%d", viewport->width, viewport->height);
+    }
+}
+
 void draw_world(const World *world) {
     PROFILE_SCOPE(__FUNCTION__);
     
@@ -160,28 +192,29 @@ void draw_world(const World *world) {
 
 void draw_entity(const Entity *e) {
     Render_Command command = {};
-    command.flags = RENDER_FLAG_SCISSOR_TEST | RENDER_FLAG_CULL_FACE_TEST | RENDER_FLAG_BLEND_TEST | RENDER_FLAG_DEPTH_TEST | RENDER_FLAG_RESET;
+    command.flags = RENDER_FLAG_SCISSOR | RENDER_FLAG_CULL_FACE | RENDER_FLAG_BLEND | RENDER_FLAG_DEPTH | RENDER_FLAG_RESET;
     command.render_mode  = RENDER_TRIANGLES;
     command.polygon_mode = POLYGON_FILL;
-    command.scissor_test.x      = viewport.x;
-    command.scissor_test.y      = viewport.y;
-    command.scissor_test.width  = viewport.width;
-    command.scissor_test.height = viewport.height;
-    command.cull_face_test.type    = CULL_FACE_BACK;
-    command.cull_face_test.winding = WINDING_COUNTER_CLOCKWISE;
-    command.blend_test.source      = BLEND_TEST_SOURCE_ALPHA;
-    command.blend_test.destination = BLEND_TEST_ONE_MINUS_SOURCE_ALPHA;
-    command.depth_test.function = DEPTH_TEST_LESS;
-    command.depth_test.mask     = DEPTH_TEST_ENABLE;
-    command.stencil_test.operation.stencil_failed = STENCIL_TEST_KEEP;
-    command.stencil_test.operation.depth_failed   = STENCIL_TEST_KEEP;
-    command.stencil_test.operation.both_passed    = STENCIL_TEST_REPLACE;
-    command.stencil_test.function.type       = STENCIL_TEST_ALWAYS;
-    command.stencil_test.function.comparator = 1;
-    command.stencil_test.function.mask       = 0xFF;
-    command.stencil_test.mask = 0x00;
+    command.scissor.x      = 0;
+    command.scissor.y      = 0;
+    command.scissor.width  = viewport.width;
+    command.scissor.height = viewport.height;
+    command.cull_face.type    = CULL_FACE_BACK;
+    command.cull_face.winding = WINDING_COUNTER_CLOCKWISE;
+    command.blend.source      = BLEND_SOURCE_ALPHA;
+    command.blend.destination = BLEND_ONE_MINUS_SOURCE_ALPHA;
+    command.depth.function = DEPTH_LESS;
+    command.depth.mask     = DEPTH_ENABLE;
+    command.stencil.operation.stencil_failed = STENCIL_KEEP;
+    command.stencil.operation.depth_failed   = STENCIL_KEEP;
+    command.stencil.operation.both_passed    = STENCIL_REPLACE;
+    command.stencil.function.type       = STENCIL_ALWAYS;
+    command.stencil.function.comparator = 1;
+    command.stencil.function.mask       = 0xFF;
+    command.stencil.mask = 0x00;
     command.vertex_array_index = e->draw_data.vertex_array_index;
     command.index_buffer_index = e->draw_data.index_buffer_index;
+
     fill_render_command_with_material_data(e->draw_data.material_index, &command);
 
     if (command.index_buffer_index != INVALID_INDEX) {
@@ -192,25 +225,25 @@ void draw_entity(const Entity *e) {
     }
         
     if (e->flags & ENTITY_FLAG_WIREFRAME) {
-        command.flags &= ~RENDER_FLAG_CULL_FACE_TEST;
+        command.flags &= ~RENDER_FLAG_CULL_FACE;
         command.polygon_mode = POLYGON_LINE;
     }
     
     if (e->flags & ENTITY_FLAG_OUTLINE) {
-        command.flags &= ~RENDER_FLAG_CULL_FACE_TEST;
-        command.flags |= RENDER_FLAG_STENCIL_TEST;
-        command.stencil_test.mask = 0xFF;
+        command.flags &= ~RENDER_FLAG_CULL_FACE;
+        command.flags |= RENDER_FLAG_STENCIL;
+        command.stencil.mask = 0xFF;
     }
     
 	enqueue(&entity_render_queue, &command);
 
     if (e->flags & ENTITY_FLAG_OUTLINE) {        
-        command.flags &= ~RENDER_FLAG_DEPTH_TEST;
-        command.flags &= ~RENDER_FLAG_CULL_FACE_TEST;
-        command.stencil_test.function.type       = STENCIL_TEST_NOT_EQUAL;
-        command.stencil_test.function.comparator = 1;
-        command.stencil_test.function.mask       = 0xFF;
-        command.stencil_test.mask                = 0x00;
+        command.flags &= ~RENDER_FLAG_DEPTH;
+        command.flags &= ~RENDER_FLAG_CULL_FACE;
+        command.stencil.function.type       = STENCIL_NOT_EQUAL;
+        command.stencil.function.comparator = 1;
+        command.stencil.function.mask       = 0xFF;
+        command.stencil.mask                = 0x00;
 
         const auto &material  = render_registry.materials[material_index_list.outline];
         command.shader_index  = material.shader_index;
@@ -355,17 +388,17 @@ void flush_geo_draw() {
     if (geometry_draw_buffer.vertex_count == 0) return;
     
     Render_Command command = {};
-    command.flags = RENDER_FLAG_SCISSOR_TEST | RENDER_FLAG_CULL_FACE_TEST | RENDER_FLAG_RESET;
+    command.flags = RENDER_FLAG_SCISSOR | RENDER_FLAG_CULL_FACE | RENDER_FLAG_RESET;
     command.render_mode  = RENDER_LINES;
     command.polygon_mode = POLYGON_FILL;
-    command.scissor_test.x      = viewport.x;
-    command.scissor_test.y      = viewport.y;
-    command.scissor_test.width  = viewport.width;
-    command.scissor_test.height = viewport.height;
-    command.cull_face_test.type    = CULL_FACE_BACK;
-    command.cull_face_test.winding = WINDING_COUNTER_CLOCKWISE;
-    command.depth_test.function = DEPTH_TEST_LESS;
-    command.depth_test.mask     = DEPTH_TEST_ENABLE;
+    command.scissor.x      = 0;
+    command.scissor.y      = 0;
+    command.scissor.width  = viewport.width;
+    command.scissor.height = viewport.height;
+    command.cull_face.type    = CULL_FACE_BACK;
+    command.cull_face.winding = WINDING_COUNTER_CLOCKWISE;
+    command.depth.function = DEPTH_LESS;
+    command.depth.mask     = DEPTH_ENABLE;
     command.vertex_array_index  = geometry_draw_buffer.vertex_array_index;
     command.buffer_element_count = geometry_draw_buffer.vertex_count;
 
@@ -499,19 +532,19 @@ void flush_text_draw() {
     if (text_draw_buffer.char_count == 0) return;
     
     Render_Command command = {};
-    command.flags = RENDER_FLAG_SCISSOR_TEST | RENDER_FLAG_CULL_FACE_TEST | RENDER_FLAG_BLEND_TEST | RENDER_FLAG_DEPTH_TEST | RENDER_FLAG_RESET;
+    command.flags = RENDER_FLAG_SCISSOR | RENDER_FLAG_CULL_FACE | RENDER_FLAG_BLEND | RENDER_FLAG_DEPTH | RENDER_FLAG_RESET;
 	command.render_mode  = RENDER_TRIANGLE_STRIP;
     command.polygon_mode = POLYGON_FILL;
-    command.scissor_test.x      = viewport.x;
-    command.scissor_test.y      = viewport.y;
-    command.scissor_test.width  = viewport.width;
-    command.scissor_test.height = viewport.height;
-    command.cull_face_test.type    = CULL_FACE_BACK;
-    command.cull_face_test.winding = WINDING_COUNTER_CLOCKWISE;
-    command.blend_test.source      = BLEND_TEST_SOURCE_ALPHA;
-    command.blend_test.destination = BLEND_TEST_ONE_MINUS_SOURCE_ALPHA;
-    command.depth_test.function = DEPTH_TEST_LESS;
-    command.depth_test.mask     = DEPTH_TEST_DISABLE;
+    command.scissor.x      = 0;
+    command.scissor.y      = 0;
+    command.scissor.width  = viewport.width;
+    command.scissor.height = viewport.height;
+    command.cull_face.type    = CULL_FACE_BACK;
+    command.cull_face.winding = WINDING_COUNTER_CLOCKWISE;
+    command.blend.source      = BLEND_SOURCE_ALPHA;
+    command.blend.destination = BLEND_ONE_MINUS_SOURCE_ALPHA;
+    command.depth.function = DEPTH_LESS;
+    command.depth.mask     = DEPTH_DISABLE;
     command.vertex_array_index = text_draw_buffer.vertex_array_index;
     command.buffer_element_count = 4;
     command.instance_count       = text_draw_buffer.char_count;

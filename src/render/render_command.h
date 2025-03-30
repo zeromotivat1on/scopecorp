@@ -8,10 +8,10 @@ struct World;
 struct Window;
 struct vec3;
 
-enum Clear_Screen_Flag {
-    CLEAR_FLAG_COLOR,
-    CLEAR_FLAG_DEPTH,
-    CLEAR_FLAG_STENCIL,
+enum Clear_Flag : u32 {
+    CLEAR_FLAG_COLOR   = 0x1,
+    CLEAR_FLAG_DEPTH   = 0x2,
+    CLEAR_FLAG_STENCIL = 0x4,
 };
 
 enum Render_Mode {
@@ -21,12 +21,14 @@ enum Render_Mode {
 };
 
 enum Render_Flag : u32 {
-    RENDER_FLAG_SCISSOR_TEST   = 0x1,
-    RENDER_FLAG_CULL_FACE_TEST = 0x2,
-    RENDER_FLAG_BLEND_TEST     = 0x4,
-    RENDER_FLAG_DEPTH_TEST     = 0x8,
-    RENDER_FLAG_STENCIL_TEST   = 0x10,
-    RENDER_FLAG_RESET          = 0x80000000, // reset render state after draw call
+    RENDER_FLAG_VIEWPORT  = 0x1,
+    RENDER_FLAG_SCISSOR   = 0x2,
+    RENDER_FLAG_CLEAR     = 0x4,
+    RENDER_FLAG_CULL_FACE = 0x8,
+    RENDER_FLAG_BLEND     = 0x10,
+    RENDER_FLAG_DEPTH     = 0x20,
+    RENDER_FLAG_STENCIL   = 0x40,
+    RENDER_FLAG_RESET     = 0x80000000, // reset render state after draw call
 };
 
 enum Polygon_Mode {
@@ -46,35 +48,47 @@ enum Cull_Face_Type {
 };
 
 enum Blend_Test_Function_Type {
-    BLEND_TEST_SOURCE_ALPHA,
-    BLEND_TEST_ONE_MINUS_SOURCE_ALPHA,
+    BLEND_SOURCE_ALPHA,
+    BLEND_ONE_MINUS_SOURCE_ALPHA,
 };
 
 enum Depth_Test_Function_Type {
-    DEPTH_TEST_LESS,
+    DEPTH_LESS,
 };
 
 enum Depth_Test_Mask_Type {
-    DEPTH_TEST_ENABLE,
-    DEPTH_TEST_DISABLE,
+    DEPTH_ENABLE,
+    DEPTH_DISABLE,
 };
 
 enum Stencil_Test_Operation_Type {
-    STENCIL_TEST_KEEP,
-    STENCIL_TEST_REPLACE,
+    STENCIL_KEEP,
+    STENCIL_REPLACE,
 };
 
 enum Stencil_Test_Function_Type {
-    STENCIL_TEST_ALWAYS,
-    STENCIL_TEST_EQUAL,
-    STENCIL_TEST_NOT_EQUAL,
+    STENCIL_ALWAYS,
+    STENCIL_EQUAL,
+    STENCIL_NOT_EQUAL,
+};
+
+struct Viewport_Test {
+    s16 x = 0;
+    s16 y = 0;
+    s16 width;
+    s16 height;
 };
 
 struct Scissor_Test {
-    s32 x;
-    s32 y;
-    s32 width;
-    s32 height;
+    s16 x = 0;
+    s16 y = 0;
+    s16 width;
+    s16 height;
+};
+
+struct Clear_Test {
+    vec3 color;
+    u32  flags;
 };
 
 struct Cull_Face_Test {
@@ -116,11 +130,13 @@ struct Render_Command {
 	Render_Mode  render_mode  = RENDER_TRIANGLES;
 	Polygon_Mode polygon_mode = POLYGON_FILL;
 
-    Scissor_Test   scissor_test;
-    Cull_Face_Test cull_face_test;
-    Blend_Test     blend_test;
-    Depth_Test     depth_test;
-    Stencil_Test   stencil_test;
+    Viewport_Test  viewport;
+    Scissor_Test   scissor;
+    Clear_Test     clear;
+    Cull_Face_Test cull_face;
+    Blend_Test     blend;
+    Depth_Test     depth;
+    Stencil_Test   stencil;
 
 	s32 frame_buffer_index = INVALID_INDEX;
 	s32 vertex_array_index = INVALID_INDEX;
@@ -151,7 +167,6 @@ inline Render_Queue entity_render_queue;
 void init_render(Window *window);
 void swap_buffers(Window *window);
 void set_vsync(bool enable);
-void clear_screen(vec3 color, u32 flags);
 
 void init_render_queue(Render_Queue *queue, s32 capacity);
 void enqueue(Render_Queue *queue, const Render_Command *command);
