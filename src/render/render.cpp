@@ -11,6 +11,8 @@
 
 #include "os/window.h"
 
+#include "math/math_core.h"
+
 #include "log.h"
 #include "profile.h"
 #include "memory_storage.h"
@@ -223,21 +225,18 @@ void draw_entity(const Entity *e) {
     } else if (command.vertex_array_index != INVALID_INDEX) {
         command.buffer_element_count = vertex_array_vertex_count(command.vertex_array_index);
     }
-        
-    if (e->flags & ENTITY_FLAG_WIREFRAME) {
-        command.flags &= ~RENDER_FLAG_CULL_FACE;
-        command.polygon_mode = POLYGON_LINE;
-    }
     
-    if (e->flags & ENTITY_FLAG_OUTLINE) {
+    if (e->flags & ENTITY_FLAG_SELECTED_IN_EDITOR) {
         command.flags &= ~RENDER_FLAG_CULL_FACE;
         command.flags |= RENDER_FLAG_STENCIL;
         command.stencil.mask = 0xFF;
+
+        draw_geo_cross(e->location, 0.5f);
     }
     
 	enqueue(&entity_render_queue, &command);
 
-    if (e->flags & ENTITY_FLAG_OUTLINE) {        
+    if (e->flags & ENTITY_FLAG_SELECTED_IN_EDITOR) { // draw outline
         command.flags &= ~RENDER_FLAG_DEPTH;
         command.flags &= ~RENDER_FLAG_CULL_FACE;
         command.stencil.function.type       = STENCIL_NOT_EQUAL;
@@ -245,24 +244,13 @@ void draw_entity(const Entity *e) {
         command.stencil.function.mask       = 0xFF;
         command.stencil.mask                = 0x00;
 
-        const auto &material  = render_registry.materials[material_index_list.outline];
-        command.shader_index  = material.shader_index;
-        command.texture_index = material.texture_index;
-        command.uniform_count = material.uniform_count;
+        const vec3 color = vec3_yellow;
+        const mat4 mvp = mat4_transform(e->location, e->rotation, e->scale * 1.1f) * world->camera_view_proj;
 
-        const Camera *camera = desired_camera(world);
-        const mat4 view = camera_view(camera);
-        const mat4 proj = camera_projection(camera);
-        const mat4 mvp = mat4_transform(e->location, e->rotation, e->scale * 1.1f) * view * proj;
+        set_material_uniform_value(material_index_list.outline, "u_color", &color);
         set_material_uniform_value(material_index_list.outline, "u_transform", mvp.ptr());
 
-        const vec3 color = vec3_yellow;
-        set_material_uniform_value(material_index_list.outline, "u_color", &color);
-
-        for (s32 i = 0; i < material.uniform_count; ++i) {
-            command.uniform_indices[i]       = material.uniform_indices[i];
-            command.uniform_value_offsets[i] = material.uniform_value_offsets[i];
-        }
+        fill_render_command_with_material_data(material_index_list.outline, &command);
         
         enqueue(&entity_render_queue, &command);
     }
@@ -334,9 +322,11 @@ void draw_geo_arrow(vec3 start, vec3 end, vec3 color) {
 
     draw_geo_line(start, end, color);
 
-    vec3 forward     = normalize(end - start);
-	const vec3 right = normalize(vec3_up.cross(forward));
-	const vec3 up    = forward.cross(right);
+    vec3 forward = normalize(end - start);
+	const vec3 right = absf(forward.y) > 1.0f - F32_EPSILON
+        ? normalize(vec3_right.cross(forward))
+        : normalize(vec3_up.cross(forward));
+	const vec3 up = forward.cross(right);
     forward *= size;
     
     f32 degrees = 0.0f;
@@ -359,6 +349,12 @@ void draw_geo_arrow(vec3 start, vec3 end, vec3 color) {
         draw_geo_line(v1, end, color);
         draw_geo_line(v1, v2,  color);
     }
+}
+
+void draw_geo_cross(vec3 location, f32 size) {
+    draw_geo_arrow(location, location + vec3_up * size,      vec3_blue);
+    draw_geo_arrow(location, location + vec3_right * size,   vec3_green);
+    draw_geo_arrow(location, location + vec3_forward * size, vec3_red);
 }
 
 void draw_geo_box(const vec3 points[8], vec3 color) {

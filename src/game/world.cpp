@@ -17,9 +17,9 @@ void init_world(World *world) {
 
 static void try_outline_mouse_picked_entity(Entity *e) {
     if (e->id == world->selected_entity_id) {
-        e->flags |= ENTITY_FLAG_OUTLINE;
+        e->flags |= ENTITY_FLAG_SELECTED_IN_EDITOR;
     } else {
-        e->flags &= ~ENTITY_FLAG_OUTLINE;
+        e->flags &= ~ENTITY_FLAG_SELECTED_IN_EDITOR;
     }
 }
 
@@ -29,9 +29,10 @@ void tick(World *world, f32 dt) {
 	world->dt = dt;
 
 	Camera *camera = desired_camera(world);
-	const mat4 view = camera_view(camera);
-	const mat4 proj = camera_projection(camera);
-
+	world->camera_view = camera_view(camera);
+	world->camera_proj = camera_projection(camera);
+    world->camera_view_proj = world->camera_view * world->camera_proj;
+    
 	auto &skybox = world->skybox;
     try_outline_mouse_picked_entity(&skybox);
 	skybox.uv_offset = camera->eye;
@@ -41,7 +42,7 @@ void tick(World *world, f32 dt) {
 	for (s32 i = 0; i < world->static_meshes.count; ++i) {
 		auto *mesh = world->static_meshes.items + i;
         try_outline_mouse_picked_entity(mesh);
-		mesh->mvp = mat4_transform(mesh->location, mesh->rotation, mesh->scale) * view * proj;
+		mesh->mvp = mat4_transform(mesh->location, mesh->rotation, mesh->scale) * world->camera_view_proj;
 		set_material_uniform_value(mesh->draw_data.material_index, "u_transform", mesh->mvp.ptr());
 	}
 
@@ -49,7 +50,7 @@ void tick(World *world, f32 dt) {
 
     auto &player = world->player;
     try_outline_mouse_picked_entity(&player);
-	player.mvp = mat4_transform(player.location, player.rotation, player.scale) * view * proj;
+	player.mvp = mat4_transform(player.location, player.rotation, player.scale) * world->camera_view_proj;
 	set_material_uniform_value(player.draw_data.material_index, "u_transform", player.mvp.ptr());
 
 	if (game_state.mode == MODE_GAME) {

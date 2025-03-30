@@ -9,12 +9,11 @@ enum Entity_Type {
     ENTITY_NONE,
     ENTITY_PLAYER,
     ENTITY_SKYBOX,
-    ENTITY_STATIC_MESH
+    ENTITY_STATIC_MESH,
 };
 
 enum Entity_FLag : u32 {
-    ENTITY_FLAG_OUTLINE   = 0x1,
-    ENTITY_FLAG_WIREFRAME = 0x2,
+    ENTITY_FLAG_SELECTED_IN_EDITOR = 0x1,
 };
 
 struct Entity_Draw_Data {

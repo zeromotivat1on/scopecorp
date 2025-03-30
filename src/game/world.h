@@ -22,6 +22,10 @@ struct World {
 
     s32 selected_aabb_index = INVALID_INDEX;
     s32 selected_entity_id  = INVALID_ENTITY_ID;
+
+    mat4 camera_view;
+    mat4 camera_proj;
+    mat4 camera_view_proj;
 };
 
 inline World *world = null;
