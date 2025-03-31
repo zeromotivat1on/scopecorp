@@ -75,7 +75,7 @@ void draw_dev_stats() {
         
         text_size = (s32)stbsp_snprintf(text, sizeof(text), "draw calls %d", draw_call_count);
 		pos.x = viewport.width - line_width_px(atlas, text, text_size) - padding;
-		pos.y -= 3 * atlas->line_height;
+		pos.y -= atlas->line_height;
 		draw_text_with_shadow(text, text_size, pos, vec3_white, shadow_offset, vec3_black);
 
         text_size = (s32)stbsp_snprintf(text, sizeof(text), "selected entity id %d", world->selected_entity_id);
