@@ -68,7 +68,7 @@ int main() {
     const auto &viewport_frame_buffer = render_registry.frame_buffers[viewport.frame_buffer_index];
 
 	Hot_Reload_List hot_reload_list = {};
-	register_hot_reload_dir(&hot_reload_list, DIR_SHADERS, on_shader_changed_externally);
+	register_hot_reload_dir(&hot_reload_list, SHADER_PATH(""), on_shader_changed_externally);
 	start_hot_reload_thread(&hot_reload_list);
 
 	Font *font = create_font(FONT_PATH("consola.ttf"));
