@@ -592,12 +592,6 @@ vec3 right(const vec3 &start, const vec3 &end, const vec3 &up) {
     return up.cross(end - start).normalize();
 }
 
-vec3 lerp(const vec3 &a, const vec3 &b, f32 alpha) {
-    if (alpha <= 0.0f) return a;
-    else if (alpha >= 1.0f) return b;
-    return a + alpha * (b - a);
-}
-
 vec3 abs(const vec3 &a) {
     return vec3(absf(a.x), absf(a.y), absf(a.z));
 }

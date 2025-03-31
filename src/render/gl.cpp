@@ -336,16 +336,31 @@ s32 create_frame_buffer(s16 width, s16 height, const Texture_Format_Type *color_
 
     frame_buffer.material_index = create_material(shader_index_list.frame_buffer, INVALID_INDEX);
 
-    const u32 pixel_size = 1;
-    const vec2 resolution = vec2(width, height);
     const s32 uniforms[] = {
-        create_uniform("u_pixel_size", UNIFORM_U32,   1),
-        create_uniform("u_resolution", UNIFORM_F32_2, 1),
+        create_uniform("u_resolution",                  UNIFORM_F32_2, 1),
+        create_uniform("u_pixel_size",                  UNIFORM_F32,   1),
+        create_uniform("u_curve_distortion_factor",     UNIFORM_F32,   1),
+        create_uniform("u_chromatic_aberration_offset", UNIFORM_F32,   1),
+        create_uniform("u_quantize_color_count",        UNIFORM_U32,   1),
+        create_uniform("u_noise_blend_factor",          UNIFORM_F32,   1),
+        create_uniform("u_scanline_count",              UNIFORM_U32,   1),
+        create_uniform("u_scanline_intensity",          UNIFORM_F32,   1),
     };
     
     set_material_uniforms(frame_buffer.material_index, uniforms, COUNT(uniforms));
-    set_material_uniform_value(frame_buffer.material_index, 0, &pixel_size);
-    set_material_uniform_value(frame_buffer.material_index, 1, &resolution);
+
+    const vec2 resolution = vec2(width, height);
+    set_material_uniform_value(frame_buffer.material_index, 0, &resolution);
+    
+#if 0
+    frame_buffer.pixel_size                  = 1.0f;
+    frame_buffer.curve_distortion_factor     = 0.25f;
+    frame_buffer.chromatic_aberration_offset = 0.002f;
+    frame_buffer.quantize_color_count        = 16;
+    frame_buffer.noise_blend_factor          = 0.3f;
+    frame_buffer.scanline_count              = 16;
+    frame_buffer.scanline_intensity          = 0.9f;
+#endif
     
     const s32 fbi = render_registry.frame_buffers.add(frame_buffer);
     recreate_frame_buffer(fbi, width, height);
@@ -414,7 +429,7 @@ s32 read_frame_buffer_pixel(s32 fbi, s32 color_attachment_index, s32 x, s32 y) {
     return pixel;
 }
 
-static s32 create_quad_vertex_array() {
+static s32 create_frame_buffer_vertex_array() {
     struct Vertex_Quad { vec2 pos; vec2 uv; };
     const Vertex_Quad vertices[] = {
         { vec2( 1.0f,  1.0f), vec2(1.0f, 1.0f) },
@@ -432,16 +447,24 @@ static s32 create_quad_vertex_array() {
     return create_vertex_array(&binding, 1);
 }
 
-static s32 create_quad_index_buffer() {
+static s32 create_frame_buffer_index_buffer() {
     const u32 indices[] = { 0, 2, 1, 2, 0, 3 };
     return create_index_buffer(indices, COUNT(indices), BUFFER_USAGE_STATIC);
 }
 
 void draw_frame_buffer(s32 fbi, s32 color_attachment_index) {
-    static s32 vertex_array_index = create_quad_vertex_array();
-    static s32 index_buffer_index = create_quad_index_buffer();
+    static const s32 vertex_array_index = create_frame_buffer_vertex_array();
+    static const s32 index_buffer_index = create_frame_buffer_index_buffer();
     
     const auto &frame_buffer = render_registry.frame_buffers[fbi];
+
+    set_material_uniform_value(frame_buffer.material_index, 1, &frame_buffer.pixel_size);
+    set_material_uniform_value(frame_buffer.material_index, 2, &frame_buffer.curve_distortion_factor);
+    set_material_uniform_value(frame_buffer.material_index, 3, &frame_buffer.chromatic_aberration_offset);
+    set_material_uniform_value(frame_buffer.material_index, 4, &frame_buffer.quantize_color_count);
+    set_material_uniform_value(frame_buffer.material_index, 5, &frame_buffer.noise_blend_factor);
+    set_material_uniform_value(frame_buffer.material_index, 6, &frame_buffer.scanline_count);
+    set_material_uniform_value(frame_buffer.material_index, 7, &frame_buffer.scanline_intensity);
     
     Render_Command command = {};
     command.flags = RENDER_FLAG_VIEWPORT | RENDER_FLAG_SCISSOR | RENDER_FLAG_CULL_FACE;
@@ -721,7 +744,7 @@ void send_uniform_value_to_gpu(s32 shader_index, s32 uniform_index, u32 offset) 
     const s32 location  = glGetUniformLocation(shader.id, uniform.name);
     
     if (location < 0) {
-        //error("Failed to get uniform %s location from shader %d", uniform.name, shader_index);
+        error("Failed to get uniform %s location from shader %d", uniform.name, shader_index);
         return;
     }
     

@@ -50,3 +50,10 @@ void swap(T &a, T &b) {
 	a = b;
 	b = temp;
 }
+
+template<typename T>
+T lerp(const T &a, const T &b, f32 alpha) {
+    if (alpha <= 0.0f) return a;
+    else if (alpha >= 1.0f) return b;
+    return a + alpha * (b - a);
+}

@@ -11,6 +11,8 @@
 #include "os/window.h"
 #include "os/time.h"
 
+#include "math/math_core.h"
+
 #include "render/viewport.h"
 #include "render/render_command.h"
 #include "render/render_registry.h"
@@ -22,6 +24,7 @@
 
 #include "game/world.h"
 #include "game/game.h"
+
 #include "editor/hot_reload.h"
 
 int main() {
@@ -65,7 +68,7 @@ int main() {
                                                       color_attachments, COUNT(color_attachments),
                                                       TEXTURE_FORMAT_DEPTH_24_STENCIL_8);
 
-    const auto &viewport_frame_buffer = render_registry.frame_buffers[viewport.frame_buffer_index];
+    auto &viewport_frame_buffer = render_registry.frame_buffers[viewport.frame_buffer_index];
 
 	Hot_Reload_List hot_reload_list = {};
 	register_hot_reload_dir(&hot_reload_list, SHADER_PATH(""), on_shader_changed_externally);
@@ -296,6 +299,13 @@ int main() {
 		set_listener_pos(player.location);
 		check_shader_hot_reload_queue(&shader_hot_reload_queue, delta_time);
 
+#if 0
+        static f32 pixel_size_time = -1.0f;
+        if (pixel_size_time > 180.0f) pixel_size_time = 0.0f;
+        viewport_frame_buffer.pixel_size = (sin(pixel_size_time) + 1.0f) * 8.0f;
+        pixel_size_time += delta_time * 2.0f;
+#endif
+        
         Render_Command frame_buffer_command = {};
         frame_buffer_command.flags = RENDER_FLAG_VIEWPORT | RENDER_FLAG_SCISSOR;
         frame_buffer_command.viewport.x = 0;
