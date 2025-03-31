@@ -23,7 +23,8 @@ uniform sampler2D u_sampler;
 uniform uint      u_pixel_size;
 uniform vec2      u_resolution;
 
-const bool barrel_distortion    = false;
+const bool pixelate             = false;
+const bool curve_distortion     = false;
 const bool chromatic_aberration = false;
 const bool quantize_color       = false;
 const bool noise_and_grain      = false;
@@ -31,15 +32,22 @@ const bool scanline             = false;
 
 void main() {
     vec2 uv = f_uv;
-    const vec2 normalized_pixel_size = u_pixel_size / u_resolution;
-    uv = normalized_pixel_size * floor(f_uv / normalized_pixel_size);
 
-    if (barrel_distortion) {
-        const float distortion_factor = 0.4f;
-        const vec2 centered = f_uv - 0.5;
-        const float dist = dot(centered, centered);
-        const vec2 distorted = centered * (1.0 + distortion_factor * dist);
-        uv = distorted + 0.5;
+    if (pixelate) {
+        const vec2 normalized_pixel_size = u_pixel_size / u_resolution;
+        uv = normalized_pixel_size * floor(uv / normalized_pixel_size);
+    }
+
+    if (curve_distortion) {
+        const float curve_factor = 0.25f;
+
+        vec2 curve_uv = uv * 2.0 - 1.0;
+        const vec2 offset = curve_uv.yx * curve_factor;
+        
+        curve_uv += curve_uv * offset * offset;
+        curve_uv = curve_uv * 0.5 + 0.5;
+  
+        uv = curve_uv;
     }
     
     vec4 color = texture(u_sampler, uv);
