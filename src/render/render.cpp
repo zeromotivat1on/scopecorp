@@ -43,43 +43,43 @@ void init_render_registry(Render_Registry *registry) {
 }
 
 void compile_game_shaders(Shader_Index_List *list) {
-    list->entity       = create_shader(DIR_SHADERS "entity.glsl");
-	list->text         = create_shader(DIR_SHADERS "text.glsl");
-	list->skybox       = create_shader(DIR_SHADERS "skybox.glsl");
-    list->frame_buffer = create_shader(DIR_SHADERS "frame_buffer.glsl");
-    list->geometry     = create_shader(DIR_SHADERS "geometry.glsl");
-    list->outline      = create_shader(DIR_SHADERS "outline.glsl");
+    list->entity       = create_shader(SHADER_PATH("entity.glsl"));
+    list->text         = create_shader(SHADER_PATH("text.glsl"));
+    list->skybox       = create_shader(SHADER_PATH("skybox.glsl"));
+    list->frame_buffer = create_shader(SHADER_PATH("frame_buffer.glsl"));
+    list->geometry     = create_shader(SHADER_PATH("geometry.glsl"));
+    list->outline      = create_shader(SHADER_PATH("outline.glsl"));
 }
 
 void load_game_textures(Texture_Index_List *list) {
-	list->skybox = create_texture(DIR_TEXTURES "skybox.png");
-	list->stone  = create_texture(DIR_TEXTURES "stone.png");
-	list->grass  = create_texture(DIR_TEXTURES "grass.png");
+	list->skybox = create_texture(TEXTURE_PATH("skybox.png"));
+    list->stone  = create_texture(TEXTURE_PATH("stone.png"));
+    list->grass  = create_texture(TEXTURE_PATH("grass.png"));
 
-	list->player_idle[DIRECTION_BACK] = create_texture(DIR_TEXTURES "player_idle_back.png");
-	list->player_idle[DIRECTION_RIGHT] = create_texture(DIR_TEXTURES "player_idle_right.png");
-	list->player_idle[DIRECTION_LEFT] = create_texture(DIR_TEXTURES "player_idle_left.png");
-	list->player_idle[DIRECTION_FORWARD] = create_texture(DIR_TEXTURES "player_idle_forward.png");
+    list->player_idle[DIRECTION_BACK] = create_texture(TEXTURE_PATH("player_idle_back.png"));
+    list->player_idle[DIRECTION_RIGHT] = create_texture(TEXTURE_PATH("player_idle_right.png"));
+    list->player_idle[DIRECTION_LEFT] = create_texture(TEXTURE_PATH("player_idle_left.png"));
+    list->player_idle[DIRECTION_FORWARD] = create_texture(TEXTURE_PATH("player_idle_forward.png"));
 
-	list->player_move[DIRECTION_BACK][0] = create_texture(DIR_TEXTURES "player_move_back_1.png");
-	list->player_move[DIRECTION_BACK][1] = create_texture(DIR_TEXTURES "player_move_back_2.png");
-	list->player_move[DIRECTION_BACK][2] = create_texture(DIR_TEXTURES "player_move_back_3.png");
-	list->player_move[DIRECTION_BACK][3] = create_texture(DIR_TEXTURES "player_move_back_4.png");
+    list->player_move[DIRECTION_BACK][0] = create_texture(TEXTURE_PATH("player_move_back_1.png"));
+    list->player_move[DIRECTION_BACK][1] = create_texture(TEXTURE_PATH("player_move_back_2.png"));
+    list->player_move[DIRECTION_BACK][2] = create_texture(TEXTURE_PATH("player_move_back_3.png"));
+    list->player_move[DIRECTION_BACK][3] = create_texture(TEXTURE_PATH("player_move_back_4.png"));
 
-	list->player_move[DIRECTION_RIGHT][0] = create_texture(DIR_TEXTURES "player_move_right_1.png");
-	list->player_move[DIRECTION_RIGHT][1] = create_texture(DIR_TEXTURES "player_move_right_2.png");
-	list->player_move[DIRECTION_RIGHT][2] = create_texture(DIR_TEXTURES "player_move_right_3.png");
-	list->player_move[DIRECTION_RIGHT][3] = create_texture(DIR_TEXTURES "player_move_right_4.png");
+    list->player_move[DIRECTION_RIGHT][0] = create_texture(TEXTURE_PATH("player_move_right_1.png"));
+    list->player_move[DIRECTION_RIGHT][1] = create_texture(TEXTURE_PATH("player_move_right_2.png"));
+    list->player_move[DIRECTION_RIGHT][2] = create_texture(TEXTURE_PATH("player_move_right_3.png"));
+    list->player_move[DIRECTION_RIGHT][3] = create_texture(TEXTURE_PATH("player_move_right_4.png"));
 
-	list->player_move[DIRECTION_LEFT][0] = create_texture(DIR_TEXTURES "player_move_left_1.png");
-	list->player_move[DIRECTION_LEFT][1] = create_texture(DIR_TEXTURES "player_move_left_2.png");
-	list->player_move[DIRECTION_LEFT][2] = create_texture(DIR_TEXTURES "player_move_left_3.png");
-	list->player_move[DIRECTION_LEFT][3] = create_texture(DIR_TEXTURES "player_move_left_4.png");
+    list->player_move[DIRECTION_LEFT][0] = create_texture(TEXTURE_PATH("player_move_left_1.png"));
+    list->player_move[DIRECTION_LEFT][1] = create_texture(TEXTURE_PATH("player_move_left_2.png"));
+    list->player_move[DIRECTION_LEFT][2] = create_texture(TEXTURE_PATH("player_move_left_3.png"));
+    list->player_move[DIRECTION_LEFT][3] = create_texture(TEXTURE_PATH("player_move_left_4.png"));
 
-	list->player_move[DIRECTION_FORWARD][0] = create_texture(DIR_TEXTURES "player_move_forward_1.png");
-	list->player_move[DIRECTION_FORWARD][1] = create_texture(DIR_TEXTURES "player_move_forward_2.png");
-	list->player_move[DIRECTION_FORWARD][2] = create_texture(DIR_TEXTURES "player_move_forward_3.png");
-	list->player_move[DIRECTION_FORWARD][3] = create_texture(DIR_TEXTURES "player_move_forward_4.png");
+    list->player_move[DIRECTION_FORWARD][0] = create_texture(TEXTURE_PATH("player_move_forward_1.png"));
+    list->player_move[DIRECTION_FORWARD][1] = create_texture(TEXTURE_PATH("player_move_forward_2.png"));
+    list->player_move[DIRECTION_FORWARD][2] = create_texture(TEXTURE_PATH("player_move_forward_3.png"));
+    list->player_move[DIRECTION_FORWARD][3] = create_texture(TEXTURE_PATH("player_move_forward_4.png"));
 }
 
 void create_game_materials(Material_Index_List *list) {        

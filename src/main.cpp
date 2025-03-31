@@ -71,7 +71,7 @@ int main() {
 	register_hot_reload_dir(&hot_reload_list, DIR_SHADERS, on_shader_changed_externally);
 	start_hot_reload_thread(&hot_reload_list);
 
-	Font *font = create_font(DIR_FONTS "consola.ttf");
+	Font *font = create_font(FONT_PATH("consola.ttf"));
 	Font_Atlas *atlas = bake_font_atlas(font, 33, 126, 16);
     
 	world = push_struct(pers, World);

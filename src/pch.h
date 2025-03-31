@@ -76,6 +76,11 @@ template <class F> struct Defer { F f; ~Defer() { f(); } };
 template <class F> Defer<F> operator+(Defer_Ref, F f) { return {f}; }
 #define defer const auto CONCAT(deferrer, __LINE__) = Defer_Ref{} + [&]()
 
+#define SHADER_PATH(x)  DIR_SHADERS x
+#define TEXTURE_PATH(x) DIR_TEXTURES x
+#define SOUND_PATH(x)   DIR_SOUNDS x
+#define FONT_PATH(x)    DIR_FONTS x
+
 enum Direction {
     DIRECTION_BACK,
     DIRECTION_RIGHT,
