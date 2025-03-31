@@ -355,6 +355,7 @@ void recreate_frame_buffer(s32 fbi, s16 width, s16 height) {
         const auto format = frame_buffer.color_attachment_formats[i];
         attachment = create_texture(TEXTURE_TYPE_2D, format, width, height, null);
         set_texture_filter(attachment, TEXTURE_FILTER_LINEAR);
+        set_texture_wrap(attachment, TEXTURE_WRAP_BORDER);
         
         const auto &texture = render_registry.textures[attachment];
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, texture.id, 0);
@@ -822,9 +823,10 @@ s32 create_texture(Texture_Type type, Texture_Format_Type format, s32 width, s32
 
 static s32 gl_texture_wrap(Texture_Wrap_Type wrap) {
     switch (wrap) {
-    case TEXTURE_WRAP_REPEAT: return GL_REPEAT;
-    case TEXTURE_WRAP_CLAMP:  return GL_CLAMP_TO_EDGE;    
-    default:                  return -1;
+    case TEXTURE_WRAP_REPEAT:  return GL_REPEAT;
+    case TEXTURE_WRAP_CLAMP:   return GL_CLAMP_TO_EDGE;    
+    case TEXTURE_WRAP_BORDER:  return GL_CLAMP_TO_BORDER;
+    default:                   return -1;
     }
 }
 

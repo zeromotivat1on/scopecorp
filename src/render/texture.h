@@ -20,6 +20,7 @@ enum Texture_Wrap_Type {
     TEXTURE_WRAP_NONE,
     TEXTURE_WRAP_REPEAT,
 	TEXTURE_WRAP_CLAMP,
+	TEXTURE_WRAP_BORDER,
 };
 
 enum Texture_Filter_Type {

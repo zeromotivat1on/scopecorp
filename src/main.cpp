@@ -49,8 +49,8 @@ int main() {
     
 	init_render_registry(&render_registry);
 
-    viewport.aspect_type = VIEWPORT_4X3;
-    viewport.resolution_scale = 1.0f;
+    //viewport.aspect_type = VIEWPORT_4X3;
+    //viewport.resolution_scale = 0.6f;
     
     const Texture_Format_Type color_attachments[] = { TEXTURE_FORMAT_RGB_8, TEXTURE_FORMAT_RED_INTEGER };
     viewport.frame_buffer_index = create_frame_buffer(window->width, window->height,
