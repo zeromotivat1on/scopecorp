@@ -27,5 +27,6 @@ void create_game_materials(Material_Index_List *list);
 s32  create_material(s32 shader_index, s32 texture_index);
 s32  find_material_uniform(s32 material_index, const char *name);
 void set_material_uniforms(s32 material_index, const s32 *uniform_indices, s32 count);
+void set_material_uniform_value(s32 material_index, s32 material_uniform_index, const void *data);
 void set_material_uniform_value(s32 material_index, const char *name, const void *data);
 void fill_render_command_with_material_data(s32 material_index, Render_Command* command);

@@ -315,7 +315,7 @@ void submit(const Render_Command *command) {
 s32 create_frame_buffer(s16 width, s16 height, const Texture_Format_Type *color_attachment_formats, s32 color_attachment_count, Texture_Format_Type depth_attachment_format) {
     assert(color_attachment_count <= MAX_FRAME_BUFFER_COLOR_ATTACHMENTS);
     
-    Frame_Buffer frame_buffer;
+    Frame_Buffer frame_buffer = {};
     glGenFramebuffers(1, &frame_buffer.id);
     glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer.id);
 
@@ -333,6 +333,19 @@ s32 create_frame_buffer(s16 width, s16 height, const Texture_Format_Type *color_
 
     frame_buffer.depth_attachment        = INVALID_INDEX;
     frame_buffer.depth_attachment_format = depth_attachment_format;
+
+    frame_buffer.material_index = create_material(shader_index_list.frame_buffer, INVALID_INDEX);
+
+    const u32 pixel_size = 1;
+    const vec2 resolution = vec2(width, height);
+    const s32 uniforms[] = {
+        create_uniform("u_pixel_size", UNIFORM_U32,   1),
+        create_uniform("u_resolution", UNIFORM_F32_2, 1),
+    };
+    
+    set_material_uniforms(frame_buffer.material_index, uniforms, COUNT(uniforms));
+    set_material_uniform_value(frame_buffer.material_index, 0, &pixel_size);
+    set_material_uniform_value(frame_buffer.material_index, 1, &resolution);
     
     const s32 fbi = render_registry.frame_buffers.add(frame_buffer);
     recreate_frame_buffer(fbi, width, height);
@@ -354,7 +367,7 @@ void recreate_frame_buffer(s32 fbi, s16 width, s16 height) {
 
         const auto format = frame_buffer.color_attachment_formats[i];
         attachment = create_texture(TEXTURE_TYPE_2D, format, width, height, null);
-        set_texture_filter(attachment, TEXTURE_FILTER_LINEAR);
+        set_texture_filter(attachment, TEXTURE_FILTER_NEAREST);
         set_texture_wrap(attachment, TEXTURE_WRAP_BORDER);
         
         const auto &texture = render_registry.textures[attachment];
@@ -369,7 +382,7 @@ void recreate_frame_buffer(s32 fbi, s16 width, s16 height) {
 
         const auto format = frame_buffer.depth_attachment_format;
         attachment = create_texture(TEXTURE_TYPE_2D, format, width, height, null);
-        set_texture_filter(attachment, TEXTURE_FILTER_LINEAR);
+        set_texture_filter(attachment, TEXTURE_FILTER_NEAREST);
         
         const auto &texture = render_registry.textures[attachment];
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, texture.id, 0);
@@ -427,7 +440,8 @@ static s32 create_quad_index_buffer() {
 void draw_frame_buffer(s32 fbi, s32 color_attachment_index) {
     static s32 vertex_array_index = create_quad_vertex_array();
     static s32 index_buffer_index = create_quad_index_buffer();
-    static s32 material_index     = create_material(shader_index_list.frame_buffer, render_registry.frame_buffers[fbi].color_attachments[color_attachment_index]);
+    
+    const auto &frame_buffer = render_registry.frame_buffers[fbi];
     
     Render_Command command = {};
     command.flags = RENDER_FLAG_VIEWPORT | RENDER_FLAG_SCISSOR | RENDER_FLAG_CULL_FACE;
@@ -445,9 +459,10 @@ void draw_frame_buffer(s32 fbi, s32 color_attachment_index) {
     command.cull_face.winding = WINDING_COUNTER_CLOCKWISE;
     command.vertex_array_index = vertex_array_index;
     command.index_buffer_index = index_buffer_index;
-
-    fill_render_command_with_material_data(material_index, &command);
-
+    
+    fill_render_command_with_material_data(frame_buffer.material_index, &command);
+    command.texture_index = frame_buffer.color_attachments[color_attachment_index];
+    
     const auto &index_buffer = render_registry.index_buffers[index_buffer_index];
     command.buffer_element_count = index_buffer.index_count;
     
@@ -706,7 +721,7 @@ void send_uniform_value_to_gpu(s32 shader_index, s32 uniform_index, u32 offset) 
     const s32 location  = glGetUniformLocation(shader.id, uniform.name);
     
     if (location < 0) {
-        error("Failed to get location from uniform %s", uniform.name);
+        error("Failed to get uniform %s location from shader %d", uniform.name, shader_index);
         return;
     }
     
@@ -719,7 +734,7 @@ void send_uniform_value_to_gpu(s32 shader_index, s32 uniform_index, u32 offset) 
     case UNIFORM_F32_3:   glUniform3fv(location,  uniform.count, (f32 *)data); break;
 	case UNIFORM_F32_4X4: glUniformMatrix4fv(location, uniform.count, GL_FALSE, (f32 *)data); break;
 	default:
-		error("Failed to sync uniform of unknown type %d", uniform.type);
+		error("Failed to sync uniform %s of unknown type %d", uniform.name, uniform.type);
 		break;
 	}
 }
@@ -843,7 +858,7 @@ void set_texture_wrap(s32 texture_index, Texture_Wrap_Type wrap) {
     glBindTexture(gl_type, 0);
 }
 
-static s32 gl_texture_min_filter(u32 filter, bool has_mipmaps) {
+static s32 gl_texture_min_filter(Texture_Filter_Type filter, bool has_mipmaps) {
     switch (filter) {
     case TEXTURE_FILTER_LINEAR:
         if (has_mipmaps) return GL_LINEAR_MIPMAP_LINEAR;

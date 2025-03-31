@@ -10,20 +10,22 @@
 
 #include "render/text.h"
 #include "render/viewport.h"
-#include "render/material.h"
+#include "render/render_registry.h"
 
 void handle_window_event(Window *window, Window_Event *event) {
 	// @Todo: use input action.
 	if (event->type == EVENT_RESIZE) {
-        if (window->width != viewport.width || window->height != viewport.height) {
-            resize_viewport(&viewport, window->width, window->height);
-            viewport.orthographic_projection = mat4_orthographic(0, viewport.width, 0, viewport.height, -1, 1);
+        resize_viewport(&viewport, window->width, window->height);
+        viewport.orthographic_projection = mat4_orthographic(0, viewport.width, 0, viewport.height, -1, 1);
             
-            on_viewport_resize(&world->camera, &viewport);
-            world->ed_camera = world->camera;
+        on_viewport_resize(&world->camera, &viewport);
+        world->ed_camera = world->camera;
 
-            set_material_uniform_value(text_draw_buffer.material_index, "u_projection", &viewport.orthographic_projection);
-        }
+        set_material_uniform_value(text_draw_buffer.material_index, "u_projection", &viewport.orthographic_projection);
+
+        const auto &frame_buffer = render_registry.frame_buffers[viewport.frame_buffer_index];
+        const vec2 resolution = vec2(frame_buffer.width, frame_buffer.height);
+        set_material_uniform_value(frame_buffer.material_index, "u_resolution", &resolution);
 	}
 
 	if (event->type == EVENT_KEYBOARD) {

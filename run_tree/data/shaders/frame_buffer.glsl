@@ -20,6 +20,8 @@ layout (location = 0) in vec2 f_uv;
 layout (location = 0) out vec4 out_color;
 
 uniform sampler2D u_sampler;
+uniform uint      u_pixel_size;
+uniform vec2      u_resolution;
 
 const bool barrel_distortion    = false;
 const bool chromatic_aberration = false;
@@ -29,7 +31,9 @@ const bool scanline             = false;
 
 void main() {
     vec2 uv = f_uv;
-    
+    const vec2 normalized_pixel_size = u_pixel_size / u_resolution;
+    uv = normalized_pixel_size * floor(f_uv / normalized_pixel_size);
+
     if (barrel_distortion) {
         const float distortion_factor = 0.4f;
         const vec2 centered = f_uv - 0.5;

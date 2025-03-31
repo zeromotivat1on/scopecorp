@@ -98,33 +98,17 @@ void create_game_materials(Material_Index_List *list) {
         create_uniform("u_color",     UNIFORM_F32_3,   1),
 	};
 
-    const s32 entity_uniform_count  = COUNT(entity_uniforms);
-    const s32 skybox_uniform_count  = COUNT(skybox_uniforms);
-    const s32 outline_uniform_count = COUNT(outline_uniforms);
-
-    const s32 text_shader    = shader_index_list.text;
-    const s32 entity_shader  = shader_index_list.entity;
-    const s32 skybox_shader  = shader_index_list.skybox;
-    const s32 outline_shader = shader_index_list.outline;
-
-    const s32 skybox_texture = texture_index_list.skybox;
-    const s32 ground_texture = texture_index_list.grass;
-    const s32 cube_texture   = texture_index_list.stone;
+	list->skybox  = create_material(shader_index_list.skybox,  texture_index_list.skybox);
+    list->player  = create_material(shader_index_list.entity,  INVALID_INDEX);
+	list->ground  = create_material(shader_index_list.entity,  texture_index_list.grass);
+    list->cube    = create_material(shader_index_list.entity,  texture_index_list.stone);
+    list->outline = create_material(shader_index_list.outline, INVALID_INDEX);
     
-	list->skybox = create_material(skybox_shader, skybox_texture);
-	set_material_uniforms(list->skybox, skybox_uniforms, skybox_uniform_count);
-
-    list->player = create_material(entity_shader, INVALID_INDEX);
-	set_material_uniforms(list->player, entity_uniforms, entity_uniform_count);
-
-	list->ground = create_material(entity_shader, ground_texture);
-	set_material_uniforms(list->ground, entity_uniforms, entity_uniform_count);
-
-	list->cube = create_material(entity_shader, cube_texture);
-    set_material_uniforms(list->cube, entity_uniforms, entity_uniform_count);
-
-    list->outline = create_material(outline_shader, INVALID_INDEX);
-    set_material_uniforms(list->outline, outline_uniforms, outline_uniform_count);
+    set_material_uniforms(list->skybox,  skybox_uniforms,  COUNT(skybox_uniforms));
+	set_material_uniforms(list->player,  entity_uniforms,  COUNT(entity_uniforms));
+	set_material_uniforms(list->ground,  entity_uniforms,  COUNT(entity_uniforms));
+    set_material_uniforms(list->cube,    entity_uniforms,  COUNT(entity_uniforms));
+    set_material_uniforms(list->outline, outline_uniforms, COUNT(outline_uniforms));
 }
 
 void init_render_queue(Render_Queue *queue, s32 capacity) {
@@ -669,13 +653,7 @@ void set_material_uniforms(s32 material_index, const s32 *uniform_indices, s32 c
     }
 }
 
-void set_material_uniform_value(s32 material_index, const char *name, const void *data) {
-	const s32 material_uniform_index = find_material_uniform(material_index, name);
-	if (material_uniform_index == INVALID_INDEX) {
-		error("Failed to set material uniform %s value as its not found", name);
-		return;
-	}
-
+void set_material_uniform_value(s32 material_index, s32 material_uniform_index, const void *data) {
     auto &material          = render_registry.materials[material_index];
     const s32 uniform_index = material.uniform_indices[material_uniform_index];
     s32 value_offset        = material.uniform_value_offsets[material_uniform_index];
@@ -686,6 +664,16 @@ void set_material_uniform_value(s32 material_index, const char *name, const void
     } else {
         update_uniform_value_on_cpu(uniform_index, data, value_offset);
     }
+}
+
+void set_material_uniform_value(s32 material_index, const char *name, const void *data) {
+	const s32 material_uniform_index = find_material_uniform(material_index, name);
+	if (material_uniform_index == INVALID_INDEX) {
+		error("Failed to set material uniform %s value as its not found", name);
+		return;
+	}
+
+    set_material_uniform_value(material_index, material_uniform_index, data);
 }
 
 void fill_render_command_with_material_data(s32 material_index, Render_Command* command) {

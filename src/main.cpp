@@ -49,6 +49,14 @@ int main() {
     
 	init_render_registry(&render_registry);
 
+	load_game_textures(&texture_index_list);
+	compile_game_shaders(&shader_index_list);
+	create_game_materials(&material_index_list);
+	create_game_flip_books(&flip_books);
+
+    init_audio_context();
+	load_game_sounds(&sounds);
+
     //viewport.aspect_type = VIEWPORT_4X3;
     //viewport.resolution_scale = 0.6f;
     
@@ -57,13 +65,7 @@ int main() {
                                                       color_attachments, COUNT(color_attachments),
                                                       TEXTURE_FORMAT_DEPTH_24_STENCIL_8);
 
-	load_game_textures(&texture_index_list);
-	compile_game_shaders(&shader_index_list);
-	create_game_materials(&material_index_list);
-	create_game_flip_books(&flip_books);
-
-    init_audio_context();
-	load_game_sounds(&sounds);
+    const auto &viewport_frame_buffer = render_registry.frame_buffers[viewport.frame_buffer_index];
 
 	Hot_Reload_List hot_reload_list = {};
 	register_hot_reload_dir(&hot_reload_list, DIR_SHADERS, on_shader_changed_externally);
@@ -285,8 +287,6 @@ int main() {
 
     log("Startup took %.2fs", (performance_counter() - startup_counter) / (f32)performance_frequency());
     PROFILE_END(startup);
-
-    const auto &viewport_frame_buffer = render_registry.frame_buffers[viewport.frame_buffer_index];
     
 	while (alive(window)) {
         PROFILE_SCOPE("Game Frame");
