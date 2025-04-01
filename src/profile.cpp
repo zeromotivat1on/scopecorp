@@ -17,6 +17,7 @@
 #include "render/render_stats.h"
 #include "render/render_registry.h"
 
+#if !RELEASE
 Scope_Timer::Scope_Timer(const char *info)
     : info(info), start(performance_counter()) {}
 
@@ -24,6 +25,7 @@ Scope_Timer::~Scope_Timer() {
     const f32 seconds = (performance_counter() - start) / (f32)performance_frequency();
     log("%s %.2fms", info, seconds * 1000.0f);
 }
+#endif
 
 void draw_dev_stats() {
     PROFILE_SCOPE(__FUNCTION__);
