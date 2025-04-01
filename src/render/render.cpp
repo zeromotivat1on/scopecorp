@@ -765,7 +765,7 @@ bool parse_shader_source(const char *shader_src, char *vertex_src, char *fragmen
 }
 
 void update_render_stats() {
-    constexpr s32 dt_frame_count = 1024;
+    constexpr s32 dt_frame_count = 512;
     static f32 previous_dt_table[dt_frame_count];
     
     frame_index++;

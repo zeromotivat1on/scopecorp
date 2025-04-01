@@ -352,16 +352,6 @@ s32 create_frame_buffer(s16 width, s16 height, const Texture_Format_Type *color_
     const vec2 resolution = vec2(width, height);
     set_material_uniform_value(frame_buffer.material_index, 0, &resolution);
     
-#if 0
-    frame_buffer.pixel_size                  = 1.0f;
-    frame_buffer.curve_distortion_factor     = 0.25f;
-    frame_buffer.chromatic_aberration_offset = 0.002f;
-    frame_buffer.quantize_color_count        = 16;
-    frame_buffer.noise_blend_factor          = 0.3f;
-    frame_buffer.scanline_count              = 16;
-    frame_buffer.scanline_intensity          = 0.9f;
-#endif
-    
     const s32 fbi = render_registry.frame_buffers.add(frame_buffer);
     recreate_frame_buffer(fbi, width, height);
     

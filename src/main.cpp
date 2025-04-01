@@ -70,6 +70,16 @@ int main() {
 
     auto &viewport_frame_buffer = render_registry.frame_buffers[viewport.frame_buffer_index];
 
+#if 0
+    viewport_frame_buffer.pixel_size                  = 1.0f;
+    viewport_frame_buffer.curve_distortion_factor     = 0.25f;
+    viewport_frame_buffer.chromatic_aberration_offset = 0.002f;
+    viewport_frame_buffer.quantize_color_count        = 16;
+    viewport_frame_buffer.noise_blend_factor          = 0.3f;
+    viewport_frame_buffer.scanline_count              = 16;
+    viewport_frame_buffer.scanline_intensity          = 0.9f;
+#endif
+    
 	Hot_Reload_List hot_reload_list = {};
 	register_hot_reload_dir(&hot_reload_list, SHADER_PATH(""), on_shader_changed_externally);
 	start_hot_reload_thread(&hot_reload_list);
@@ -128,8 +138,8 @@ int main() {
 	Static_Mesh &ground = world->static_meshes[create_static_mesh(world)];
 	{   // Create ground.
         ground.id = 10;
-                
-		ground.scale = vec3(16.0f, 16.0f, 0.0f);
+        
+		ground.scale = vec3(32.0f, 32.0f, 0.0f);
         ground.rotation = quat_from_axis_angle(vec3_right, 90.0f);
 
         auto &aabb = world->aabbs[ground.aabb_index];
@@ -138,9 +148,7 @@ int main() {
 		aabb.max = aabb.min + aabb_offset;
 
         ground.draw_data.material_index = material_index_list.ground;
-
-        static const vec3 uv_scale = vec3(16.0f);
-		set_material_uniform_value(ground.draw_data.material_index, "u_uv_scale", &uv_scale);
+		set_material_uniform_value(ground.draw_data.material_index, "u_uv_scale", &ground.scale);
 
 		const Vertex_Entity vertices[] = {
 			{ vec3( 0.5f,  0.5f, 0.0f), vec2(1.0f, 1.0f), ground.id },
