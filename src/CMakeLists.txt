@@ -9,10 +9,10 @@ add_executable(${GAME_EXE}
                 assert.cpp camera.cpp collision.cpp flip_book.cpp font.cpp log.cpp main.cpp memory_storage.cpp pch.cpp profile.cpp
                 # work_queue.cpp work_queue.h
                 os/os.cpp
-                math/matrix.cpp math/math.cpp math/quat.cpp math/vector.cpp
                 audio/al.cpp audio/audio.cpp
-                game/game.cpp game/player_control.cpp game/world.cpp
-                editor/hot_reload.cpp
+                game/game.cpp
+                editor/editor.cpp
+                math/matrix.cpp math/math.cpp math/quat.cpp math/vector.cpp
                 render/gl.cpp render/glad.cpp render/render.cpp)
 
 target_precompile_headers(${GAME_EXE} PUBLIC pch.h)

@@ -24,7 +24,7 @@ struct Game_State {
 
 inline Game_State game_state;
 
-void handle_window_event(struct Window *window, struct Window_Event *event);
+void on_window_event(struct Window *window, struct Window_Event *event);
 
 const char *to_string(Game_Mode mode);
 const char *to_string(Camera_Behavior behavior);

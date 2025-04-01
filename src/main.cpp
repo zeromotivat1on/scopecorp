@@ -43,7 +43,7 @@ int main() {
 		return 1;
 	}
 
-	register_event_callback(window, handle_window_event);
+	register_event_callback(window, on_window_event);
     
 	init_input_table();
 
@@ -310,8 +310,8 @@ int main() {
 #if 0
         static f32 pixel_size_time = -1.0f;
         if (pixel_size_time > 180.0f) pixel_size_time = 0.0f;
-        viewport_frame_buffer.pixel_size = (sin(pixel_size_time) + 1.0f) * 8.0f;
-        pixel_size_time += delta_time * 2.0f;
+        viewport_frame_buffer.pixel_size = (sin(pixel_size_time) + 1.0f) * viewport_frame_buffer.width * 0.05f;
+        pixel_size_time += delta_time * 4.0f;
 #endif
         
         Render_Command frame_buffer_command = {};
