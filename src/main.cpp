@@ -48,7 +48,8 @@ int main() {
 	init_input_table();
 
 	init_render(window);
-	set_vsync(false);
+    lock_cursor(window, true);
+    set_vsync(false);
     
 	init_render_registry(&render_registry);
 

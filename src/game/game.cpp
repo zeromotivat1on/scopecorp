@@ -36,43 +36,11 @@ void on_window_event(Window *window, Window_Event *event) {
 	}
 
 	if (event->type == EVENT_KEYBOARD) {
-		const s16 key = event->key_code;
-		const bool pressed = event->key_pressed;
-
-		if (pressed && key == KEY_ESCAPE)
-			close(window);
-
-		if (pressed && key == KEY_F1) {
-			if (game_state.mode == MODE_GAME) {
-				game_state.mode = MODE_EDITOR;
-				lock_cursor(window, true);
-			} else {
-				game_state.mode = MODE_GAME;
-				lock_cursor(window, false);
-			}
-		}
-
-		if (pressed && key == KEY_F2) {
-			if (game_state.camera_behavior == IGNORE_PLAYER)
-				game_state.camera_behavior = STICK_TO_PLAYER;
-			else if (game_state.camera_behavior == STICK_TO_PLAYER)
-				game_state.camera_behavior = FOLLOW_PLAYER;
-			else
-				game_state.camera_behavior = IGNORE_PLAYER;
-		}
-
-		if (pressed && key == KEY_F3) {
-			if (game_state.player_movement_behavior == MOVE_INDEPENDENT)
-				game_state.player_movement_behavior = MOVE_RELATIVE_TO_CAMERA;
-			else
-				game_state.player_movement_behavior = MOVE_INDEPENDENT;
-		}
-
-		press(key, pressed);
+		press(event->key_code, event->key_pressed);
 	}
 
 	if (event->type == EVENT_TEXT_INPUT) {
-
+        
 	}
 
 	if (event->type == EVENT_MOUSE) {
@@ -82,6 +50,53 @@ void on_window_event(Window *window, Window_Event *event) {
 	if (event->type == EVENT_QUIT) {
 		log("EVENT_QUIT");
 	}
+}
+
+void press(s32 key, bool pressed) {
+    const bool ctrl_down = input_table.key_states[KEY_CTRL];
+        
+    if (pressed && key == KEY_ESCAPE)
+        close(window);
+
+    if (pressed && ctrl_down && key == KEY_G) {
+        game_state.mode = MODE_GAME;
+        lock_cursor(window, true);
+    } else if (pressed && ctrl_down && key == KEY_E) {
+        game_state.mode = MODE_EDITOR;
+        lock_cursor(window, false);
+    }
+
+    if (game_state.mode == MODE_EDITOR) {
+        if (pressed && key == KEY_F1) {
+            lock_cursor(window, !window->cursor_locked);
+        }
+    } else if (game_state.mode == MODE_GAME) {
+        if (pressed && key == KEY_F1) {
+            game_state.camera_behavior = (Camera_Behavior)(((s32)game_state.camera_behavior + 1) % 3);
+        } else if (pressed && key == KEY_F2) {
+            game_state.player_movement_behavior = (Player_Movement_Behavior)(((s32)game_state.player_movement_behavior + 1) % 2);
+        }
+    }
+    
+    if (pressed && ctrl_down && key == KEY_R) {
+        world->player.location = vec3(0.0f, F32_MIN, 0.0f);
+        world->camera.eye = world->player.location + world->player.camera_offset;
+        world->camera.at = world->camera.eye + forward(world->camera.yaw, world->camera.pitch);
+    }
+}
+
+void click(s32 key, bool pressed) {
+    if (game_state.mode == MODE_EDITOR) {
+        if (key == MOUSE_RIGHT) {
+            lock_cursor(window, !window->cursor_locked);
+        }
+        
+        if (pressed && key == MOUSE_LEFT) {
+            world->selected_entity_id = read_frame_buffer_pixel(viewport.frame_buffer_index, 1, input_table.mouse_x, input_table.mouse_y);
+        } else if (pressed && key == MOUSE_RIGHT) {
+            world->selected_entity_id = INVALID_ENTITY_ID;
+        }
+    }
 }
 
 void init_world(World *world) {
@@ -149,68 +164,9 @@ s32 create_static_mesh(World *world) {
     return index;
 }
 
-void press(s32 key, bool pressed) {
-    if (pressed && key == KEY_R && input_table.key_states[KEY_CTRL]) {
-        world->player.location = vec3(0.0f, F32_MIN, 0.0f);
-    }
-}
-
-void click(s32 key, bool pressed) {
-    if (pressed && key == MOUSE_LEFT) {
-        world->selected_entity_id = read_frame_buffer_pixel(viewport.frame_buffer_index, 1, input_table.mouse_x, input_table.mouse_y);
-    }
-
-    if (pressed && key == MOUSE_RIGHT) {
-        world->selected_entity_id = INVALID_ENTITY_ID;
-    }
-}
-
 void tick_player(World* world) {
     const f32 dt = world->dt;
     auto &player = world->player;
-    
-	// Force game camera movement/rotation.
-	if (input_table.key_states[KEY_SHIFT]) {
-		Camera &camera = world->camera;
-		const vec3 camera_forward = forward(camera.yaw, camera.pitch);
-		const vec3 camera_right = camera.up.cross(camera_forward).normalize();
-
-		const f32 speed = player.ed_camera_speed * dt;
-		vec3 velocity;
-
-		if (input_table.key_states[KEY_RIGHT])
-			velocity += speed * camera_right;
-
-		if (input_table.key_states[KEY_LEFT])
-			velocity -= speed * camera_right;
-
-		if (input_table.key_states[KEY_UP])
-			velocity += speed * camera.up;
-
-		if (input_table.key_states[KEY_DOWN])
-			velocity -= speed * camera.up;
-
-		camera.eye += velocity.truncate(speed);
-		camera.at = camera.eye + camera_forward;
-	} else if (input_table.key_states[KEY_CTRL]) {
-		Camera &camera = world->camera;
-		const f32 speed = 4.0f * player.mouse_sensitivity * dt;
-
-		if (input_table.key_states[KEY_RIGHT])
-			camera.yaw -= speed;
-
-		if (input_table.key_states[KEY_LEFT])
-			camera.yaw += speed;
-
-		if (input_table.key_states[KEY_UP])
-			camera.pitch += speed;
-
-		if (input_table.key_states[KEY_DOWN])
-			camera.pitch -= speed;
-
-		camera.pitch = clamp(camera.pitch, -89.0f, 89.0f);
-		camera.at = camera.eye + forward(camera.yaw, camera.pitch);
-	}
 
     const auto last_move_direction = player.move_direction;
     
@@ -263,12 +219,6 @@ void tick_player(World* world) {
 				velocity -= speed * camera_forward;
 				player.move_direction = DIRECTION_BACK;
 			}
-
-            if (input_table.key_states[KEY_E])
-                velocity += speed * camera.up;
-
-            if (input_table.key_states[KEY_Q])
-                velocity -= speed * camera.up;
 		}
 
 		player.velocity = velocity.truncate(speed);
@@ -310,39 +260,41 @@ void tick_player(World* world) {
 			camera.at = camera.eye + forward(camera.yaw, camera.pitch);
 		}
 	} else if (game_state.mode == MODE_EDITOR) {
-		const f32 mouse_sensitivity = player.mouse_sensitivity;
-		Camera &camera = world->ed_camera;
+        const f32 mouse_sensitivity = player.mouse_sensitivity;
+        Camera &camera = world->ed_camera;
 
-		camera.yaw += input_table.mouse_offset_x * mouse_sensitivity * dt;
-		camera.pitch += input_table.mouse_offset_y * mouse_sensitivity * dt;
-		camera.pitch = clamp(camera.pitch, -89.0f, 89.0f);
+        if (window->cursor_locked) {   
+            camera.yaw += input_table.mouse_offset_x * mouse_sensitivity * dt;
+            camera.pitch += input_table.mouse_offset_y * mouse_sensitivity * dt;
+            camera.pitch = clamp(camera.pitch, -89.0f, 89.0f);
+        }
+                    
+        const f32 speed = player.ed_camera_speed * dt;
+        const vec3 camera_forward = forward(camera.yaw, camera.pitch);
+        const vec3 camera_right = camera.up.cross(camera_forward).normalize();
 
-		const f32 speed = player.ed_camera_speed * dt;
-		const vec3 camera_forward = forward(camera.yaw, camera.pitch);
-		const vec3 camera_right = camera.up.cross(camera_forward).normalize();
+        vec3 velocity;
 
-		vec3 velocity;
+        if (input_table.key_states[KEY_D])
+            velocity += speed * camera_right;
 
-		if (input_table.key_states[KEY_D])
-			velocity += speed * camera_right;
+        if (input_table.key_states[KEY_A])
+            velocity -= speed * camera_right;
 
-		if (input_table.key_states[KEY_A])
-			velocity -= speed * camera_right;
+        if (input_table.key_states[KEY_W])
+            velocity += speed * camera_forward;
 
-		if (input_table.key_states[KEY_W])
-			velocity += speed * camera_forward;
+        if (input_table.key_states[KEY_S])
+            velocity -= speed * camera_forward;
 
-		if (input_table.key_states[KEY_S])
-			velocity -= speed * camera_forward;
+        if (input_table.key_states[KEY_E])
+            velocity += speed * camera.up;
 
-		if (input_table.key_states[KEY_E])
-			velocity += speed * camera.up;
+        if (input_table.key_states[KEY_Q])
+            velocity -= speed * camera.up;
 
-		if (input_table.key_states[KEY_Q])
-			velocity -= speed * camera.up;
-
-		camera.eye += velocity.truncate(speed);
-		camera.at = camera.eye + camera_forward;
+        camera.eye += velocity.truncate(speed);
+        camera.at = camera.eye + camera_forward;
 	}
 
     player.collide_aabb_index = INVALID_INDEX;
@@ -375,7 +327,7 @@ void tick_player(World* world) {
 	player_aabb.max = player.location + aabb_offset + vec3(0.0f, player.scale.y, 0.0f);
             
 	const Sound &steps_sound = sounds.player_steps;
-	if (player.velocity == vec3(0.0f)) {
+	if (player.velocity == vec3_zero) {
 		s32 state;
 		alGetSourcei(steps_sound.source, AL_SOURCE_STATE, &state);
 		if (state == AL_PLAYING) alSourceStop(steps_sound.source);

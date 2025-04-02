@@ -2,13 +2,13 @@
 
 enum Game_Mode {
 	MODE_GAME,
-	MODE_EDITOR
+	MODE_EDITOR,
 };
 
 enum Camera_Behavior {
-	IGNORE_PLAYER,   // static position
-	STICK_TO_PLAYER, // immediate position update
-	FOLLOW_PLAYER,   // smooth following
+    FOLLOW_PLAYER,
+	STICK_TO_PLAYER,
+    IGNORE_PLAYER,
 };
 
 enum Player_Movement_Behavior {

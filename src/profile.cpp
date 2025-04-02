@@ -54,7 +54,7 @@ void draw_dev_stats() {
 	}
 
 	{   // Runtime stats.
-		text_size = (s32)stbsp_snprintf(text, sizeof(text), "%.2fms %.ffps %s", average_dt * 1000.0f, average_fps, build_type_name);
+		text_size = (s32)stbsp_snprintf(text, sizeof(text), "%.2fms %.ffps %s %s", average_dt * 1000.0f, average_fps, build_type_name, to_string(game_state.mode));
 		pos.x = viewport.width - line_width_px(atlas, text, text_size) - padding;
 		pos.y = (f32)viewport.height - atlas->line_height;
 		draw_text_with_shadow(text, text_size, pos, vec3_white, shadow_offset, vec3_black);
@@ -84,17 +84,10 @@ void draw_dev_stats() {
 		pos.x = viewport.width - line_width_px(atlas, text, text_size) - padding;
 		pos.y -= atlas->line_height;
 		draw_text_with_shadow(text, text_size, pos, vec3_white, shadow_offset, vec3_black);
-	}
 
-	{   // Controls.
-		text_size = (s32)stbsp_snprintf(text, sizeof(text), "F1 %s F2 %s F3 %s", to_string(game_state.mode), to_string(game_state.camera_behavior), to_string(game_state.player_movement_behavior));
+        text_size = (s32)stbsp_snprintf(text, sizeof(text), "%s %s", to_string(game_state.camera_behavior), to_string(game_state.player_movement_behavior));
 		pos.x = viewport.width - line_width_px(atlas, text, text_size) - padding;
-		pos.y = padding;
-		draw_text_with_shadow(text, text_size, pos, vec3_white, shadow_offset, vec3_black);
-
-		text_size = (s32)stbsp_snprintf(text, sizeof(text), "Shift/Control + Arrows - force move/rotate game camera");
-		pos.x = viewport.width - line_width_px(atlas, text, text_size) - padding;
-		pos.y += atlas->line_height;
+		pos.y -= atlas->line_height;
 		draw_text_with_shadow(text, text_size, pos, vec3_white, shadow_offset, vec3_black);
 	}
 

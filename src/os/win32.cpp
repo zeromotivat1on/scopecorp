@@ -618,12 +618,24 @@ bool alive(Window *window) {
 }
 
 void lock_cursor(Window *window, bool lock) {
+    if (window->cursor_locked == lock) return;
+    
 	window->cursor_locked = lock;
 
 	if (lock) {
 		RECT rect;
 		if (GetWindowRect(window->win32->hwnd, &rect)) ClipCursor(&rect);
 		ShowCursor(false);
+
+        POINT point;
+		point.x = input_table.mouse_x = input_table.mouse_last_x = window->width / 2;
+		point.y = input_table.mouse_y = input_table.mouse_last_y = window->height / 2;
+
+		ClientToScreen(window->win32->hwnd, &point);
+		SetCursorPos(point.x, point.y);
+
+        input_table.mouse_offset_x = 0;
+        input_table.mouse_offset_y = 0;
 	} else {
 		ClipCursor(NULL);
 		ShowCursor(true);
