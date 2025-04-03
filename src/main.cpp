@@ -257,18 +257,19 @@ int main() {
 
 		skybox.draw_data.material_index = material_index_list.skybox;
 
-		Vertex_PU vertices[] = {
-			{ vec3( 1.0f,  1.0f, 1.0f - F32_EPSILON), vec2(1.0f, 1.0f) },
-			{ vec3( 1.0f, -1.0f, 1.0f - F32_EPSILON), vec2(1.0f, 0.0f) },
-			{ vec3(-1.0f, -1.0f, 1.0f - F32_EPSILON), vec2(0.0f, 0.0f) },
-			{ vec3(-1.0f,  1.0f, 1.0f - F32_EPSILON), vec2(0.0f, 1.0f) },
+		Vertex_Entity vertices[] = {
+			{ vec3( 1.0f,  1.0f, 1.0f - F32_EPSILON), vec2(1.0f, 1.0f), skybox.id },
+			{ vec3( 1.0f, -1.0f, 1.0f - F32_EPSILON), vec2(1.0f, 0.0f), skybox.id },
+			{ vec3(-1.0f, -1.0f, 1.0f - F32_EPSILON), vec2(0.0f, 0.0f), skybox.id },
+			{ vec3(-1.0f,  1.0f, 1.0f - F32_EPSILON), vec2(0.0f, 1.0f), skybox.id },
 		};
 
         Vertex_Array_Binding binding = {};
-        binding.layout_size = 2;
+        binding.layout_size = 3;
         binding.layout[0] = { VERTEX_F32_3, 0 };
         binding.layout[1] = { VERTEX_F32_2, 0 };
-        binding.vertex_buffer_index = create_vertex_buffer(vertices, COUNT(vertices) * sizeof(Vertex_PU), BUFFER_USAGE_STATIC);
+        binding.layout[2] = { VERTEX_S32,   1 };
+        binding.vertex_buffer_index = create_vertex_buffer(vertices, COUNT(vertices) * sizeof(Vertex_Entity), BUFFER_USAGE_STATIC);
                 
 		skybox.draw_data.vertex_array_index = create_vertex_array(&binding, 1);
         

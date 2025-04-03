@@ -48,4 +48,5 @@ struct quat {
 	f32 *ptr();
 };
 
+const char* to_string(const quat &q);
 quat quat_from_axis_angle(const vec3 &axes, f32 deg);

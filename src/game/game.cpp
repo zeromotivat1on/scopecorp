@@ -60,6 +60,12 @@ void press(s32 key, bool pressed) {
 
     if (pressed && ctrl_down && key == KEY_G) {
         game_state.mode = MODE_GAME;
+
+        if (world->mouse_picked_entity) {
+            world->mouse_picked_entity->flags &= ~ENTITY_FLAG_SELECTED_IN_EDITOR;
+            world->mouse_picked_entity = null;
+        }
+        
         lock_cursor(window, true);
     } else if (pressed && ctrl_down && key == KEY_E) {
         game_state.mode = MODE_EDITOR;
@@ -92,9 +98,16 @@ void click(s32 key, bool pressed) {
         }
         
         if (pressed && key == MOUSE_LEFT) {
-            world->selected_entity_id = read_frame_buffer_pixel(viewport.frame_buffer_index, 1, input_table.mouse_x, input_table.mouse_y);
-        } else if (pressed && key == MOUSE_RIGHT) {
-            world->selected_entity_id = INVALID_ENTITY_ID;
+            const s32 id = read_frame_buffer_pixel(viewport.frame_buffer_index, 1, input_table.mouse_x, input_table.mouse_y);
+            auto *e = find_entity_by_id(world, id);
+            if (e) {
+                if (world->mouse_picked_entity) {
+                    world->mouse_picked_entity->flags &= ~ENTITY_FLAG_SELECTED_IN_EDITOR;
+                }
+                
+                e->flags |= ENTITY_FLAG_SELECTED_IN_EDITOR;
+                world->mouse_picked_entity = e;
+            }
         }
     }
 }
@@ -106,33 +119,23 @@ void init_world(World *world) {
 	world->aabbs         = Sparse_Array<AABB>(MAX_AABBS);
 }
 
-static void try_outline_mouse_picked_entity(Entity *e) {
-    if (e->id == world->selected_entity_id) {
-        e->flags |= ENTITY_FLAG_SELECTED_IN_EDITOR;
-    } else {
-        e->flags &= ~ENTITY_FLAG_SELECTED_IN_EDITOR;
-    }
-}
-
 void tick(World *world, f32 dt) {
     PROFILE_SCOPE("Tick World");
     
 	world->dt = dt;
 
-	Camera *camera = desired_camera(world);
+	const auto *camera = desired_camera(world);
 	world->camera_view = camera_view(camera);
 	world->camera_proj = camera_projection(camera);
     world->camera_view_proj = world->camera_view * world->camera_proj;
     
 	auto &skybox = world->skybox;
-    try_outline_mouse_picked_entity(&skybox);
 	skybox.uv_offset = camera->eye;
 	set_material_uniform_value(skybox.draw_data.material_index, "u_scale", &skybox.uv_scale);
 	set_material_uniform_value(skybox.draw_data.material_index, "u_offset", &skybox.uv_offset);
 
 	for (s32 i = 0; i < world->static_meshes.count; ++i) {
 		auto *mesh = world->static_meshes.items + i;
-        try_outline_mouse_picked_entity(mesh);
 		mesh->mvp = mat4_transform(mesh->location, mesh->rotation, mesh->scale) * world->camera_view_proj;
 		set_material_uniform_value(mesh->draw_data.material_index, "u_transform", mesh->mvp.ptr());
 	}
@@ -140,14 +143,38 @@ void tick(World *world, f32 dt) {
 	tick_player(world);
 
     auto &player = world->player;
-    try_outline_mouse_picked_entity(&player);
 	player.mvp = mat4_transform(player.location, player.rotation, player.scale) * world->camera_view_proj;
 	set_material_uniform_value(player.draw_data.material_index, "u_transform", player.mvp.ptr());
 
 	if (game_state.mode == MODE_GAME) {
-		// Editor camera should follow game one during gameplay.
 		world->ed_camera = world->camera;
-	}
+	} else 	if (game_state.mode == MODE_EDITOR) {
+        const bool ctrl_down  = input_table.key_states[KEY_CTRL];
+        const bool shift_down = input_table.key_states[KEY_SHIFT];
+        
+        if (world->mouse_picked_entity) {
+            const f32 move_speed = shift_down ? 4.0f : 1.0f;
+            auto *e = world->mouse_picked_entity;
+            
+            if (input_table.key_states[KEY_LEFT]) {
+                e->location += move_speed * dt * vec3_left;
+            }
+
+            if (input_table.key_states[KEY_RIGHT]) {
+                e->location += move_speed * dt * vec3_right;
+            }
+
+            if (input_table.key_states[KEY_UP]) {
+                const vec3 direction = ctrl_down ? vec3_up : vec3_forward;
+                e->location += move_speed * dt * direction;
+            }
+
+            if (input_table.key_states[KEY_DOWN]) {
+                const vec3 direction = ctrl_down ? vec3_down : vec3_back;
+                e->location += move_speed * dt * direction;
+            }
+        }
+    }
 }
 
 Camera *desired_camera(World *world) {
@@ -156,6 +183,20 @@ Camera *desired_camera(World *world) {
 
 	error("Failed to get desired camera from world in unknown game mode %d", game_state.mode);
 	return null;
+}
+
+Entity *find_entity_by_id(World* world, s32 id) {
+    if (world->player.id == id) return &world->player;
+    if (world->skybox.id == id) return &world->skybox;
+
+    for (s32 i = 0; i < world->static_meshes.count; ++i) {
+		auto *mesh = world->static_meshes.items + i;
+        if (mesh->id == id) return mesh;
+	}
+
+    warn("Haven't found entity in world by id %d", id);
+
+    return null;
 }
 
 s32 create_static_mesh(World *world) {
@@ -361,4 +402,13 @@ const char *to_string(Player_Movement_Behavior behavior) {
 	case MOVE_RELATIVE_TO_CAMERA: return "MOVE_RELATIVE_TO_CAMERA";
 	default:                      return "UNKNOWN";
 	}
+}
+
+const char *to_string(Entity_Type type) {
+    switch (type) {
+    case ENTITY_PLAYER:      return "ENTITY_PLAYER";
+    case ENTITY_SKYBOX:      return "ENTITY_SKYBOX";
+    case ENTITY_STATIC_MESH: return "ENTITY_STATIC_MESH";
+    default:                 return "UNKNOWN";
+    }
 }

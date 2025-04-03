@@ -3,6 +3,8 @@
 #include "math/matrix.h"
 #include "math/math_core.h"
 
+#include "stb_sprintf.h"
+
 quat::quat()
 	: x(0.0f), y(0.0f), z(0.0f), w(0.0f) {
 }
@@ -202,6 +204,16 @@ f32 *quat::ptr() {
 }
 
 // Ex
+
+const char* to_string(const quat &q) {
+    static char buffers[4][32];
+    static s32 buffer_index = 0;
+    buffer_index = (buffer_index + 1) % 4;
+
+    char* buffer = buffers[buffer_index];
+    stbsp_snprintf(buffer, 32, "(%.3f %.3f %.3f %.3f)", q.x, q.y, q.z, q.w);
+    return buffer;
+}
 
 quat quat_from_axis_angle(const vec3 &axes, f32 deg) {
     const f32 factor = sin(rad(deg / 2.0f));

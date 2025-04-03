@@ -8,6 +8,11 @@
 inline constexpr s32 MAX_STATIC_MESHES = 1024;
 inline constexpr s32 MAX_AABBS         = MAX_STATIC_MESHES + 1;
 
+struct Mouse_Picked_Entity {
+    s32 id;
+    Entity *pointer;
+};
+
 struct World {
 	f32 dt;
 
@@ -21,8 +26,8 @@ struct World {
 	Sparse_Array<AABB>        aabbs;
 
     s32 selected_aabb_index = INVALID_INDEX;
-    s32 selected_entity_id  = INVALID_ENTITY_ID;
-
+    Entity *mouse_picked_entity = null;
+    
     mat4 camera_view;
     mat4 camera_proj;
     mat4 camera_view_proj;
@@ -33,6 +38,7 @@ inline World *world = null;
 void init_world(World *world);
 void tick(World *world, f32 dt);
 Camera *desired_camera(World *world);
+Entity *find_entity_by_id(World* world, s32 id);
 
 s32 create_static_mesh(World *world);
 

@@ -3,8 +3,10 @@
 
 layout (location = 0) in vec3 v_location;
 layout (location = 1) in vec2 v_uv;
+layout (location = 2) in int  v_entity_id;
 
-layout (location = 0) out vec2 f_uv;
+layout (location = 0) out vec2     f_uv;
+layout (location = 1) out flat int f_entity_id;
 
 uniform vec2 u_scale;
 uniform vec3 u_offset;
@@ -17,6 +19,8 @@ void main() {
     uv *= depth_scale;
     uv += 0.5f;
     f_uv = (uv + vec2(u_offset) * 0.01f) * u_scale;
+
+    f_entity_id = v_entity_id;
 }
 #end vertex
 
@@ -24,6 +28,7 @@ void main() {
 #version 460 core
 
 layout (location = 0) in vec2 f_uv;
+layout (location = 1) in flat int f_entity_id;
 
 layout (location = 0) out vec4 out_color;
 layout (location = 1) out int  out_entity_id;
@@ -32,6 +37,6 @@ uniform sampler2D u_sampler;
 
 void main() {
     out_color = texture(u_sampler, f_uv);
-    out_entity_id = -1;
+    out_entity_id = f_entity_id;
 }
 #end fragment

@@ -29,3 +29,4 @@ void on_window_event(struct Window *window, struct Window_Event *event);
 const char *to_string(Game_Mode mode);
 const char *to_string(Camera_Behavior behavior);
 const char *to_string(Player_Movement_Behavior behavior);
+const char *to_string(enum Entity_Type type);

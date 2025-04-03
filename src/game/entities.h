@@ -6,7 +6,6 @@
 inline constexpr s32 INVALID_ENTITY_ID = -1;
 
 enum Entity_Type {
-    ENTITY_NONE,
     ENTITY_PLAYER,
     ENTITY_SKYBOX,
     ENTITY_STATIC_MESH,
@@ -24,7 +23,7 @@ struct Entity_Draw_Data {
 
 struct Entity {
     u32 flags = 0;
-    Entity_Type type = ENTITY_NONE;
+    Entity_Type type;
     s32 id = INVALID_ENTITY_ID;
     
     vec3 location;
