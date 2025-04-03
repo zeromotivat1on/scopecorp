@@ -76,6 +76,16 @@ void press(s32 key, bool pressed) {
         if (pressed && key == KEY_F1) {
             lock_cursor(window, !window->cursor_locked);
         }
+
+        if (world->mouse_picked_entity) {
+            if (pressed && key == KEY_Z) {
+                game_state.selected_entity_property_to_change = PROPERTY_LOCATION;
+            } else if (pressed && key == KEY_X) {
+                game_state.selected_entity_property_to_change = PROPERTY_ROTATION;
+            } else if (pressed && key == KEY_C) {
+                game_state.selected_entity_property_to_change = PROPERTY_SCALE;
+            }
+        }
     } else if (game_state.mode == MODE_GAME) {
         if (pressed && key == KEY_F1) {
             game_state.camera_behavior = (Camera_Behavior)(((s32)game_state.camera_behavior + 1) % 3);
@@ -107,6 +117,8 @@ void click(s32 key, bool pressed) {
                 
                 e->flags |= ENTITY_FLAG_SELECTED_IN_EDITOR;
                 world->mouse_picked_entity = e;
+
+                game_state.selected_entity_property_to_change = PROPERTY_LOCATION;
             }
         }
     }
@@ -138,6 +150,13 @@ void tick(World *world, f32 dt) {
 		auto *mesh = world->static_meshes.items + i;
 		mesh->mvp = mat4_transform(mesh->location, mesh->rotation, mesh->scale) * world->camera_view_proj;
 		set_material_uniform_value(mesh->draw_data.material_index, "u_transform", mesh->mvp.ptr());
+        auto &aabb = world->aabbs[mesh->aabb_index];
+        const vec3 half_extent = (aabb.max - aabb.min) * 0.5f;
+
+        aabb.min = mesh->location - half_extent;
+        aabb.max = mesh->location + half_extent;
+
+        // @Todo: take into account rotation and scale.
 	}
 
 	tick_player(world);
@@ -153,25 +172,68 @@ void tick(World *world, f32 dt) {
         const bool shift_down = input_table.key_states[KEY_SHIFT];
         
         if (world->mouse_picked_entity) {
-            const f32 move_speed = shift_down ? 4.0f : 1.0f;
             auto *e = world->mouse_picked_entity;
-            
-            if (input_table.key_states[KEY_LEFT]) {
-                e->location += move_speed * dt * vec3_left;
-            }
 
-            if (input_table.key_states[KEY_RIGHT]) {
-                e->location += move_speed * dt * vec3_right;
-            }
+            if (game_state.selected_entity_property_to_change == PROPERTY_ROTATION) {
+                const f32 rotate_speed = shift_down ? 0.04f : 0.01f;
 
-            if (input_table.key_states[KEY_UP]) {
-                const vec3 direction = ctrl_down ? vec3_up : vec3_forward;
-                e->location += move_speed * dt * direction;
-            }
+                if (input_table.key_states[KEY_LEFT]) {
+                    e->rotation *= quat_from_axis_angle(vec3_left, rotate_speed);
+                }
 
-            if (input_table.key_states[KEY_DOWN]) {
-                const vec3 direction = ctrl_down ? vec3_down : vec3_back;
-                e->location += move_speed * dt * direction;
+                if (input_table.key_states[KEY_RIGHT]) {
+                    e->rotation *= quat_from_axis_angle(vec3_right, rotate_speed);
+                }
+
+                if (input_table.key_states[KEY_UP]) {
+                    const vec3 direction = ctrl_down ? vec3_up : vec3_forward;
+                    e->rotation *= quat_from_axis_angle(direction, rotate_speed);
+                }
+
+                if (input_table.key_states[KEY_DOWN]) {
+                    const vec3 direction = ctrl_down ? vec3_down : vec3_back;
+                    e->rotation *= quat_from_axis_angle(direction, rotate_speed);
+                }
+            } else if (game_state.selected_entity_property_to_change == PROPERTY_SCALE) {
+                const f32 scale_speed = shift_down ? 4.0f : 1.0f;
+                
+                if (input_table.key_states[KEY_LEFT]) {
+                    e->scale += scale_speed * dt * vec3_left;
+                }
+
+                if (input_table.key_states[KEY_RIGHT]) {
+                    e->scale += scale_speed * dt * vec3_right;
+                }
+
+                if (input_table.key_states[KEY_UP]) {
+                    const vec3 direction = ctrl_down ? vec3_up : vec3_forward;
+                    e->scale += scale_speed * dt * direction;
+                }
+
+                if (input_table.key_states[KEY_DOWN]) {
+                    const vec3 direction = ctrl_down ? vec3_down : vec3_back;
+                    e->scale += scale_speed * dt * direction;
+                }
+            } else if (game_state.selected_entity_property_to_change == PROPERTY_LOCATION) {
+                const f32 move_speed = shift_down ? 4.0f : 1.0f;
+
+                if (input_table.key_states[KEY_LEFT]) {
+                    e->location += move_speed * dt * vec3_left;
+                }
+
+                if (input_table.key_states[KEY_RIGHT]) {
+                    e->location += move_speed * dt * vec3_right;
+                }
+
+                if (input_table.key_states[KEY_UP]) {
+                    const vec3 direction = ctrl_down ? vec3_up : vec3_forward;
+                    e->location += move_speed * dt * direction;
+                }
+
+                if (input_table.key_states[KEY_DOWN]) {
+                    const vec3 direction = ctrl_down ? vec3_down : vec3_back;
+                    e->location += move_speed * dt * direction;
+                }
             }
         }
     }

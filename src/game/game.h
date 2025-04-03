@@ -16,10 +16,17 @@ enum Player_Movement_Behavior {
 	MOVE_RELATIVE_TO_CAMERA,
 };
 
+enum Property_Change_Type {
+    PROPERTY_LOCATION,
+    PROPERTY_ROTATION,
+    PROPERTY_SCALE,
+};
+
 struct Game_State {
 	Game_Mode mode = MODE_GAME;
 	Camera_Behavior camera_behavior = FOLLOW_PLAYER;
 	Player_Movement_Behavior player_movement_behavior = MOVE_RELATIVE_TO_CAMERA;
+    Property_Change_Type selected_entity_property_to_change = PROPERTY_LOCATION;
 };
 
 inline Game_State game_state;

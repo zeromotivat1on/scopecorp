@@ -1,6 +1,8 @@
 #pragma once
 
-#include "vector.h"
+struct vec3;
+struct mat3;
+struct mat4;
 
 struct quat {
 	f32 x, y, z, w;
@@ -39,8 +41,8 @@ struct quat {
 
 	f32	calc_w() const;
 
-	struct mat3 to_mat3() const;
-	struct mat4 to_mat4() const;
+	mat3 to_mat3() const;
+	mat4 to_mat4() const;
 
 	s32	dimension() const;
 

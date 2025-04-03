@@ -6,7 +6,7 @@
 #include "stb_sprintf.h"
 
 quat::quat()
-	: x(0.0f), y(0.0f), z(0.0f), w(0.0f) {
+	: x(0.0f), y(0.0f), z(0.0f), w(1.0f) {
 }
 
 quat::quat(f32 a)
@@ -216,13 +216,14 @@ const char* to_string(const quat &q) {
 }
 
 quat quat_from_axis_angle(const vec3 &axes, f32 deg) {
-    const f32 factor = sin(rad(deg / 2.0f));
+    const f32 angle  = rad(deg * 0.5f);
+    const f32 factor = sin(angle);
 
     const f32 x = axes.x * factor;
     const f32 y = axes.y * factor;
     const f32 z = axes.z * factor;
 
-    const f32 w = cos(rad(deg / 2.0f));
+    const f32 w = cos(angle);
 
     return quat(x, y, z, w).normalize();
 }

@@ -55,7 +55,11 @@ void draw_dev_stats() {
         
         if (world->mouse_picked_entity) {
             const auto *e = world->mouse_picked_entity;
-            text_size = (s32)stbsp_snprintf(text, sizeof(text), "selected entity\n\tlocation %s\n\trotation %s\n\tscale %s", to_string(e->location), to_string(e->rotation), to_string(e->scale));
+            const auto property_to_change = game_state.selected_entity_property_to_change;
+            text_size = (s32)stbsp_snprintf(text, sizeof(text), "selected entity\n%slocation %s\n%srotation %s\n%sscale %s",
+                                            property_to_change == PROPERTY_LOCATION ? " -> " : "\t", to_string(e->location),
+                                            property_to_change == PROPERTY_ROTATION ? " -> " : "\t", to_string(e->rotation),
+                                            property_to_change == PROPERTY_SCALE ? " -> " : "\t", to_string(e->scale));
             draw_text_with_shadow(text, text_size, pos, vec3_white, shadow_offset, vec3_black);
             pos.y -= 4 * atlas->line_height;
         }
