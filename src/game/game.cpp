@@ -6,6 +6,7 @@
 #include "log.h"
 #include "profile.h"
 #include "flip_book.h"
+#include "asset_registry.h"
 
 #include "math/math_core.h"
 
@@ -17,7 +18,7 @@
 #include "render/render_registry.h"
 
 #include "audio/al.h"
-#include "audio/sound.h"
+#include "audio/audio_registry.h"
 
 void on_window_event(Window *window, Window_Event *event) {
 	// @Todo: use input action.
@@ -416,11 +417,14 @@ void tick_player(World* world) {
     }
 
     if (player.velocity == vec3_zero) {
-        render_registry.materials[player.draw_data.material_index].texture_index = texture_index_list.player_idle[player.move_direction];
+        const Asset &asset = asset_table[texture_sids.player_idle[player.move_direction]];
+        render_registry.materials[player.draw_data.material_index].texture_index = asset.registry_index;
     } else {
         player.flip_book = &flip_books.player_move[player.move_direction];
         tick(player.flip_book, dt);
-        render_registry.materials[player.draw_data.material_index].texture_index = current_frame(player.flip_book);
+
+        const Asset &asset = asset_table[current_frame(player.flip_book)];
+        render_registry.materials[player.draw_data.material_index].texture_index = asset.registry_index;
     }
             
     player.location += player.velocity;
@@ -428,17 +432,18 @@ void tick_player(World* world) {
     const vec3 aabb_offset = vec3(player.scale.x * 0.5f, 0.0f, player.scale.x * 0.3f);
 	player_aabb.min = player.location - aabb_offset;
 	player_aabb.max = player.location + aabb_offset + vec3(0.0f, player.scale.y, 0.0f);
-            
-	const Sound &steps_sound = sounds.player_steps;
-	if (player.velocity == vec3_zero) {
-		s32 state;
-		alGetSourcei(steps_sound.source, AL_SOURCE_STATE, &state);
-		if (state == AL_PLAYING) alSourceStop(steps_sound.source);
-	} else {
-		s32 state;
-		alGetSourcei(steps_sound.source, AL_SOURCE_STATE, &state);
-		if (state != AL_PLAYING) alSourcePlay(steps_sound.source);
-	}
+
+    // @Cleanup: remove direct al calls.
+    const Sound &steps_sound = audio_registry.sounds[asset_table[sound_sids.player_steps].registry_index];
+
+    s32 state;
+    alGetSourcei(steps_sound.source, AL_SOURCE_STATE, &state);
+        
+    if (player.velocity == vec3_zero) {
+        if (state == AL_PLAYING) alSourceStop(steps_sound.source);
+    } else {
+        if (state != AL_PLAYING) alSourcePlay(steps_sound.source);
+    }
 }
 
 const char *to_string(Game_Mode mode) {

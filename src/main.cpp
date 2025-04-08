@@ -1,15 +1,19 @@
 #include "pch.h"
 #include "log.h"
+#include "sid.h"
 #include "font.h"
 #include "flip_book.h"
 #include "memory_storage.h"
 #include "profile.h"
+#include "asset_registry.h"
 #include "stb_sprintf.h"
+#include "stb_image.h"
 
 #include "os/thread.h"
 #include "os/input.h"
 #include "os/window.h"
 #include "os/time.h"
+#include "os/file.h"
 
 #include "math/math_core.h"
 
@@ -20,16 +24,16 @@
 #include "render/geometry_draw.h"
 #include "render/text.h"
 
-#include "audio/sound.h"
+#include "audio/audio_registry.h"
 
 #include "game/world.h"
 #include "game/game.h"
 
 #include "editor/hot_reload.h"
 
-int main() {
-    PROFILE_START(startup, "Startup");    
-    const s64 startup_counter = performance_counter();
+s32 main() {
+    PROFILE_START(startup, "Startup");
+    START_SCOPE_TIMER(startup);
     
     void *vm = allocate_core();
     if (!vm) return 1;
@@ -37,30 +41,40 @@ int main() {
 	log("Preallocated memory storages: Persistent %.fmb | Frame %.fmb | Temp %.fmb",
 		(f32)pers_memory_size / 1024 / 1024, (f32)frame_memory_size / 1024 / 1024, (f32)temp_memory_size / 1024 / 1024);
 
-	window = create_window(1280, 720, "Scopecorp", 0, 0);
+    init_sid_table(&sid_table);
+    
+	window = create_window(1280, 720, GAME_NAME, 0, 0);
 	if (!window) {
 		error("Failed to create window");
 		return 1;
 	}
 
 	register_event_callback(window, on_window_event);
-    
-	init_input_table();
 
-	init_render(window);
+	init_input_table();
+    init_render_context(window);
+    init_audio_context();
+
     lock_cursor(window, true);
     set_vsync(false);
+    stbi_set_flip_vertically_on_load(true);
     
-	init_render_registry(&render_registry);
+    init_render_registry(&render_registry);
+    init_audio_registry();
 
-	load_game_textures(&texture_index_list);
-	compile_game_shaders(&shader_index_list);
+    init_asset_sources(&asset_sources);
+    init_asset_table(&asset_table);
+    
+    save_asset_pack(PACK_PATH("test.pack"));
+    load_asset_pack(PACK_PATH("test.pack"), &asset_table);
+
+    cache_shader_sids(&shader_sids);
+    cache_texture_sids(&texture_sids);
+    cache_sound_sids(&sound_sids);
+    
 	create_game_materials(&material_index_list);
 	create_game_flip_books(&flip_books);
-
-    init_audio_context();
-	load_game_sounds(&sounds);
-
+    
     viewport.aspect_type = VIEWPORT_4X3;
     viewport.resolution_scale = 1.0f;
     
@@ -82,7 +96,7 @@ int main() {
 #endif
     
 	Hot_Reload_List hot_reload_list = {};
-	register_hot_reload_dir(&hot_reload_list, SHADER_PATH(""), on_shader_changed_externally);
+	register_hot_reload_dir(&hot_reload_list, SHADER_FOLDER, on_shader_changed_externally);
 	start_hot_reload_thread(&hot_reload_list);
 
 	Font *font = create_font(FONT_PATH("consola.ttf"));
@@ -98,8 +112,10 @@ int main() {
 	Player &player = world->player;
 	{   // Create player.
         player.id = 1;
+
+        const Asset *asset = asset_table.find(texture_sids.player_idle[DIRECTION_BACK]);
+        const auto &texture = render_registry.textures[asset->registry_index];
         
-        const auto &texture = render_registry.textures[texture_index_list.player_idle[DIRECTION_BACK]];
         const f32 scale_aspect = (f32)texture.width / texture.height;
         const f32 y_scale = 1.0f * scale_aspect;
         const f32 x_scale = y_scale * scale_aspect;
@@ -296,9 +312,8 @@ int main() {
 
 	delta_time = 0.0f;
 	s64 begin_counter = performance_counter();
-	const f32 frequency = (f32)performance_frequency();
 
-    log("Startup took %.2fs", (performance_counter() - startup_counter) / (f32)performance_frequency());
+    log("Startup took %.2fms", CHECK_SCOPE_TIMER_MS(startup));
     PROFILE_END(startup);
     
 	while (alive(window)) {
@@ -367,7 +382,7 @@ int main() {
 		clear(frame);
 
 		const s64 end_counter = performance_counter();
-		delta_time = (end_counter - begin_counter) / frequency;
+		delta_time = (end_counter - begin_counter) / (f32)performance_frequency_s();
 		begin_counter = end_counter;
 
 		debug_scope {

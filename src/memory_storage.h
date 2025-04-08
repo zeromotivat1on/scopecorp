@@ -2,7 +2,7 @@
 
 inline constexpr u64 pers_memory_size  = MB(64);
 inline constexpr u64 frame_memory_size = MB(16);
-inline constexpr u64 temp_memory_size  = MB(64);
+inline constexpr u64 temp_memory_size  = MB(128);
 inline constexpr u64 panic_memory_size = MB(1);
 
 struct Memory_Storage {

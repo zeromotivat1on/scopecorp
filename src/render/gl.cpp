@@ -15,6 +15,7 @@
 #include "log.h"
 #include "font.h"
 #include "profile.h"
+#include "asset_registry.h"
 #include "stb_image.h"
 #include "stb_truetype.h"
 #include "stb_sprintf.h"
@@ -334,7 +335,7 @@ s32 create_frame_buffer(s16 width, s16 height, const Texture_Format_Type *color_
     frame_buffer.depth_attachment        = INVALID_INDEX;
     frame_buffer.depth_attachment_format = depth_attachment_format;
 
-    frame_buffer.material_index = create_material(shader_index_list.frame_buffer, INVALID_INDEX);
+    frame_buffer.material_index = create_material(asset_table[shader_sids.frame_buffer].registry_index, INVALID_INDEX);
 
     const s32 uniforms[] = {
         create_uniform("u_resolution",                  UNIFORM_F32_2, 1),
@@ -635,23 +636,7 @@ static u32 gl_link_program(u32 vertex_shader, u32 fragment_shader) {
 	return program;
 }
 
-s32 create_shader(const char *path) {
-	char timer_string[256];
-	stbsp_snprintf(timer_string, sizeof(timer_string), "%s from %s took", __FUNCTION__, path);
-	SCOPE_TIMER(timer_string);
-
-	Shader shader;
-	shader.path = path;
-
-	u64 shader_size = 0;
-	u8 *shader_src = (u8 *)push(temp, MAX_SHADER_SIZE);
-	defer { pop(temp, MAX_SHADER_SIZE); };
-
-	if (!read_file(path, shader_src, MAX_SHADER_SIZE, &shader_size))
-		return INVALID_INDEX;
-
-	shader_src[shader_size] = '\0';
-
+s32 create_shader(const char *source) {
 	char *vertex_src   = (char *)push(temp, MAX_SHADER_SIZE);
 	char *fragment_src = (char *)push(temp, MAX_SHADER_SIZE);
     defer {
@@ -659,29 +644,22 @@ s32 create_shader(const char *path) {
         pop(temp, MAX_SHADER_SIZE);
     };
 
-	if (!parse_shader_source((char *)shader_src, vertex_src, fragment_src)) {
-        error("Failed to parse shader %s", path);
+	if (!parse_shader_source((char *)source, vertex_src, fragment_src)) {
+        error("Failed to parse shader");
         return INVALID_INDEX;
     }
 
 	const u32 vertex_shader = gl_create_shader(GL_VERTEX_SHADER, vertex_src);
 	const u32 fragment_shader = gl_create_shader(GL_FRAGMENT_SHADER, fragment_src);
+
+    Shader shader;
 	shader.id = gl_link_program(vertex_shader, fragment_shader);
 
 	return render_registry.shaders.add(shader);
 }
 
-bool recreate_shader(s32 shader_index) {
+bool recreate_shader(s32 shader_index, const char *source) {
     auto &shader = render_registry.shaders[shader_index];
-    
-	u64 shader_size = 0;
-	u8 *shader_src = (u8 *)push(temp, MAX_SHADER_SIZE);
-	defer { pop(temp, MAX_SHADER_SIZE); };
-
-	if (!read_file(shader.path, shader_src, MAX_SHADER_SIZE, &shader_size))
-		return false;
-
-	shader_src[shader_size] = '\0';
 
     char *vertex_src   = (char *)push(temp, MAX_SHADER_SIZE);
 	char *fragment_src = (char *)push(temp, MAX_SHADER_SIZE);
@@ -690,8 +668,8 @@ bool recreate_shader(s32 shader_index) {
         pop(temp, MAX_SHADER_SIZE);
     };
 
-	if (!parse_shader_source((char *)shader_src, vertex_src, fragment_src)) {
-        error("Failed to parse shader %s", shader.path);
+	if (!parse_shader_source((char *)source, vertex_src, fragment_src)) {
+        error("Failed to parse shader");
         return false;
     }
     
@@ -703,26 +681,6 @@ bool recreate_shader(s32 shader_index) {
 	shader.id = gl_link_program(vertex_shader, fragment_shader);
 
 	return true;
-}
-
-s32 find_shader_by_file(Shader_Index_List *list, const char *path) {
-	const s32 item_size = sizeof(s32);
-	const s32 list_size = sizeof(Shader_Index_List);
-
-	u8 *data = (u8 *)list;
-	s32 pos = 0;
-
-	while (pos < list_size) {
-		s32 shader_index = *(s32 *)(data + pos);
-		assert(shader_index < MAX_SHADERS);
-
-		const auto &shader = render_registry.shaders[shader_index];
-		if (strcmp(shader.path, path) == 0) return shader_index;
-
-		pos += item_size;
-	}
-
-	return INVALID_INDEX;
 }
 
 void send_uniform_value_to_gpu(s32 shader_index, s32 uniform_index, u32 offset) {
@@ -753,10 +711,6 @@ void send_uniform_value_to_gpu(s32 shader_index, s32 uniform_index, u32 offset) 
 }
 
 s32 create_texture(const char *path) {
-	char timer_string[256];
-	stbsp_snprintf(timer_string, sizeof(timer_string), "%s from %s took", __FUNCTION__, path);
-	SCOPE_TIMER(timer_string);
-
 	stbi_set_flip_vertically_on_load(true);
 	defer { stbi_set_flip_vertically_on_load(false); };
 
@@ -779,6 +733,7 @@ s32 create_texture(const char *path) {
     generate_texture_mipmaps(texture);
     set_texture_wrap(texture, TEXTURE_WRAP_REPEAT);
     set_texture_filter(texture, TEXTURE_FILTER_NEAREST);
+    stbi_image_free(data);
     
 	return texture;
 }
@@ -820,31 +775,31 @@ static s32 gl_texture_data_type(Texture_Format_Type format) {
     }
 }
 
-s32 create_texture(Texture_Type type, Texture_Format_Type format, s32 width, s32 height, void *data) {
+s32 create_texture(Texture_Type texture_type, Texture_Format_Type format_type, s32 width, s32 height, void *data) {
     Texture texture = {0};
-    texture.type = type;
-    texture.format = format;
+    texture.type = texture_type;
+    texture.format = format_type;
     texture.width = width;
     texture.height = height;
 
     glGenTextures(1, &texture.id);
 
-    const s32 gl_type            = gl_texture_type(type);
-    const s32 gl_format          = gl_texture_format(format);
-    const s32 gl_internal_format = gl_texture_internal_format(format);
-    const s32 gl_data_type       = gl_texture_data_type(format);
-
-    if (gl_type < 0 || gl_format < 0 || gl_internal_format < 0 || gl_data_type < 0) {
+    const s32 type            = gl_texture_type(texture_type);
+    const s32 format          = gl_texture_format(format_type);
+    const s32 internal_format = gl_texture_internal_format(format_type);
+    const s32 data_type       = gl_texture_data_type(format_type);
+    
+    if (type < 0 || format < 0 || internal_format < 0 || data_type < 0) {
         error("Failed to create texture, see errors above");
         return INVALID_INDEX;
     }
     
-	glBindTexture(gl_type, texture.id);
+	glBindTexture(type, texture.id);
 
     // @Todo: properly set data based on texture type.
-    glTexImage2D(gl_type, 0, gl_internal_format, width, height, 0, gl_format, gl_data_type, data);
+    glTexImage2D(type, 0, internal_format, width, height, 0, format, data_type, data);
     
-	glBindTexture(gl_type, 0);
+	glBindTexture(type, 0);
     
     return render_registry.textures.add(texture);
 }
@@ -858,17 +813,17 @@ static s32 gl_texture_wrap(Texture_Wrap_Type wrap) {
     }
 }
 
-void set_texture_wrap(s32 texture_index, Texture_Wrap_Type wrap) {
+void set_texture_wrap(s32 texture_index, Texture_Wrap_Type wrap_type) {
     auto &texture = render_registry.textures[texture_index];
-    texture.wrap = wrap;
+    texture.wrap = wrap_type;
     
-    const s32 gl_type = gl_texture_type(texture.type);
-    const s32 gl_wrap = gl_texture_wrap(wrap);
+    const s32 type = gl_texture_type(texture.type);
+    const s32 wrap = gl_texture_wrap(wrap_type);
 
-    glBindTexture(gl_type, texture.id);
-    glTexParameteri(gl_type, GL_TEXTURE_WRAP_S, gl_wrap);
-    glTexParameteri(gl_type, GL_TEXTURE_WRAP_T, gl_wrap);
-    glBindTexture(gl_type, 0);
+    glBindTexture(type, texture.id);
+    glTexParameteri(type, GL_TEXTURE_WRAP_S, wrap);
+    glTexParameteri(type, GL_TEXTURE_WRAP_T, wrap);
+    glBindTexture(type, 0);
 }
 
 static s32 gl_texture_min_filter(Texture_Filter_Type filter, bool has_mipmaps) {
@@ -892,30 +847,30 @@ static s32 gl_texture_mag_filter(Texture_Filter_Type filter) {
     }
 }
 
-void set_texture_filter(s32 texture_index, Texture_Filter_Type filter) {
+void set_texture_filter(s32 texture_index, Texture_Filter_Type filter_type) {
     auto &texture = render_registry.textures[texture_index];
-    texture.filter = filter;
+    texture.filter = filter_type;
 
     const bool has_mipmaps = texture.flags & TEXTURE_HAS_MIPMAPS;
     
-    const s32 gl_type = gl_texture_type(texture.type);
-    const s32 gl_min_filter = gl_texture_min_filter(filter, has_mipmaps);
-    const s32 gl_mag_filter = gl_texture_mag_filter(filter);
+    const s32 type = gl_texture_type(texture.type);
+    const s32 min_filter = gl_texture_min_filter(filter_type, has_mipmaps);
+    const s32 mag_filter = gl_texture_mag_filter(filter_type);
 
-    glBindTexture(gl_type, texture.id);
-    glTexParameteri(gl_type, GL_TEXTURE_MIN_FILTER, gl_min_filter);
-    glTexParameteri(gl_type, GL_TEXTURE_MAG_FILTER, gl_mag_filter);
-    glBindTexture(gl_type, 0);
+    glBindTexture(type, texture.id);
+    glTexParameteri(type, GL_TEXTURE_MIN_FILTER, min_filter);
+    glTexParameteri(type, GL_TEXTURE_MAG_FILTER, mag_filter);
+    glBindTexture(type, 0);
 }
 
 void generate_texture_mipmaps(s32 texture_index) {
     auto &texture = render_registry.textures[texture_index];
     texture.flags |= TEXTURE_HAS_MIPMAPS;
 
-    const s32 gl_type = gl_texture_type(texture.type);
-    glBindTexture(gl_type, texture.id);
-    glGenerateMipmap(gl_type);
-    glBindTexture(gl_type, 0);
+    const s32 type = gl_texture_type(texture.type);
+    glBindTexture(type, texture.id);
+    glGenerateMipmap(type);
+    glBindTexture(type, 0);
 }
 
 void delete_texture(s32 texture_index) {

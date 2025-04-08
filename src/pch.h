@@ -46,6 +46,11 @@ static_assert(sizeof(f64) == 8);
 #define F64_MIN   2.2250738585072014e-308
 #define F64_MAX   1.7976931348623158e+308
 
+#define U32_PACK(a, b, c, d) ((u32)(a) << 0  | \
+                              (u32)(b) << 8  | \
+                              (u32)(c) << 16 | \
+                              (u32)(d) << 24)
+
 #define null nullptr
 
 #define INVALID_INDEX -1
@@ -76,10 +81,18 @@ template <class F> struct Defer { F f; ~Defer() { f(); } };
 template <class F> Defer<F> operator+(Defer_Ref, F f) { return {f}; }
 #define defer const auto CONCAT(deferrer, __LINE__) = Defer_Ref{} + [&]()
 
-#define SHADER_PATH(x)  DIR_SHADERS x
-#define TEXTURE_PATH(x) DIR_TEXTURES x
-#define SOUND_PATH(x)   DIR_SOUNDS x
-#define FONT_PATH(x)    DIR_FONTS x
+#define RUN_TREE_FOLDER DIR_RUN_TREE
+#define SHADER_FOLDER   DIR_SHADERS
+#define TEXTURE_FOLDER  DIR_TEXTURES
+#define SOUND_FOLDER    DIR_SOUNDS
+#define FONT_FOLDER     DIR_FONTS
+#define PACK_FOLDER     DIR_PACKS
+
+#define SHADER_PATH(x)  SHADER_FOLDER x
+#define TEXTURE_PATH(x) TEXTURE_FOLDER x
+#define SOUND_PATH(x)   SOUND_FOLDER x
+#define FONT_PATH(x)    FONT_FOLDER x
+#define PACK_PATH(x)    PACK_FOLDER x
 
 enum Direction {
     DIRECTION_BACK,

@@ -121,7 +121,7 @@ static void wgl_load_procs() {
 #undef load
 }
 
-void init_render(Window *window) {
+void init_render_context(Window *window) {
     log("Platform: Windows | OpenGL");
     
 	Win32_Window dummy_window = wgl_create_dummy_window(window);

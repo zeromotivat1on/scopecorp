@@ -18,6 +18,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <windowsx.h>
+#include <shlwapi.h>
 #include <intrin.h>
 
 // Also defined in win32_gl.cpp
@@ -66,8 +67,68 @@ bool read_file(File handle, void *buffer, u64 size, u64 *bytes_read) {
 	return ReadFile(handle, buffer, (DWORD)size, (LPDWORD)bytes_read, NULL);
 }
 
-bool write_file(File handle, void *buffer, u64 size, u64 *bytes_read) {
-	return WriteFile(handle, buffer, (DWORD)size, (LPDWORD)bytes_read, NULL);
+bool write_file(File handle, void *buffer, u64 size, u64 *bytes_written) {
+    DWORD size_written;
+	BOOL result = WriteFile(handle, buffer, (DWORD)size, &size_written, NULL);
+    if (bytes_written) *bytes_written = size_written;
+    return result;
+}
+
+bool set_file_pointer_position(File handle, s64 position) {
+    LARGE_INTEGER move_distance;
+    move_distance.QuadPart = position;
+    return SetFilePointerEx(handle, move_distance, NULL, FILE_BEGIN);
+}
+
+s64 get_file_pointer_position(File handle) {
+    LARGE_INTEGER position      = {0};
+    LARGE_INTEGER move_distance = {0};
+    if (SetFilePointerEx(handle, move_distance, &position, FILE_CURRENT))
+        return position.QuadPart;
+    return INVALID_INDEX;
+}
+
+void for_each_file(const char *directory, For_Each_File_Callback callback, void *user_data) {
+    WIN32_FIND_DATA find_data;
+    TCHAR file_path     [MAX_PATH + 0];
+    TCHAR directory_mask[MAX_PATH + 3];
+    
+    PathCombine(directory_mask, directory, "*");
+    
+    HANDLE file = FindFirstFile(directory_mask, &find_data);
+    if (file == INVALID_HANDLE_VALUE) {
+        error("Failed to search directory %s", directory_mask);
+        return;
+    }
+
+    File_Callback_Data callback_data;
+    callback_data.user_data = user_data;
+    
+    do {
+        const char *file_name = find_data.cFileName;
+        PathCombine(file_path, directory, file_name);           
+
+        if (find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+            if (strcmp(file_name, ".") == 0 || strcmp(file_name, "..") == 0) continue;
+            for_each_file(file_path, callback);
+        } else {
+            callback_data.path = file_path;
+            callback_data.size = (find_data.nFileSizeHigh * (MAXDWORD + 1)) + find_data.nFileSizeLow;
+
+            ULARGE_INTEGER last_write_time;
+            last_write_time.LowPart  = find_data.ftLastWriteTime.dwLowDateTime;
+            last_write_time.HighPart = find_data.ftLastWriteTime.dwHighDateTime;
+            callback_data.last_write_time = last_write_time.QuadPart;
+            
+            callback(&callback_data);
+        }
+    } while (FindNextFile(file, &find_data));
+
+    FindClose(file);
+}
+
+void extract_file_from_path(char *path) {
+    PathStripPath(path);
 }
 
 static DWORD hot_reload_proc(LPVOID param) {
@@ -359,10 +420,6 @@ s32 atomic_decrement(s32 *dst) {
 	return InterlockedDecrement((LONG *)dst);
 }
 
-s64 current_time_ms() {
-	return performance_counter() * 1000ull / performance_frequency();
-}
-
 s64 time_since_sys_boot_ms() {
 	return GetTickCount64();
 }
@@ -374,7 +431,7 @@ s64 performance_counter() {
 	return counter.QuadPart;
 }
 
-s64 performance_frequency() {
+s64 performance_frequency_s() {
 	static u64 frequency64 = 0;
 
 	if (frequency64 == 0) {
@@ -382,6 +439,19 @@ s64 performance_frequency() {
 		const BOOL res = QueryPerformanceFrequency(&frequency);
 		assert(res);
 		frequency64 = frequency.QuadPart;
+	}
+
+	return frequency64;
+}
+
+s64 performance_frequency_ms() {
+	static u64 frequency64 = 0;
+
+	if (frequency64 == 0) {
+		LARGE_INTEGER frequency;
+		const BOOL res = QueryPerformanceFrequency(&frequency);
+		assert(res);
+		frequency64 = frequency.QuadPart / 1000;
 	}
 
 	return frequency64;

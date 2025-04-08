@@ -6,7 +6,7 @@ else ()
 endif()
 
 add_executable(${GAME_EXE}
-                assert.cpp camera.cpp collision.cpp flip_book.cpp font.cpp log.cpp main.cpp memory_storage.cpp pch.cpp profile.cpp
+                assert.cpp asset.cpp camera.cpp collision.cpp flip_book.cpp font.cpp log.cpp main.cpp memory_storage.cpp pch.cpp profile.cpp
                 # work_queue.cpp work_queue.h
                 os/os.cpp
                 audio/al.cpp audio/audio.cpp
@@ -20,7 +20,7 @@ target_include_directories(${GAME_EXE} PRIVATE "${PROJECT_SOURCE_DIR}/src")
 
 if (WIN32)
    target_sources(${GAME_EXE} PRIVATE os/win32.cpp)
-   target_link_libraries(${GAME_EXE} PRIVATE ${RUN_TREE_DIR}/openal32.lib)
+   target_link_libraries(${GAME_EXE} PRIVATE ${RUN_TREE_DIR}/openal32.lib shlwapi.lib)
    
    if (GFX_API STREQUAL OPEN_GL)
       target_sources(${GAME_EXE} PRIVATE os/win32_gl.cpp)
@@ -51,7 +51,11 @@ target_compile_definitions(${GAME_EXE} PRIVATE
                                $<$<CONFIG:Debug>:DEBUG>
                                $<$<CONFIG:Release>:RELEASE>
                                # Directories
+                               DIR_RUN_TREE="${RUN_TREE_DIR}"
                                DIR_SHADERS="${RUN_TREE_DIR}/data/shaders/"
                                DIR_TEXTURES="${RUN_TREE_DIR}/data/textures/"
                                DIR_SOUNDS="${RUN_TREE_DIR}/data/sounds/"
-                               DIR_FONTS="${RUN_TREE_DIR}/data/fonts/")
+                               DIR_FONTS="${RUN_TREE_DIR}/data/fonts/"
+                               DIR_PACKS="${RUN_TREE_DIR}/data/"
+                               # Other
+                               GAME_NAME="${GAME_EXE}")

@@ -14,9 +14,11 @@
 #include "math/math_core.h"
 
 #include "log.h"
+#include "sid.h"
+#include "font.h"
 #include "profile.h"
 #include "memory_storage.h"
-#include "font.h"
+#include "asset_registry.h"
 
 static s32 MAX_GEOMETRY_VERTEX_BUFFER_SIZE = 0;
 static s32 GEOMETRY_VERTEX_DIMENSION       = 0;
@@ -42,44 +44,44 @@ void init_render_registry(Render_Registry *registry) {
     registry->uniform_value_cache.capacity = MAX_UNIFORM_VALUE_CACHE_SIZE;
 }
 
-void compile_game_shaders(Shader_Index_List *list) {
-    list->entity       = create_shader(SHADER_PATH("entity.glsl"));
-    list->text         = create_shader(SHADER_PATH("text.glsl"));
-    list->skybox       = create_shader(SHADER_PATH("skybox.glsl"));
-    list->frame_buffer = create_shader(SHADER_PATH("frame_buffer.glsl"));
-    list->geometry     = create_shader(SHADER_PATH("geometry.glsl"));
-    list->outline      = create_shader(SHADER_PATH("outline.glsl"));
+void cache_shader_sids(Shader_Sid_List *list) {
+    list->entity       = SID("/data/shaders/entity.glsl");
+    list->text         = SID("/data/shaders/text.glsl");
+    list->skybox       = SID("/data/shaders/skybox.glsl");
+    list->frame_buffer = SID("/data/shaders/frame_buffer.glsl");
+    list->geometry     = SID("/data/shaders/geometry.glsl");
+    list->outline      = SID("/data/shaders/outline.glsl");
 }
 
-void load_game_textures(Texture_Index_List *list) {
-	list->skybox = create_texture(TEXTURE_PATH("skybox.png"));
-    list->stone  = create_texture(TEXTURE_PATH("stone.png"));
-    list->grass  = create_texture(TEXTURE_PATH("grass.png"));
+void cache_texture_sids(Texture_Sid_List *list) {
+    list->skybox = SID("/data/textures/skybox.png");
+    list->stone  = SID("/data/textures/stone.png");
+    list->grass  = SID("/data/textures/grass.png");
 
-    list->player_idle[DIRECTION_BACK] = create_texture(TEXTURE_PATH("player_idle_back.png"));
-    list->player_idle[DIRECTION_RIGHT] = create_texture(TEXTURE_PATH("player_idle_right.png"));
-    list->player_idle[DIRECTION_LEFT] = create_texture(TEXTURE_PATH("player_idle_left.png"));
-    list->player_idle[DIRECTION_FORWARD] = create_texture(TEXTURE_PATH("player_idle_forward.png"));
+    list->player_idle[DIRECTION_BACK]    = SID("/data/textures/player_idle_back.png");
+    list->player_idle[DIRECTION_RIGHT]   = SID("/data/textures/player_idle_right.png");
+    list->player_idle[DIRECTION_LEFT]    = SID("/data/textures/player_idle_left.png");
+    list->player_idle[DIRECTION_FORWARD] = SID("/data/textures/player_idle_forward.png");
 
-    list->player_move[DIRECTION_BACK][0] = create_texture(TEXTURE_PATH("player_move_back_1.png"));
-    list->player_move[DIRECTION_BACK][1] = create_texture(TEXTURE_PATH("player_move_back_2.png"));
-    list->player_move[DIRECTION_BACK][2] = create_texture(TEXTURE_PATH("player_move_back_3.png"));
-    list->player_move[DIRECTION_BACK][3] = create_texture(TEXTURE_PATH("player_move_back_4.png"));
+    list->player_move[DIRECTION_BACK][0] = SID("/data/textures/player_move_back_1.png");
+    list->player_move[DIRECTION_BACK][1] = SID("/data/textures/player_move_back_2.png");
+    list->player_move[DIRECTION_BACK][2] = SID("/data/textures/player_move_back_3.png");
+    list->player_move[DIRECTION_BACK][3] = SID("/data/textures/player_move_back_4.png");
 
-    list->player_move[DIRECTION_RIGHT][0] = create_texture(TEXTURE_PATH("player_move_right_1.png"));
-    list->player_move[DIRECTION_RIGHT][1] = create_texture(TEXTURE_PATH("player_move_right_2.png"));
-    list->player_move[DIRECTION_RIGHT][2] = create_texture(TEXTURE_PATH("player_move_right_3.png"));
-    list->player_move[DIRECTION_RIGHT][3] = create_texture(TEXTURE_PATH("player_move_right_4.png"));
+    list->player_move[DIRECTION_RIGHT][0] = SID("/data/textures/player_move_right_1.png");
+    list->player_move[DIRECTION_RIGHT][1] = SID("/data/textures/player_move_right_2.png");
+    list->player_move[DIRECTION_RIGHT][2] = SID("/data/textures/player_move_right_3.png");
+    list->player_move[DIRECTION_RIGHT][3] = SID("/data/textures/player_move_right_4.png");
 
-    list->player_move[DIRECTION_LEFT][0] = create_texture(TEXTURE_PATH("player_move_left_1.png"));
-    list->player_move[DIRECTION_LEFT][1] = create_texture(TEXTURE_PATH("player_move_left_2.png"));
-    list->player_move[DIRECTION_LEFT][2] = create_texture(TEXTURE_PATH("player_move_left_3.png"));
-    list->player_move[DIRECTION_LEFT][3] = create_texture(TEXTURE_PATH("player_move_left_4.png"));
+    list->player_move[DIRECTION_LEFT][0] = SID("/data/textures/player_move_left_1.png");
+    list->player_move[DIRECTION_LEFT][1] = SID("/data/textures/player_move_left_2.png");
+    list->player_move[DIRECTION_LEFT][2] = SID("/data/textures/player_move_left_3.png");
+    list->player_move[DIRECTION_LEFT][3] = SID("/data/textures/player_move_left_4.png");
 
-    list->player_move[DIRECTION_FORWARD][0] = create_texture(TEXTURE_PATH("player_move_forward_1.png"));
-    list->player_move[DIRECTION_FORWARD][1] = create_texture(TEXTURE_PATH("player_move_forward_2.png"));
-    list->player_move[DIRECTION_FORWARD][2] = create_texture(TEXTURE_PATH("player_move_forward_3.png"));
-    list->player_move[DIRECTION_FORWARD][3] = create_texture(TEXTURE_PATH("player_move_forward_4.png"));
+    list->player_move[DIRECTION_FORWARD][0] = SID("/data/textures/player_move_forward_1.png");
+    list->player_move[DIRECTION_FORWARD][1] = SID("/data/textures/player_move_forward_2.png");
+    list->player_move[DIRECTION_FORWARD][2] = SID("/data/textures/player_move_forward_3.png");
+    list->player_move[DIRECTION_FORWARD][3] = SID("/data/textures/player_move_forward_4.png");
 }
 
 void create_game_materials(Material_Index_List *list) {        
@@ -98,11 +100,11 @@ void create_game_materials(Material_Index_List *list) {
         create_uniform("u_color",     UNIFORM_F32_3,   1),
 	};
 
-	list->skybox  = create_material(shader_index_list.skybox,  texture_index_list.skybox);
-    list->player  = create_material(shader_index_list.entity,  INVALID_INDEX);
-	list->ground  = create_material(shader_index_list.entity,  texture_index_list.grass);
-    list->cube    = create_material(shader_index_list.entity,  texture_index_list.stone);
-    list->outline = create_material(shader_index_list.outline, INVALID_INDEX);
+	list->skybox  = create_material(asset_table[shader_sids.skybox].registry_index, asset_table[texture_sids.skybox].registry_index);
+    list->player  = create_material(asset_table[shader_sids.entity].registry_index, INVALID_INDEX);
+    list->ground  = create_material(asset_table[shader_sids.entity].registry_index, asset_table[texture_sids.grass].registry_index);
+    list->cube    = create_material(asset_table[shader_sids.entity].registry_index, asset_table[texture_sids.stone].registry_index);
+    list->outline = create_material(asset_table[shader_sids.outline].registry_index, INVALID_INDEX);
     
     set_material_uniforms(list->skybox,  skybox_uniforms,  COUNT(skybox_uniforms));
 	set_material_uniforms(list->player,  entity_uniforms,  COUNT(entity_uniforms));
@@ -263,7 +265,7 @@ void init_geo_draw() {
     binding.vertex_buffer_index = create_vertex_buffer(null, MAX_GEOMETRY_VERTEX_BUFFER_SIZE, BUFFER_USAGE_STREAM);
     
     geometry_draw_buffer.vertex_array_index = create_vertex_array(&binding, 1);
-    geometry_draw_buffer.material_index = create_material(shader_index_list.geometry, INVALID_INDEX);
+    geometry_draw_buffer.material_index = create_material(asset_table[shader_sids.geometry].registry_index, INVALID_INDEX);
 
     const s32 u_transform = create_uniform("u_transform", UNIFORM_F32_4X4, 1);
     set_material_uniforms(geometry_draw_buffer.material_index, &u_transform, 1);
@@ -452,7 +454,7 @@ void init_text_draw(Font_Atlas *atlas) {
     bindings[3].vertex_buffer_index = create_vertex_buffer(null, transform_buffer_size, BUFFER_USAGE_STREAM);
 
     text_draw_buffer.vertex_array_index = create_vertex_array(bindings, 4);
-    text_draw_buffer.material_index = create_material(shader_index_list.text, INVALID_INDEX);
+    text_draw_buffer.material_index = create_material(asset_table[shader_sids.text].registry_index, INVALID_INDEX);
 
     const s32 u_projection = create_uniform("u_projection", UNIFORM_F32_4X4, 1);
     set_material_uniforms(text_draw_buffer.material_index, &u_projection, 1);

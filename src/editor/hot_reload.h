@@ -8,6 +8,7 @@ inline constexpr s32 MAX_HOT_RELOAD_LIST_SIZE = 16;
 // hot reload on next frame. Thats why this interval is added, more like @Hack.
 inline constexpr f32 HOT_RELOAD_CHECK_INTERVAL = 0.1f; // in seconds
 
+typedef u64 sid;
 typedef void (*Hot_Reload_Callback)(const char *filename);
 
 struct Hot_Reload_Directory {
@@ -28,12 +29,12 @@ void stop_hot_reload_thread(Hot_Reload_List *list);
 inline constexpr s32 MAX_SHADER_HOT_RELOAD_QUEUE_SIZE = 4;
 
 struct Shader_Hot_Reload_Queue {
-	s32 indices[MAX_SHADER_HOT_RELOAD_QUEUE_SIZE] = {0};
+	sid sids[MAX_SHADER_HOT_RELOAD_QUEUE_SIZE] = {0};
 	s32 count = 0;
 };
 
 inline Shader_Hot_Reload_Queue shader_hot_reload_queue;
 
-bool hot_reload_shader(s32 shader_index);
+bool hot_reload_shader(sid shader_sid);
 void on_shader_changed_externally(const char *path);
 void check_shader_hot_reload_queue(Shader_Hot_Reload_Queue *queue, f32 dt);

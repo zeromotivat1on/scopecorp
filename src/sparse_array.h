@@ -25,29 +25,41 @@ struct Sparse_Array {
         memset(sparse, 0xFF, capacity * sizeof(s32));
     }
     
-    T &operator[](s32 idx) {
-        assert(idx >= 0);
-        assert(idx < count);
-        assert(sparse[idx] != INVALID_INDEX);
-        return items[sparse[idx]];
+    T &operator[](s32 index) {
+        assert(index >= 0);
+        assert(index < count);
+        assert(sparse[index] != INVALID_INDEX);
+        return items[sparse[index]];
     }
 
-    const T &operator[](s32 idx) const {
-        assert(idx < count);
-        assert(sparse[idx] != INVALID_INDEX);
-        return items[sparse[idx]];
+    const T &operator[](s32 index) const {
+        assert(index < count);
+        assert(sparse[index] != INVALID_INDEX);
+        return items[sparse[index]];
     }
 
-    T *find(s32 idx) {
-        assert(idx >= 0);
-        assert(idx < capacity); // find has less strict rules for index
+    T *find(s32 index) {
+        assert(index >= 0);
+        assert(index < capacity);
         
-        const s32 item_idx = sparse[idx];
-        if (item_idx == INVALID_INDEX) return null;
+        const s32 item_index = sparse[index];
+        if (item_index == INVALID_INDEX) return null;
         
-        return items + item_idx;
+        return items + item_index;
     }
 
+    T *find_or_add_default(s32 index) {
+        assert(index >= 0);
+        assert(index < capacity);
+        
+        s32 item_index = sparse[index];
+        if (item_index == INVALID_INDEX) {
+            item_index = sparse[add_default(index)];
+        }
+        
+        return items + item_index;
+    }
+    
     s32 add(const T &item) {
         for (s32 i = 0; i < count + 1; ++i)
             if (sparse[i] == INVALID_INDEX)
@@ -64,48 +76,48 @@ struct Sparse_Array {
         return INVALID_INDEX;
     }
 
-    s32 add(s32 idx, const T &item) {
+    s32 add(s32 index, const T &item) {
         assert(count < capacity);
 
-        if (find(idx)) return INVALID_INDEX;
+        if (find(index)) return INVALID_INDEX;
 
-        sparse[idx] = count;
-        dense[count] = idx;
+        sparse[index] = count;
+        dense[count] = index;
         items[count] = item;
 
         count++;
 
-        return idx;
+        return index;
     }
 
-    s32 add_default(s32 idx) {
+    s32 add_default(s32 index) {
         assert(count < capacity);
 
-        if (find(idx)) return INVALID_INDEX;
+        if (find(index)) return INVALID_INDEX;
 
-        sparse[idx] = count;
-        dense[count] = idx;
+        sparse[index] = count;
+        dense[count] = index;
         items[count] = T();
         
         count++;
 
-        return idx;
+        return index;
     }
     
-    s32 remove(s32 idx) {
-        assert(idx >= 0);
-        assert(idx < count);
+    s32 remove(s32 index) {
+        assert(index >= 0);
+        assert(index < count);
 
-        if (!find(idx)) return INVALID_INDEX;
+        if (!find(index)) return INVALID_INDEX;
 
         count--;
         
-        sparse[dense[count]] = sparse[idx];
-        dense[sparse[idx]] = dense[count];
+        sparse[dense[count]] = sparse[index];
+        dense[sparse[index]] = dense[count];
         
-        items[sparse[idx]] = items[count];
-        sparse[idx] = INVALID_INDEX;
+        items[sparse[index]] = items[count];
+        sparse[index] = INVALID_INDEX;
         
-        return idx;
+        return index;
     }
 };
