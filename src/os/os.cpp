@@ -6,9 +6,9 @@
 
 #include <string.h>
 
-bool read_file(const char *path, void *buffer, u64 size, u64 *bytes_read)
+bool read_file(const char *path, void *buffer, u64 size, u64 *bytes_read, bool log_error)
 {
-	File file = open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_READ);
+	File file = open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_READ, log_error);
 	if (file == INVALID_FILE) {
 		return false;
 	}

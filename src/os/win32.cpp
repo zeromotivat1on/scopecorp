@@ -49,11 +49,11 @@ const u32  FILE_OPEN_EXISTING = OPEN_EXISTING;
 EXTERN_C IMAGE_DOS_HEADER __ImageBase;
 static const char *window_prop_name = "win32_window";
 
-File open_file(const char *path, s32 open_type, u32 access_flags) {
+File open_file(const char *path, s32 open_type, u32 access_flags, bool log_error) {
 	HANDLE handle = CreateFile(path, access_flags, FILE_SHARE_READ | FILE_SHARE_WRITE,
                                NULL, open_type, FILE_ATTRIBUTE_NORMAL, NULL);
 
-    if (handle == INVALID_HANDLE_VALUE)
+    if (log_error && handle == INVALID_HANDLE_VALUE)
         error("Failed to open file %s, win32 error 0x%X", path, GetLastError());
     
     return handle;

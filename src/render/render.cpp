@@ -786,3 +786,13 @@ void update_render_stats() {
         (s32)(geometry_draw_buffer.vertex_count > 0) +
         (s32)(text_draw_buffer.char_count > 0);
 }
+
+Texture_Format_Type get_desired_texture_format(s32 channel_count) {
+    switch (channel_count) {
+    case 3: return TEXTURE_FORMAT_RGB_8;
+    case 4: return TEXTURE_FORMAT_RGBA_8;
+    default:
+        error("Not really handled case for texture channel count %d, using %d texture format", channel_count, TEXTURE_FORMAT_RGBA_8);
+        return TEXTURE_FORMAT_RGBA_8;
+    }
+}

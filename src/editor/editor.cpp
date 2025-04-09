@@ -45,20 +45,44 @@ void check_for_hot_reload(Hot_Reload_List *list) {
             
         switch (asset.type) {
         case ASSET_SHADER: {
-            char *source = push_array(temp, MAX_SHADER_SIZE, char);
+            char *data = push_array(temp, MAX_SHADER_SIZE, char);
             defer { pop(temp, MAX_SHADER_SIZE); };
 
             u64 bytes_read = 0;
-            if (read_file(path, source, MAX_SHADER_SIZE, &bytes_read)) {
-                source[bytes_read] = '\0';
+            if (read_file(path, data, MAX_SHADER_SIZE, &bytes_read)) {
+                data[bytes_read] = '\0';
     
-                if (recreate_shader(asset.registry_index, source)) {
+                if (recreate_shader(asset.registry_index, data)) {
                     log("Hot reloaded shader %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(asset));
                 } else {
                     error("Failed to hot reload shader %s, see errors above", path);
                 }
             }
             
+            break;
+        }
+        case ASSET_TEXTURE: {
+            s32 try_count = 0;
+            Texture_Memory memory;
+            do {
+                try_count++;
+                memory = load_texture_memory(path, false);
+            } while (!memory.data);
+            
+            const auto &texture = render_registry.textures[asset.registry_index];
+            const auto format   = get_desired_texture_format(asset.as_texture.channel_count);
+            
+            if (recreate_texture(asset.registry_index, texture.type, texture.format, asset.as_texture.width, asset.as_texture.height, memory.data)) {
+                if (texture.flags & TEXTURE_FLAG_HAS_MIPMAPS) {
+                    generate_texture_mipmaps(asset.registry_index);
+                }
+                
+                log("Hot reloaded texture %s in %.2fms after %d tries", path, CHECK_SCOPE_TIMER_MS(asset), try_count);
+            } else {
+                error("Failed to hot reload texture %s, see errors above", path);
+            }
+            
+            free_texture_memory(&memory);
             break;
         }
         }

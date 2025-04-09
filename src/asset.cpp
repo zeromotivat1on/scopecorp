@@ -54,14 +54,14 @@ void init_asset_table(Asset_Table *table) {
     table->hash_function = &asset_table_hash;
 }
 
-Texture_Memory load_texture_memory(const char *path) {
+Texture_Memory load_texture_memory(const char *path, bool log_error) {
     Texture_Memory memory = {};
     
 	u64 buffer_size = 0;
 	void *buffer = push(temp, MAX_TEXTURE_SIZE);
 	defer { pop(temp, MAX_TEXTURE_SIZE); };
 
-	if (!read_file(path, buffer, MAX_TEXTURE_SIZE, &buffer_size)) {
+	if (!read_file(path, buffer, MAX_TEXTURE_SIZE, &buffer_size, log_error)) {
 		return {};
 	}
 
@@ -70,7 +70,7 @@ Texture_Memory load_texture_memory(const char *path) {
                                         &memory.channel_count, 0);
     
 	if (!memory.data) {
-		error("Failed to load texture %s, stbi reason %s", path, stbi_failure_reason());
+		if (log_error) error("Failed to load texture %s, stbi reason %s", path, stbi_failure_reason());
 		return {};
 	}
 
@@ -274,11 +274,7 @@ void load_asset_pack(const char *path, Asset_Table *table) {
             read_file(file, data, size);
             set_file_pointer_position(file, last_position);
 
-            Texture_Format_Type format;
-            if (texture.channel_count == 3)      format = TEXTURE_FORMAT_RGB_8;
-            else if (texture.channel_count == 4) format = TEXTURE_FORMAT_RGBA_8;
-            else assert(false); // @Temp
-            
+            const auto format = get_desired_texture_format(texture.channel_count);            
             asset.registry_index = create_texture(TEXTURE_TYPE_2D, format, texture.width, texture.height, data);
 
             // @Cleanup: hardcoded!

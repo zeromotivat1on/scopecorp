@@ -33,7 +33,7 @@ enum Texture_Filter_Type {
 };
 
 enum Texture_Flags : u32 {
-    TEXTURE_HAS_MIPMAPS = 0x1,
+    TEXTURE_FLAG_HAS_MIPMAPS = 0x1,
 };
 
 struct Texture_Memory {
@@ -66,12 +66,14 @@ struct Texture_Sid_List {
 inline Texture_Sid_List texture_sids;
 
 void cache_texture_sids(Texture_Sid_List *list);
-s32 create_texture(const char *path);
-s32 create_texture(Texture_Type texture_type, Texture_Format_Type format_type, s32 width, s32 height, void *data);
+s32  create_texture(Texture_Type texture_type, Texture_Format_Type format_type, s32 width, s32 height, void *data);
+bool recreate_texture(s32 texture_index, Texture_Type texture_type, Texture_Format_Type format_type, s32 width, s32 height, void *data);
 void set_texture_wrap(s32 texture_index, Texture_Wrap_Type wrap_type);
 void set_texture_filter(s32 texture_index, Texture_Filter_Type filter_type);
 void generate_texture_mipmaps(s32 texture_index);
 void delete_texture(s32 texture_index);
 
-Texture_Memory load_texture_memory(const char *path);
+Texture_Memory load_texture_memory(const char *path, bool log_error = true);
 void free_texture_memory(Texture_Memory *memory);
+
+Texture_Format_Type get_desired_texture_format(s32 channel_count);

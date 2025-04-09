@@ -710,34 +710,6 @@ void send_uniform_value_to_gpu(s32 shader_index, s32 uniform_index, u32 offset) 
 	}
 }
 
-s32 create_texture(const char *path) {
-	stbi_set_flip_vertically_on_load(true);
-	defer { stbi_set_flip_vertically_on_load(false); };
-
-	u64 buffer_size = 0;
-	u8 *buffer = (u8 *)push(temp, MAX_TEXTURE_SIZE);
-	defer { pop(temp, MAX_TEXTURE_SIZE); };
-
-	if (!read_file(path, buffer, MAX_TEXTURE_SIZE, &buffer_size)) {
-		return INVALID_INDEX;
-	}
-
-    s32 width, height;
-	u8 *data = stbi_load_from_memory(buffer, (s32)buffer_size, &width, &height, null, 4);
-	if (!data) {
-		error("Failed to load texture %s, stbi reason %s", path, stbi_failure_reason());
-		return INVALID_INDEX;
-	}
-
-    const s32 texture = create_texture(TEXTURE_TYPE_2D, TEXTURE_FORMAT_RGBA_8, width, height, data);
-    generate_texture_mipmaps(texture);
-    set_texture_wrap(texture, TEXTURE_WRAP_REPEAT);
-    set_texture_filter(texture, TEXTURE_FILTER_NEAREST);
-    stbi_image_free(data);
-    
-	return texture;
-}
-
 static s32 gl_texture_format(Texture_Format_Type format) {
     switch (format) {
     case TEXTURE_FORMAT_RED_INTEGER:        return GL_RED_INTEGER;
@@ -804,6 +776,29 @@ s32 create_texture(Texture_Type texture_type, Texture_Format_Type format_type, s
     return render_registry.textures.add(texture);
 }
 
+bool recreate_texture(s32 texture_index, Texture_Type texture_type, Texture_Format_Type format_type, s32 width, s32 height, void *data) {
+    Texture &texture = render_registry.textures[texture_index];
+    
+    const s32 type            = gl_texture_type(texture_type);
+    const s32 format          = gl_texture_format(format_type);
+    const s32 internal_format = gl_texture_internal_format(format_type);
+    const s32 data_type       = gl_texture_data_type(format_type);
+    
+    if (type < 0 || format < 0 || internal_format < 0 || data_type < 0) {
+        error("Failed to create texture, see errors above");
+        return false;
+    }
+    
+	glBindTexture(type, texture.id);
+
+    // @Todo: properly set data based on texture type.
+    glTexImage2D(type, 0, internal_format, width, height, 0, format, data_type, data);
+    
+	glBindTexture(type, 0);
+
+    return true;
+}
+
 static s32 gl_texture_wrap(Texture_Wrap_Type wrap) {
     switch (wrap) {
     case TEXTURE_WRAP_REPEAT:  return GL_REPEAT;
@@ -851,7 +846,7 @@ void set_texture_filter(s32 texture_index, Texture_Filter_Type filter_type) {
     auto &texture = render_registry.textures[texture_index];
     texture.filter = filter_type;
 
-    const bool has_mipmaps = texture.flags & TEXTURE_HAS_MIPMAPS;
+    const bool has_mipmaps = texture.flags & TEXTURE_FLAG_HAS_MIPMAPS;
     
     const s32 type = gl_texture_type(texture.type);
     const s32 min_filter = gl_texture_min_filter(filter_type, has_mipmaps);
@@ -865,7 +860,7 @@ void set_texture_filter(s32 texture_index, Texture_Filter_Type filter_type) {
 
 void generate_texture_mipmaps(s32 texture_index) {
     auto &texture = render_registry.textures[texture_index];
-    texture.flags |= TEXTURE_HAS_MIPMAPS;
+    texture.flags |= TEXTURE_FLAG_HAS_MIPMAPS;
 
     const s32 type = gl_texture_type(texture.type);
     glBindTexture(type, texture.id);
