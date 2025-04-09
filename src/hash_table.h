@@ -3,12 +3,12 @@
 #include "assertion.h"
 #include "memory_storage.h"
 
-inline constexpr f32 ACCEPTABLE_HASH_TABLE_LOAD_FACTOR = 0.9f;
+inline constexpr f32 ACCEPTABLE_HASH_TABLE_LOAD_FACTOR = 0.7f;
 
 template<typename K, typename V>
 struct Hash_Table {
-    using Compare = bool(*)(const K &a, const K &b);
-    using Hash    = u64 (*)(const K &key);
+    typedef u64 (*Hash   )(const K &key);
+    typedef bool(*Compare)(const K &a, const K &b);
 
     static inline u64  default_hash   (const K &a)             { return (u64)a; }
     static inline bool default_compare(const K &a, const K &b) { return a == b; }
