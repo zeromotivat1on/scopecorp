@@ -57,10 +57,10 @@ target_compile_definitions(${GAME_EXE} PRIVATE
                                $<$<BOOL:${DEVELOPER}>:DEVELOPER>
                                # Directories
                                DIR_RUN_TREE="${RUN_TREE_DIR}"
+                               DIR_DATA="${RUN_TREE_DIR}/data/"
                                DIR_SHADERS="${RUN_TREE_DIR}/data/shaders/"
                                DIR_TEXTURES="${RUN_TREE_DIR}/data/textures/"
                                DIR_SOUNDS="${RUN_TREE_DIR}/data/sounds/"
                                DIR_FONTS="${RUN_TREE_DIR}/data/fonts/"
-                               DIR_PACKS="${RUN_TREE_DIR}/data/"
                                # Other
                                GAME_NAME="${GAME_EXE}")

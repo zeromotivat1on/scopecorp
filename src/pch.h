@@ -82,17 +82,19 @@ template <class F> Defer<F> operator+(Defer_Ref, F f) { return {f}; }
 #define defer const auto CONCAT(deferrer, __LINE__) = Defer_Ref{} + [&]()
 
 #define RUN_TREE_FOLDER DIR_RUN_TREE
+#define DATA_FOLDER     DIR_DATA
+#define PACK_FOLDER     DIR_DATA
 #define SHADER_FOLDER   DIR_SHADERS
 #define TEXTURE_FOLDER  DIR_TEXTURES
 #define SOUND_FOLDER    DIR_SOUNDS
 #define FONT_FOLDER     DIR_FONTS
-#define PACK_FOLDER     DIR_PACKS
 
+#define DATA_PATH(x)    DATA_FOLDER x
+#define PACK_PATH(x)    PACK_FOLDER x
 #define SHADER_PATH(x)  SHADER_FOLDER x
 #define TEXTURE_PATH(x) TEXTURE_FOLDER x
 #define SOUND_PATH(x)   SOUND_FOLDER x
 #define FONT_PATH(x)    FONT_FOLDER x
-#define PACK_PATH(x)    PACK_FOLDER x
 
 enum Direction {
     DIRECTION_BACK,

@@ -2,6 +2,9 @@
 #include "sid.h"
 #include "hash.h"
 
+#include "game/game.h"
+#include "game/world.h"
+
 #define STB_SPRINTF_IMPLEMENTATION
 #include "stb_sprintf.h"
 
@@ -44,4 +47,38 @@ u64 hash_fnv(const char* str) {
     }
 
     return hash;
+}
+
+const char *to_string(Game_Mode mode) {
+	switch (mode) {
+	case MODE_GAME:   return "GAME";
+	case MODE_EDITOR: return "EDITOR";
+	default:          return "UNKNOWN";
+	}
+}
+
+const char *to_string(Camera_Behavior behavior) {
+	switch (behavior) {
+	case IGNORE_PLAYER:   return "IGNORE_PLAYER";
+	case STICK_TO_PLAYER: return "STICK_TO_PLAYER";
+	case FOLLOW_PLAYER:   return "FOLLOW_PLAYER";
+	default:              return "UNKNOWN";
+	}
+}
+
+const char *to_string(Player_Movement_Behavior behavior) {
+	switch (behavior) {
+	case MOVE_INDEPENDENT:        return "MOVE_INDEPENDENT";
+	case MOVE_RELATIVE_TO_CAMERA: return "MOVE_RELATIVE_TO_CAMERA";
+	default:                      return "UNKNOWN";
+	}
+}
+
+const char *to_string(Entity_Type type) {
+    switch (type) {
+    case ENTITY_PLAYER:      return "ENTITY_PLAYER";
+    case ENTITY_SKYBOX:      return "ENTITY_SKYBOX";
+    case ENTITY_STATIC_MESH: return "ENTITY_STATIC_MESH";
+    default:                 return "UNKNOWN";
+    }
 }
