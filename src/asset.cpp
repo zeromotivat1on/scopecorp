@@ -19,27 +19,33 @@ static u64 asset_table_hash(const sid &a) {
 static void init_asset_source_callback(const File_Callback_Data *callback_data) {
     Asset_Source source = {};
     source.type = *(Asset_Type *)callback_data->user_data;
-
+    source.last_write_time = callback_data->last_write_time;
+    
     assert(strlen(callback_data->path) <= MAX_PATH_SIZE);
     strcpy(source.path, callback_data->path);
-
-    asset_sources.add(source);
+    fix_directory_delimiters(source.path);
+    
+    char relative_path[MAX_PATH_SIZE];
+    convert_to_relative_asset_path(callback_data->path, relative_path);
+    
+    asset_source_table.add(cache_sid(relative_path), source);
 }
 
 static inline void init_assets_from_folder(const char *path, Asset_Type type) {
     for_each_file(path, init_asset_source_callback, &type);
 }
 
-void init_asset_sources(Asset_Source_List *sources) {
+void init_asset_source_table(Asset_Source_Table *table) {
     START_SCOPE_TIMER(init);
 
-    *sources = Asset_Source_List(MAX_ASSETS);
+    *table = Asset_Source_Table(MAX_ASSETS);
+    table->hash_function = &asset_table_hash;
 
     init_assets_from_folder(SHADER_FOLDER,  ASSET_SHADER);
     init_assets_from_folder(TEXTURE_FOLDER, ASSET_TEXTURE);
     init_assets_from_folder(SOUND_FOLDER,   ASSET_SOUND);
 
-    log("Initialized asset sources in %.2fms", CHECK_SCOPE_TIMER_MS(init));
+    log("Initialized asset source table in %.2fms", CHECK_SCOPE_TIMER_MS(init));
 }
 
 void init_asset_table(Asset_Table *table) {
@@ -120,28 +126,30 @@ void save_asset_pack(const char *path) {
     Asset_Pack_Header header = {};
     header.magic_value = ASSET_PACK_MAGIC_VALUE;
     header.version     = ASSET_PACK_VERSION;
-    header.asset_count = asset_sources.count;
+    header.asset_count = asset_source_table.count;
     write_file(file, &header, sizeof(Asset_Pack_Header));
 
     const u64 asset_data_offset  = sizeof(Asset_Pack_Header);
-    const u64 asset_data_size    = asset_sources.count * sizeof(Asset);
+    const u64 asset_data_size    = asset_source_table.count * sizeof(Asset);
     const u64 binary_data_offset = asset_data_offset + asset_data_size;
     
     set_file_pointer_position(file, binary_data_offset);
 
     auto *assets = (Asset *)push(temp, asset_data_size);
-    defer { pop_array(temp, asset_sources.count, Asset); };
-    
-    for (s32 i = 0; i < asset_sources.count; ++i) {
-        const auto *source = asset_sources.items + i;
+    defer { pop_array(temp, asset_source_table.count, Asset); };
 
-        auto *asset = assets + i;
+    s32 i = 0;
+    for (s32 count = 0; count < asset_source_table.count;) {
+        while (asset_source_table.hashes[i] == 0) { i++; }
+        
+        const auto *source = asset_source_table.values + i;
+
+        auto *asset = assets + count;
         asset->type = source->type;
         asset->data_offset = get_file_pointer_position(file);
         asset->registry_index = INVALID_INDEX;
         
-        strcpy(asset->relative_path, source->path);
-        convert_to_relative_asset_path(asset->relative_path);
+        convert_to_relative_asset_path(source->path, asset->relative_path);
         
         switch (source->type) {
         case ASSET_SHADER: {
@@ -195,6 +203,9 @@ void save_asset_pack(const char *path) {
             break;
         }
         }
+
+        i++;
+        count++;
     }
 
     set_file_pointer_position(file, asset_data_offset);
@@ -293,7 +304,7 @@ void load_asset_pack(const char *path, Asset_Table *table) {
             break;
         }
         default: {
-            error("Invalid asset type %d in asset description %d", asset.type, i);
+            error("Invalid asset type %d in asset %s", asset.type, asset.relative_path);
             break;
         }
         }
@@ -304,13 +315,13 @@ void load_asset_pack(const char *path, Asset_Table *table) {
     log("Loaded asset pack %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(load));
 }
 
-void convert_to_relative_asset_path(char *path) {
-    const char *data = strstr(path, "\\data");
-    if (!data) data = strstr(path, "/data");
+void convert_to_relative_asset_path(const char *full_path, char *relative_path) {
+    const char *data = strstr(full_path, "\\data");
+    if (!data) data = strstr(full_path, "/data");
     if (!data) return;
 
-    strcpy(path, data);
-    fix_directory_delimiters(path);
+    strcpy(relative_path, data);
+    fix_directory_delimiters(relative_path);
 }
 
 void convert_to_full_asset_path(const char *relative_path, char *full_path) {

@@ -62,7 +62,7 @@ s32 main() {
     init_render_registry(&render_registry);
     init_audio_registry();
 
-    init_asset_sources(&asset_sources);
+    init_asset_source_table(&asset_source_table);
     init_asset_table(&asset_table);
     
     save_asset_pack(GAME_ASSET_PACK_PATH);
@@ -96,8 +96,10 @@ s32 main() {
 #endif
     
 	Hot_Reload_List hot_reload_list = {};
-	register_hot_reload_dir(&hot_reload_list, SHADER_FOLDER, on_shader_changed_externally);
-	start_hot_reload_thread(&hot_reload_list);
+	register_hot_reload_directory(&hot_reload_list, SHADER_FOLDER);
+	register_hot_reload_directory(&hot_reload_list, TEXTURE_FOLDER);
+	register_hot_reload_directory(&hot_reload_list, SOUND_FOLDER);
+	register_hot_reload_directory(&hot_reload_list, FONT_FOLDER);
 
 	Font *font = create_font(FONT_PATH("consola.ttf"));
 	Font_Atlas *atlas = bake_font_atlas(font, 33, 126, 16);
@@ -322,7 +324,10 @@ s32 main() {
 		poll_events(window);
         tick(world, delta_time);        
 		set_listener_pos(player.location);
-		check_shader_hot_reload_queue(&shader_hot_reload_queue, delta_time);
+
+        // @CLeanup: this one is pretty slow (~0.3ms), but bearable for now;
+        // move to other thread later if it becomes a big deal.
+        check_for_hot_reload(&hot_reload_list);
 
 #if 0
         static f32 pixel_size_time = -1.0f;
@@ -391,7 +396,6 @@ s32 main() {
 		}
 	}
 
-	stop_hot_reload_thread(&hot_reload_list);
 	destroy(window);
     release_core(vm);
     

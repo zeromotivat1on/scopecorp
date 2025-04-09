@@ -20,6 +20,7 @@ enum Asset_Type {
 
 struct Asset_Source {
     Asset_Type type = ASSET_NONE;
+    u64 last_write_time = 0;
     char path[MAX_PATH_SIZE] = {0};
 };
 
@@ -66,17 +67,17 @@ struct Asset_Pack_Header {
     u32 asset_count;
 };
 
-typedef Hash_Table<sid, Asset>     Asset_Table;
-typedef Sparse_Array<Asset_Source> Asset_Source_List;
+typedef Hash_Table<sid, Asset>        Asset_Table;
+typedef Hash_Table<sid, Asset_Source> Asset_Source_Table;
 
-inline Asset_Table       asset_table;
-inline Asset_Source_List asset_sources;
+inline Asset_Table        asset_table;
+inline Asset_Source_Table asset_source_table;
 
-void init_asset_sources(Asset_Source_List *sources);
+void init_asset_source_table(Asset_Source_Table *sources);
 void init_asset_table(Asset_Table *table);
 
 void save_asset_pack(const char *path);
 void load_asset_pack(const char *path, Asset_Table *table);
 
-void convert_to_relative_asset_path(char *path);
+void convert_to_relative_asset_path(const char *full_path, char *relative_path);
 void convert_to_full_asset_path(const char *relative_path, char *full_path);
