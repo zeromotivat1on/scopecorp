@@ -39,7 +39,7 @@ s32 main() {
     if (!vm) return 1;
     
 	log("Preallocated memory storages: Persistent %.fmb | Frame %.fmb | Temp %.fmb",
-		(f32)pers_memory_size / 1024 / 1024, (f32)frame_memory_size / 1024 / 1024, (f32)temp_memory_size / 1024 / 1024);
+		(f32)PERS_MEMORY_SIZE / 1024 / 1024, (f32)FRAME_MEMORY_SIZE / 1024 / 1024, (f32)TEMP_MEMORY_SIZE / 1024 / 1024);
 
     init_sid_table(&sid_table);
     
@@ -65,8 +65,8 @@ s32 main() {
     init_asset_sources(&asset_sources);
     init_asset_table(&asset_table);
     
-    save_asset_pack(PACK_PATH("test.pack"));
-    load_asset_pack(PACK_PATH("test.pack"), &asset_table);
+    save_asset_pack(GAME_ASSET_PACK_PATH);
+    load_asset_pack(GAME_ASSET_PACK_PATH, &asset_table);
 
     cache_shader_sids(&shader_sids);
     cache_texture_sids(&texture_sids);

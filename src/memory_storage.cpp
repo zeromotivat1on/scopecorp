@@ -19,7 +19,7 @@ void *allocate_core() {
         return null;
     }
     
-    u8 *commited = (u8 *)vm_commit(vm, pers_memory_size + frame_memory_size + temp_memory_size);
+    u8 *commited = (u8 *)vm_commit(vm, PERS_MEMORY_SIZE + FRAME_MEMORY_SIZE + TEMP_MEMORY_SIZE);
     if (!commited) {
         error("Failed to commit application memory");
         return null;
@@ -32,10 +32,10 @@ void *allocate_core() {
     panic = &_panic;
     
     u64 offset = 0;
-    init(pers,  pers_memory_size,  commited + offset); offset += pers_memory_size;
-    init(frame, frame_memory_size, commited + offset); offset += frame_memory_size;
-    init(temp,  temp_memory_size,  commited + offset); offset += temp_memory_size;
-    init(panic, panic_memory_size, commited + offset); offset += panic_memory_size;
+    init(pers,  PERS_MEMORY_SIZE,  commited + offset); offset += PERS_MEMORY_SIZE;
+    init(frame, FRAME_MEMORY_SIZE, commited + offset); offset += FRAME_MEMORY_SIZE;
+    init(temp,  TEMP_MEMORY_SIZE,  commited + offset); offset += TEMP_MEMORY_SIZE;
+    init(panic, PANIC_MEMORY_SIZE, commited + offset); offset += PANIC_MEMORY_SIZE;
     
     return vm;
 }

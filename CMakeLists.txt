@@ -8,7 +8,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(RUN_TREE_DIR "${CMAKE_SOURCE_DIR}/run_tree")
 
 set(GFX_API_LIST OPEN_GL DX12)
-set(GFX_API      OPEN_GL)
+set(GFX_API      OPEN_GL CACHE STRING "Graphics API to use")
+
 option(INCLUDE_TRACY "Include tracy profiler" ON)
+option(DEVELOPER     "Development mode"       ON)
 
 add_subdirectory(src)

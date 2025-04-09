@@ -2,7 +2,7 @@ set(GAME_EXE "scopecorp")
 
 if (GFX_API IN_LIST GFX_API_LIST)
 else ()
-   message(FATAL_ERROR "Invalid GFX_API")
+   message(FATAL_ERROR "Invalid GFX_API ${GFX_API}")
 endif()
 
 add_executable(${GAME_EXE}
@@ -13,20 +13,24 @@ add_executable(${GAME_EXE}
                 game/game.cpp
                 editor/editor.cpp
                 math/matrix.cpp math/math.cpp math/quat.cpp math/vector.cpp
-                render/gl.cpp render/glad.cpp render/render.cpp)
+                render/render.cpp)
 
 target_precompile_headers(${GAME_EXE} PUBLIC pch.h)
 target_include_directories(${GAME_EXE} PRIVATE "${PROJECT_SOURCE_DIR}/src")
 
+if (GFX_API STREQUAL OPEN_GL)
+   target_sources(${GAME_EXE} PRIVATE render/gl.cpp render/glad.cpp)
+   target_compile_definitions(${GAME_EXE} PRIVATE OPEN_GL)
+endif()
+   
 if (WIN32)
    target_sources(${GAME_EXE} PRIVATE os/win32.cpp)
    target_link_libraries(${GAME_EXE} PRIVATE ${RUN_TREE_DIR}/openal32.lib shlwapi.lib)
-   
+
    if (GFX_API STREQUAL OPEN_GL)
       target_sources(${GAME_EXE} PRIVATE os/win32_gl.cpp)
       target_link_libraries(${GAME_EXE} PRIVATE opengl32.lib)
-      target_compile_definitions(${GAME_EXE} PRIVATE OPEN_GL)
-   endif()
+      endif()
 endif()
 
 if (MSVC)
@@ -50,6 +54,7 @@ target_compile_definitions(${GAME_EXE} PRIVATE
                                # Configuration
                                $<$<CONFIG:Debug>:DEBUG>
                                $<$<CONFIG:Release>:RELEASE>
+                               $<$<BOOL:${DEVELOPER}>:DEVELOPER>
                                # Directories
                                DIR_RUN_TREE="${RUN_TREE_DIR}"
                                DIR_SHADERS="${RUN_TREE_DIR}/data/shaders/"

@@ -7,6 +7,7 @@
 inline constexpr s32 MAX_ASSETS = 256;
 inline constexpr s32 MAX_ASSET_NAME_SIZE = 64;
 
+#define GAME_ASSET_PACK_PATH   PACK_PATH("game.asset_pack")
 #define ASSET_PACK_MAGIC_VALUE U32_PACK('c', 'o', 'r', 'p')
 #define ASSET_PACK_VERSION     0
 

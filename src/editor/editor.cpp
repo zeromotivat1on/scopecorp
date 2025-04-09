@@ -10,9 +10,6 @@
 #include "profile.h"
 #include "asset_registry.h"
 
-#include <string.h>
-
-// @Cleanup: do not need this as recreate_shader exists now?
 bool hot_reload_shader(sid shader_sid) {
     START_SCOPE_TIMER(time);
     

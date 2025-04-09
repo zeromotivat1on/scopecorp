@@ -1,9 +1,9 @@
 #pragma once
 
-inline constexpr u64 pers_memory_size  = MB(64);
-inline constexpr u64 frame_memory_size = MB(16);
-inline constexpr u64 temp_memory_size  = MB(128);
-inline constexpr u64 panic_memory_size = MB(1);
+inline constexpr u64 PERS_MEMORY_SIZE  = MB(64);
+inline constexpr u64 FRAME_MEMORY_SIZE = MB(16);
+inline constexpr u64 TEMP_MEMORY_SIZE  = MB(128);
+inline constexpr u64 PANIC_MEMORY_SIZE = MB(1);
 
 struct Memory_Storage {
 	u8 *data;
