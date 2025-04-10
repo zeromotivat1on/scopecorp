@@ -37,7 +37,7 @@ struct Hash_Table {
         }
 
         inline Iterator operator++(s32) {
-            iterator copy = *this;
+            Iterator copy = *this;
             ++(*this);
             return copy;
         }
@@ -47,6 +47,49 @@ struct Hash_Table {
         }
         
         inline bool operator!=(const Iterator &other) const {
+            return !(*this == other);
+        }
+
+        // Dereference returns a pair of references to key and value:
+        inline Return_Value operator*() const {
+            return { table->keys[index], table->values[index] };
+        }
+    };
+
+    struct Const_Iterator {
+        struct Return_Value { const K &key; const V &value; };
+        
+        const Hash_Table *table = null;
+        s32 index               = INVALID_INDEX;
+      
+        Const_Iterator(const Hash_Table *table, s32 index)
+            : table(table), index(index) {
+            advance_to_valid();
+        }
+
+        inline void advance_to_valid() {
+            while (index < table->capacity && table->hashes[index] == 0) {
+                ++index;
+            }
+        }
+
+        inline Const_Iterator &operator++() {
+            ++index;
+            advance_to_valid();
+            return *this;
+        }
+
+        inline Const_Iterator operator++(s32) {
+            Const_Iterator copy = *this;
+            ++(*this);
+            return copy;
+        }
+
+        inline bool operator==(const Const_Iterator &other) const {
+            return table == other.table && index == other.index;
+        }
+        
+        inline bool operator!=(const Const_Iterator &other) const {
             return !(*this == other);
         }
 
@@ -78,7 +121,10 @@ struct Hash_Table {
 
     Iterator begin() { return Iterator(this, 0); }
     Iterator end()   { return Iterator(this, capacity); }
-    
+
+    Const_Iterator begin() const { return Const_Iterator(this, 0); }
+    Const_Iterator end()   const { return Const_Iterator(this, capacity); }
+
     inline f32 load_factor() const { return (f32)count / capacity; }
 
     V &operator[](const K &key) const {

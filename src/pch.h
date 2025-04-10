@@ -81,7 +81,7 @@ template <class F> struct Defer { F f; ~Defer() { f(); } };
 template <class F> Defer<F> operator+(Defer_Ref, F f) { return {f}; }
 #define defer const auto CONCAT(deferrer, __LINE__) = Defer_Ref{} + [&]()
 
-#define for_each(x) for (auto &it : x)
+#define for_each(x) for (auto &it : (x))
 
 #define RUN_TREE_FOLDER DIR_RUN_TREE
 #define DATA_FOLDER     DIR_DATA
