@@ -38,8 +38,5 @@ Camera *desired_camera(World *world);
 Entity *find_entity_by_id(World* world, s32 id);
 s32 create_static_mesh(World *world);
 
-void save_level(const char *path, World *world);
-void load_level(const char *path, World *world);
-
 void draw_world(const World *world);
 void draw_entity(const Entity *e);

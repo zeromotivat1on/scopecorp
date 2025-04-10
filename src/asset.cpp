@@ -318,23 +318,3 @@ void convert_to_full_asset_path(const char *relative_path, char *full_path) {
     strcat(full_path, relative_path);
     fix_directory_delimiters(full_path);
 }
-
-void save_level(const char *path, World *world) {
-    File file = open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_WRITE);
-    defer { close_file(file); };
-    
-    if (file == INVALID_FILE) {
-        log("Level file %s does not exist, creating new one", path);
-        file = open_file(path, FILE_OPEN_NEW, FILE_FLAG_WRITE);
-        if (file == INVALID_FILE) {
-            error("Failed to create new level file %s", path);
-            return;
-        }
-    }
-
-    
-}
-
-void load_level(const char *path, World *world) {
-    
-}

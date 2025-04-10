@@ -99,7 +99,6 @@ s32 main() {
 	register_hot_reload_directory(&hot_reload_list, SHADER_FOLDER);
 	register_hot_reload_directory(&hot_reload_list, TEXTURE_FOLDER);
 	register_hot_reload_directory(&hot_reload_list, SOUND_FOLDER);
-	register_hot_reload_directory(&hot_reload_list, FONT_FOLDER);
 
 	Font *font = create_font(FONT_PATH("consola.ttf"));
 	Font_Atlas *atlas = bake_font_atlas(font, 33, 126, 16);
