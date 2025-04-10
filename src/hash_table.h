@@ -12,6 +12,49 @@ struct Hash_Table {
 
     static inline u64  default_hash   (const K &a)             { return (u64)a; }
     static inline bool default_compare(const K &a, const K &b) { return a == b; }
+
+    struct Iterator {
+        struct Return_Value { K &key; V &value; };
+        
+        Hash_Table *table = null;
+        s32 index         = INVALID_INDEX;
+      
+        Iterator(Hash_Table *table, s32 index)
+            : table(table), index(index) {
+            advance_to_valid();
+        }
+
+        inline void advance_to_valid() {
+            while (index < table->capacity && table->hashes[index] == 0) {
+                ++index;
+            }
+        }
+
+        inline Iterator &operator++() {
+            ++index;
+            advance_to_valid();
+            return *this;
+        }
+
+        inline Iterator operator++(s32) {
+            iterator copy = *this;
+            ++(*this);
+            return copy;
+        }
+
+        inline bool operator==(const Iterator &other) const {
+            return table == other.table && index == other.index;
+        }
+        
+        inline bool operator!=(const Iterator &other) const {
+            return !(*this == other);
+        }
+
+        // Dereference returns a pair of references to key and value:
+        inline Return_Value operator*() const {
+            return { table->keys[index], table->values[index] };
+        }
+    };
     
     K*   keys   = null;
     V*   values = null;
@@ -32,6 +75,11 @@ struct Hash_Table {
             hashes[i] = 0;
         }
     }
+
+    Iterator begin() { return Iterator(this, 0); }
+    Iterator end()   { return Iterator(this, capacity); }
+    
+    inline f32 load_factor() const { return (f32)count / capacity; }
 
     V &operator[](const K &key) const {
         // @Cleanup: super lazy, implement correctly.
@@ -73,8 +121,8 @@ struct Hash_Table {
     }
 
     bool remove(const K &key) {
-        const u64 hash = hash_func(key);
-        s32 index = hash % max_item_count;
+        const u64 hash = hash_function(key);
+        s32 index = hash % capacity;
 
         while (hashes[index] != 0) {
             const auto &table_key = keys[index];
@@ -88,7 +136,5 @@ struct Hash_Table {
         }
 
         return false;
-    }
-    
-    f32 load_factor() const { return (f32)count / capacity; }
+    }    
 };

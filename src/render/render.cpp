@@ -176,8 +176,8 @@ void draw_world(const World *world) {
     
 	draw_entity(&world->skybox);
 
-	for (s32 i = 0; i < world->static_meshes.count; ++i)
-		draw_entity(world->static_meshes.items + i);
+	for_each (world->static_meshes)
+		draw_entity(&it);
 
 	draw_entity(&world->player);
 }

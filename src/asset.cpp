@@ -138,24 +138,20 @@ void save_asset_pack(const char *path) {
     auto *assets = (Asset *)push(temp, asset_data_size);
     defer { pop_array(temp, asset_source_table.count, Asset); };
 
-    s32 i = 0;
-    for (s32 count = 0; count < asset_source_table.count;) {
-        while (asset_source_table.hashes[i] == 0) { i++; }
-        
-        const auto *source = asset_source_table.values + i;
-
-        auto *asset = assets + count;
-        asset->type = source->type;
+    s32 count = 0;
+    for_each (asset_source_table) {
+        auto *asset = assets + count++;
+        asset->type = it.value.type;
         asset->data_offset = get_file_pointer_position(file);
         asset->registry_index = INVALID_INDEX;
         
-        convert_to_relative_asset_path(source->path, asset->relative_path);
+        convert_to_relative_asset_path(it.value.path, asset->relative_path);
         
-        switch (source->type) {
+        switch (it.value.type) {
         case ASSET_SHADER: {
             void *buffer = push(temp, MAX_SHADER_SIZE);
             u64 bytes_read = 0;
-            read_file(source->path, buffer, MAX_SHADER_SIZE, &bytes_read);
+            read_file(it.value.path, buffer, MAX_SHADER_SIZE, &bytes_read);
 
             write_file(file, buffer, bytes_read);
             
@@ -165,9 +161,9 @@ void save_asset_pack(const char *path) {
             break;
         }
         case ASSET_TEXTURE: {            
-            Texture_Memory memory = load_texture_memory(source->path);
+            Texture_Memory memory = load_texture_memory(it.value.path);
             if (!memory.data) {
-                error("Failed to load texture memory from %s", source->path);
+                error("Failed to load texture memory from %s", it.value.path);
                 break;
             }
 
@@ -182,9 +178,9 @@ void save_asset_pack(const char *path) {
             break;
         }
         case ASSET_SOUND: {
-            Sound_Memory memory = load_sound_memory(source->path);
+            Sound_Memory memory = load_sound_memory(it.value.path);
             if (!memory.data) {
-                error("Failed to load sound memory from %s", source->path);
+                error("Failed to load sound memory from %s", it.value.path);
                 break;
             }
 
@@ -199,13 +195,10 @@ void save_asset_pack(const char *path) {
             break;
         }
         default: {
-            error("Asset source for %s has no valid type", source->path);
+            error("Asset source for %s has no valid type", it.value.path);
             break;
         }
         }
-
-        i++;
-        count++;
     }
 
     set_file_pointer_position(file, asset_data_offset);

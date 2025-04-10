@@ -24,7 +24,13 @@ struct Sparse_Array {
         memset(dense,  0xFF, capacity * sizeof(s32));
         memset(sparse, 0xFF, capacity * sizeof(s32));
     }
+
+    T *begin() { return items; }
+    T *end()   { return items + count; }
     
+    const T *begin() const { return items; }
+    const T *end()   const { return items + count; }
+
     T &operator[](s32 index) {
         assert(index >= 0);
         assert(index < count);

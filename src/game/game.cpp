@@ -147,15 +147,14 @@ void tick(World *world, f32 dt) {
 	set_material_uniform_value(skybox.draw_data.material_index, "u_scale", &skybox.uv_scale);
 	set_material_uniform_value(skybox.draw_data.material_index, "u_offset", &skybox.uv_offset);
 
-	for (s32 i = 0; i < world->static_meshes.count; ++i) {
-		auto *mesh = world->static_meshes.items + i;
-		mesh->mvp = mat4_transform(mesh->location, mesh->rotation, mesh->scale) * world->camera_view_proj;
-		set_material_uniform_value(mesh->draw_data.material_index, "u_transform", mesh->mvp.ptr());
-        auto &aabb = world->aabbs[mesh->aabb_index];
+	for_each (world->static_meshes) {
+		it.mvp = mat4_transform(it.location, it.rotation, it.scale) * world->camera_view_proj;
+		set_material_uniform_value(it.draw_data.material_index, "u_transform", it.mvp.ptr());
+        auto &aabb = world->aabbs[it.aabb_index];
         const vec3 half_extent = (aabb.max - aabb.min) * 0.5f;
 
-        aabb.min = mesh->location - half_extent;
-        aabb.max = mesh->location + half_extent;
+        aabb.min = it.location - half_extent;
+        aabb.max = it.location + half_extent;
 
         // @Todo: take into account rotation and scale.
 	}
@@ -252,9 +251,8 @@ Entity *find_entity_by_id(World* world, s32 id) {
     if (world->player.id == id) return &world->player;
     if (world->skybox.id == id) return &world->skybox;
 
-    for (s32 i = 0; i < world->static_meshes.count; ++i) {
-		auto *mesh = world->static_meshes.items + i;
-        if (mesh->id == id) return mesh;
+    for_each (world->static_meshes) {
+        if (it.id == id) return &it;
 	}
 
     warn("Haven't found entity in world by id %d", id);
