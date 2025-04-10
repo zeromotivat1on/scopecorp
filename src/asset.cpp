@@ -123,7 +123,7 @@ void save_asset_pack(const char *path) {
         }
     }
 
-    Asset_Pack_Header header = {};
+    Asset_Pack_Header header;
     header.magic_value = ASSET_PACK_MAGIC_VALUE;
     header.version     = ASSET_PACK_VERSION;
     header.asset_count = asset_source_table.count;
@@ -219,16 +219,16 @@ void load_asset_pack(const char *path, Asset_Table *table) {
         return;
     }
 
-    Asset_Pack_Header header = {};
+    Asset_Pack_Header header;
     read_file(file, &header, sizeof(Asset_Pack_Header));
 
     if (header.magic_value != ASSET_PACK_MAGIC_VALUE) {
-        error("Wrong asset pack magic value %d", header.magic_value);
+        error("Wrong asset pack %s magic value %d", path, header.magic_value);
         return;
     }
 
     if (header.version != ASSET_PACK_VERSION) {
-        error("Wrong asset pack version %d", header.version);
+        error("Wrong asset pack %s version %d", path, header.version);
         return;
     }
     
