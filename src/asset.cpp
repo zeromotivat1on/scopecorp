@@ -17,7 +17,7 @@ static u64 asset_table_hash(const sid &a) {
 }
 
 static void init_asset_source_callback(const File_Callback_Data *callback_data) {
-    Asset_Source source = {};
+    Asset_Source source;
     source.type = *(Asset_Type *)callback_data->user_data;
     source.last_write_time = callback_data->last_write_time;
     
@@ -31,7 +31,7 @@ static void init_asset_source_callback(const File_Callback_Data *callback_data) 
     asset_source_table.add(cache_sid(relative_path), source);
 }
 
-static inline void init_assets_from_folder(const char *path, Asset_Type type) {
+static inline void init_asset_sources(const char *path, Asset_Type type) {
     for_each_file(path, init_asset_source_callback, &type);
 }
 
@@ -41,9 +41,9 @@ void init_asset_source_table(Asset_Source_Table *table) {
     *table = Asset_Source_Table(MAX_ASSETS);
     table->hash_function = &asset_table_hash;
 
-    init_assets_from_folder(SHADER_FOLDER,  ASSET_SHADER);
-    init_assets_from_folder(TEXTURE_FOLDER, ASSET_TEXTURE);
-    init_assets_from_folder(SOUND_FOLDER,   ASSET_SOUND);
+    init_asset_sources(SHADER_FOLDER,  ASSET_SHADER);
+    init_asset_sources(TEXTURE_FOLDER, ASSET_TEXTURE);
+    init_asset_sources(SOUND_FOLDER,   ASSET_SOUND);
 
     log("Initialized asset source table in %.2fms", CHECK_SCOPE_TIMER_MS(init));
 }
