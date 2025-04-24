@@ -1,6 +1,5 @@
 #pragma once
 
-#include "assertion.h"
 #include "memory_storage.h"
 #include <string.h>
 
@@ -32,21 +31,21 @@ struct Sparse_Array {
     const T *end()   const { return items + count; }
 
     T &operator[](s32 index) {
-        assert(index >= 0);
-        assert(index < count);
-        assert(sparse[index] != INVALID_INDEX);
+        Assert(index >= 0);
+        Assert(index < count);
+        Assert(sparse[index] != INVALID_INDEX);
         return items[sparse[index]];
     }
 
     const T &operator[](s32 index) const {
-        assert(index < count);
-        assert(sparse[index] != INVALID_INDEX);
+        Assert(index < count);
+        Assert(sparse[index] != INVALID_INDEX);
         return items[sparse[index]];
     }
 
     T *find(s32 index) {
-        assert(index >= 0);
-        assert(index < capacity);
+        Assert(index >= 0);
+        Assert(index < capacity);
         
         const s32 item_index = sparse[index];
         if (item_index == INVALID_INDEX) return null;
@@ -55,8 +54,8 @@ struct Sparse_Array {
     }
 
     T *find_or_add_default(s32 index) {
-        assert(index >= 0);
-        assert(index < capacity);
+        Assert(index >= 0);
+        Assert(index < capacity);
         
         s32 item_index = sparse[index];
         if (item_index == INVALID_INDEX) {
@@ -83,7 +82,7 @@ struct Sparse_Array {
     }
 
     s32 add(s32 index, const T &item) {
-        assert(count < capacity);
+        Assert(count < capacity);
 
         if (find(index)) return INVALID_INDEX;
 
@@ -97,7 +96,7 @@ struct Sparse_Array {
     }
 
     s32 add_default(s32 index) {
-        assert(count < capacity);
+        Assert(count < capacity);
 
         if (find(index)) return INVALID_INDEX;
 
@@ -111,8 +110,8 @@ struct Sparse_Array {
     }
     
     s32 remove(s32 index) {
-        assert(index >= 0);
-        assert(index < count);
+        Assert(index >= 0);
+        Assert(index < count);
 
         if (!find(index)) return INVALID_INDEX;
 

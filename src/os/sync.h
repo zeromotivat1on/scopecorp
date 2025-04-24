@@ -4,6 +4,9 @@ typedef void *Semaphore;
 typedef void *Mutex;
 typedef void *Critical_Section;
 
+extern const Mutex     INVALID_MUTEX;
+extern const Semaphore INVALID_SEMAPHORE;
+
 extern const u32 WAIT_INFINITE;
 extern const u32 CRITICAL_SECTION_SIZE;
 

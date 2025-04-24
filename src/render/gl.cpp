@@ -1,6 +1,5 @@
 #include "pch.h"
 #include "render/glad.h"
-#include "render/text.h"
 #include "render/shader.h"
 #include "render/uniform.h"
 #include "render/material.h"
@@ -14,8 +13,7 @@
 
 #include "log.h"
 #include "font.h"
-#include "profile.h"
-#include "asset_registry.h"
+#include "asset.h"
 #include "stb_image.h"
 #include "stb_truetype.h"
 #include "stb_sprintf.h"
@@ -253,8 +251,6 @@ void submit(const Render_Command *command) {
     }
     
     if (command->flags & RENDER_FLAG_RESET) {
-        PROFILE_SCOPE("Reset GL state after draw call");
-
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
         if (command->flags & RENDER_FLAG_VIEWPORT) {
@@ -313,15 +309,15 @@ void submit(const Render_Command *command) {
     }
 }
 
-s32 create_frame_buffer(s16 width, s16 height, const Texture_Format_Type *color_attachment_formats, s32 color_attachment_count, Texture_Format_Type depth_attachment_format) {
-    assert(color_attachment_count <= MAX_FRAME_BUFFER_COLOR_ATTACHMENTS);
+s32 create_frame_buffer(s16 width, s16 height, const Texture_Format_Type *color_attachments, s32 color_attachment_count, Texture_Format_Type depth_attachment) {
+    Assert(color_attachment_count <= MAX_FRAME_BUFFER_COLOR_ATTACHMENTS);
     
     Frame_Buffer frame_buffer = {};
     glGenFramebuffers(1, &frame_buffer.id);
     glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer.id);
 
     for (s32 i = 0; i < MAX_FRAME_BUFFER_COLOR_ATTACHMENTS; ++i)
-        frame_buffer.color_attachments[i] = INVALID_INDEX;
+        frame_buffer.color_attachment_indices[i] = INVALID_INDEX;
 
     u32 gl_attachments[MAX_FRAME_BUFFER_COLOR_ATTACHMENTS];
     for (s32 i = 0; i < color_attachment_count; ++i)
@@ -330,10 +326,10 @@ s32 create_frame_buffer(s16 width, s16 height, const Texture_Format_Type *color_
     glDrawBuffers(color_attachment_count, gl_attachments);
     
     frame_buffer.color_attachment_count = color_attachment_count;
-    memcpy(frame_buffer.color_attachment_formats, color_attachment_formats, color_attachment_count * sizeof(Texture_Format_Type));
+    memcpy(frame_buffer.color_attachment_formats, color_attachments, color_attachment_count * sizeof(Texture_Format_Type));
 
-    frame_buffer.depth_attachment        = INVALID_INDEX;
-    frame_buffer.depth_attachment_format = depth_attachment_format;
+    frame_buffer.depth_attachment_index  = INVALID_INDEX;
+    frame_buffer.depth_attachment_format = depth_attachment;
 
     frame_buffer.material_index = create_material(asset_table[shader_sids.frame_buffer].registry_index, INVALID_INDEX);
 
@@ -368,7 +364,7 @@ void recreate_frame_buffer(s32 fbi, s16 width, s16 height) {
     glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer.id);	
     
     for (s32 i = 0; i < frame_buffer.color_attachment_count; ++i) {
-        s32 attachment = frame_buffer.color_attachments[i];
+        s32 attachment = frame_buffer.color_attachment_indices[i];
         if (attachment != INVALID_INDEX) delete_texture(attachment);
 
         const auto format = frame_buffer.color_attachment_formats[i];
@@ -379,11 +375,11 @@ void recreate_frame_buffer(s32 fbi, s16 width, s16 height) {
         const auto &texture = render_registry.textures[attachment];
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, texture.id, 0);
         
-        frame_buffer.color_attachments[i] = attachment;
+        frame_buffer.color_attachment_indices[i] = attachment;
     }
 
     {
-        s32 attachment = frame_buffer.depth_attachment;
+        s32 attachment = frame_buffer.depth_attachment_index;
         if (attachment != INVALID_INDEX) delete_texture(attachment);
 
         const auto format = frame_buffer.depth_attachment_format;
@@ -393,7 +389,7 @@ void recreate_frame_buffer(s32 fbi, s16 width, s16 height) {
         const auto &texture = render_registry.textures[attachment];
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, texture.id, 0);
         
-        frame_buffer.depth_attachment = attachment;
+        frame_buffer.depth_attachment_index = attachment;
     }
     
     const u32 status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
@@ -406,7 +402,7 @@ void recreate_frame_buffer(s32 fbi, s16 width, s16 height) {
 
 s32 read_frame_buffer_pixel(s32 fbi, s32 color_attachment_index, s32 x, s32 y) {
     const auto &frame_buffer = render_registry.frame_buffers[fbi];
-    assert(color_attachment_index < frame_buffer.color_attachment_count);
+    Assert(color_attachment_index < frame_buffer.color_attachment_count);
 
     glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer.id);
     glReadBuffer(GL_COLOR_ATTACHMENT0 + color_attachment_index);
@@ -475,7 +471,7 @@ void draw_frame_buffer(s32 fbi, s32 color_attachment_index) {
     command.index_buffer_index = index_buffer_index;
     
     fill_render_command_with_material_data(frame_buffer.material_index, &command);
-    command.texture_index = frame_buffer.color_attachments[color_attachment_index];
+    command.texture_index = frame_buffer.color_attachment_indices[color_attachment_index];
     
     const auto &index_buffer = render_registry.index_buffers[index_buffer_index];
     command.buffer_element_count = index_buffer.index_count;
@@ -538,7 +534,7 @@ s32 create_vertex_array(const Vertex_Array_Binding *bindings, s32 binding_count)
 
     s32 binding_index = 0;
     for (s32 i = 0; i < binding_count; ++i) {
-        assert(binding_index < MAX_VERTEX_ARRAY_BINDINGS);
+        Assert(binding_index < MAX_VERTEX_ARRAY_BINDINGS);
         
         const auto &binding = bindings[i];
         const auto &vertex_buffer = render_registry.vertex_buffers[binding.vertex_buffer_index];
@@ -685,7 +681,7 @@ bool recreate_shader(s32 shader_index, const char *source) {
 
 void send_uniform_value_to_gpu(s32 shader_index, s32 uniform_index, u32 offset) {
     const auto &cache = render_registry.uniform_value_cache;
-    assert(offset < cache.size);
+    Assert(offset < cache.size);
 
     const auto &uniform = render_registry.uniforms[uniform_index];
     const auto &shader  = render_registry.shaders[shader_index];
@@ -902,7 +898,7 @@ void rescale_font_atlas(Font_Atlas *atlas, s16 font_size) {
 	}
 
 	auto &texture = render_registry.textures[atlas->texture_index];
-	assert(texture.type == TEXTURE_TYPE_2D_ARRAY);
+	Assert(texture.type == TEXTURE_TYPE_2D_ARRAY);
 
 	texture.width = font_size;
 	texture.height = font_size;
@@ -921,7 +917,7 @@ void rescale_font_atlas(Font_Atlas *atlas, s16 font_size) {
 
 	s32 max_layers;
 	glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &max_layers);
-	assert(charcode_count <= (u32)max_layers);
+	Assert(charcode_count <= (u32)max_layers);
 
 	// stbtt rasterizes glyphs as 8bpp, so tell GL to use 1 byte per color channel.
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);

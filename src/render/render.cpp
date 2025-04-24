@@ -4,11 +4,12 @@
 #include "render/render_command.h"
 #include "render/render_stats.h"
 #include "render/geometry_draw.h"
-#include "render/text.h"
+#include "render/text_draw.h"
 
 #include "game/world.h"
 #include "game/entities.h"
 
+#include "os/atomic.h"
 #include "os/window.h"
 
 #include "math/math_core.h"
@@ -18,7 +19,7 @@
 #include "font.h"
 #include "profile.h"
 #include "memory_storage.h"
-#include "asset_registry.h"
+#include "asset.h"
 
 static s32 MAX_GEOMETRY_VERTEX_BUFFER_SIZE = 0;
 static s32 GEOMETRY_VERTEX_DIMENSION       = 0;
@@ -114,7 +115,7 @@ void create_game_materials(Material_Index_List *list) {
 }
 
 void init_render_queue(Render_Queue *queue, s32 capacity) {
-    assert(capacity <= MAX_RENDER_QUEUE_SIZE);
+    Assert(capacity <= MAX_RENDER_QUEUE_SIZE);
     
 	queue->commands = push_array(pers, capacity, Render_Command);
 	queue->size     = 0;
@@ -122,14 +123,14 @@ void init_render_queue(Render_Queue *queue, s32 capacity) {
 }
 
 void enqueue(Render_Queue *queue, const Render_Command *command) {
-	assert(queue->size < MAX_RENDER_QUEUE_SIZE);
+	Assert(queue->size < MAX_RENDER_QUEUE_SIZE);
     
 	const s32 index = queue->size++;
 	memcpy(queue->commands + index, command, sizeof(Render_Command));
 }
 
 void flush(Render_Queue *queue) {
-    PROFILE_SCOPE("Flush Render Queue");
+    PROFILE_SCOPE(__FUNCTION__);
     
 	for (s32 i = 0; i < queue->size; ++i)
         submit(queue->commands + i);
@@ -176,7 +177,7 @@ void draw_world(const World *world) {
     
 	draw_entity(&world->skybox);
 
-	for_each (world->static_meshes)
+	For (world->static_meshes)
 		draw_entity(&it);
 
 	draw_entity(&world->player);
@@ -272,7 +273,7 @@ void init_geo_draw() {
 }
 
 void draw_geo_line(vec3 start, vec3 end, vec3 color) {
-    assert(geometry_draw_buffer.vertex_count + 2 <= MAX_GEOMETRY_VERTEX_COUNT);
+    Assert(geometry_draw_buffer.vertex_count + 2 <= MAX_GEOMETRY_VERTEX_COUNT);
     
     const u32 offset = geometry_draw_buffer.vertex_count * GEOMETRY_VERTEX_DIMENSION;
     f32 *v = geometry_draw_buffer.vertex_data + offset;
@@ -467,7 +468,7 @@ void draw_text(const char *text, u32 text_size, vec2 pos, vec3 color) {
 	f32 y = pos.y;
 
 	for (u32 i = 0; i < text_size; ++i) {
-        assert(text_draw_buffer.char_count < MAX_CHAR_RENDER_COUNT);
+        Assert(text_draw_buffer.char_count < MAX_CHAR_RENDER_COUNT);
         
 		const char c = text[i];
 
@@ -487,8 +488,8 @@ void draw_text(const char *text, u32 text_size, vec2 pos, vec3 color) {
 			continue;
 		}
 
-		assert((u32)c >= atlas->start_charcode);
-		assert((u32)c <= atlas->end_charcode);
+		Assert((u32)c >= atlas->start_charcode);
+		Assert((u32)c <= atlas->end_charcode);
 
 		const u32 ci = c - atlas->start_charcode;
 		const Font_Glyph_Metric *metric = atlas->metrics + ci;
@@ -587,13 +588,13 @@ s32 create_uniform(const char *name, Uniform_Type type, s32 element_count) {
 }
 
 u32 cache_uniform_value_on_cpu(s32 uniform_index, const void *data) {
-    assert(data);
+    Assert(data);
     
     const auto &uniform = render_registry.uniforms[uniform_index];
     auto &cache         = render_registry.uniform_value_cache;
     
     const u32 size = uniform.count * uniform_value_type_size(uniform.type);
-    assert(cache.size + size <= cache.capacity);
+    Assert(cache.size + size <= cache.capacity);
         
     const u32 offset = cache.size;
     memcpy((u8 *)cache.data + cache.size, data, size);
@@ -605,7 +606,7 @@ u32 cache_uniform_value_on_cpu(s32 uniform_index, const void *data) {
 void update_uniform_value_on_cpu(s32 uniform_index, const void *data, u32 offset) {
     const auto &uniform = render_registry.uniforms[uniform_index];
     const auto &cache   = render_registry.uniform_value_cache;
-    assert(offset < cache.size);
+    Assert(offset < cache.size);
     
     const u32 size = uniform.count * uniform_value_type_size(uniform.type);
     memcpy((u8 *)cache.data + offset, data, size);
@@ -637,7 +638,7 @@ s32 find_material_uniform(s32 material_index, const char *name) {
 
 void set_material_uniforms(s32 material_index, const s32 *uniform_indices, s32 count) {
     auto &material = render_registry.materials[material_index];
-    assert(material.uniform_count == 0);
+    Assert(material.uniform_count == 0);
 
     material.uniform_count = count;
     memcpy(material.uniform_indices, uniform_indices, count * sizeof(s32));

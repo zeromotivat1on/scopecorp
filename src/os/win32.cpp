@@ -1,4 +1,8 @@
 #include "pch.h"
+#include "log.h"
+#include "profile.h"
+#include "memory_storage.h"
+
 #include "os/file.h"
 #include "os/atomic.h"
 #include "os/input.h"
@@ -8,16 +12,11 @@
 #include "os/time.h"
 #include "os/window.h"
 
-#include "log.h"
-#include "profile.h"
-#include "assertion.h"
-#include "memory_storage.h"
-#include "editor/hot_reload.h"
-
 #define VC_EXTRALEAN
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <windowsx.h>
+#include <shellapi.h>
 #include <shlwapi.h>
 #include <intrin.h>
 
@@ -31,20 +30,24 @@ struct Win32_Window {
 	HGLRC hglrc;
 };
 
-static constexpr s32 HOT_RELOAD_BUFFER_SIZE = 4096;
 static constexpr u32 INVALID_THREAD_RESULT = ((DWORD)-1);
 
-// These are exposed in headers, so not static.
 const u32 WAIT_INFINITE = INFINITE;
+
+const Thread INVALID_THREAD       = NULL;
 const s32 THREAD_CREATE_IMMEDIATE = 0;
 const s32 THREAD_CREATE_SUSPENDED = CREATE_SUSPENDED;
-const u32 CRITICAL_SECTION_SIZE = sizeof(CRITICAL_SECTION);
 
-const File INVALID_FILE       = INVALID_HANDLE_VALUE;
-const u32  FILE_FLAG_READ     = GENERIC_READ;
-const u32  FILE_FLAG_WRITE    = GENERIC_WRITE;
-const u32  FILE_OPEN_NEW      = CREATE_NEW;
-const u32  FILE_OPEN_EXISTING = OPEN_EXISTING;
+const Mutex     INVALID_MUTEX     = NULL;
+const Semaphore INVALID_SEMAPHORE = NULL;
+const u32 CRITICAL_SECTION_SIZE   = sizeof(CRITICAL_SECTION);
+
+const File INVALID_FILE           = INVALID_HANDLE_VALUE;
+const u32  FILE_FLAG_READ         = GENERIC_READ;
+const u32  FILE_FLAG_WRITE        = GENERIC_WRITE;
+const u32  FILE_OPEN_NEW          = CREATE_NEW;
+const u32  FILE_OPEN_EXISTING     = OPEN_EXISTING;
+const u32  FILE_TRUNCATE_EXISTING = TRUNCATE_EXISTING;
 
 EXTERN_C IMAGE_DOS_HEADER __ImageBase;
 static const char *window_prop_name = "win32_window";
@@ -63,7 +66,7 @@ bool close_file(File handle) {
 	return CloseHandle(handle);
 }
 
-s64 file_size(File handle) {
+s64 get_file_size(File handle) {
 	LARGE_INTEGER size;
 	if (!GetFileSizeEx(handle, &size)) return -1;
 	return size.QuadPart;
@@ -84,14 +87,6 @@ bool set_file_pointer_position(File handle, s64 position) {
     LARGE_INTEGER move_distance;
     move_distance.QuadPart = position;
     return SetFilePointerEx(handle, move_distance, NULL, FILE_BEGIN);
-}
-
-s64 get_file_pointer_position(File handle) {
-    LARGE_INTEGER position      = {0};
-    LARGE_INTEGER move_distance = {0};
-    if (SetFilePointerEx(handle, move_distance, &position, FILE_CURRENT))
-        return position.QuadPart;
-    return INVALID_INDEX;
 }
 
 void for_each_file(const char *directory, For_Each_File_Callback callback, void *user_data) {
@@ -137,25 +132,33 @@ void extract_file_from_path(char *path) {
     PathStripPath(path);
 }
 
+s64 get_file_pointer_position(File handle) {
+    LARGE_INTEGER position      = {0};
+    LARGE_INTEGER move_distance = {0};
+    if (SetFilePointerEx(handle, move_distance, &position, FILE_CURRENT))
+        return position.QuadPart;
+    return INVALID_INDEX;
+}
+
 void *vm_reserve(void *addr, u64 size) {
-	assert(size > 0);
+	Assert(size > 0);
 	return VirtualAlloc(addr, size, MEM_RESERVE, PAGE_READWRITE);
 }
 
 void *vm_commit(void *vm, u64 size) {
-	assert(vm);
-	assert(size > 0);
+	Assert(vm);
+	Assert(size > 0);
 	return VirtualAlloc(vm, size, MEM_COMMIT, PAGE_READWRITE);
 }
 
 bool vm_decommit(void *vm, u64 size) {
-	assert(vm);
-	assert(size > 0);
+	Assert(vm);
+	Assert(size > 0);
 	return VirtualFree(vm, size, MEM_DECOMMIT);
 }
 
 bool vm_release(void *vm) {
-	assert(vm);
+	Assert(vm);
 	return VirtualFree(vm, 0, MEM_RELEASE);
 }
 
@@ -192,25 +195,25 @@ bool thread_active(Thread handle) {
 	return exit_code == STILL_ACTIVE;
 }
 
-Thread create_thread(Thread_Entry entry, void *userdata, s32 create_type) {
-	return CreateThread(0, 0, (LPTHREAD_START_ROUTINE)entry, userdata, create_type, NULL);
+Thread create_thread(Thread_Entry entry, s32 create_type, void *user_data) {
+	return CreateThread(0, 0, (LPTHREAD_START_ROUTINE)entry, user_data, create_type, NULL);
 }
 
 void resume_thread(Thread handle) {
 	const DWORD res = ResumeThread(handle);
-	assert(res != INVALID_THREAD_RESULT);
+	Assert(res != INVALID_THREAD_RESULT);
 }
 
 void suspend_thread(Thread handle) {
 	const DWORD res = SuspendThread(handle);
-	assert(res != INVALID_THREAD_RESULT);
+	Assert(res != INVALID_THREAD_RESULT);
 }
 
 void terminate_thread(Thread handle) {
 	DWORD exit_code;
 	GetExitCodeThread(handle, &exit_code);
 	const BOOL res = TerminateThread(handle, exit_code);
-	assert(res);
+	Assert(res);
 }
 
 Semaphore create_semaphore(s32 init_count, s32 max_count) {
@@ -321,7 +324,7 @@ s64 time_since_sys_boot_ms() {
 s64 performance_counter() {
 	LARGE_INTEGER counter;
 	const BOOL res = QueryPerformanceCounter(&counter);
-	assert(res); // @Robustness: handle win32 failure
+	Assert(res); // @Robustness: handle win32 failure
 	return counter.QuadPart;
 }
 
@@ -331,7 +334,7 @@ s64 performance_frequency_s() {
 	if (frequency64 == 0) {
 		LARGE_INTEGER frequency;
 		const BOOL res = QueryPerformanceFrequency(&frequency);
-		assert(res);
+		Assert(res);
 		frequency64 = frequency.QuadPart;
 	}
 
@@ -344,7 +347,7 @@ s64 performance_frequency_ms() {
 	if (frequency64 == 0) {
 		LARGE_INTEGER frequency;
 		const BOOL res = QueryPerformanceFrequency(&frequency);
-		assert(res);
+		Assert(res);
 		frequency64 = frequency.QuadPart / 1000;
 	}
 
@@ -355,24 +358,41 @@ static LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam, L
 	auto *window = (Window *)GetProp(hwnd, window_prop_name);
 	if (!window) return DefWindowProc(hwnd, umsg, wparam, lparam);
 
-	Window_Event event = {0};
-
+	Window_Event event = {};
+    event.with_ctrl  = input_table.key_states[KEY_CTRL];
+    event.with_shift = input_table.key_states[KEY_SHIFT];
+    event.with_alt   = input_table.key_states[KEY_ALT];
+        
 	switch (umsg) {
+    case WM_SETFOCUS: {
+        window->focused = true;
+        window->cursor_locked = window->last_cursor_locked;
+        break;
+    }
+    case WM_KILLFOCUS: {
+        input_table.key_states[KEY_ALT] = false;
+        
+        window->focused = false;
+        window->last_cursor_locked = window->cursor_locked;
+        window->cursor_locked = false;
+        
+        break;
+    }
 	case WM_SIZE: {
+        event.type = WINDOW_EVENT_RESIZE;
+        event.prev_width  = window->width;
+        event.prev_height = window->height;
+        
 		window->width = LOWORD(lparam);
 		window->height = HIWORD(lparam);
 
-		event.type = EVENT_RESIZE;
-
-		// @Robustness: ensure we have only one resize event in queue.
-		// @Cleanup: looks like a hack, need to figure this out.
 		s32 resized_event_index = INVALID_INDEX;
 		for (s32 i = 0; i < window_event_queue_size; ++i)
-			if (window_event_queue[i].type == EVENT_RESIZE)
+			if (window_event_queue[i].type == WINDOW_EVENT_RESIZE)
 				resized_event_index = i;
 
 		if (resized_event_index == INVALID_INDEX) {
-			assert(window_event_queue_size < MAX_WINDOW_EVENT_QUEUE_SIZE);
+			Assert(window_event_queue_size < MAX_WINDOW_EVENT_QUEUE_SIZE);
 			window_event_queue[window_event_queue_size++] = event;
 		} else {
 			window_event_queue[resized_event_index] = event;
@@ -380,79 +400,88 @@ static LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam, L
 
 		break;
 	}
+    case WM_SYSKEYDOWN:
 	case WM_KEYDOWN: {
-		const s32 repeat = lparam & 0x40000000;
-		if (repeat == 0) {
-			event.type = EVENT_KEYBOARD;
-			event.key_pressed = true;
-			event.key_code = input_table.key_codes[wparam];
+        event.type = WINDOW_EVENT_KEYBOARD;
+        event.key_repeat  = lparam & 0x40000000;
+        event.key_press = !event.key_repeat;
+        event.key_code = input_table.key_codes[wparam];
 
-			assert(event.key_code > 0);
-			input_table.key_states[event.key_code] = event.key_pressed;
+        Assert(event.key_code > 0);
+        input_table.key_states[event.key_code] = true;
 
-			assert(window_event_queue_size < MAX_WINDOW_EVENT_QUEUE_SIZE);
+        s32 key_down_event_index = INVALID_INDEX;
+		for (s32 i = 0; i < window_event_queue_size; ++i)
+			if (event.type == WINDOW_EVENT_KEYBOARD && window_event_queue[i].key_code == event.key_code)
+				key_down_event_index = i;
+
+        if (key_down_event_index == INVALID_INDEX) {
+			Assert(window_event_queue_size < MAX_WINDOW_EVENT_QUEUE_SIZE);
 			window_event_queue[window_event_queue_size++] = event;
+		} else {
+			window_event_queue[key_down_event_index] = event;
 		}
 
 		break;
 	}
+    case WM_SYSKEYUP:
 	case WM_KEYUP: {
-		event.type = EVENT_KEYBOARD;
-		event.key_pressed = false;
+		event.type = WINDOW_EVENT_KEYBOARD;
+		event.key_release = true;
 		event.key_code = input_table.key_codes[wparam];
 
-		assert(event.key_code > 0);
-		input_table.key_states[event.key_code] = event.key_pressed;
+		Assert(event.key_code > 0);
+		input_table.key_states[event.key_code] = false;
 
-		assert(window_event_queue_size < MAX_WINDOW_EVENT_QUEUE_SIZE);
+		Assert(window_event_queue_size < MAX_WINDOW_EVENT_QUEUE_SIZE);
 		window_event_queue[window_event_queue_size++] = event;
 
 		break;
 	}
 	case WM_CHAR: {
-		event.type = EVENT_TEXT_INPUT;
+		event.type = WINDOW_EVENT_TEXT_INPUT;
 		event.character = (u32)wparam;
 
-		assert(window_event_queue_size < MAX_WINDOW_EVENT_QUEUE_SIZE);
+		Assert(window_event_queue_size < MAX_WINDOW_EVENT_QUEUE_SIZE);
 		window_event_queue[window_event_queue_size++] = event;
 
 		break;
 	}
 	case WM_LBUTTONDOWN:
 	case WM_LBUTTONUP: {
-		event.type = EVENT_MOUSE;
-		event.key_pressed = umsg == WM_LBUTTONDOWN;
+		event.type = WINDOW_EVENT_MOUSE;
+		event.key_press = umsg == WM_LBUTTONDOWN;
 		event.key_code = MOUSE_LEFT;
 
-		input_table.key_states[event.key_code] = event.key_pressed;
+		input_table.key_states[event.key_code] = event.key_press;
 
-		assert(window_event_queue_size < MAX_WINDOW_EVENT_QUEUE_SIZE);
+		Assert(window_event_queue_size < MAX_WINDOW_EVENT_QUEUE_SIZE);
 		window_event_queue[window_event_queue_size++] = event;
 
 		break;
 	}
 	case WM_RBUTTONDOWN:
 	case WM_RBUTTONUP: {
-		event.type = EVENT_MOUSE;
-		event.key_pressed = umsg == WM_RBUTTONDOWN;
+		event.type = WINDOW_EVENT_MOUSE;
+		event.key_press = umsg == WM_RBUTTONDOWN;
 		event.key_code = MOUSE_RIGHT;
 
-		input_table.key_states[event.key_code] = event.key_pressed;
+		input_table.key_states[event.key_code] = event.key_press;
 
-		assert(window_event_queue_size < MAX_WINDOW_EVENT_QUEUE_SIZE);
+		Assert(window_event_queue_size < MAX_WINDOW_EVENT_QUEUE_SIZE);
 		window_event_queue[window_event_queue_size++] = event;
 
 		break;
 	}
 	case WM_MBUTTONUP:
 	case WM_MBUTTONDOWN: {
-		event.type = EVENT_MOUSE;
-		event.key_pressed = umsg == WM_MBUTTONDOWN;
+		event.type = WINDOW_EVENT_MOUSE;
+		event.key_press = umsg == WM_MBUTTONDOWN;
 		event.key_code = MOUSE_MIDDLE;
 
-		input_table.key_states[event.key_code] = event.key_pressed;
+		input_table.key_states[event.key_code] = event.key_press;
 
-		assert(window_event_queue_size < MAX_WINDOW_EVENT_QUEUE_SIZE);
+		Assert(window_event_queue_size < MAX_WINDOW_EVENT_QUEUE_SIZE);
 		window_event_queue[window_event_queue_size++] = event;
 
 		break;
@@ -462,15 +491,46 @@ static LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam, L
 		input_table.mouse_y = GET_Y_LPARAM(lparam);
 		break;
 	}
-					 //case WM_MOUSEWHEEL:
-					 //    win->mouse_axes[MOUSE_SCROLL_X] = 0;
-					 //    win->mouse_axes[MOUSE_SCROLL_Y] = GET_WHEEL_DELTA_WPARAM(wparam);
-					 //    break;
+    case WM_MOUSEWHEEL: {
+        event.type = WINDOW_EVENT_MOUSE;
+        event.scroll_delta = GET_WHEEL_DELTA_WPARAM(wparam);
+        
+        Assert(window_event_queue_size < MAX_WINDOW_EVENT_QUEUE_SIZE);
+        window_event_queue[window_event_queue_size++] = event;
+        
+        break;
+    }
+    case WM_DROPFILES: {
+        static char paths[MAX_WINDOW_DROP_COUNT * MAX_PATH_SIZE];
+        
+        event.type = WINDOW_EVENT_FILE_DROP;
 
+        HDROP hdrop = (HDROP)wparam;
+        u32 drop_count = DragQueryFile(hdrop, 0xFFFFFFFF, null, 0);
+        
+        if (drop_count > MAX_WINDOW_DROP_COUNT) {
+            warn("Dropped file count %u exceeded max value %u, some files will be ignored", drop_count, MAX_WINDOW_DROP_COUNT);
+            drop_count = MAX_WINDOW_DROP_COUNT;
+        }
+        
+        for (u32 i = 0; i < drop_count; ++i) {
+            DragQueryFile(hdrop, i, paths + (i * MAX_PATH_SIZE), MAX_PATH_SIZE);
+        }
+
+        event.file_drops = paths;
+        event.file_drop_count = drop_count;
+        
+        DragFinish(hdrop);
+
+		Assert(window_event_queue_size < MAX_WINDOW_EVENT_QUEUE_SIZE);
+		window_event_queue[window_event_queue_size++] = event;
+
+        break;
+    }
 	case WM_QUIT:
 	case WM_CLOSE: {
-		event.type = EVENT_QUIT;
-		assert(window_event_queue_size < MAX_WINDOW_EVENT_QUEUE_SIZE);
+		event.type = WINDOW_EVENT_QUIT;
+		Assert(window_event_queue_size < MAX_WINDOW_EVENT_QUEUE_SIZE);
 		window_event_queue[window_event_queue_size++] = event;
 		return DefWindowProc(hwnd, umsg, wparam, lparam);
 	}
@@ -490,10 +550,11 @@ static RECT get_window_border_rect() {
 	return rect;
 }
 
-Window *create_window(s32 w, s32 h, const char *name, s32 x, s32 y) {
+Window *create_window(s32 w, s32 h, const char *name, s32 x, s32 y, void *user_data) {
 	Window *window = push_struct(pers, Window);
-	window->win32  = push_struct(pers, Win32_Window);
-
+    *window = Window();
+    window->user_data = user_data;
+	window->win32 = push_struct(pers, Win32_Window);
 	window->win32->class_name = "win32_window";
 
 	WNDCLASSEX wclass = {0};
@@ -524,7 +585,8 @@ Window *create_window(s32 w, s32 h, const char *name, s32 x, s32 y) {
 	if (window->win32->hdc == NULL) return null;
 
 	SetProp(window->win32->hwnd, window_prop_name, window);
-
+    DragAcceptFiles(window->win32->hwnd, TRUE);
+ 
 	return window;
 }
 
@@ -539,8 +601,6 @@ void destroy(Window *window) {
 }
 
 void poll_events(Window *window) {
-    PROFILE_SCOPE("Poll Window Events");
-    
 	input_table.mouse_offset_x = 0;
 	input_table.mouse_offset_y = 0;
 
@@ -567,7 +627,7 @@ void poll_events(Window *window) {
 		input_table.mouse_last_y = input_table.mouse_y;
 	}
 
-	for (s32 i = 0; i < window_event_queue_size; ++i)
+	for (s32 i = 0; i < window_event_queue_size; ++i)
 		window->event_callback(window, window_event_queue + i);
 
 	window_event_queue_size = 0;
@@ -579,6 +639,10 @@ void close(Window *window) {
 
 bool alive(Window *window) {
 	return IsWindow(window->win32->hwnd);
+}
+
+bool set_title(Window *window, const char *title) {
+    return SetWindowText(window->win32->hwnd, title);
 }
 
 void lock_cursor(Window *window, bool lock) {

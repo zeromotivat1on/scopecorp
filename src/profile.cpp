@@ -12,7 +12,7 @@
 #include "game/game.h"
 #include "game/world.h"
 
-#include "render/text.h"
+#include "render/text_draw.h"
 #include "render/viewport.h"
 #include "render/render_stats.h"
 #include "render/render_registry.h"

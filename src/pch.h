@@ -46,10 +46,7 @@ static_assert(sizeof(f64) == 8);
 #define F64_MIN   2.2250738585072014e-308
 #define F64_MAX   1.7976931348623158e+308
 
-#define U32_PACK(a, b, c, d) ((u32)(a) << 0  | \
-                              (u32)(b) << 8  | \
-                              (u32)(c) << 16 | \
-                              (u32)(d) << 24)
+#define U32_PACK(a, b, c, d) ((u32)(a) << 0  | (u32)(b) << 8  | (u32)(c) << 16 | (u32)(d) << 24)
 
 #define null nullptr
 
@@ -58,10 +55,8 @@ static_assert(sizeof(f64) == 8);
 
 #if DEBUG
 inline const char* build_type_name = "DEBUG";
-#define debug_scope if (1)
 #elif RELEASE
 inline const char* build_type_name = "RELEASE";
-#define debug_scope if (0)
 #else
 #error "Unknown build type"
 #endif
@@ -81,7 +76,7 @@ template <class F> struct Defer { F f; ~Defer() { f(); } };
 template <class F> Defer<F> operator+(Defer_Ref, F f) { return {f}; }
 #define defer const auto CONCAT(deferrer, __LINE__) = Defer_Ref{} + [&]()
 
-#define for_each(x) for (auto &it : (x))
+#define For(x) for (auto &it : (x))
 
 #define RUN_TREE_FOLDER DIR_RUN_TREE
 #define DATA_FOLDER     DIR_DATA
@@ -105,3 +100,11 @@ enum Direction {
     DIRECTION_FORWARD,
     DIRECTION_COUNT
 };
+
+#if DEBUG
+#define Assert(x) if (x) {} else { report_assert(#x, __FILE__, __LINE__); }
+void report_assert(const char* condition, const char* file, s32 line);
+void debug_break();
+#elif RELEASE
+#define Assert(x)
+#endif

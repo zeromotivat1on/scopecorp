@@ -11,11 +11,11 @@ struct Frame_Buffer {
     s16 height = 0;
 
     Texture_Format_Type color_attachment_formats[MAX_FRAME_BUFFER_COLOR_ATTACHMENTS];
-    s32 color_attachments[MAX_FRAME_BUFFER_COLOR_ATTACHMENTS];
+    s32 color_attachment_indices[MAX_FRAME_BUFFER_COLOR_ATTACHMENTS];
     s32 color_attachment_count = 0;
 
     Texture_Format_Type depth_attachment_format;
-    s32 depth_attachment = INVALID_INDEX;
+    s32 depth_attachment_index = INVALID_INDEX;
 
     f32 pixel_size                  = 1.0f;
     f32 curve_distortion_factor     = 0.0f;
@@ -26,7 +26,7 @@ struct Frame_Buffer {
     f32 scanline_intensity          = 0.0f;
 };
 
-s32  create_frame_buffer(s16 width, s16 height, const Texture_Format_Type *color_attachment_formats, s32 color_attachment_count, Texture_Format_Type depth_attachment_format);
+s32  create_frame_buffer(s16 width, s16 height, const Texture_Format_Type *color_attachments, s32 color_attachment_count, Texture_Format_Type depth_attachment);
 void recreate_frame_buffer(s32 fbi, s16 width, s16 height);
 s32 read_frame_buffer_pixel(s32 fbi, s32 color_attachment_index, s32 x, s32 y);
 

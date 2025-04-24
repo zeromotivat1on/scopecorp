@@ -1,6 +1,5 @@
 #include "pch.h"
 #include "collision.h"
-#include "assertion.h"
 #include "profile.h"
 #include "camera.h"
 #include "memory_storage.h"

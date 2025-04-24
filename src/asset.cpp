@@ -1,8 +1,7 @@
 #include "pch.h"
-#include "asset_registry.h"
+#include "asset.h"
 #include "log.h"
 #include "sid.h"
-#include "assertion.h"
 #include "profile.h"
 #include "stb_image.h"
 
@@ -21,7 +20,7 @@ static void init_asset_source_callback(const File_Callback_Data *callback_data) 
     source.type = *(Asset_Type *)callback_data->user_data;
     source.last_write_time = callback_data->last_write_time;
     
-    assert(strlen(callback_data->path) <= MAX_PATH_SIZE);
+    Assert(strlen(callback_data->path) <= MAX_PATH_SIZE);
     strcpy(source.path, callback_data->path);
     fix_directory_delimiters(source.path);
     
@@ -49,7 +48,7 @@ void init_asset_source_table(Asset_Source_Table *table) {
 }
 
 void init_asset_table(Asset_Table *table) {
-    constexpr f32 scale = 2.0f - ACCEPTABLE_HASH_TABLE_LOAD_FACTOR;
+    constexpr f32 scale = 2.0f - MAX_HASH_TABLE_LOAD_FACTOR;
     *table = Asset_Table((s32)(MAX_ASSETS * scale));
     table->hash_function = &asset_table_hash;
 }
@@ -74,7 +73,7 @@ Texture_Memory load_texture_memory(const char *path, bool log_error) {
 		return {};
 	}
 
-    assert(memory.width * memory.height * memory.channel_count <= MAX_TEXTURE_SIZE);
+    Assert(memory.width * memory.height * memory.channel_count <= MAX_TEXTURE_SIZE);
     
     return memory;
 }
@@ -139,7 +138,7 @@ void save_asset_pack(const char *path) {
     defer { pop_array(temp, asset_source_table.count, Asset); };
 
     s32 count = 0;
-    for_each (asset_source_table) {
+    For (asset_source_table) {
         auto *asset = assets + count++;
         asset->type = it.value.type;
         asset->data_offset = get_file_pointer_position(file);
@@ -209,7 +208,6 @@ void save_asset_pack(const char *path) {
 
 void load_asset_pack(const char *path, Asset_Table *table) {
     START_SCOPE_TIMER(load);
-    const s64 counter = performance_counter();
 
     File file = open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_READ);
     defer { close_file(file); };

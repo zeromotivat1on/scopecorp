@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "log.h"
 #include "sid.h"
 #include "hash.h"
 
@@ -14,13 +15,56 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
 
+#if DEBUG
+void report_assert(const char *condition, const char *file, s32 line) {
+	error("Assertion %s failed at %s:%d", condition, file, line);
+	debug_break();
+}
+
+void debug_break() {
+	__debugbreak();
+}
+#endif DEBUG
+
+static void log_output_va(Log_Level log_level, const char *format, va_list args) {
+	const char *prefixes[] = { "\x1b[37m", "\x1b[93m", "\x1b[91m" };
+
+	char buffer[1024] = { 0 };
+	stbsp_vsnprintf(buffer, sizeof(buffer), format, args);
+	printf("%s%s", prefixes[log_level], buffer);
+
+	// Restore default bg and fg colors.
+	puts("\x1b[39;49m");
+}
+
+void log(const char *format, ...) {
+	va_list args;
+	va_start(args, format);
+	log_output_va(LOG_LOG, format, args);
+	va_end(args);
+}
+
+void warn(const char *format, ...) {
+	va_list args;
+	va_start(args, format);
+	log_output_va(LOG_WARN, format, args);
+	va_end(args);
+}
+
+void error(const char *format, ...) {
+	va_list args;
+	va_start(args, format);
+	log_output_va(LOG_ERROR, format, args);
+	va_end(args);
+}
+
 static u64 sid_table_hash(const u64 &a) {
     return a;
 }
 
-void init_sid_table(Sid_Table *sid_table) {
-    *sid_table = Sid_Table(MAX_SID_TABLE_SIZE);
-    sid_table->hash_function = &sid_table_hash;
+void init_sid_table() {
+    sid_table = Sid_Table(MAX_SID_TABLE_SIZE);
+    sid_table.hash_function = &sid_table_hash;
 }
 
 u64 cache_sid(const char *string) {

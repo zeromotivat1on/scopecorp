@@ -1,46 +1,67 @@
 #pragma once
 
+inline constexpr u32 MAX_WINDOW_DROP_COUNT = 64;
+
 typedef void(*Window_Event_Callback)(struct Window *window, struct Window_Event *event);
 
 struct Window {
+    void *user_data;
 	Window_Event_Callback event_callback;
 
 	s16 width;
 	s16 height;
 
-	bool cursor_locked = false;
+    bool focused;
+	bool cursor_locked;
+	bool last_cursor_locked;
 
 #if WIN32
 	struct Win32_Window *win32;
 #endif
 };
 
-inline struct Window *window = null;
-
-enum Event_Type : u8 {
-	EVENT_UNKNOWN,
-	EVENT_RESIZE,
-	EVENT_KEYBOARD,
-	EVENT_TEXT_INPUT,
-	EVENT_MOUSE,
-	EVENT_QUIT,
+enum Window_Event_Type : u8 {
+	WINDOW_EVENT_UNKNOWN,
+	WINDOW_EVENT_RESIZE,
+	WINDOW_EVENT_KEYBOARD,
+	WINDOW_EVENT_TEXT_INPUT,
+	WINDOW_EVENT_MOUSE,
+	WINDOW_EVENT_FILE_DROP,
+	WINDOW_EVENT_QUIT,
 };
 
 struct Window_Event {
-	Event_Type type;
-	bool key_pressed;
+	Window_Event_Type type;
+	bool key_press;
+	bool key_release;
+	bool key_repeat;
+    bool with_ctrl;
+    bool with_shift;
+    bool with_alt;
 	s16 key_code;
+    char *file_drops;
+    s16 file_drop_count;
+    s16 scroll_delta;
 	u32 character;
+    s16 prev_width;
+    s16 prev_height;
 };
+
+inline Window *window = null;
 
 inline constexpr s32 MAX_WINDOW_EVENT_QUEUE_SIZE = 32; // max window events per frame
 inline Window_Event window_event_queue[MAX_WINDOW_EVENT_QUEUE_SIZE];
 inline s32 window_event_queue_size = 0;
 
-Window *create_window(s32 w, s32 h, const char *name, s32 x, s32 y);
+Window *create_window(s32 w, s32 h, const char *name, s32 x, s32 y, void *user_data = null);
 void register_event_callback(Window *window, Window_Event_Callback callback);
 void destroy(Window *window);
 void poll_events(Window *window);
 void close(Window *window);
 bool alive(Window *window);
+bool set_title(Window *window, const char *title);
 void lock_cursor(Window *window, bool lock);
+
+bool init_render_context(Window *window);
+void swap_buffers(Window *window);
+void set_vsync(bool enable);

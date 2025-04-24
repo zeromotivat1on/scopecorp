@@ -1,7 +1,6 @@
 #include "pch.h"
 #include "memory_storage.h"
 #include "log.h"
-#include "assertion.h"
 
 #include "os/memory.h"
 
@@ -51,14 +50,14 @@ void init(Memory_Storage *storage, u64 size, void* memory) {
 }
 
 void *push(Memory_Storage *storage, u64 size) {
-	assert(storage->used + size <= storage->size);
+	Assert(storage->used + size <= storage->size);
 	u8 *data = storage->data + storage->used;
 	storage->used += size;
 	return data;
 }
 
 void pop(Memory_Storage *storage, u64 size) {
-	assert(storage->used >= size);
+	Assert(storage->used >= size);
 	storage->used -= size;
 }
 

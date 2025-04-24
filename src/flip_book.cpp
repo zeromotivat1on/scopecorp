@@ -1,6 +1,5 @@
 #include "pch.h"
 #include "flip_book.h"
-#include "assertion.h"
 
 #include "render/texture.h"
 
@@ -31,12 +30,12 @@ Flip_Book create_flip_book(sid *texture_sids, s32 count, f32 frame_time) {
 }
 
 sid current_frame(Flip_Book *book) {
-	assert(book->current_frame_index < book->frame_count);
+	Assert(book->current_frame_index < book->frame_count);
 	return book->frames[book->current_frame_index];
 }
 
 sid advance_frame(Flip_Book *book) {
-	assert(book->current_frame_index < book->frame_count);
+	Assert(book->current_frame_index < book->frame_count);
 	const sid frame = book->frames[book->current_frame_index];
 	book->current_frame_index = (book->current_frame_index + 1) % book->frame_count;
 	return frame;

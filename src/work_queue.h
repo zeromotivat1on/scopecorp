@@ -1,6 +1,6 @@
 #pragma once
 
-#include "thread.h"
+#include "os/sync.h"
 
 // Circular FIFO work queue with synced entry addition and process.
 // Supports multiple producers multiple consumers thread model.

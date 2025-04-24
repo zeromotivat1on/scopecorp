@@ -163,11 +163,6 @@ struct Render_Queue {
 
 inline Render_Queue entity_render_queue;
 
-// @Cleanup: move these to separate header.
-void init_render_context(Window *window);
-void swap_buffers(Window *window);
-void set_vsync(bool enable);
-
 void init_render_queue(Render_Queue *queue, s32 capacity);
 void enqueue(Render_Queue *queue, const Render_Command *command);
 void flush(Render_Queue *queue);

@@ -34,7 +34,4 @@ struct Scope_Timer {
 };
 #endif
 
-struct Font_Atlas;
-struct World;
-
 void draw_dev_stats();

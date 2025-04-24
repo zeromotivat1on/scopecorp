@@ -5,16 +5,23 @@ else ()
    message(FATAL_ERROR "Invalid GFX_API ${GFX_API}")
 endif()
 
-add_executable(${GAME_EXE}
-                assert.cpp asset.cpp camera.cpp collision.cpp flip_book.cpp font.cpp log.cpp main.cpp memory_storage.cpp pch.cpp profile.cpp
-                # work_queue.cpp work_queue.h
+add_executable(${GAME_EXE})
+set_target_properties(${GAME_EXE} PROPERTIES
+        ARCHIVE_OUTPUT_DIRECTORY "${RUN_TREE_DIR}/build/${CMAKE_SYSTEM_NAME}/${CONFIG_TYPE}"
+        LIBRARY_OUTPUT_DIRECTORY "${RUN_TREE_DIR}/build/${CMAKE_SYSTEM_NAME}/${CONFIG_TYPE}"
+        RUNTIME_OUTPUT_DIRECTORY "${RUN_TREE_DIR}/build/${CMAKE_SYSTEM_NAME}/${CONFIG_TYPE}")
+
+target_sources(${GAME_EXE} PRIVATE
+                asset.cpp camera.cpp collision.cpp flip_book.cpp font.cpp
+                main.cpp memory_storage.cpp pch.cpp profile.cpp
+                # work_queue.cpp
                 os/os.cpp
                 audio/al.cpp audio/audio.cpp
                 game/game.cpp
                 editor/editor.cpp
                 math/matrix.cpp math/math.cpp math/quat.cpp math/vector.cpp
                 render/render.cpp)
-
+                
 target_precompile_headers(${GAME_EXE} PUBLIC pch.h)
 target_include_directories(${GAME_EXE} PRIVATE "${PROJECT_SOURCE_DIR}/src")
 
@@ -42,10 +49,9 @@ if (INCLUDE_TRACY)
    target_compile_definitions(${GAME_EXE} PRIVATE TRACY_ENABLE)
 endif()
 
-set_target_properties(${GAME_EXE} PROPERTIES
-        ARCHIVE_OUTPUT_DIRECTORY "${RUN_TREE_DIR}/build/${CMAKE_SYSTEM_NAME}/${CONFIG_TYPE}"
-        LIBRARY_OUTPUT_DIRECTORY "${RUN_TREE_DIR}/build/${CMAKE_SYSTEM_NAME}/${CONFIG_TYPE}"
-        RUNTIME_OUTPUT_DIRECTORY "${RUN_TREE_DIR}/build/${CMAKE_SYSTEM_NAME}/${CONFIG_TYPE}")
+if (DEVELOPER)
+   target_compile_definitions(${GAME_EXE} PRIVATE DEVELOPER)
+endif()
 
 target_compile_definitions(${GAME_EXE} PRIVATE
                                _CRT_SECURE_NO_WARNINGS
@@ -54,7 +60,6 @@ target_compile_definitions(${GAME_EXE} PRIVATE
                                # Configuration
                                $<$<CONFIG:Debug>:DEBUG>
                                $<$<CONFIG:Release>:RELEASE>
-                               $<$<BOOL:${DEVELOPER}>:DEVELOPER>
                                # Directories
                                DIR_RUN_TREE="${RUN_TREE_DIR}"
                                DIR_DATA="${RUN_TREE_DIR}/data/"

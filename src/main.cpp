@@ -5,7 +5,7 @@
 #include "flip_book.h"
 #include "memory_storage.h"
 #include "profile.h"
-#include "asset_registry.h"
+#include "asset.h"
 #include "stb_sprintf.h"
 #include "stb_image.h"
 
@@ -18,11 +18,11 @@
 #include "math/math_core.h"
 
 #include "render/viewport.h"
+#include "render/render_stats.h"
 #include "render/render_command.h"
 #include "render/render_registry.h"
-#include "render/render_stats.h"
 #include "render/geometry_draw.h"
-#include "render/text.h"
+#include "render/text_draw.h"
 
 #include "audio/audio_registry.h"
 
@@ -41,7 +41,8 @@ s32 main() {
 	log("Preallocated memory storages: Persistent %.fmb | Frame %.fmb | Temp %.fmb",
 		(f32)PERS_MEMORY_SIZE / 1024 / 1024, (f32)FRAME_MEMORY_SIZE / 1024 / 1024, (f32)TEMP_MEMORY_SIZE / 1024 / 1024);
 
-    init_sid_table(&sid_table);
+    init_sid_table();
+	init_input_table();
     
 	window = create_window(1280, 720, GAME_NAME, 0, 0);
 	if (!window) {
@@ -51,8 +52,11 @@ s32 main() {
 
 	register_event_callback(window, on_window_event);
 
-	init_input_table();
-    init_render_context(window);
+    if (!init_render_context(window)) {
+        error("Failed to initialize render context");
+        return 1;
+    }
+    
     init_audio_context();
 
     lock_cursor(window, true);
@@ -89,10 +93,10 @@ s32 main() {
     viewport_frame_buffer.pixel_size                  = 1.0f;
     viewport_frame_buffer.curve_distortion_factor     = 0.25f;
     viewport_frame_buffer.chromatic_aberration_offset = 0.002f;
-    viewport_frame_buffer.quantize_color_count        = 16;
-    viewport_frame_buffer.noise_blend_factor          = 0.3f;
+    viewport_frame_buffer.quantize_color_count        = 64;
+    viewport_frame_buffer.noise_blend_factor          = 0.1f;
     viewport_frame_buffer.scanline_count              = 16;
-    viewport_frame_buffer.scanline_intensity          = 0.9f;
+    viewport_frame_buffer.scanline_intensity          = 0.95f;
 #endif
     
 	Hot_Reload_List hot_reload_list = {};
@@ -318,7 +322,7 @@ s32 main() {
     PROFILE_END(startup);
     
 	while (alive(window)) {
-        PROFILE_SCOPE("Game Frame");
+        PROFILE_SCOPE("game_frame");
 
 		poll_events(window);
         tick(world, delta_time);        
@@ -358,9 +362,11 @@ s32 main() {
         
         draw_world(world);
 
-        debug_scope { draw_geo_debug(); }
-        debug_scope { draw_dev_stats(); }
-
+#if DEVELOPER
+        draw_geo_debug();
+        draw_dev_stats();
+#endif
+        
         update_render_stats();
         
 		flush(&entity_render_queue);
@@ -389,10 +395,10 @@ s32 main() {
 		delta_time = (end_counter - begin_counter) / (f32)performance_frequency_s();
 		begin_counter = end_counter;
 
-		debug_scope {
-			// If dt is too large, we could have resumed from a breakpoint.
-			if (delta_time > 1.0f) delta_time = 0.16f;
-		}
+#if DEVELOPER
+        // If dt is too large, we could have resumed from a breakpoint.
+        if (delta_time > 1.0f) delta_time = 0.16f;
+#endif
 	}
 
 	destroy(window);

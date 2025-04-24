@@ -11,5 +11,5 @@ typedef Hash_Table<sid, const char *> Sid_Table;
 
 inline Sid_Table sid_table;
 
-void init_sid_table(Sid_Table *sid_table);
+void init_sid_table();
 sid  cache_sid(const char *string);

@@ -33,12 +33,13 @@ void main() {
     vec2 uv = f_uv;
 
     {   // Pixelate
+        const float pixel_size = 1.0f;
         const vec2 normalized_pixel_size = u_pixel_size / u_resolution;
         uv = normalized_pixel_size * floor(uv / normalized_pixel_size);
     }
 
     {   // Curve distortion
-        const float curve_factor = 0.25f;
+        const float curve_distortion_factor = 0.25f;
 
         vec2 curve_uv = uv * 2.0f - 1.0f;
         const vec2 offset = curve_uv.yx * u_curve_distortion_factor;
@@ -52,26 +53,26 @@ void main() {
     vec4 color = texture(u_sampler, uv);
 
     {   // Chromatic aberration
-        const float offset = 0.002f;
+        const float chromatic_aberration_offset = 0.002f;
         color.r = texture(u_sampler, uv + vec2(u_chromatic_aberration_offset, 0.0)).r;
         color.g = texture(u_sampler, uv).g;
         color.b = texture(u_sampler, uv - vec2(u_chromatic_aberration_offset, 0.0)).b;
     }
     
     {   // Quantize color
-        const int color_count = 16;
+        const int quantize_color_count = 16;
         color.rgb = floor(color.rgb * (u_quantize_color_count - 1)) / (u_quantize_color_count - 1);
     }
 
     {   // Noise
-        const float blend_factor = 0.3f;
+        const float noise_blend_factor = 0.1f;
         const float noise = fract(sin(dot(uv, vec2(12.9898, 78.233))) * 43758.5453);
         color.rgb = mix(color.rgb, color.rgb * noise, u_noise_blend_factor);
     }
 
     {   // Scanline
-        const int scanline_count = 16;
-        const float scanline_intensity = 0.9f;
+        const int scanline_count = 64;
+        const float scanline_intensity = 0.95f;
         const float scan = cos(uv.y * u_scanline_count * 3.14159);
         color.rgb *= mix(u_scanline_intensity, 1.0, step(0.0, scan));
     }

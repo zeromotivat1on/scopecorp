@@ -121,7 +121,7 @@ static void wgl_load_procs() {
 #undef load
 }
 
-void init_render_context(Window *window) {
+bool init_render_context(Window *window) {
     log("Platform: Windows | OpenGL");
     
 	Win32_Window dummy_window = wgl_create_dummy_window(window);
@@ -129,7 +129,7 @@ void init_render_context(Window *window) {
 
 	if (dummy_window.hglrc == NULL) {
 		error("Failed to create dummy opengl context");
-		return;
+		return false;
 	}
 
 	wgl_load_procs();
@@ -137,7 +137,7 @@ void init_render_context(Window *window) {
 	const s32 pf = wgl_choose_pixel_format(&dummy_window);
 	if (pf == 0) {
 		error("Failed to choose pixel format");
-		return;
+		return false;
 	}
 
 	wgl_destroy_dummy_window(&dummy_window);
@@ -145,7 +145,7 @@ void init_render_context(Window *window) {
 	PIXELFORMATDESCRIPTOR pfd = {0};
 	if (SetPixelFormat(window->win32->hdc, pf, &pfd) == FALSE) {
 		error("Failed to set pixel format");
-		return;
+		return false;
 	}
 
 	const s32 context_attributes[] = {
@@ -159,22 +159,23 @@ void init_render_context(Window *window) {
 	window->win32->hglrc = wglCreateContextAttribsARB(window->win32->hdc, 0, context_attributes);
 	if (window->win32->hglrc == NULL) {
 		error("Failed to create opengl context");
-		return;
+		return false;
 	}
 
 	if (wglMakeCurrent(window->win32->hdc, window->win32->hglrc) == FALSE) {
 		error("Failed to make context current");
-		return;
+		return false;
 	}
 
 	// @Cleanup: too lazy to load GL pointers manually,
 	// maybe change and move glad source to own gl.h later.
 	if (!gladLoadGLLoader((GLADloadproc)wgl_get_proc_address)) {
 		error("Failed to init GLAD");
-		return;
+		return false;
 	}
 
 	ShowWindow(window->win32->hwnd, SW_NORMAL);
+    return true;
 }
 
 void set_vsync(bool enable) {

@@ -1,9 +1,8 @@
 #pragma once
 
-#include "assertion.h"
 #include "memory_storage.h"
 
-inline constexpr f32 ACCEPTABLE_HASH_TABLE_LOAD_FACTOR = 0.7f;
+inline constexpr f32 MAX_HASH_TABLE_LOAD_FACTOR = 0.7f;
 
 template<typename K, typename V>
 struct Hash_Table {
@@ -149,7 +148,7 @@ struct Hash_Table {
     }
 
     V *add(const K &key, const V &value) {
-        assert(load_factor() < ACCEPTABLE_HASH_TABLE_LOAD_FACTOR);
+        Assert(load_factor() < MAX_HASH_TABLE_LOAD_FACTOR);
         
         const u64 hash = hash_function(key);
         s32 index = hash % capacity;

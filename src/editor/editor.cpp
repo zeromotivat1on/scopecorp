@@ -8,11 +8,12 @@
 
 #include "log.h"
 #include "profile.h"
-#include "asset_registry.h"
+#include "asset.h"
 
 void register_hot_reload_directory(Hot_Reload_List *list, const char *path) {
-	assert(list->path_count < MAX_HOT_RELOAD_DIRECTORIES);
-    list->paths[list->path_count++] = path;
+	Assert(list->path_count < MAX_HOT_RELOAD_DIRECTORIES);
+    list->paths[list->path_count] = path;
+    list->path_count += 1;
 	log("Registered hot reload directory %s", path);
 }
 
@@ -24,14 +25,16 @@ static void hot_reload_file_callback(const File_Callback_Data *callback_data) {
     if (Asset_Source *source = asset_source_table.find(sid)) {
         if (source->last_write_time != callback_data->last_write_time) {
             auto list = (Hot_Reload_List *)callback_data->user_data;
-            assert(list->reload_count < MAX_HOT_RELOAD_ASSETS);
+            Assert(list->reload_count < MAX_HOT_RELOAD_ASSETS);
             list->reload_sids[list->reload_count++] = sid;
             source->last_write_time = callback_data->last_write_time;
         }
     }
 }
 
-void check_for_hot_reload(Hot_Reload_List *list) {    
+void check_for_hot_reload(Hot_Reload_List *list) {
+    PROFILE_SCOPE(__FUNCTION__);
+    
     for (s32 i = 0; i < list->path_count; ++i) {
         for_each_file(list->paths[i], &hot_reload_file_callback, list);
     }
@@ -65,7 +68,7 @@ void check_for_hot_reload(Hot_Reload_List *list) {
             s32 try_count = 0;
             Texture_Memory memory;
             do {
-                try_count++;
+                try_count += 1;
                 memory = load_texture_memory(path, false);
             } while (!memory.data);
             
