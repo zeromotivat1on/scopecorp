@@ -34,4 +34,3 @@ s32 find_closest_overlapped_aabb(const Ray &ray, const World *world);
 vec3 resolve_moving_static(const AABB &a, const AABB &b, const vec3 &velocity_a);
 
 vec3 ray_from_mouse_position(const Camera *camera, const Viewport *viewport, s16 mouse_x, s16 mouse_y);
-

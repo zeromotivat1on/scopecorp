@@ -3,7 +3,7 @@
 #include "camera.h"
 #include "sparse_array.h"
 #include "collision.h"
-#include "game/entities.h"
+#include "game/entity.h"
 
 inline constexpr s32 MAX_WORLD_NAME_SIZE = 64;
 inline constexpr s32 MAX_STATIC_MESHES = 1024;

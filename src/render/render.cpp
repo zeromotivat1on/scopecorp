@@ -7,7 +7,7 @@
 #include "render/text_draw.h"
 
 #include "game/world.h"
-#include "game/entities.h"
+#include "game/entity.h"
 
 #include "os/atomic.h"
 #include "os/window.h"
