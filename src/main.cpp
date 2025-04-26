@@ -81,7 +81,7 @@ s32 main() {
     
     viewport.aspect_type = VIEWPORT_4X3;
     viewport.resolution_scale = 1.0f;
-    
+
     const Texture_Format_Type color_attachments[] = { TEXTURE_FORMAT_RGB_8, TEXTURE_FORMAT_RED_INTEGER };
     viewport.frame_buffer_index = create_frame_buffer(window->width, window->height,
                                                       color_attachments, COUNT(color_attachments),
@@ -93,9 +93,9 @@ s32 main() {
     viewport_frame_buffer.pixel_size                  = 1.0f;
     viewport_frame_buffer.curve_distortion_factor     = 0.25f;
     viewport_frame_buffer.chromatic_aberration_offset = 0.002f;
-    viewport_frame_buffer.quantize_color_count        = 64;
+    viewport_frame_buffer.quantize_color_count        = 16;
     viewport_frame_buffer.noise_blend_factor          = 0.1f;
-    viewport_frame_buffer.scanline_count              = 16;
+    viewport_frame_buffer.scanline_count              = 64;
     viewport_frame_buffer.scanline_intensity          = 0.95f;
 #endif
     
@@ -371,7 +371,6 @@ s32 main() {
         
 		flush(&entity_render_queue);
         flush_geo_draw();
-        flush_text_draw();
          
         frame_buffer_command.flags = RENDER_FLAG_RESET;
         submit(&frame_buffer_command);
@@ -385,7 +384,8 @@ s32 main() {
         }
         
         draw_frame_buffer(viewport.frame_buffer_index, 0);
-        
+        flush_text_draw();
+
 		swap_buffers(window);
         PROFILE_FRAME("Game Frame");
         
