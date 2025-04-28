@@ -387,8 +387,7 @@ s32 main() {
 		swap_buffers(window);
         PROFILE_FRAME("Game Frame");
         
-		//clear(frame);
-        freef(); // clear frame memory block
+        freef(); // clear frame allocation
  
 		const s64 end_counter = performance_counter();
 		delta_time = (end_counter - begin_counter) / (f32)performance_frequency_s();
@@ -401,7 +400,6 @@ s32 main() {
 	}
 
 	destroy(window);
-    //release_core(vm);
     alloc_shutdown();
     
 	return 0;
