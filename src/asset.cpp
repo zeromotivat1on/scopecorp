@@ -57,8 +57,8 @@ Texture_Memory load_texture_memory(const char *path, bool log_error) {
     Texture_Memory memory = {};
     
 	u64 buffer_size = 0;
-	void *buffer = push(temp, MAX_TEXTURE_SIZE);
-	defer { pop(temp, MAX_TEXTURE_SIZE); };
+	void *buffer = allocl(MAX_TEXTURE_SIZE);
+	defer { freel(MAX_TEXTURE_SIZE); };
 
 	if (!read_file(path, buffer, MAX_TEXTURE_SIZE, &buffer_size, log_error)) {
 		return {};
@@ -87,15 +87,15 @@ Sound_Memory load_sound_memory(const char *path) {
     Sound_Memory memory = {};
 
     u64 buffer_size = 0;
-	void *buffer = push(temp, MAX_SOUND_SIZE);
+	void *buffer = allocl(MAX_SOUND_SIZE);
     if (!read_file(path, buffer, MAX_SOUND_SIZE, &buffer_size)) {
-        pop(temp, MAX_SOUND_SIZE);
+        freel(MAX_SOUND_SIZE);
         return {};
     }
     
 	memory.data = extract_wav(buffer, &memory.channel_count, &memory.sample_rate, &memory.bit_depth, &memory.size);
 	if (!memory.data) {
-        pop(temp, MAX_SOUND_SIZE);
+        freel(MAX_SOUND_SIZE);
         return {};
     }
 
@@ -103,7 +103,7 @@ Sound_Memory load_sound_memory(const char *path) {
 }
 
 void free_sound_memory(Sound_Memory *memory) {
-    pop(temp, MAX_SOUND_SIZE);
+    freel(MAX_SOUND_SIZE);
     *memory = {};
 }
 
@@ -134,8 +134,8 @@ void save_asset_pack(const char *path) {
     
     set_file_pointer_position(file, binary_data_offset);
 
-    auto *assets = (Asset *)push(temp, asset_data_size);
-    defer { pop_array(temp, asset_source_table.count, Asset); };
+    auto *assets = (Asset *)allocl(asset_data_size);
+    defer { freel(asset_source_table.count * sizeof(Asset)); };
 
     s32 count = 0;
     For (asset_source_table) {
@@ -148,7 +148,7 @@ void save_asset_pack(const char *path) {
         
         switch (it.value.type) {
         case ASSET_SHADER: {
-            void *buffer = push(temp, MAX_SHADER_SIZE);
+            void *buffer = allocl(MAX_SHADER_SIZE);
             u64 bytes_read = 0;
             read_file(it.value.path, buffer, MAX_SHADER_SIZE, &bytes_read);
 
@@ -156,7 +156,7 @@ void save_asset_pack(const char *path) {
             
             asset->as_shader.size = (u32)bytes_read;
             
-            pop(temp, MAX_SHADER_SIZE);
+            freel(MAX_SHADER_SIZE);
             break;
         }
         case ASSET_TEXTURE: {            
@@ -241,8 +241,8 @@ void load_asset_pack(const char *path, Asset_Table *table) {
         case ASSET_SHADER: {
             const auto &shader = asset.as_shader;
 
-            void *data = push(temp, shader.size);
-            defer { pop(temp, shader.size); };
+            void *data = allocl(shader.size);
+            defer { freel(shader.size); };
 
             const u64 last_position = get_file_pointer_position(file);
             set_file_pointer_position(file, asset.data_offset);
@@ -257,8 +257,8 @@ void load_asset_pack(const char *path, Asset_Table *table) {
             const auto &texture = asset.as_texture;
             const u64 size = texture.width * texture.height * texture.channel_count;
 
-            void *data = push(temp, size);
-            defer { pop(temp, size); };
+            void *data = allocl(size);
+            defer { freel(size); };
             
             const u64 last_position = get_file_pointer_position(file);
             set_file_pointer_position(file, asset.data_offset);
@@ -278,8 +278,8 @@ void load_asset_pack(const char *path, Asset_Table *table) {
         case ASSET_SOUND: {
             const auto &sound = asset.as_sound;
 
-            void *data = push(temp, sound.size);
-            defer { pop(temp, sound.size); };
+            void *data = allocl(sound.size);
+            defer { freel(sound.size); };
             
             const u64 last_position = get_file_pointer_position(file);
             set_file_pointer_position(file, asset.data_offset);

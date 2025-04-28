@@ -1,8 +1,5 @@
 #pragma once
 
-#include "memory_storage.h"
-#include <string.h>
-
 // Fixed capacity array allocated in persistent memory block.
 // Stores list of sparse and dense indices, so deleting elements from sparse array
 // do not cause shift, indices are updated instead. Items stored densely as well.
@@ -17,13 +14,14 @@ struct Sparse_Array {
     Sparse_Array() = default;
     Sparse_Array(s32 capacity)
         : capacity(capacity),
-          items((T *)push(pers, capacity * sizeof(T))),
-          dense(push_array(pers, capacity, s32)),
-          sparse(push_array(pers, capacity, s32)) {
-        memset(dense,  0xFF, capacity * sizeof(s32));
-        memset(sparse, 0xFF, capacity * sizeof(s32));
+          items (allocltn(T,   capacity)),
+          dense (allocltn(s32, capacity)),
+          sparse(allocltn(s32, capacity)) {
+        for (s32 i = 0; i < capacity; ++i) {
+            dense[i] = sparse[i] = INVALID_INDEX;
+        }
     }
-
+    
     T *begin() { return items; }
     T *end()   { return items + count; }
     

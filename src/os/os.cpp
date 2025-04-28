@@ -1,9 +1,6 @@
 #include "pch.h"
-#include "os/file.h"
-
 #include "log.h"
-#include "memory_storage.h"
-
+#include "os/file.h"
 #include <string.h>
 
 bool read_file(const char *path, void *buffer, u64 size, u64 *bytes_read, bool log_error)

@@ -1,7 +1,6 @@
 #include "pch.h"
 #include "log.h"
 #include "profile.h"
-#include "memory_storage.h"
 
 #include "os/file.h"
 #include "os/atomic.h"
@@ -551,10 +550,9 @@ static RECT get_window_border_rect() {
 }
 
 Window *create_window(s32 w, s32 h, const char *name, s32 x, s32 y, void *user_data) {
-	Window *window = push_struct(pers, Window);
-    *window = Window();
+	Window *window = alloclt(Window);
     window->user_data = user_data;
-	window->win32 = push_struct(pers, Win32_Window);
+	window->win32 = alloclt(Win32_Window);
 	window->win32->class_name = "win32_window";
 
 	WNDCLASSEX wclass = {0};
@@ -579,10 +577,16 @@ Window *create_window(s32 w, s32 h, const char *name, s32 x, s32 y, void *user_d
 		WS_OVERLAPPEDWINDOW, x, y, w, h,
 		NULL, NULL, window->win32->hinstance, NULL);
 
-	if (window->win32->hwnd == NULL) return null;
+	if (window->win32->hwnd == NULL) {
+        error("Failed to create window, win32 error 0x%X", GetLastError());
+        return null;
+    }
 
 	window->win32->hdc = GetDC(window->win32->hwnd);
-	if (window->win32->hdc == NULL) return null;
+	if (window->win32->hdc == NULL) {
+        error("Failed to get device context, win32 error 0x%X", GetLastError());
+        return null;
+    }
 
 	SetProp(window->win32->hwnd, window_prop_name, window);
     DragAcceptFiles(window->win32->hwnd, TRUE);
@@ -627,7 +631,8 @@ void poll_events(Window *window) {
 		input_table.mouse_last_y = input_table.mouse_y;
 	}
 
-	for (s32 i = 0; i < window_event_queue_size; ++i)
+	for (s32 i = 0; i < window_event_queue_size; ++i)
+
 		window->event_callback(window, window_event_queue + i);
 
 	window_event_queue_size = 0;

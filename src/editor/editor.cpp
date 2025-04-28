@@ -48,8 +48,8 @@ void check_for_hot_reload(Hot_Reload_List *list) {
             
         switch (asset.type) {
         case ASSET_SHADER: {
-            char *data = push_array(temp, MAX_SHADER_SIZE, char);
-            defer { pop(temp, MAX_SHADER_SIZE); };
+            char *data = (char *)allocl(MAX_SHADER_SIZE);
+            defer { freel(MAX_SHADER_SIZE); };
 
             u64 bytes_read = 0;
             if (read_file(path, data, MAX_SHADER_SIZE, &bytes_read)) {

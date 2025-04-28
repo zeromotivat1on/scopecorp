@@ -3,6 +3,8 @@
 #include "sid.h"
 #include "hash.h"
 
+#include "os/memory.h"
+
 #include "game/game.h"
 #include "game/world.h"
 
@@ -14,6 +16,78 @@
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
+
+#include <malloc.h>
+
+static void *vm_base     = null;
+static void *allocl_base = null;
+static void *allocf_base = null;
+u64 allocl_size = 0;
+u64 allocf_size = 0;
+
+bool alloc_init() {
+#if DEBUG
+	void *vm_address = (void *)TB(2);
+#else
+	void *vm_address = null;
+#endif
+    
+	vm_base = vm_reserve(vm_address, GB(1));
+    if (!vm_base) {
+        error("Failed to reserve virtual address space");
+        return false;
+    }
+
+    u8 *commited = (u8 *)vm_commit(vm_base, MAX_ALLOCL_SIZE + MAX_ALLOCF_SIZE);
+    if (!commited) {
+        error("Failed to commit memory for Linear and Frame allocations");
+        return false;
+    }
+    
+    allocl_base = commited;
+    allocf_base = commited + MAX_ALLOCL_SIZE;
+
+    log("Allocated size: Linear %.2fmb | Frame %.2fmb", (f32)MAX_ALLOCL_SIZE / 1024 / 1024, (f32)MAX_ALLOCF_SIZE / 1024 / 1024);
+}
+
+void alloc_shutdown() {
+	vm_release(vm_base);
+}
+
+void *alloch(u64 size) {
+    return malloc(size);
+}
+
+void *realloch(void *ptr, u64 size) {
+    return realloc(ptr, size);
+}
+
+void freeh(void *ptr) {
+    free(ptr);
+}
+
+void *allocl(u64 size) {
+    Assert(allocl_size + size <= MAX_ALLOCL_SIZE);
+    void *ptr = (u8 *)allocl_base + allocl_size;
+    allocl_size += size;    
+    return ptr;
+}
+
+void freel(u64 size) {
+    Assert(allocl_size >= size);
+    allocl_size -= size;
+}
+
+void *allocf(u64 size) {
+	Assert(allocf_size + size <= MAX_ALLOCF_SIZE);
+    void *ptr = (u8 *)allocf_base + allocf_size;
+    allocf_size += size;    
+    return ptr;
+}
+
+void freef() {
+    allocf_size = 0;
+}
 
 #if DEBUG
 void report_assert(const char *condition, const char *file, s32 line) {
@@ -29,7 +103,7 @@ void debug_break() {
 static void log_output_va(Log_Level log_level, const char *format, va_list args) {
 	const char *prefixes[] = { "\x1b[37m", "\x1b[93m", "\x1b[91m" };
 
-	char buffer[1024] = { 0 };
+	static char buffer[4096];
 	stbsp_vsnprintf(buffer, sizeof(buffer), format, args);
 	printf("%s%s", prefixes[log_level], buffer);
 

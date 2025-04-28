@@ -2,7 +2,6 @@
 #include "profile.h"
 #include "log.h"
 #include "font.h"
-#include "memory_storage.h"
 #include "stb_sprintf.h"
 
 #include "os/time.h"
@@ -99,22 +98,14 @@ void draw_dev_stats() {
 	}
 
 	{   // Memory stats.
-		const f32 pers_percent = (f32)pers->used / pers->size * 100.0f;
-		text_size = (s32)stbsp_snprintf(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Persistent)", (f32)pers->used / 1024 / 1024, (f32)pers->size / 1024 / 1024, pers_percent);
-		pos.x = padding;
+        extern u64 allocl_size, allocf_size;
+
+        pos.x = padding;
 		pos.y = padding;
-		draw_text_with_shadow(text, text_size, pos, vec3_white, shadow_offset, vec3_black);
 
-		const f32 frame_percent = (f32)frame->used / frame->size * 100.0f;
-		text_size = (s32)stbsp_snprintf(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Frame)", (f32)frame->used / 1024 / 1024, (f32)frame->size / 1024 / 1024, frame_percent);
-		pos.x = padding;
-		pos.y += atlas->line_height;
+		const f32 allocl_percent = (f32)allocl_size / MAX_ALLOCL_SIZE * 100.0f;
+		text_size = (s32)stbsp_snprintf(text, sizeof(text), "Linear %.2fmb/%.2fmb (%.2f%%)", (f32)allocl_size / 1024 / 1024, (f32)MAX_ALLOCL_SIZE / 1024 / 1024, allocl_percent);
 		draw_text_with_shadow(text, text_size, pos, vec3_white, shadow_offset, vec3_black);
-
-		const f32 temp_percent = (f32)temp->used / temp->size * 100.0f;
-		text_size = (s32)stbsp_snprintf(text, sizeof(text), "%.2fmb/%.2fmb (%.2f%% | Temp)", (f32)temp->used / 1024 / 1024, (f32)temp->size / 1024 / 1024, temp_percent);
-		pos.x = padding;
 		pos.y += atlas->line_height;
-		draw_text_with_shadow(text, text_size, pos, vec3_white, shadow_offset, vec3_black);
 	}
 }

@@ -1,7 +1,6 @@
 #include "pch.h"
 #include "font.h"
 #include "log.h"
-#include "memory_storage.h"
 #include "stb_truetype.h"
 
 #include "os/file.h"
@@ -9,21 +8,21 @@
 #include <string.h>
 
 Font *create_font(const char *path) {
-	Font *font = push_struct(pers, Font);
-	font->info = push_struct(pers, stbtt_fontinfo);
+	Font *font = alloclt(Font);
+	font->info = alloclt(stbtt_fontinfo);
 	strcpy_s(font->path, sizeof(font->path), path);
 
 	u64 buffer_size = MB(1);
-	u8 *buffer = (u8 *)push(pers, buffer_size);
+	u8 *buffer = allocltn(u8, buffer_size);
     
 	u64 data_size = 0;
 	if (!read_file(path, buffer, buffer_size, &data_size)) {
-        pop(pers, buffer_size);
+        freel(buffer_size);
 		return null;
 	}
 
 	// Free left memory.
-	if (buffer_size > data_size) pop(pers, buffer_size - data_size);
+	if (buffer_size > data_size) freel(buffer_size - data_size);
 
 	// @Cleanup: set stbtt allocator to allocate from persistent memory storage.
 	stbtt_InitFont(font->info, buffer, stbtt_GetFontOffsetForIndex(buffer, 0));

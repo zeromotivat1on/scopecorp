@@ -3,6 +3,7 @@
 #include "sid.h"
 #include "hash_table.h"
 #include "sparse_array.h"
+#include <string.h>
 
 inline constexpr s32 MAX_ASSETS = 256;
 

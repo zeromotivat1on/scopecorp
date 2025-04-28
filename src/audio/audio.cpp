@@ -6,6 +6,8 @@
 #include "sid.h"
 #include "memory_eater.h"
 
+#include <string.h>
+
 void init_audio_registry() {
     audio_registry.sounds = Sparse_Array<Sound>(MAX_SOUNDS);
 }

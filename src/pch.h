@@ -93,6 +93,14 @@ template <class F> Defer<F> operator+(Defer_Ref, F f) { return {f}; }
 #define SOUND_PATH(x)   SOUND_FOLDER x
 #define FONT_PATH(x)    FONT_FOLDER x
 
+#if DEBUG
+#define Assert(x) if (x) {} else { report_assert(#x, __FILE__, __LINE__); }
+void report_assert(const char* condition, const char* file, s32 line);
+void debug_break();
+#elif RELEASE
+#define Assert(x)
+#endif
+
 enum Direction {
     DIRECTION_BACK,
     DIRECTION_RIGHT,
@@ -101,10 +109,25 @@ enum Direction {
     DIRECTION_COUNT
 };
 
-#if DEBUG
-#define Assert(x) if (x) {} else { report_assert(#x, __FILE__, __LINE__); }
-void report_assert(const char* condition, const char* file, s32 line);
-void debug_break();
-#elif RELEASE
-#define Assert(x)
-#endif
+inline constexpr u64 MAX_ALLOCL_SIZE = MB(65);
+inline constexpr u64 MAX_ALLOCF_SIZE = MB(1);
+
+bool alloc_init();
+void alloc_shutdown();
+void *alloch(u64 size);
+void *realloch(void *ptr, u64 size);
+void  freeh(void *ptr);
+void *allocl(u64 size);
+void  freel(u64 size);
+void *allocf(u64 size);
+void  freef();
+
+#define allocht(T)     (T *)alloch(sizeof(T))
+#define alloclt(T)     (T *)allocl(sizeof(T))
+#define allocft(T)     (T *)allocf(sizeof(T))
+#define allochtn(T, n) (T *)alloch(sizeof(T) * (n))
+#define allocltn(T, n) (T *)allocl(sizeof(T) * (n))
+#define allocftn(T, n) (T *)allocf(sizeof(T) * (n))
+
+#define freelt(T)     freel(sizeof(T));
+#define freeltn(T, n) freel(sizeof(T) * (n));

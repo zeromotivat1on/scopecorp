@@ -633,12 +633,9 @@ static u32 gl_link_program(u32 vertex_shader, u32 fragment_shader) {
 }
 
 s32 create_shader(const char *source) {
-	char *vertex_src   = (char *)push(temp, MAX_SHADER_SIZE);
-	char *fragment_src = (char *)push(temp, MAX_SHADER_SIZE);
-    defer {
-        pop(temp, MAX_SHADER_SIZE);
-        pop(temp, MAX_SHADER_SIZE);
-    };
+	char *vertex_src   = (char *)allocl(MAX_SHADER_SIZE);
+	char *fragment_src = (char *)allocl(MAX_SHADER_SIZE);
+    defer { freel(2 * MAX_SHADER_SIZE); };
 
 	if (!parse_shader_source((char *)source, vertex_src, fragment_src)) {
         error("Failed to parse shader");
@@ -657,12 +654,9 @@ s32 create_shader(const char *source) {
 bool recreate_shader(s32 shader_index, const char *source) {
     auto &shader = render_registry.shaders[shader_index];
 
-    char *vertex_src   = (char *)push(temp, MAX_SHADER_SIZE);
-	char *fragment_src = (char *)push(temp, MAX_SHADER_SIZE);
-    defer {
-        pop(temp, MAX_SHADER_SIZE);
-        pop(temp, MAX_SHADER_SIZE);
-    };
+    char *vertex_src   = (char *)allocl(MAX_SHADER_SIZE);
+	char *fragment_src = (char *)allocl(MAX_SHADER_SIZE);
+    defer { freel(2 * MAX_SHADER_SIZE); };
 
 	if (!parse_shader_source((char *)source, vertex_src, fragment_src)) {
         error("Failed to parse shader");
@@ -876,12 +870,12 @@ void delete_texture(s32 texture_index) {
 }
 
 Font_Atlas *bake_font_atlas(const Font *font, u32 start_charcode, u32 end_charcode, s16 font_size) {
-	Font_Atlas *atlas = push_struct(pers, Font_Atlas);
+	Font_Atlas *atlas = alloclt(Font_Atlas);
 	atlas->font = font;
 	atlas->texture_index = INVALID_INDEX;
 
 	const u32 charcode_count = end_charcode - start_charcode + 1;
-	atlas->metrics = push_array(pers, charcode_count, Font_Glyph_Metric);
+	atlas->metrics = allocltn(Font_Glyph_Metric, charcode_count);
 	atlas->start_charcode = start_charcode;
 	atlas->end_charcode = end_charcode;
 	atlas->texture_index = create_texture(TEXTURE_TYPE_2D_ARRAY, TEXTURE_FORMAT_RGBA_8, font_size, font_size, null);
@@ -930,7 +924,9 @@ void rescale_font_atlas(Font_Atlas *atlas, s16 font_size) {
 	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-	u8 *bitmap = (u8 *)push(temp, font_size * font_size);
+	u8 *bitmap = (u8 *)allocl(font_size * font_size);
+    defer { freel(font_size * font_size); };
+        
 	for (u32 i = 0; i < charcode_count; ++i) {
 		const u32 c = i + atlas->start_charcode;
 		Font_Glyph_Metric *metric = atlas->metrics + i;
@@ -968,8 +964,6 @@ void rescale_font_atlas(Font_Atlas *atlas, s16 font_size) {
 		stbtt_GetGlyphHMetrics(font->info, glyph_index, &advance_width, 0);
 		metric->advance_width = (s32)(advance_width * scale);
 	}
-
-	pop(temp, font_size * font_size);
 
 	glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 4); // restore default color channel size

@@ -1,4 +1,10 @@
 #include "pch.h"
+#include "log.h"
+#include "sid.h"
+#include "font.h"
+#include "profile.h"
+#include "asset.h"
+
 #include "render/viewport.h"
 #include "render/render_registry.h"
 #include "render/render_command.h"
@@ -14,12 +20,7 @@
 
 #include "math/math_core.h"
 
-#include "log.h"
-#include "sid.h"
-#include "font.h"
-#include "profile.h"
-#include "memory_storage.h"
-#include "asset.h"
+#include <string.h>
 
 static s32 MAX_GEOMETRY_VERTEX_BUFFER_SIZE = 0;
 static s32 GEOMETRY_VERTEX_DIMENSION       = 0;
@@ -40,7 +41,7 @@ void init_render_registry(Render_Registry *registry) {
 	registry->materials      = Sparse_Array<Material>(MAX_MATERIALS);
 	registry->uniforms       = Sparse_Array<Uniform>(MAX_UNIFORMS);
 
-    registry->uniform_value_cache.data     = push(pers, MAX_UNIFORM_VALUE_CACHE_SIZE);
+    registry->uniform_value_cache.data     = allocl(MAX_UNIFORM_VALUE_CACHE_SIZE);
     registry->uniform_value_cache.size     = 0;
     registry->uniform_value_cache.capacity = MAX_UNIFORM_VALUE_CACHE_SIZE;
 }
@@ -117,7 +118,7 @@ void create_game_materials(Material_Index_List *list) {
 void init_render_queue(Render_Queue *queue, s32 capacity) {
     Assert(capacity <= MAX_RENDER_QUEUE_SIZE);
     
-	queue->commands = push_array(pers, capacity, Render_Command);
+	queue->commands = allocltn(Render_Command, capacity);
 	queue->size     = 0;
 	queue->capacity = capacity;
 }
@@ -261,7 +262,7 @@ void init_geo_draw() {
     }
     
     MAX_GEOMETRY_VERTEX_BUFFER_SIZE = GEOMETRY_VERTEX_SIZE * MAX_GEOMETRY_VERTEX_COUNT;
-    geometry_draw_buffer.vertex_data = push_array(pers, MAX_GEOMETRY_VERTEX_BUFFER_SIZE, f32);
+    geometry_draw_buffer.vertex_data = allocltn(f32, MAX_GEOMETRY_VERTEX_BUFFER_SIZE);
 
     binding.vertex_buffer_index = create_vertex_buffer(null, MAX_GEOMETRY_VERTEX_BUFFER_SIZE, BUFFER_USAGE_STREAM);
     
@@ -428,9 +429,9 @@ void init_text_draw(Font_Atlas *atlas) {
     const s32 transform_buffer_size = MAX_CHAR_RENDER_COUNT * sizeof(mat4);
 
     text_draw_buffer.atlas = atlas;
-    text_draw_buffer.colors     = (vec3 *)push(pers, color_buffer_size);
-    text_draw_buffer.charmap    = (u32  *)push(pers, charmap_buffer_size);
-    text_draw_buffer.transforms = (mat4 *)push(pers, transform_buffer_size);
+    text_draw_buffer.colors     = (vec3 *)allocl(color_buffer_size);
+    text_draw_buffer.charmap    = (u32  *)allocl(charmap_buffer_size);
+    text_draw_buffer.transforms = (mat4 *)allocl(transform_buffer_size);
     
     Vertex_Array_Binding bindings[4] = {};
 

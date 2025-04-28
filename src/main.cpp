@@ -3,7 +3,6 @@
 #include "sid.h"
 #include "font.h"
 #include "flip_book.h"
-#include "memory_storage.h"
 #include "profile.h"
 #include "asset.h"
 #include "stb_sprintf.h"
@@ -34,13 +33,12 @@
 s32 main() {
     PROFILE_START(startup, "Startup");
     START_SCOPE_TIMER(startup);
-    
-    void *vm = allocate_core();
-    if (!vm) return 1;
-    
-	log("Preallocated memory storages: Persistent %.fmb | Frame %.fmb | Temp %.fmb",
-		(f32)PERS_MEMORY_SIZE / 1024 / 1024, (f32)FRAME_MEMORY_SIZE / 1024 / 1024, (f32)TEMP_MEMORY_SIZE / 1024 / 1024);
 
+    if (!alloc_init()) {
+        error("Failed to initialize allocation");
+        return 1;
+    }
+    
     init_sid_table();
 	init_input_table();
     
@@ -107,7 +105,7 @@ s32 main() {
 	Font *font = create_font(FONT_PATH("consola.ttf"));
 	Font_Atlas *atlas = bake_font_atlas(font, 33, 126, 16);
     
-	world = push_struct(pers, World);
+	world = alloclt(World);
 	init_world(world);
 
     init_render_queue(&entity_render_queue, MAX_RENDER_QUEUE_SIZE);
@@ -389,12 +387,13 @@ s32 main() {
 		swap_buffers(window);
         PROFILE_FRAME("Game Frame");
         
-		clear(frame);
-
+		//clear(frame);
+        freef(); // clear frame memory block
+ 
 		const s64 end_counter = performance_counter();
 		delta_time = (end_counter - begin_counter) / (f32)performance_frequency_s();
 		begin_counter = end_counter;
-
+        
 #if DEVELOPER
         // If dt is too large, we could have resumed from a breakpoint.
         if (delta_time > 1.0f) delta_time = 0.16f;
@@ -402,7 +401,8 @@ s32 main() {
 	}
 
 	destroy(window);
-    release_core(vm);
+    //release_core(vm);
+    alloc_shutdown();
     
 	return 0;
 }

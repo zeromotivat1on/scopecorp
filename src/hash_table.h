@@ -1,6 +1,7 @@
 #pragma once
 
-#include "memory_storage.h"
+//#include "memory_storage.h"
+//#include <string>
 
 inline constexpr f32 MAX_HASH_TABLE_LOAD_FACTOR = 0.7f;
 
@@ -97,10 +98,10 @@ struct Hash_Table {
             return { table->keys[index], table->values[index] };
         }
     };
-    
-    K*   keys   = null;
-    V*   values = null;
-    u64* hashes = null;
+
+    K   *keys   = null;
+    V   *values = null;
+    u64 *hashes = null;
     s32  count    = 0;
     s32  capacity = 0;
 
@@ -110,14 +111,14 @@ struct Hash_Table {
     Hash_Table() = default;
     Hash_Table(s32 capacity)
         : capacity(capacity),
-          keys  (push_array(pers, capacity, K)),
-          values(push_array(pers, capacity, V)),
-          hashes(push_array(pers, capacity, u64)) {
+          keys  (allocltn(K,   capacity)),
+          values(allocltn(V,   capacity)),
+          hashes(allocltn(u64, capacity)) {
         for (s32 i = 0; i < capacity; ++i) {
             hashes[i] = 0;
         }
     }
-
+    
     Iterator begin() { return Iterator(this, 0); }
     Iterator end()   { return Iterator(this, capacity); }
 
