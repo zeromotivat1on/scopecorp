@@ -2,8 +2,9 @@
 #version 460 core
 
 layout (location = 0) in vec3 v_location;
-layout (location = 1) in vec2 v_uv;
-layout (location = 2) in int  v_entity_id;
+layout (location = 1) in vec3 v_normal;
+layout (location = 2) in vec2 v_uv;
+layout (location = 3) in int  v_entity_id;
 
 layout (location = 0) out vec2     f_uv;
 layout (location = 1) out flat int f_entity_id;

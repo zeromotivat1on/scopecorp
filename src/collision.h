@@ -29,8 +29,9 @@ bool overlap(const Sphere &a, const Sphere &b);
 bool overlap(const Sphere &sphere, const AABB &aabb);
 bool overlap(const Ray &ray, const AABB &aabb, f32 *near = null);
 
-s32 find_closest_overlapped_aabb(const Ray &ray, const World *world);
+s32 find_closest_overlapped_aabb(const Ray &ray, AABB *aabbs, s32 count);
 
 vec3 resolve_moving_static(const AABB &a, const AABB &b, const vec3 &velocity_a);
 
-vec3 ray_from_mouse_position(const Camera *camera, const Viewport *viewport, s16 mouse_x, s16 mouse_y);
+vec3 viewport_to_world_location(const Camera *camera, const Viewport *viewport, s16 x, s16 y);
+Ray world_ray_from_viewport_location(const Camera *camera, const Viewport *viewport, s16 x, s16 y);

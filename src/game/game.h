@@ -5,6 +5,10 @@ enum Game_Mode {
 	MODE_EDITOR,
 };
 
+enum View_Mode_Flag : u32 {
+    VIEW_MODE_FLAG_COLLISION = 0x1,
+};
+
 enum Camera_Behavior {
     FOLLOW_PLAYER,
 	STICK_TO_PLAYER,
@@ -24,6 +28,7 @@ enum Property_Change_Type {
 
 struct Game_State {
 	Game_Mode mode = MODE_GAME;
+    u32 view_mode_flags = 0;
 	Camera_Behavior camera_behavior = FOLLOW_PLAYER;
 	Player_Movement_Behavior player_movement_behavior = MOVE_RELATIVE_TO_CAMERA;
     Property_Change_Type selected_entity_property_to_change = PROPERTY_LOCATION;

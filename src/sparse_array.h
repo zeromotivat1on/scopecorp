@@ -1,7 +1,7 @@
 #pragma once
 
-// Fixed capacity array allocated in persistent memory block.
-// Stores list of sparse and dense indices, so deleting elements from sparse array
+// Fixed capacity sparse array allocated in linear storage.
+// Stores arrays of sparse and dense indices, so deleting elements from sparse array
 // do not cause shift, indices are updated instead. Items stored densely as well.
 template<typename T>
 struct Sparse_Array {    

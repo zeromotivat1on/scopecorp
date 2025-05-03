@@ -1,6 +1,6 @@
 #pragma once
 
-inline constexpr s32 MAX_MATERIAL_UNIFORMS = 8;
+inline constexpr s32 MAX_MATERIAL_UNIFORMS = 16;
 
 struct Render_Command;
 
@@ -11,6 +11,11 @@ struct Material {
     s32 uniform_count = 0;
 	s32 uniform_indices      [MAX_MATERIAL_UNIFORMS];
     s32 uniform_value_offsets[MAX_MATERIAL_UNIFORMS];
+
+    vec3 ambient  = vec3_white;
+    vec3 diffuse  = vec3_white;
+    vec3 specular = vec3_black;
+    f32 shininess = 1.0f;
 };
 
 struct Material_Index_List {

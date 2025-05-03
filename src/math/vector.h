@@ -166,7 +166,7 @@ vec2 normalize(const vec2 &v);
 vec3 normalize(const vec3 &v);
 vec4 normalize(const vec4 &v);
 
-vec3 forward(const vec3 &start, const vec3 &end);
+vec3 vector_direction(const vec3 &start, const vec3 &end);
 vec3 forward(f32 yaw, f32 pitch);
 vec3 right(const vec3 &start, const vec3 &end, const vec3 &up);
 

@@ -30,6 +30,46 @@
 
 #include "editor/hot_reload.h"
 
+static void fill_cube_vertices(Vertex_Entity *vertices, s32 entity_id) {
+    s32 i = 0;
+    
+    // Front face
+    vertices[i++] = { vec3(-0.5f,  0.5f,  0.5f), vec3_forward, vec2(0.0f, 0.0f), entity_id };
+    vertices[i++] = { vec3( 0.5f,  0.5f,  0.5f), vec3_forward, vec2(1.0f, 0.0f), entity_id };
+    vertices[i++] = { vec3(-0.5f, -0.5f,  0.5f), vec3_forward, vec2(0.0f, 1.0f), entity_id };
+    vertices[i++] = { vec3( 0.5f, -0.5f,  0.5f), vec3_forward, vec2(1.0f, 1.0f), entity_id };
+
+    // Back face
+    vertices[i++] = { vec3(-0.5f,  0.5f, -0.5f), vec3_back, vec2(0.0f, 0.0f), entity_id };
+    vertices[i++] = { vec3( 0.5f,  0.5f, -0.5f), vec3_back, vec2(1.0f, 0.0f), entity_id };
+    vertices[i++] = { vec3(-0.5f, -0.5f, -0.5f), vec3_back, vec2(0.0f, 1.0f), entity_id };
+    vertices[i++] = { vec3( 0.5f, -0.5f, -0.5f), vec3_back, vec2(1.0f, 1.0f), entity_id };
+
+    // Left face
+    vertices[i++] = { vec3(-0.5f,  0.5f, -0.5f), vec3_left, vec2(0.0f, 0.0f), entity_id };
+    vertices[i++] = { vec3(-0.5f,  0.5f,  0.5f), vec3_left, vec2(1.0f, 0.0f), entity_id };
+    vertices[i++] = { vec3(-0.5f, -0.5f, -0.5f), vec3_left, vec2(0.0f, 1.0f), entity_id };
+    vertices[i++] = { vec3(-0.5f, -0.5f,  0.5f), vec3_left, vec2(1.0f, 1.0f), entity_id };
+
+    // Right face
+    vertices[i++] = { vec3( 0.5f,  0.5f, -0.5f), vec3_right, vec2(0.0f, 0.0f), entity_id };
+    vertices[i++] = { vec3( 0.5f,  0.5f,  0.5f), vec3_right, vec2(1.0f, 0.0f), entity_id };
+    vertices[i++] = { vec3( 0.5f, -0.5f, -0.5f), vec3_right, vec2(0.0f, 1.0f), entity_id };
+    vertices[i++] = { vec3( 0.5f, -0.5f,  0.5f), vec3_right, vec2(1.0f, 1.0f), entity_id };
+
+    // Top face
+    vertices[i++] = { vec3(-0.5f,  0.5f, -0.5f), vec3_up, vec2(0.0f, 0.0f), entity_id };
+    vertices[i++] = { vec3( 0.5f,  0.5f, -0.5f), vec3_up, vec2(1.0f, 0.0f), entity_id };
+    vertices[i++] = { vec3(-0.5f,  0.5f,  0.5f), vec3_up, vec2(0.0f, 1.0f), entity_id };
+    vertices[i++] = { vec3( 0.5f,  0.5f,  0.5f), vec3_up, vec2(1.0f, 1.0f), entity_id };
+
+    // Bottom face
+    vertices[i++] = { vec3(-0.5f, -0.5f, -0.5f), vec3_down, vec2(0.0f, 0.0f), entity_id };
+    vertices[i++] = { vec3( 0.5f, -0.5f, -0.5f), vec3_down, vec2(1.0f, 0.0f), entity_id };
+    vertices[i++] = { vec3(-0.5f, -0.5f,  0.5f), vec3_down, vec2(0.0f, 1.0f), entity_id };
+    vertices[i++] = { vec3( 0.5f, -0.5f,  0.5f), vec3_down, vec2(1.0f, 1.0f), entity_id };
+}
+
 s32 main() {
     PROFILE_START(startup, "Startup");
     START_SCOPE_TIMER(startup);
@@ -136,17 +176,15 @@ s32 main() {
         // Little uv offset as source textures have small transient border.
         const f32 uv_offset = 0.02f;
 		const Vertex_Entity vertices[4] = { // center in bottom mid point of quad
-			{ vec3( 0.5f,  1.0f, 0.0f), vec2(1.0f - uv_offset, 1.0f - uv_offset), player.id },
-			{ vec3( 0.5f,  0.0f, 0.0f), vec2(1.0f - uv_offset, 0.0f + uv_offset), player.id },
-			{ vec3(-0.5f,  0.0f, 0.0f), vec2(0.0f + uv_offset, 0.0f + uv_offset), player.id },
-			{ vec3(-0.5f,  1.0f, 0.0f), vec2(0.0f + uv_offset, 1.0f - uv_offset), player.id },
+			{ vec3( 0.5f,  1.0f, 0.0f), vec3_up, vec2(1.0f - uv_offset, 1.0f - uv_offset), player.id },
+            { vec3( 0.5f,  0.0f, 0.0f), vec3_up, vec2(1.0f - uv_offset, 0.0f + uv_offset), player.id },
+            { vec3(-0.5f,  0.0f, 0.0f), vec3_up, vec2(0.0f + uv_offset, 0.0f + uv_offset), player.id },
+            { vec3(-0.5f,  1.0f, 0.0f), vec3_up, vec2(0.0f + uv_offset, 1.0f - uv_offset), player.id },
 		};
         
         Vertex_Array_Binding binding = {};
-        binding.layout_size = 3;
-        binding.layout[0] = { VERTEX_F32_3, 0 };
-        binding.layout[1] = { VERTEX_F32_2, 0 };
-        binding.layout[2] = { VERTEX_S32,   1 };
+        binding.layout_size = COUNT(vertex_entity_layout);
+        memcpy(binding.layout, vertex_entity_layout, sizeof(vertex_entity_layout));
         binding.vertex_buffer_index = create_vertex_buffer(vertices, COUNT(vertices) * sizeof(Vertex_Entity), BUFFER_USAGE_STATIC);
         
 		player.draw_data.vertex_array_index = create_vertex_array(&binding, 1);
@@ -163,7 +201,7 @@ s32 main() {
         ground.rotation = quat_from_axis_angle(vec3_right, 90.0f);
 
         auto &aabb = world->aabbs[ground.aabb_index];
-        const vec3 aabb_offset = vec3(16.0f, 0.0f, 16.0f);
+        const vec3 aabb_offset = vec3(ground.scale.x, 0.0f, ground.scale.y);
         aabb.min = ground.location - aabb_offset * 0.5f;
 		aabb.max = aabb.min + aabb_offset;
 
@@ -171,17 +209,15 @@ s32 main() {
 		set_material_uniform_value(ground.draw_data.material_index, "u_uv_scale", &ground.scale);
 
 		const Vertex_Entity vertices[] = {
-			{ vec3( 0.5f,  0.5f, 0.0f), vec2(1.0f, 1.0f), ground.id },
-			{ vec3( 0.5f, -0.5f, 0.0f), vec2(1.0f, 0.0f), ground.id },
-			{ vec3(-0.5f, -0.5f, 0.0f), vec2(0.0f, 0.0f), ground.id },
-			{ vec3(-0.5f,  0.5f, 0.0f), vec2(0.0f, 1.0f), ground.id },
+			{ vec3( 0.5f,  0.5f, 0.0f), vec3_up, vec2(1.0f, 1.0f), ground.id },
+            { vec3( 0.5f, -0.5f, 0.0f), vec3_up, vec2(1.0f, 0.0f), ground.id },
+            { vec3(-0.5f, -0.5f, 0.0f), vec3_up, vec2(0.0f, 0.0f), ground.id },
+            { vec3(-0.5f,  0.5f, 0.0f), vec3_up, vec2(0.0f, 1.0f), ground.id },
 		};
         
         Vertex_Array_Binding binding = {};
-        binding.layout_size = 3;
-        binding.layout[0] = { VERTEX_F32_3, 0 };
-        binding.layout[1] = { VERTEX_F32_2, 0 };
-        binding.layout[2] = { VERTEX_S32,   1 };
+        binding.layout_size = COUNT(vertex_entity_layout);
+        memcpy(binding.layout, vertex_entity_layout, sizeof(vertex_entity_layout));
         binding.vertex_buffer_index = create_vertex_buffer(vertices, COUNT(vertices) * sizeof(Vertex_Entity), BUFFER_USAGE_STATIC);
         
 		ground.draw_data.vertex_array_index = create_vertex_array(&binding, 1);
@@ -205,49 +241,12 @@ s32 main() {
         const vec3 uv_scale = vec3(1.0f);
 		set_material_uniform_value(cube.draw_data.material_index, "u_uv_scale", &uv_scale);
         
-		const Vertex_Entity vertices[] = {
-			// Front face
-			{ vec3(-0.5f,  0.5f,  0.5f), vec2(0.0f, 0.0f), cube.id },
-			{ vec3( 0.5f,  0.5f,  0.5f), vec2(1.0f, 0.0f), cube.id },
-			{ vec3(-0.5f, -0.5f,  0.5f), vec2(0.0f, 1.0f), cube.id },
-			{ vec3( 0.5f, -0.5f,  0.5f), vec2(1.0f, 1.0f), cube.id },
-
-			// Back face
-			{ vec3(-0.5f,  0.5f, -0.5f), vec2(0.0f, 0.0f), cube.id },
-			{ vec3( 0.5f,  0.5f, -0.5f), vec2(1.0f, 0.0f), cube.id },
-			{ vec3(-0.5f, -0.5f, -0.5f), vec2(0.0f, 1.0f), cube.id },
-			{ vec3( 0.5f, -0.5f, -0.5f), vec2(1.0f, 1.0f), cube.id },
-
-			// Left face
-			{ vec3(-0.5f,  0.5f, -0.5f), vec2(0.0f, 0.0f), cube.id },
-			{ vec3(-0.5f,  0.5f,  0.5f), vec2(1.0f, 0.0f), cube.id },
-			{ vec3(-0.5f, -0.5f, -0.5f), vec2(0.0f, 1.0f), cube.id },
-			{ vec3(-0.5f, -0.5f,  0.5f), vec2(1.0f, 1.0f), cube.id },
-
-			// Right face
-			{ vec3( 0.5f,  0.5f, -0.5f), vec2(0.0f, 0.0f), cube.id },
-			{ vec3( 0.5f,  0.5f,  0.5f), vec2(1.0f, 0.0f), cube.id },
-			{ vec3( 0.5f, -0.5f, -0.5f), vec2(0.0f, 1.0f), cube.id },
-			{ vec3( 0.5f, -0.5f,  0.5f), vec2(1.0f, 1.0f), cube.id },
-
-			// Top face
-			{ vec3(-0.5f,  0.5f, -0.5f), vec2(0.0f, 0.0f), cube.id },
-			{ vec3( 0.5f,  0.5f, -0.5f), vec2(1.0f, 0.0f), cube.id },
-			{ vec3(-0.5f,  0.5f,  0.5f), vec2(0.0f, 1.0f), cube.id },
-			{ vec3( 0.5f,  0.5f,  0.5f), vec2(1.0f, 1.0f), cube.id },
-
-			// Bottom face
-			{ vec3(-0.5f, -0.5f, -0.5f), vec2(0.0f, 0.0f), cube.id },
-			{ vec3( 0.5f, -0.5f, -0.5f), vec2(1.0f, 0.0f), cube.id },
-			{ vec3(-0.5f, -0.5f,  0.5f), vec2(0.0f, 1.0f), cube.id },
-			{ vec3( 0.5f, -0.5f,  0.5f), vec2(1.0f, 1.0f), cube.id },
-		};
-
+		Vertex_Entity vertices[24];
+        fill_cube_vertices(vertices, cube.id);
+        
         Vertex_Array_Binding binding = {};
-        binding.layout_size = 3;
-        binding.layout[0] = { VERTEX_F32_3, 0 };
-        binding.layout[1] = { VERTEX_F32_2, 0 };
-        binding.layout[2] = { VERTEX_S32,   1 };
+        binding.layout_size = COUNT(vertex_entity_layout);
+        memcpy(binding.layout, vertex_entity_layout, sizeof(vertex_entity_layout));
         binding.vertex_buffer_index = create_vertex_buffer(vertices, COUNT(vertices) * sizeof(Vertex_Entity), BUFFER_USAGE_STATIC);
                 
 		cube.draw_data.vertex_array_index = create_vertex_array(&binding, 1);
@@ -272,22 +271,20 @@ s32 main() {
 
 	Skybox &skybox = world->skybox;
 	{   // Create skybox.
-        skybox.id = 999;
+        skybox.id = S32_MAX;
 
 		skybox.draw_data.material_index = material_index_list.skybox;
 
 		Vertex_Entity vertices[] = {
-			{ vec3( 1.0f,  1.0f, 1.0f - F32_EPSILON), vec2(1.0f, 1.0f), skybox.id },
-			{ vec3( 1.0f, -1.0f, 1.0f - F32_EPSILON), vec2(1.0f, 0.0f), skybox.id },
-			{ vec3(-1.0f, -1.0f, 1.0f - F32_EPSILON), vec2(0.0f, 0.0f), skybox.id },
-			{ vec3(-1.0f,  1.0f, 1.0f - F32_EPSILON), vec2(0.0f, 1.0f), skybox.id },
+			{ vec3( 1.0f,  1.0f, 1.0f - F32_EPSILON), vec3_zero, vec2(1.0f, 1.0f), skybox.id },
+            { vec3( 1.0f, -1.0f, 1.0f - F32_EPSILON), vec3_zero, vec2(1.0f, 0.0f), skybox.id },
+            { vec3(-1.0f, -1.0f, 1.0f - F32_EPSILON), vec3_zero, vec2(0.0f, 0.0f), skybox.id },
+            { vec3(-1.0f,  1.0f, 1.0f - F32_EPSILON), vec3_zero, vec2(0.0f, 1.0f), skybox.id },
 		};
 
         Vertex_Array_Binding binding = {};
-        binding.layout_size = 3;
-        binding.layout[0] = { VERTEX_F32_3, 0 };
-        binding.layout[1] = { VERTEX_F32_2, 0 };
-        binding.layout[2] = { VERTEX_S32,   1 };
+        binding.layout_size = COUNT(vertex_entity_layout);
+        memcpy(binding.layout, vertex_entity_layout, sizeof(vertex_entity_layout));
         binding.vertex_buffer_index = create_vertex_buffer(vertices, COUNT(vertices) * sizeof(Vertex_Entity), BUFFER_USAGE_STATIC);
                 
 		skybox.draw_data.vertex_array_index = create_vertex_array(&binding, 1);
@@ -296,6 +293,24 @@ s32 main() {
 		skybox.draw_data.index_buffer_index = create_index_buffer(indices, COUNT(indices), BUFFER_USAGE_STATIC);
 	}
 
+    {
+        Point_Light &point_light = world->point_lights[world->point_lights.add_default()];
+        point_light.id = 10000;
+        
+        point_light.location = vec3(0.0f, 2.0f, 0.0f);
+        point_light.scale = vec3(0.1f);
+        
+        point_light.ambient  = vec3(0.1f);
+        point_light.diffuse  = vec3(0.5f);
+        point_light.specular = vec3(1.0f);
+
+        point_light.aabb_index = world->aabbs.add_default();
+        
+        auto &aabb = world->aabbs[point_light.aabb_index];
+		aabb.min = point_light.location - point_light.scale * 0.5f;
+		aabb.max = aabb.min + point_light.scale;
+    }
+    
 	Camera &camera = world->camera;
 	camera.mode = MODE_PERSPECTIVE;
 	camera.yaw = 90.0f;

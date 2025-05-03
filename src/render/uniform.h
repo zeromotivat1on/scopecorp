@@ -1,5 +1,7 @@
 #pragma once
 
+#include "math/vector.h"
+
 inline constexpr u32 MAX_UNIFORM_VALUE_CACHE_SIZE = KB(16);
 
 enum Uniform_Type {
@@ -8,6 +10,20 @@ enum Uniform_Type {
 	UNIFORM_F32_2,
 	UNIFORM_F32_3,
 	UNIFORM_F32_4X4,
+};
+
+struct Uniform_Light {
+    vec3 location;
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+};
+
+struct Uniform_Material {
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+    f32  shininess;
 };
 
 struct Uniform {

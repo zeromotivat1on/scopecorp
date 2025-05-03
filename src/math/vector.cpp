@@ -576,7 +576,7 @@ vec4 normalize(const vec4 &v) {
     return vec4(v.x * linv, v.y * linv, v.z * linv, v.w * linv);
 }
 
-vec3 forward(const vec3 &start, const vec3 &end) {
+vec3 vector_direction(const vec3 &start, const vec3 &end) {
     return (end - start).normalize();
 }
 

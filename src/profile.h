@@ -14,11 +14,6 @@
 #define PROFILE_FRAME(name)
 #endif
 
-#if RELEASE
-#define SCOPE_TIMER(name)
-#define START_SCOPE_TIMER(name)
-#define CHECK_SCOPE_TIMER(name)
-#else
 #define SCOPE_TIMER_NAME(name) CONCAT(scope_timer_, name)
 #define START_SCOPE_TIMER(name) const auto SCOPE_TIMER_NAME(name) = performance_counter()
 #define CHECK_SCOPE_TIMER_S(name)  (performance_counter() - SCOPE_TIMER_NAME(name)) / (f32)performance_frequency_s()
@@ -32,6 +27,5 @@ struct Scope_Timer {
 	Scope_Timer(const char *info);
 	~Scope_Timer();
 };
-#endif
 
 void draw_dev_stats();

@@ -17,12 +17,6 @@ struct Vertex_Buffer {
 	Buffer_Usage_Type usage;
 };
 
-struct Vertex_Component {
-    Vertex_Component_Type type;
-    u8 advance_rate = 0; // advance per vertex or per n instance
-    bool normalize = false; // normalize to [-1, 1] range
-};
-
 struct Vertex_Array_Binding {
     s32 vertex_buffer_index = INVALID_INDEX;
     s32 layout_size = 0;

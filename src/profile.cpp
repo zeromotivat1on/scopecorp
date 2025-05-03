@@ -16,7 +16,6 @@
 #include "render/render_stats.h"
 #include "render/render_registry.h"
 
-#if !RELEASE
 Scope_Timer::Scope_Timer(const char *info)
     : info(info), start(performance_counter()) {}
 
@@ -24,7 +23,6 @@ Scope_Timer::~Scope_Timer() {
     const f32 ms = (performance_counter() - start) / (f32)performance_frequency_ms();
     log("%s %.2fms", info, ms);
 }
-#endif
 
 void draw_dev_stats() {
     PROFILE_SCOPE(__FUNCTION__);
@@ -39,7 +37,7 @@ void draw_dev_stats() {
 	s32 text_size = 0;
 	vec2 pos;
 
-	{   // Entity data.
+	{   // Entity.
         pos.x = padding;
 		pos.y = (f32)viewport.height - atlas->line_height;
         
@@ -64,48 +62,46 @@ void draw_dev_stats() {
         }
 	}
 
-	{   // Runtime stats.
+	{   // Stats & states.
+        extern u64 allocl_size, allocf_size;
+
+        pos.y = (f32)viewport.height - atlas->line_height;
+        
 		text_size = (s32)stbsp_snprintf(text, sizeof(text), "%.2fms %.ffps %s %s", average_dt * 1000.0f, average_fps, build_type_name, to_string(game_state.mode));
 		pos.x = viewport.width - line_width_px(atlas, text, text_size) - padding;
-		pos.y = (f32)viewport.height - atlas->line_height;
 		draw_text_with_shadow(text, text_size, pos, vec3_white, shadow_offset, vec3_black);
+		pos.y -= atlas->line_height;
 
         text_size = (s32)stbsp_snprintf(text, sizeof(text), "window %dx%d", window->width, window->height);
 		pos.x = viewport.width - line_width_px(atlas, text, text_size) - padding;
-		pos.y -= atlas->line_height;
 		draw_text_with_shadow(text, text_size, pos, vec3_white, shadow_offset, vec3_black);
+		pos.y -= atlas->line_height;
 
         text_size = (s32)stbsp_snprintf(text, sizeof(text), "viewport %dx%d", viewport.width, viewport.height);
 		pos.x = viewport.width - line_width_px(atlas, text, text_size) - padding;
-		pos.y -= atlas->line_height;
 		draw_text_with_shadow(text, text_size, pos, vec3_white, shadow_offset, vec3_black);
+        pos.y -= atlas->line_height;
 
-        const auto &viewport_frame_buffer = render_registry.frame_buffers[viewport.frame_buffer_index];
-        text_size = (s32)stbsp_snprintf(text, sizeof(text), "framebuffer %dx%d", viewport_frame_buffer.width, viewport_frame_buffer.height);
-		pos.x = viewport.width - line_width_px(atlas, text, text_size) - padding;
-		pos.y -= atlas->line_height;
-		draw_text_with_shadow(text, text_size, pos, vec3_white, shadow_offset, vec3_black);
-        
         text_size = (s32)stbsp_snprintf(text, sizeof(text), "draw calls %d", draw_call_count);
 		pos.x = viewport.width - line_width_px(atlas, text, text_size) - padding;
-		pos.y -= atlas->line_height;
 		draw_text_with_shadow(text, text_size, pos, vec3_white, shadow_offset, vec3_black);
+		pos.y -= atlas->line_height;
         
         text_size = (s32)stbsp_snprintf(text, sizeof(text), "%s %s", to_string(game_state.camera_behavior), to_string(game_state.player_movement_behavior));
 		pos.x = viewport.width - line_width_px(atlas, text, text_size) - padding;
-		pos.y -= atlas->line_height;
 		draw_text_with_shadow(text, text_size, pos, vec3_white, shadow_offset, vec3_black);
-	}
+        pos.y -= atlas->line_height;
 
-	{   // Memory stats.
-        extern u64 allocl_size, allocf_size;
-
-        pos.x = padding;
-		pos.y = padding;
-
-		const f32 allocl_percent = (f32)allocl_size / MAX_ALLOCL_SIZE * 100.0f;
+        const f32 allocl_percent = (f32)allocl_size / MAX_ALLOCL_SIZE * 100.0f;
 		text_size = (s32)stbsp_snprintf(text, sizeof(text), "Linear %.2fmb/%.2fmb (%.2f%%)", (f32)allocl_size / 1024 / 1024, (f32)MAX_ALLOCL_SIZE / 1024 / 1024, allocl_percent);
+        pos.x = viewport.width - line_width_px(atlas, text, text_size) - padding;
 		draw_text_with_shadow(text, text_size, pos, vec3_white, shadow_offset, vec3_black);
-		pos.y += atlas->line_height;
+        pos.y -= atlas->line_height;
+
+        const f32 allocf_percent = (f32)allocf_size / MAX_ALLOCF_SIZE * 100.0f;
+		text_size = (s32)stbsp_snprintf(text, sizeof(text), "Frame %.2fmb/%.2fmb (%.2f%%)", (f32)allocf_size / 1024 / 1024, (f32)MAX_ALLOCF_SIZE / 1024 / 1024, allocf_percent);
+        pos.x = viewport.width - line_width_px(atlas, text, text_size) - padding;
+		draw_text_with_shadow(text, text_size, pos, vec3_white, shadow_offset, vec3_black);
+        pos.y -= atlas->line_height;
 	}
 }

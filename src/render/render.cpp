@@ -12,6 +12,7 @@
 #include "render/geometry_draw.h"
 #include "render/text_draw.h"
 
+#include "game/game.h"
 #include "game/world.h"
 #include "game/entity.h"
 
@@ -88,8 +89,18 @@ void cache_texture_sids(Texture_Sid_List *list) {
 
 void create_game_materials(Material_Index_List *list) {        
     const s32 entity_uniforms[] = {
-        create_uniform("u_transform", UNIFORM_F32_4X4, 1),
-        create_uniform("u_uv_scale",  UNIFORM_F32_2,   1),
+        create_uniform("u_model",              UNIFORM_F32_4X4,  1),
+        create_uniform("u_view_proj",          UNIFORM_F32_4X4,  1),
+        create_uniform("u_uv_scale",           UNIFORM_F32_2,    1),
+        create_uniform("u_camera_location",    UNIFORM_F32_3,    1),
+        create_uniform("u_light.location",     UNIFORM_F32_3,    1),
+        create_uniform("u_light.ambient",      UNIFORM_F32_3,    1),
+        create_uniform("u_light.diffuse",      UNIFORM_F32_3,    1),
+        create_uniform("u_light.specular",     UNIFORM_F32_3,    1),
+        create_uniform("u_material.ambient",   UNIFORM_F32_3,    1),
+        create_uniform("u_material.diffuse",   UNIFORM_F32_3,    1),
+        create_uniform("u_material.specular",  UNIFORM_F32_3,    1),
+        create_uniform("u_material.shininess", UNIFORM_F32,      1),
     };
 
     const s32 skybox_uniforms[] = {
@@ -178,9 +189,10 @@ void draw_world(const World *world) {
     
 	draw_entity(&world->skybox);
 
-	For (world->static_meshes)
+	For (world->static_meshes) {
 		draw_entity(&it);
-
+    }
+    
 	draw_entity(&world->player);
 }
 
@@ -417,9 +429,15 @@ void draw_geo_debug() {
     const vec3 player_center_location = player.location + vec3(0.0f, player.scale.y * 0.5f, 0.0f);
     draw_geo_arrow(player_center_location, player_center_location + normalize(player.velocity) * 0.5f, vec3_red);
 
-    if (player.collide_aabb_index != INVALID_INDEX) {
-        draw_geo_aabb(world->aabbs[player.aabb_index],         vec3_green);
-        draw_geo_aabb(world->aabbs[player.collide_aabb_index], vec3_green);
+    if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
+        For (world->aabbs) {
+            draw_geo_aabb(it, vec3_red);
+        }
+
+        if (player.collide_aabb_index != INVALID_INDEX) {
+            draw_geo_aabb(world->aabbs[player.aabb_index],         vec3_green);
+            draw_geo_aabb(world->aabbs[player.collide_aabb_index], vec3_green);
+        }
     }
 }
 
@@ -640,6 +658,8 @@ s32 find_material_uniform(s32 material_index, const char *name) {
 }
 
 void set_material_uniforms(s32 material_index, const s32 *uniform_indices, s32 count) {
+    Assert(count <= MAX_MATERIAL_UNIFORMS);
+
     auto &material = render_registry.materials[material_index];
     Assert(material.uniform_count == 0);
 
@@ -696,11 +716,11 @@ void fill_render_command_with_material_data(s32 material_index, Render_Command* 
 
 u32 uniform_value_type_size(Uniform_Type type) {
     switch (type) {
-	case UNIFORM_U32:     return 1 * sizeof(u32);
-	case UNIFORM_F32:     return 1 * sizeof(f32);
-	case UNIFORM_F32_2:   return 2 * sizeof(f32);
-	case UNIFORM_F32_3:   return 3 * sizeof(f32);
-	case UNIFORM_F32_4X4: return 4 * 4 * sizeof(f32);
+	case UNIFORM_U32:      return 1  * sizeof(u32);
+	case UNIFORM_F32:      return 1  * sizeof(f32);
+	case UNIFORM_F32_2:    return 2  * sizeof(f32);
+	case UNIFORM_F32_3:    return 3  * sizeof(f32);
+	case UNIFORM_F32_4X4:  return 16 * sizeof(f32);
     default:
         error("Failed to get uniform value size from type %d", type);
         return 0;

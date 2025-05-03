@@ -48,6 +48,8 @@ bool alloc_init() {
     allocf_base = commited + MAX_ALLOCL_SIZE;
 
     log("Allocated size: Linear %.2fmb | Frame %.2fmb", (f32)MAX_ALLOCL_SIZE / 1024 / 1024, (f32)MAX_ALLOCF_SIZE / 1024 / 1024);
+
+    return true;
 }
 
 void alloc_shutdown() {

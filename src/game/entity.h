@@ -9,6 +9,7 @@ enum Entity_Type {
     ENTITY_PLAYER,
     ENTITY_SKYBOX,
     ENTITY_STATIC_MESH,
+    ENTITY_POINT_LIGHT,
 };
 
 enum Entity_FLag : u32 {
@@ -29,8 +30,6 @@ struct Entity {
     vec3 location;
     quat rotation;
     vec3 scale = vec3(1.0f);
-
-    mat4 mvp;
 
     Entity_Draw_Data draw_data;
 };
@@ -69,4 +68,14 @@ struct Skybox : Entity {
 
     vec2 uv_scale = vec2(8.0f, 4.0f);
     vec3 uv_offset;
+};
+
+struct Point_Light : Entity {
+    Point_Light() { type = ENTITY_POINT_LIGHT; }
+
+    vec3 ambient  = vec3_white;
+    vec3 diffuse  = vec3_white;
+    vec3 specular = vec3_white;
+
+    s32 aabb_index = INVALID_INDEX; // for mouse-pick in editor
 };

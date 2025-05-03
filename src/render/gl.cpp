@@ -682,7 +682,7 @@ void send_uniform_value_to_gpu(s32 shader_index, s32 uniform_index, u32 offset) 
     const s32 location  = glGetUniformLocation(shader.id, uniform.name);
     
     if (location < 0) {
-        error("Failed to get uniform %s location from shader %d", uniform.name, shader_index);
+        //error("Failed to get uniform %s location from shader %d", uniform.name, shader_index);
         return;
     }
     

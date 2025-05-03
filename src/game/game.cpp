@@ -19,6 +19,17 @@
 #include "audio/al.h"
 #include "audio/audio_registry.h"
 
+static void mouse_pick_entity(World *world, Entity *e) {
+    if (world->mouse_picked_entity) {
+        world->mouse_picked_entity->flags &= ~ENTITY_FLAG_SELECTED_IN_EDITOR;
+    }
+                
+    e->flags |= ENTITY_FLAG_SELECTED_IN_EDITOR;
+    world->mouse_picked_entity = e;
+
+    game_state.selected_entity_property_to_change = PROPERTY_LOCATION;
+}
+
 void on_window_event(Window *window, Window_Event *event) {
     switch (event->type) {
 	case WINDOW_EVENT_RESIZE: {
@@ -52,6 +63,12 @@ void on_window_event(Window *window, Window_Event *event) {
         } else if (event->key_press && event->with_alt && event->key_code == KEY_E) {
             game_state.mode = MODE_EDITOR;
             lock_cursor(window, false);
+        } else if (event->key_press && event->with_alt && event->key_code == KEY_C) {
+            if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
+                game_state.view_mode_flags &= ~VIEW_MODE_FLAG_COLLISION;
+            } else {
+                game_state.view_mode_flags |= VIEW_MODE_FLAG_COLLISION;
+            }
         }
 
         if (game_state.mode == MODE_EDITOR) {
@@ -89,22 +106,47 @@ void on_window_event(Window *window, Window_Event *event) {
 	}
 	case WINDOW_EVENT_MOUSE: {
         if (game_state.mode == MODE_EDITOR) {
-            if (event->key_code == MOUSE_RIGHT) {
+            if (event->key_code == MOUSE_MIDDLE) {
                 lock_cursor(window, !window->cursor_locked);
             }
-        
-            if (event->key_press && event->key_code == MOUSE_LEFT) {
-                const s32 id = read_frame_buffer_pixel(viewport.frame_buffer_index, 1, input_table.mouse_x, input_table.mouse_y);
-                auto *e = find_entity_by_id(world, id);
-                if (e) {
-                    if (world->mouse_picked_entity) {
-                        world->mouse_picked_entity->flags &= ~ENTITY_FLAG_SELECTED_IN_EDITOR;
-                    }
-                
-                    e->flags |= ENTITY_FLAG_SELECTED_IN_EDITOR;
-                    world->mouse_picked_entity = e;
 
-                    game_state.selected_entity_property_to_change = PROPERTY_LOCATION;
+            if (event->key_press && event->key_code == MOUSE_RIGHT) {
+                if (world->mouse_picked_entity) {
+                    world->mouse_picked_entity->flags &= ~ENTITY_FLAG_SELECTED_IN_EDITOR;
+                    world->mouse_picked_entity = null;
+                }
+            } else if (event->key_press && event->key_code == MOUSE_LEFT) {
+                if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
+                    const Ray ray = world_ray_from_viewport_location(desired_camera(world), &viewport, input_table.mouse_x, input_table.mouse_y);
+                    const s32 aabb_index = find_closest_overlapped_aabb(ray, world->aabbs.items, world->aabbs.count);
+                    if (aabb_index != INVALID_INDEX) {
+                        bool picked = false;
+                        if (!picked) {
+                            For (world->point_lights) {
+                                if (it.aabb_index == aabb_index) {
+                                    mouse_pick_entity(world, &it);
+                                    picked = true;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        if (!picked) {
+                            For (world->static_meshes) {
+                                if (it.aabb_index == aabb_index) {
+                                    mouse_pick_entity(world, &it);
+                                    picked = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    const s32 id = read_frame_buffer_pixel(viewport.frame_buffer_index, 1, input_table.mouse_x, input_table.mouse_y);
+                    auto *e = find_entity_by_id(world, id);
+                    if (e) {
+                        mouse_pick_entity(world, e);
+                    }
                 }
             }
         }
@@ -126,10 +168,9 @@ void init_world(World *world) {
 	*world = World();
 
 	world->static_meshes = Sparse_Array<Static_Mesh>(MAX_STATIC_MESHES);
-	world->aabbs         = Sparse_Array<AABB>(MAX_AABBS);
+    world->point_lights  = Sparse_Array<Point_Light>(MAX_POINT_LIGHTS);
+    world->aabbs         = Sparse_Array<AABB>(MAX_AABBS);
 }
-
-void tick_player(World* world);
 
 void tick(World *world, f32 dt) {
     PROFILE_SCOPE("tick_world");
@@ -145,10 +186,27 @@ void tick(World *world, f32 dt) {
 	skybox.uv_offset = camera->eye;
 	set_material_uniform_value(skybox.draw_data.material_index, "u_scale", &skybox.uv_scale);
 	set_material_uniform_value(skybox.draw_data.material_index, "u_offset", &skybox.uv_offset);
-
+    const auto &point_light = world->point_lights[0];
+    
 	For (world->static_meshes) {
-		it.mvp = mat4_transform(it.location, it.rotation, it.scale) * world->camera_view_proj;
-		set_material_uniform_value(it.draw_data.material_index, "u_transform", it.mvp.ptr());
+        const s32 mti = it.draw_data.material_index;
+        const mat4 model = mat4_transform(it.location, it.rotation, it.scale);
+		set_material_uniform_value(mti, "u_model",           &model);
+		set_material_uniform_value(mti, "u_view_proj",       &world->camera_view_proj);
+		set_material_uniform_value(mti, "u_camera_location", &camera->eye);
+		set_material_uniform_value(mti, "u_light.location",  &point_light.location);
+		set_material_uniform_value(mti, "u_light.ambient",   &point_light.ambient);
+		set_material_uniform_value(mti, "u_light.diffuse",   &point_light.diffuse);
+		set_material_uniform_value(mti, "u_light.specular",  &point_light.specular);
+
+        const auto *material = render_registry.materials.find(mti);
+        if (material) {
+            set_material_uniform_value(mti, "u_material.ambient",   &material->ambient);
+            set_material_uniform_value(mti, "u_material.diffuse",   &material->diffuse);
+            set_material_uniform_value(mti, "u_material.specular",  &material->specular);
+            set_material_uniform_value(mti, "u_material.shininess", &material->shininess);
+        }
+        
         auto &aabb = world->aabbs[it.aabb_index];
         const vec3 half_extent = (aabb.max - aabb.min) * 0.5f;
 
@@ -158,12 +216,213 @@ void tick(World *world, f32 dt) {
         // @Todo: take into account rotation and scale.
 	}
 
-	tick_player(world);
+    For (world->point_lights) {
+        auto &aabb = world->aabbs[it.aabb_index];
+        const vec3 half_extent = (aabb.max - aabb.min) * 0.5f;
+        
+        aabb.min = it.location - half_extent;
+        aabb.max = it.location + half_extent;
+    }
+    
+    {   // Tick player.
+        const f32 dt = world->dt;
+        auto &player = world->player;
+    
+        const auto last_move_direction = player.move_direction;
+    
+        if (game_state.mode == MODE_GAME) {
+            const f32 speed = player.move_speed * dt;
+            vec3 velocity;
 
-    auto &player = world->player;
-	player.mvp = mat4_transform(player.location, player.rotation, player.scale) * world->camera_view_proj;
-	set_material_uniform_value(player.draw_data.material_index, "u_transform", player.mvp.ptr());
+            // @Todo: use input action instead of direct key state.
+            if (game_state.player_movement_behavior == MOVE_INDEPENDENT) {
+                if (input_table.key_states[KEY_D]) {
+                    velocity.x = speed;
+                    player.move_direction = DIRECTION_RIGHT;
+                }
 
+                if (input_table.key_states[KEY_A]) {
+                    velocity.x = -speed;
+                    player.move_direction = DIRECTION_LEFT;
+                }
+
+                if (input_table.key_states[KEY_W]) {
+                    velocity.z = speed;
+                    player.move_direction = DIRECTION_FORWARD;
+                }
+
+                if (input_table.key_states[KEY_S]) {
+                    velocity.z = -speed;
+                    player.move_direction = DIRECTION_BACK;
+                }
+            } else if (game_state.player_movement_behavior == MOVE_RELATIVE_TO_CAMERA) {
+                Camera &camera = world->camera;
+                const vec3 camera_forward = forward(camera.yaw, camera.pitch);
+                const vec3 camera_right = camera.up.cross(camera_forward).normalize();
+
+                if (input_table.key_states[KEY_D]) {
+                    velocity += speed * camera_right;
+                    player.move_direction = DIRECTION_RIGHT;
+                }
+
+                if (input_table.key_states[KEY_A]) {
+                    velocity -= speed * camera_right;
+                    player.move_direction = DIRECTION_LEFT;
+                }
+
+                if (input_table.key_states[KEY_W]) {
+                    velocity += speed * camera_forward;
+                    player.move_direction = DIRECTION_FORWARD;
+                }
+
+                if (input_table.key_states[KEY_S]) {
+                    velocity -= speed * camera_forward;
+                    player.move_direction = DIRECTION_BACK;
+                }
+            }
+
+            player.velocity = velocity.truncate(speed);
+
+            if (game_state.camera_behavior == STICK_TO_PLAYER) {
+                Camera &camera = world->camera;
+                camera.eye = player.location + player.camera_offset;
+                camera.at = camera.eye + forward(camera.yaw, camera.pitch);
+            } else if (game_state.camera_behavior == FOLLOW_PLAYER) {
+                Camera &camera = world->camera;
+                const vec3 camera_dead_zone = player.camera_dead_zone;
+                const vec3 dead_zone_min = camera.eye - camera_dead_zone * 0.5f;
+                const vec3 dead_zone_max = camera.eye + camera_dead_zone * 0.5f;
+                const vec3 desired_camera_eye = player.location + player.camera_offset;
+
+                vec3 target_eye;
+                if (desired_camera_eye.x < dead_zone_min.x)
+                    target_eye.x = desired_camera_eye.x + camera_dead_zone.x * 0.5f;
+                else if (desired_camera_eye.x > dead_zone_max.x)
+                    target_eye.x = desired_camera_eye.x - camera_dead_zone.x * 0.5f;
+                else
+                    target_eye.x = camera.eye.x;
+
+                if (desired_camera_eye.y < dead_zone_min.y)
+                    target_eye.y = desired_camera_eye.y + camera_dead_zone.y * 0.5f;
+                else if (desired_camera_eye.y > dead_zone_max.y)
+                    target_eye.y = desired_camera_eye.y - camera_dead_zone.y * 0.5f;
+                else
+                    target_eye.y = camera.eye.y;
+
+                if (desired_camera_eye.z < dead_zone_min.z)
+                    target_eye.z = desired_camera_eye.z + camera_dead_zone.z * 0.5f;
+                else if (desired_camera_eye.z > dead_zone_max.z)
+                    target_eye.z = desired_camera_eye.z - camera_dead_zone.z * 0.5f;
+                else
+                    target_eye.z = camera.eye.z;
+
+                camera.eye = lerp(camera.eye, target_eye, player.camera_follow_speed * dt);
+                camera.at = camera.eye + forward(camera.yaw, camera.pitch);
+            }
+        } else if (game_state.mode == MODE_EDITOR) {
+            const f32 mouse_sensitivity = player.mouse_sensitivity;
+            Camera &camera = world->ed_camera;
+
+            if (window->cursor_locked) {   
+                camera.yaw += input_table.mouse_offset_x * mouse_sensitivity * dt;
+                camera.pitch += input_table.mouse_offset_y * mouse_sensitivity * dt;
+                camera.pitch = clamp(camera.pitch, -89.0f, 89.0f);
+            }
+                    
+            const f32 speed = player.ed_camera_speed * dt;
+            const vec3 camera_forward = forward(camera.yaw, camera.pitch);
+            const vec3 camera_right = camera.up.cross(camera_forward).normalize();
+
+            vec3 velocity;
+
+            if (input_table.key_states[KEY_D])
+                velocity += speed * camera_right;
+
+            if (input_table.key_states[KEY_A])
+                velocity -= speed * camera_right;
+
+            if (input_table.key_states[KEY_W])
+                velocity += speed * camera_forward;
+
+            if (input_table.key_states[KEY_S])
+                velocity -= speed * camera_forward;
+
+            if (input_table.key_states[KEY_E])
+                velocity += speed * camera.up;
+
+            if (input_table.key_states[KEY_Q])
+                velocity -= speed * camera.up;
+
+            camera.eye += velocity.truncate(speed);
+            camera.at = camera.eye + camera_forward;
+        }
+
+        player.collide_aabb_index = INVALID_INDEX;
+        auto &player_aabb = world->aabbs[player.aabb_index];
+    
+        for (s32 i = 0; i < world->aabbs.count; ++i) {
+            if (i == player.aabb_index) continue;
+        
+            const auto &aabb = world->aabbs[i];
+            const vec3 resolved_velocity = resolve_moving_static(player_aabb, aabb, player.velocity);
+            if (resolved_velocity != player.velocity) {
+                player.velocity = resolved_velocity;
+                player.collide_aabb_index = i;
+                break;
+            }
+        }
+
+        if (player.velocity == vec3_zero) {
+            const Asset &asset = asset_table[texture_sids.player_idle[player.move_direction]];
+            render_registry.materials[player.draw_data.material_index].texture_index = asset.registry_index;
+        } else {
+            player.flip_book = &flip_books.player_move[player.move_direction];
+            tick(player.flip_book, dt);
+
+            const Asset &asset = asset_table[current_frame(player.flip_book)];
+            render_registry.materials[player.draw_data.material_index].texture_index = asset.registry_index;
+        }
+            
+        player.location += player.velocity;
+    
+        const vec3 aabb_offset = vec3(player.scale.x * 0.5f, 0.0f, player.scale.x * 0.3f);
+        player_aabb.min = player.location - aabb_offset;
+        player_aabb.max = player.location + aabb_offset + vec3(0.0f, player.scale.y, 0.0f);
+
+        // @Cleanup: remove direct al calls.
+        const Sound &steps_sound = audio_registry.sounds[asset_table[sound_sids.player_steps].registry_index];
+
+        s32 state;
+        alGetSourcei(steps_sound.source, AL_SOURCE_STATE, &state);
+        
+        if (player.velocity == vec3_zero) {
+            if (state == AL_PLAYING) alSourceStop(steps_sound.source);
+        } else {
+            if (state != AL_PLAYING) alSourcePlay(steps_sound.source);
+        }
+    }
+
+    {
+        auto &player = world->player;
+        const s32 mti = player.draw_data.material_index;
+        const mat4 model = mat4_transform(player.location, player.rotation, player.scale);
+        set_material_uniform_value(mti, "u_model",           &model);
+        set_material_uniform_value(mti, "u_view_proj",       &world->camera_view_proj);
+        set_material_uniform_value(mti, "u_camera_location", &camera->eye);
+		set_material_uniform_value(mti, "u_light.location",  &point_light.location);
+		set_material_uniform_value(mti, "u_light.ambient",   &point_light.ambient);
+		set_material_uniform_value(mti, "u_light.diffuse",   &point_light.diffuse);
+		set_material_uniform_value(mti, "u_light.specular",  &point_light.specular);
+
+        const auto *material = render_registry.materials.find(mti);
+        if (material) {
+            set_material_uniform_value(mti, "u_material.ambient",   &material->ambient);
+            set_material_uniform_value(mti, "u_material.diffuse",   &material->diffuse);
+            set_material_uniform_value(mti, "u_material.specular",  &material->specular);
+            set_material_uniform_value(mti, "u_material.shininess", &material->shininess);
+        }
+    }
+    
 	if (game_state.mode == MODE_GAME) {
 		world->ed_camera = world->camera;
 	} else 	if (game_state.mode == MODE_EDITOR) {
@@ -263,182 +522,4 @@ s32 create_static_mesh(World *world) {
     const s32 index = world->static_meshes.add_default();
     world->static_meshes[index].aabb_index = world->aabbs.add_default();
     return index;
-}
-
-void tick_player(World* world) {
-    const f32 dt = world->dt;
-    auto &player = world->player;
-
-    const auto last_move_direction = player.move_direction;
-    
-	if (game_state.mode == MODE_GAME) {
-		const f32 speed = player.move_speed * dt;
-		vec3 velocity;
-
-		// @Todo: use input action instead of direct key state.
-		if (game_state.player_movement_behavior == MOVE_INDEPENDENT) {
-			if (input_table.key_states[KEY_D]) {
-				velocity.x = speed;
-				player.move_direction = DIRECTION_RIGHT;
-			}
-
-			if (input_table.key_states[KEY_A]) {
-				velocity.x = -speed;
-				player.move_direction = DIRECTION_LEFT;
-			}
-
-			if (input_table.key_states[KEY_W]) {
-				velocity.z = speed;
-				player.move_direction = DIRECTION_FORWARD;
-			}
-
-			if (input_table.key_states[KEY_S]) {
-				velocity.z = -speed;
-				player.move_direction = DIRECTION_BACK;
-			}
-		} else if (game_state.player_movement_behavior == MOVE_RELATIVE_TO_CAMERA) {
-			Camera &camera = world->camera;
-			const vec3 camera_forward = forward(camera.yaw, camera.pitch);
-			const vec3 camera_right = camera.up.cross(camera_forward).normalize();
-
-			if (input_table.key_states[KEY_D]) {
-				velocity += speed * camera_right;
-				player.move_direction = DIRECTION_RIGHT;
-			}
-
-			if (input_table.key_states[KEY_A]) {
-				velocity -= speed * camera_right;
-				player.move_direction = DIRECTION_LEFT;
-			}
-
-			if (input_table.key_states[KEY_W]) {
-				velocity += speed * camera_forward;
-				player.move_direction = DIRECTION_FORWARD;
-			}
-
-			if (input_table.key_states[KEY_S]) {
-				velocity -= speed * camera_forward;
-				player.move_direction = DIRECTION_BACK;
-			}
-		}
-
-		player.velocity = velocity.truncate(speed);
-
-		if (game_state.camera_behavior == STICK_TO_PLAYER) {
-			Camera &camera = world->camera;
-			camera.eye = player.location + player.camera_offset;
-			camera.at = camera.eye + forward(camera.yaw, camera.pitch);
-		} else if (game_state.camera_behavior == FOLLOW_PLAYER) {
-			Camera &camera = world->camera;
-			const vec3 camera_dead_zone = player.camera_dead_zone;
-			const vec3 dead_zone_min = camera.eye - camera_dead_zone * 0.5f;
-			const vec3 dead_zone_max = camera.eye + camera_dead_zone * 0.5f;
-			const vec3 desired_camera_eye = player.location + player.camera_offset;
-
-			vec3 target_eye;
-			if (desired_camera_eye.x < dead_zone_min.x)
-				target_eye.x = desired_camera_eye.x + camera_dead_zone.x * 0.5f;
-			else if (desired_camera_eye.x > dead_zone_max.x)
-				target_eye.x = desired_camera_eye.x - camera_dead_zone.x * 0.5f;
-			else
-				target_eye.x = camera.eye.x;
-
-			if (desired_camera_eye.y < dead_zone_min.y)
-				target_eye.y = desired_camera_eye.y + camera_dead_zone.y * 0.5f;
-			else if (desired_camera_eye.y > dead_zone_max.y)
-				target_eye.y = desired_camera_eye.y - camera_dead_zone.y * 0.5f;
-			else
-				target_eye.y = camera.eye.y;
-
-			if (desired_camera_eye.z < dead_zone_min.z)
-				target_eye.z = desired_camera_eye.z + camera_dead_zone.z * 0.5f;
-			else if (desired_camera_eye.z > dead_zone_max.z)
-				target_eye.z = desired_camera_eye.z - camera_dead_zone.z * 0.5f;
-			else
-				target_eye.z = camera.eye.z;
-
-			camera.eye = lerp(camera.eye, target_eye, player.camera_follow_speed * dt);
-			camera.at = camera.eye + forward(camera.yaw, camera.pitch);
-		}
-	} else if (game_state.mode == MODE_EDITOR) {
-        const f32 mouse_sensitivity = player.mouse_sensitivity;
-        Camera &camera = world->ed_camera;
-
-        if (window->cursor_locked) {   
-            camera.yaw += input_table.mouse_offset_x * mouse_sensitivity * dt;
-            camera.pitch += input_table.mouse_offset_y * mouse_sensitivity * dt;
-            camera.pitch = clamp(camera.pitch, -89.0f, 89.0f);
-        }
-                    
-        const f32 speed = player.ed_camera_speed * dt;
-        const vec3 camera_forward = forward(camera.yaw, camera.pitch);
-        const vec3 camera_right = camera.up.cross(camera_forward).normalize();
-
-        vec3 velocity;
-
-        if (input_table.key_states[KEY_D])
-            velocity += speed * camera_right;
-
-        if (input_table.key_states[KEY_A])
-            velocity -= speed * camera_right;
-
-        if (input_table.key_states[KEY_W])
-            velocity += speed * camera_forward;
-
-        if (input_table.key_states[KEY_S])
-            velocity -= speed * camera_forward;
-
-        if (input_table.key_states[KEY_E])
-            velocity += speed * camera.up;
-
-        if (input_table.key_states[KEY_Q])
-            velocity -= speed * camera.up;
-
-        camera.eye += velocity.truncate(speed);
-        camera.at = camera.eye + camera_forward;
-	}
-
-    player.collide_aabb_index = INVALID_INDEX;
-    auto &player_aabb = world->aabbs[player.aabb_index];
-    
-    for (s32 i = 0; i < world->aabbs.count; ++i) {
-        if (i == player.aabb_index) continue;
-        
-        const auto &aabb = world->aabbs[i];
-        const vec3 resolved_velocity = resolve_moving_static(player_aabb, aabb, player.velocity);
-        if (resolved_velocity != player.velocity) {
-            player.velocity = resolved_velocity;
-            player.collide_aabb_index = i;
-            break;
-        }
-    }
-
-    if (player.velocity == vec3_zero) {
-        const Asset &asset = asset_table[texture_sids.player_idle[player.move_direction]];
-        render_registry.materials[player.draw_data.material_index].texture_index = asset.registry_index;
-    } else {
-        player.flip_book = &flip_books.player_move[player.move_direction];
-        tick(player.flip_book, dt);
-
-        const Asset &asset = asset_table[current_frame(player.flip_book)];
-        render_registry.materials[player.draw_data.material_index].texture_index = asset.registry_index;
-    }
-            
-    player.location += player.velocity;
-    
-    const vec3 aabb_offset = vec3(player.scale.x * 0.5f, 0.0f, player.scale.x * 0.3f);
-	player_aabb.min = player.location - aabb_offset;
-	player_aabb.max = player.location + aabb_offset + vec3(0.0f, player.scale.y, 0.0f);
-
-    // @Cleanup: remove direct al calls.
-    const Sound &steps_sound = audio_registry.sounds[asset_table[sound_sids.player_steps].registry_index];
-
-    s32 state;
-    alGetSourcei(steps_sound.source, AL_SOURCE_STATE, &state);
-        
-    if (player.velocity == vec3_zero) {
-        if (state == AL_PLAYING) alSourceStop(steps_sound.source);
-    } else {
-        if (state != AL_PLAYING) alSourcePlay(steps_sound.source);
-    }
 }

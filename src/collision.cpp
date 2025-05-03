@@ -58,16 +58,14 @@ bool overlap(const Ray &ray, const AABB &aabb, f32 *near) {
     return tmin <= tmax;
 }
 
-s32 find_closest_overlapped_aabb(const Ray &ray, const World *world) {
+s32 find_closest_overlapped_aabb(const Ray &ray, AABB *aabbs, s32 count) {
     PROFILE_SCOPE(__FUNCTION__);
     
     s32 closest_aabb_index = INVALID_INDEX;
     f32 min_distance = F32_MAX;
-    for (s32 i = 0; i < world->aabbs.count; ++i) {
-        auto &aabb = world->aabbs[i];
-
+    for (s32 i = 0; i < count; ++i) {
         f32 near = 0.0f;
-        if (!overlap(ray, aabb, &near)) continue;
+        if (!overlap(ray, aabbs[i], &near)) continue;
         
         if (near < min_distance) {
             min_distance = near;
@@ -89,10 +87,10 @@ vec3 resolve_moving_static(const AABB &a, const AABB &b, const vec3 &velocity_a)
     return resolved_velocity;
 }
 
-vec3 ray_from_mouse_position(const Camera *camera, const Viewport *viewport, s16 mouse_x, s16 mouse_y) {
+vec3 viewport_to_world_location(const Camera *camera, const Viewport *viewport, s16 x, s16 y) {
     vec3 ray_nds;
-    ray_nds.x = (2.0f * (mouse_x - viewport->x)) / viewport->width - 1.0f;
-    ray_nds.y = 1.0f - (2.0f * (mouse_y - viewport->y)) / viewport->height;
+    ray_nds.x = (2.0f * (x - viewport->x)) / viewport->width - 1.0f;
+    ray_nds.y = 1.0f - (2.0f * (y - viewport->y)) / viewport->height;
     ray_nds.z = 1.0f;
 
     const vec4 ray_clip = vec4(ray_nds.x, ray_nds.y, -1.0f, 1.0f);
@@ -102,4 +100,11 @@ vec3 ray_from_mouse_position(const Camera *camera, const Viewport *viewport, s16
 
     const vec4 ray_world = inverse(camera_view(camera)) * ray_eye;
     return normalize(ray_world.to_vec3());
+}
+
+Ray world_ray_from_viewport_location(const Camera *camera, const Viewport *viewport, s16 x, s16 y) {
+    Ray ray;
+    ray.origin = viewport_to_world_location(camera, viewport, x, y);
+    ray.direction = vector_direction(camera->eye, ray.origin);
+    return ray;
 }

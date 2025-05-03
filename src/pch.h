@@ -122,6 +122,10 @@ void  freel(u64 size);
 void *allocf(u64 size);
 void  freef();
 
+// l - linear allocation, push/pop bytes
+// f - frame allocation, cleared at the end of every frame
+// h - heap allocation, default implementation
+
 #define allocht(T)     (T *)alloch(sizeof(T))
 #define alloclt(T)     (T *)allocl(sizeof(T))
 #define allocft(T)     (T *)allocf(sizeof(T))

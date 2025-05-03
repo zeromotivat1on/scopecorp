@@ -5,12 +5,12 @@
 #include "collision.h"
 #include "game/entity.h"
 
-inline constexpr s32 MAX_WORLD_NAME_SIZE = 64;
 inline constexpr s32 MAX_STATIC_MESHES = 1024;
-inline constexpr s32 MAX_AABBS         = MAX_STATIC_MESHES + 1;
+inline constexpr s32 MAX_POINT_LIGHTS = 32;
+inline constexpr s32 MAX_AABBS = 2048;
 
 struct World {
-    char name[MAX_WORLD_NAME_SIZE] = {0};
+    char path[MAX_PATH_SIZE] = {0};
     
 	f32 dt;
 
@@ -21,6 +21,7 @@ struct World {
 	Skybox skybox;
 
 	Sparse_Array<Static_Mesh> static_meshes;
+	Sparse_Array<Point_Light> point_lights;
 	Sparse_Array<AABB>        aabbs;
 
     Entity *mouse_picked_entity = null;
