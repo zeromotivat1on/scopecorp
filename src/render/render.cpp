@@ -428,10 +428,31 @@ void draw_geo_debug() {
     draw_geo_arrow(player_center_location, player_center_location + normalize(player.velocity) * 0.5f, vec3_red);
 
     if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
-        For (world->aabbs) {
-            draw_geo_aabb(it, vec3_red);
+        draw_geo_aabb(world->aabbs[world->player.aabb_index], vec3_red);
+        
+        For (world->static_meshes) {
+            draw_geo_aabb(world->aabbs[it.aabb_index], vec3_red);
         }
 
+        For (world->point_lights) {
+            draw_geo_aabb(world->aabbs[it.aabb_index], vec3_white);
+        }
+
+        if (world->mouse_picked_entity) {
+            const vec3 mouse_picked_color = vec3_yellow;
+            if (world->mouse_picked_entity->type == ENTITY_PLAYER) {
+                auto *player = (Player *)world->mouse_picked_entity;
+                draw_geo_aabb(world->aabbs[player->aabb_index], mouse_picked_color);
+            } else if (world->mouse_picked_entity->type == ENTITY_STATIC_MESH) {
+                auto *static_mesh = (Static_Mesh *)world->mouse_picked_entity;
+                draw_geo_aabb(world->aabbs[static_mesh->aabb_index], mouse_picked_color);
+            } else if (world->mouse_picked_entity->type == ENTITY_POINT_LIGHT) {
+                auto *point_light = (Point_Light *)world->mouse_picked_entity;
+                draw_geo_aabb(world->aabbs[point_light->aabb_index], mouse_picked_color);
+            }
+
+        }
+        
         if (player.collide_aabb_index != INVALID_INDEX) {
             draw_geo_aabb(world->aabbs[player.aabb_index],         vec3_green);
             draw_geo_aabb(world->aabbs[player.collide_aabb_index], vec3_green);

@@ -87,7 +87,7 @@ vec3 resolve_moving_static(const AABB &a, const AABB &b, const vec3 &velocity_a)
     return resolved_velocity;
 }
 
-vec3 viewport_to_world_location(const Camera *camera, const Viewport *viewport, s16 x, s16 y) {
+vec3 viewport_to_world_direction(const Camera *camera, const Viewport *viewport, s16 x, s16 y) {
     vec3 ray_nds;
     ray_nds.x = (2.0f * (x - viewport->x)) / viewport->width - 1.0f;
     ray_nds.y = 1.0f - (2.0f * (y - viewport->y)) / viewport->height;
@@ -104,7 +104,7 @@ vec3 viewport_to_world_location(const Camera *camera, const Viewport *viewport, 
 
 Ray world_ray_from_viewport_location(const Camera *camera, const Viewport *viewport, s16 x, s16 y) {
     Ray ray;
-    ray.origin = viewport_to_world_location(camera, viewport, x, y);
-    ray.direction = vector_direction(camera->eye, ray.origin);
+    ray.origin = camera->eye;
+    ray.direction = viewport_to_world_direction(camera, viewport, x, y);
     return ray;
 }

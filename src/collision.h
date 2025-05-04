@@ -33,5 +33,5 @@ s32 find_closest_overlapped_aabb(const Ray &ray, AABB *aabbs, s32 count);
 
 vec3 resolve_moving_static(const AABB &a, const AABB &b, const vec3 &velocity_a);
 
-vec3 viewport_to_world_location(const Camera *camera, const Viewport *viewport, s16 x, s16 y);
+vec3 viewport_to_world_direction(const Camera *camera, const Viewport *viewport, s16 x, s16 y);
 Ray world_ray_from_viewport_location(const Camera *camera, const Viewport *viewport, s16 x, s16 y);

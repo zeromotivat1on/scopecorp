@@ -122,6 +122,13 @@ void on_window_event(Window *window, Window_Event *event) {
                     if (aabb_index != INVALID_INDEX) {
                         bool picked = false;
                         if (!picked) {
+                            if (world->player.aabb_index == aabb_index) {
+                                mouse_pick_entity(world, &world->player);
+                                picked = true;
+                            }
+                        }
+                        
+                        if (!picked) {
                             For (world->point_lights) {
                                 if (it.aabb_index == aabb_index) {
                                     mouse_pick_entity(world, &it);
