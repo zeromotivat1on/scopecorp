@@ -18,7 +18,7 @@ if [%1] == [-debug] (
 )
 
 pushd %~dp0run_tree\cmake
-cmake --build . --config %config%
+cmake -E time cmake --build . --config %config%
 popd
 
 endlocal
