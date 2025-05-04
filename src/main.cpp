@@ -341,7 +341,7 @@ s32 main() {
         tick(world, delta_time);        
 		set_listener_pos(player.location);
 
-        // @CLeanup: this one is pretty slow (~0.3ms), but bearable for now;
+        // @Cleanup: this one is pretty slow (~0.3ms), but bearable for now;
         // move to other thread later if it becomes a big deal.
         check_for_hot_reload(&hot_reload_list);
 

@@ -25,10 +25,6 @@ struct World {
 	Sparse_Array<AABB>        aabbs;
 
     Entity *mouse_picked_entity = null;
-    
-    mat4 camera_view;
-    mat4 camera_proj;
-    mat4 camera_view_proj;
 };
 
 inline World *world = null;

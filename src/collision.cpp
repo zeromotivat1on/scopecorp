@@ -94,11 +94,11 @@ vec3 viewport_to_world_location(const Camera *camera, const Viewport *viewport, 
     ray_nds.z = 1.0f;
 
     const vec4 ray_clip = vec4(ray_nds.x, ray_nds.y, -1.0f, 1.0f);
-    vec4 ray_eye = inverse(camera_projection(camera)) * ray_clip;
+    vec4 ray_eye = inverse(camera->proj) * ray_clip;
     ray_eye.z = -1.0f;
     ray_eye.w =  0.0f;
 
-    const vec4 ray_world = inverse(camera_view(camera)) * ray_eye;
+    const vec4 ray_world = inverse(camera->view) * ray_eye;
     return normalize(ray_world.to_vec3());
 }
 

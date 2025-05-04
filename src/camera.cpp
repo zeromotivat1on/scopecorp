@@ -7,19 +7,16 @@
 
 #include "render/viewport.h"
 
-mat4 camera_view(const Camera *c) {
-	return mat4_view(c->eye, c->at, c->up);
-}
+void update_matrices(Camera *c) {
+    c->view = mat4_view(c->eye, c->at, c->up);
 
-mat4 camera_projection(const Camera *c) {
-	if (c->mode == MODE_PERSPECTIVE)
-		return mat4_perspective(rad(c->fov), c->aspect, c->near, c->far);
-
+    if (c->mode == MODE_PERSPECTIVE)
+		c->proj = mat4_perspective(rad(c->fov), c->aspect, c->near, c->far);
+    
 	if (c->mode == MODE_ORTHOGRAPHIC)
-		return mat4_orthographic(c->left, c->right, c->bottom, c->top, c->near, c->far);
+		c->proj = mat4_orthographic(c->left, c->right, c->bottom, c->top, c->near, c->far);
 
-    error("Failed to get camera projection from camera with unknown view mode %d", c->mode);
-	return mat4_identity();
+    c->view_proj = c->view * c->proj;
 }
 
 void on_viewport_resize(Camera *camera, const Viewport *viewport) {

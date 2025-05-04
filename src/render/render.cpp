@@ -250,8 +250,9 @@ void draw_entity(const Entity *e) {
         command.stencil.function.mask       = 0xFF;
         command.stencil.mask                = 0x00;
 
+        const auto *camera = desired_camera(world);
         const vec3 color = vec3_yellow;
-        const mat4 mvp = mat4_transform(e->location, e->rotation, e->scale * 1.1f) * world->camera_view_proj;
+        const mat4 mvp = mat4_transform(e->location, e->rotation, e->scale * 1.1f) * camera->view_proj;
 
         set_material_uniform_value(material_index_list.outline, "u_color", &color);
         set_material_uniform_value(material_index_list.outline, "u_transform", mvp.ptr());
@@ -413,11 +414,8 @@ void flush_geo_draw() {
                            geometry_draw_buffer.vertex_data,
                            geometry_draw_buffer.vertex_count * GEOMETRY_VERTEX_SIZE, 0);
 
-    Camera *camera = desired_camera(world);
-	const mat4 view = camera_view(camera);
-	const mat4 proj = camera_projection(camera);
-    const mat4 vp = view * proj;
-    set_material_uniform_value(geometry_draw_buffer.material_index, "u_transform", vp.ptr());
+    const auto *camera = desired_camera(world);
+    set_material_uniform_value(geometry_draw_buffer.material_index, "u_transform", &camera->view_proj);
 
     submit(&command);
     

@@ -27,10 +27,13 @@ struct Camera {
 	f32	right;
 	f32	bottom;
 	f32	top;
+
+    mat4 view;
+    mat4 proj;
+    mat4 view_proj;
 };
 
 struct Viewport;
 
-mat4 camera_view(const Camera *camera);
-mat4 camera_projection(const Camera *camera);
+void update_matrices(Camera *camera);
 void on_viewport_resize(Camera *camera, const Viewport *viewport);

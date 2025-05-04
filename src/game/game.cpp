@@ -177,10 +177,8 @@ void tick(World *world, f32 dt) {
     
 	world->dt = dt;
 
-	const auto *camera = desired_camera(world);
-	world->camera_view = camera_view(camera);
-	world->camera_proj = camera_projection(camera);
-    world->camera_view_proj = world->camera_view * world->camera_proj;
+	auto *camera = desired_camera(world);
+    update_matrices(camera);
     
 	auto &skybox = world->skybox;
 	skybox.uv_offset = camera->eye;
@@ -192,7 +190,7 @@ void tick(World *world, f32 dt) {
         const s32 mti = it.draw_data.material_index;
         const mat4 model = mat4_transform(it.location, it.rotation, it.scale);
 		set_material_uniform_value(mti, "u_model",           &model);
-		set_material_uniform_value(mti, "u_view_proj",       &world->camera_view_proj);
+		set_material_uniform_value(mti, "u_view_proj",       &camera->view_proj);
 		set_material_uniform_value(mti, "u_camera_location", &camera->eye);
 		set_material_uniform_value(mti, "u_light.location",  &point_light.location);
 		set_material_uniform_value(mti, "u_light.ambient",   &point_light.ambient);
@@ -223,11 +221,10 @@ void tick(World *world, f32 dt) {
         aabb.min = it.location - half_extent;
         aabb.max = it.location + half_extent;
     }
+
+    auto &player = world->player;
     
     {   // Tick player.
-        const f32 dt = world->dt;
-        auto &player = world->player;
-    
         const auto last_move_direction = player.move_direction;
     
         if (game_state.mode == MODE_GAME) {
@@ -403,11 +400,10 @@ void tick(World *world, f32 dt) {
     }
 
     {
-        auto &player = world->player;
         const s32 mti = player.draw_data.material_index;
         const mat4 model = mat4_transform(player.location, player.rotation, player.scale);
         set_material_uniform_value(mti, "u_model",           &model);
-        set_material_uniform_value(mti, "u_view_proj",       &world->camera_view_proj);
+        set_material_uniform_value(mti, "u_view_proj",       &camera->view_proj);
         set_material_uniform_value(mti, "u_camera_location", &camera->eye);
 		set_material_uniform_value(mti, "u_light.location",  &point_light.location);
 		set_material_uniform_value(mti, "u_light.ambient",   &point_light.ambient);
