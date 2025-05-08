@@ -2,12 +2,24 @@
 #include "str.h"
 #include <string.h>
 
+u64 str_size(const char *str) {
+    return strlen(str);
+}
+
 void str_copy(char *dst, const char *src) {
     strcpy(dst, src);
 }
 
-bool str_compare(const char *a, const char *b) {
+void str_glue(char *dst, const char *src) {
+    strcat(dst, src);
+}
+
+bool str_cmp(const char *a, const char *b) {
     return strcmp(a, b) == 0;
+}
+
+char *str_sub(char *str, const char *sub) {
+    return strstr(str, sub);
 }
 
 char *str_char(char *str, s32 c) {
@@ -15,5 +27,17 @@ char *str_char(char *str, s32 c) {
 }
 
 char *str_char_from_end(char *str, s32 c) {
+    return strrchr(str, c);
+}
+
+const char *str_sub(const char *str, const char *sub) {
+    return strstr(str, sub);
+}
+
+const char *str_char(const char *str, s32 c) {
+    return strchr(str, c);
+}
+
+const char *str_char_from_end(const char *str, s32 c) {
     return strrchr(str, c);
 }

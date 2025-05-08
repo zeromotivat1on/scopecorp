@@ -187,7 +187,7 @@ s32 main() {
         
         Vertex_Array_Binding binding = {};
         binding.layout_size = COUNT(vertex_entity_layout);
-        memcpy(binding.layout, vertex_entity_layout, sizeof(vertex_entity_layout));
+        copy_bytes(binding.layout, vertex_entity_layout, sizeof(vertex_entity_layout));
         binding.vertex_buffer_index = create_vertex_buffer(vertices, COUNT(vertices) * sizeof(Vertex_Entity), BUFFER_USAGE_STATIC);
         
 		player.draw_data.vertex_array_index = create_vertex_array(&binding, 1);
@@ -220,7 +220,7 @@ s32 main() {
         
         Vertex_Array_Binding binding = {};
         binding.layout_size = COUNT(vertex_entity_layout);
-        memcpy(binding.layout, vertex_entity_layout, sizeof(vertex_entity_layout));
+        copy_bytes(binding.layout, vertex_entity_layout, sizeof(vertex_entity_layout));
         binding.vertex_buffer_index = create_vertex_buffer(vertices, COUNT(vertices) * sizeof(Vertex_Entity), BUFFER_USAGE_STATIC);
         
 		ground.draw_data.vertex_array_index = create_vertex_array(&binding, 1);
@@ -249,7 +249,7 @@ s32 main() {
         
         Vertex_Array_Binding binding = {};
         binding.layout_size = COUNT(vertex_entity_layout);
-        memcpy(binding.layout, vertex_entity_layout, sizeof(vertex_entity_layout));
+        copy_bytes(binding.layout, vertex_entity_layout, sizeof(vertex_entity_layout));
         binding.vertex_buffer_index = create_vertex_buffer(vertices, COUNT(vertices) * sizeof(Vertex_Entity), BUFFER_USAGE_STATIC);
                 
 		cube.draw_data.vertex_array_index = create_vertex_array(&binding, 1);
@@ -287,7 +287,7 @@ s32 main() {
 
         Vertex_Array_Binding binding = {};
         binding.layout_size = COUNT(vertex_entity_layout);
-        memcpy(binding.layout, vertex_entity_layout, sizeof(vertex_entity_layout));
+        copy_bytes(binding.layout, vertex_entity_layout, sizeof(vertex_entity_layout));
         binding.vertex_buffer_index = create_vertex_buffer(vertices, COUNT(vertices) * sizeof(Vertex_Entity), BUFFER_USAGE_STATIC);
                 
 		skybox.draw_data.vertex_array_index = create_vertex_array(&binding, 1);

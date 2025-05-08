@@ -2,6 +2,7 @@
 #include "asset.h"
 #include "log.h"
 #include "sid.h"
+#include "str.h"
 #include "profile.h"
 #include "stb_image.h"
 
@@ -15,17 +16,16 @@ static u64 asset_table_hash(const sid &a) {
     return a;
 }
 
-static void init_asset_source_callback(const File_Callback_Data *callback_data) {
+static void init_asset_source_callback(const File_Callback_Data *data) {
     Asset_Source source;
-    source.type = *(Asset_Type *)callback_data->user_data;
-    source.last_write_time = callback_data->last_write_time;
+    source.type = *(Asset_Type *)data->user_data;
+    source.last_write_time = data->last_write_time;
     
-    Assert(strlen(callback_data->path) <= MAX_PATH_SIZE);
-    strcpy(source.path, callback_data->path);
+    str_copy(source.path, data->path);
     fix_directory_delimiters(source.path);
     
     char relative_path[MAX_PATH_SIZE];
-    convert_to_relative_asset_path(callback_data->path, relative_path);
+    convert_to_relative_asset_path(data->path, relative_path);
     
     asset_source_table.add(cache_sid(relative_path), source);
 }
@@ -303,16 +303,16 @@ void load_asset_pack(const char *path, Asset_Table *table) {
 }
 
 void convert_to_relative_asset_path(const char *full_path, char *relative_path) {
-    const char *data = strstr(full_path, "\\data");
-    if (!data) data = strstr(full_path, "/data");
+    const char *data = str_sub(full_path, "\\data");
+    if (!data) data = str_sub(full_path, "/data");
     if (!data) return;
 
-    strcpy(relative_path, data);
+    str_copy(relative_path, data);
     fix_directory_delimiters(relative_path);
 }
 
 void convert_to_full_asset_path(const char *relative_path, char *full_path) {
-    strcpy(full_path, RUN_TREE_FOLDER);
-    strcat(full_path, relative_path);
+    str_copy(full_path, RUN_TREE_FOLDER);
+    str_glue(full_path, relative_path);
     fix_directory_delimiters(full_path);
 }

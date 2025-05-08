@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "log.h"
 #include "sid.h"
+#include "str.h"
 #include "font.h"
 #include "profile.h"
 #include "asset.h"
@@ -138,7 +139,7 @@ void enqueue(Render_Queue *queue, const Render_Command *command) {
 	Assert(queue->size < MAX_RENDER_QUEUE_SIZE);
     
 	const s32 index = queue->size++;
-	memcpy(queue->commands + index, command, sizeof(Render_Command));
+	copy_bytes(queue->commands + index, command, sizeof(Render_Command));
 }
 
 void flush(Render_Queue *queue) {
@@ -637,7 +638,7 @@ u32 cache_uniform_value_on_cpu(s32 uniform_index, const void *data) {
     Assert(cache.size + size <= cache.capacity);
         
     const u32 offset = cache.size;
-    memcpy((u8 *)cache.data + cache.size, data, size);
+    copy_bytes((u8 *)cache.data + cache.size, data, size);
     cache.size += size;
 
     return offset;
@@ -649,7 +650,7 @@ void update_uniform_value_on_cpu(s32 uniform_index, const void *data, u32 offset
     Assert(offset < cache.size);
     
     const u32 size = uniform.count * get_uniform_type_size(uniform.type);
-    memcpy((u8 *)cache.data + offset, data, size);
+    copy_bytes((u8 *)cache.data + offset, data, size);
 }
 
 u32 get_uniform_type_size(Uniform_Type type) {
@@ -712,7 +713,7 @@ s32 find_material_uniform(s32 material_index, const char *name) {
 
 	for (s32 i = 0; i < material.uniform_count; ++i) {
         const auto &uniform = render_registry.uniforms[material.uniform_indices[i]];
-        if (strcmp(uniform.name, name) == 0) return i;
+        if (str_cmp(uniform.name, name)) return i;
 	}
 
 	return INVALID_INDEX;
@@ -725,7 +726,7 @@ void set_material_uniforms(s32 material_index, const s32 *uniform_indices, s32 c
     Assert(material.uniform_count == 0);
 
     material.uniform_count = count;
-    memcpy(material.uniform_indices, uniform_indices, count * sizeof(s32));
+    copy_bytes(material.uniform_indices, uniform_indices, count * sizeof(s32));
 
     auto &cache = render_registry.uniform_value_cache;
     
@@ -802,15 +803,15 @@ s32 vertex_component_size(Vertex_Component_Type type) {
 }
 
 static bool parse_shader_region(const char *shader_src, char *region_src, const char *region_begin_name, const char *region_end_name) {
-    const char *region_begin = strstr(shader_src, region_begin_name);
-    const char *region_end   = strstr(shader_src, region_end_name);
+    const char *region_begin = str_sub(shader_src, region_begin_name);
+    const char *region_end   = str_sub(shader_src, region_end_name);
 
     if (!region_begin || !region_end) {
         error("Failed to find shader region %s ... %s", region_begin_name, region_end_name);
         return false;
     }
 
-    region_begin += strlen(region_begin_name);
+    region_begin += str_size(region_begin_name);
 
     const u64 region_size = region_end - region_begin;
     if (region_size >= MAX_SHADER_SIZE) {
@@ -818,7 +819,7 @@ static bool parse_shader_region(const char *shader_src, char *region_src, const 
         return false;
     }
     
-    memcpy(region_src, region_begin, region_size);
+    copy_bytes(region_src, region_begin, region_size);
 	region_src[region_size] = '\0';
 
     return true;

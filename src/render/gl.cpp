@@ -13,6 +13,7 @@
 #include "render/viewport.h"
 
 #include "log.h"
+#include "str.h"
 #include "font.h"
 #include "asset.h"
 #include "stb_image.h"
@@ -353,7 +354,7 @@ s32 create_frame_buffer(s16 width, s16 height, const Texture_Format_Type *color_
     glDrawBuffers(color_attachment_count, gl_attachments);
     
     frame_buffer.color_attachment_count = color_attachment_count;
-    memcpy(frame_buffer.color_attachment_formats, color_attachments, color_attachment_count * sizeof(Texture_Format_Type));
+    copy_bytes(frame_buffer.color_attachment_formats, color_attachments, color_attachment_count * sizeof(Texture_Format_Type));
 
     frame_buffer.depth_attachment_index  = INVALID_INDEX;
     frame_buffer.depth_attachment_format = depth_attachment;
@@ -554,7 +555,7 @@ void set_vertex_buffer_data(s32 vertex_buffer_index, const void *data, u32 size,
 s32 create_vertex_array(const Vertex_Array_Binding *bindings, s32 binding_count) {
     Vertex_Array array;
     array.binding_count = binding_count;
-    memcpy(array.bindings, bindings, binding_count * sizeof(Vertex_Array_Binding));
+    copy_bytes(array.bindings, bindings, binding_count * sizeof(Vertex_Array_Binding));
     
     glGenVertexArrays(1, &array.id);
     glBindVertexArray(array.id);
@@ -1141,7 +1142,7 @@ void rescale_font_atlas(Font_Atlas *atlas, s16 font_size) {
 		metric->offset_x = offx - x_offset;
 		metric->offset_y = offy - y_offset;
 
-		memset(bitmap, 0, font_size * font_size);
+		set_bytes(bitmap, 0, font_size * font_size);
 
 		// @Cleanup: looks nasty, should come up with better solution.
 		// Now we bake bitmap using stbtt and 'rescale' it to font size square one.
