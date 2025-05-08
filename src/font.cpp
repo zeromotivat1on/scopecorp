@@ -1,16 +1,15 @@
 #include "pch.h"
 #include "font.h"
 #include "log.h"
+#include "str.h"
 #include "stb_truetype.h"
 
 #include "os/file.h"
 
-#include <string.h>
-
 Font *create_font(const char *path) {
 	Font *font = alloclt(Font);
 	font->info = alloclt(stbtt_fontinfo);
-	strcpy_s(font->path, sizeof(font->path), path);
+	str_copy(font->path, path);
 
 	u64 buffer_size = MB(1);
 	u8 *buffer = allocltn(u8, buffer_size);
@@ -24,7 +23,7 @@ Font *create_font(const char *path) {
 	// Free left memory.
 	if (buffer_size > data_size) freel(buffer_size - data_size);
 
-	// @Cleanup: set stbtt allocator to allocate from persistent memory storage.
+	// @Cleanup: set stbtt allocator to allocate from linear allocation.
 	stbtt_InitFont(font->info, buffer, stbtt_GetFontOffsetForIndex(buffer, 0));
 	stbtt_GetFontVMetrics(font->info, &font->ascent, &font->descent, &font->line_gap);
 

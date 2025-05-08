@@ -18,6 +18,7 @@
 #include "stb_truetype.h"
 
 #include <malloc.h>
+#include <string.h>
 
 static void *vm_base     = null;
 static void *allocl_base = null;
@@ -89,6 +90,18 @@ void *allocf(u64 size) {
 
 void freef() {
     allocf_size = 0;
+}
+
+void set_bytes(void *data, s32 value, u64 size) {
+    memset(data, value, size);
+}
+
+void copy_bytes(void *dst, const void *src, u64 size) {
+    memcpy(dst, src, size);
+}
+
+void move_bytes(void *dst, const void *src, u64 size) {
+    memmove(dst, src, size);
 }
 
 #if DEBUG

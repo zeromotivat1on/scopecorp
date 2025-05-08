@@ -16,12 +16,13 @@
 
 #include "math/math_core.h"
 
-#include "render/viewport.h"
+#include "render/render_init.h"
 #include "render/render_stats.h"
 #include "render/render_command.h"
 #include "render/render_registry.h"
 #include "render/geometry_draw.h"
 #include "render/text_draw.h"
+#include "render/viewport.h"
 
 #include "audio/audio_registry.h"
 
@@ -94,6 +95,8 @@ s32 main() {
         error("Failed to initialize render context");
         return 1;
     }
+
+    detect_render_capabilities();
     
     init_audio_context();
 
@@ -293,6 +296,24 @@ s32 main() {
 		skybox.draw_data.index_buffer_index = create_index_buffer(indices, COUNT(indices), BUFFER_USAGE_STATIC);
 	}
 
+    const s32 ubi = create_uniform_buffer(KB(16));
+    const Uniform_Block_Field transform_matrices_fields[] = {
+        { UNIFORM_F32_4X4, 1 },
+        { UNIFORM_F32_4X4, 1 },
+        { UNIFORM_F32_4X4, 1 },
+    };
+    const s32 ubbi_transform_matrices = create_uniform_block(ubi, 0, "Transforms", transform_matrices_fields, COUNT(transform_matrices_fields));
+    
+    constexpr s32 MAX_UNIFORM_LIGHTS = 64; // must be the same as in shaders
+    const Uniform_Block_Field lights_fields[] = {
+        { UNIFORM_U32,   1 },
+        { UNIFORM_F32_3, MAX_UNIFORM_LIGHTS },
+        { UNIFORM_F32_3, MAX_UNIFORM_LIGHTS },
+        { UNIFORM_F32_3, MAX_UNIFORM_LIGHTS },
+        { UNIFORM_F32_3, MAX_UNIFORM_LIGHTS },
+    };
+    const s32 ubbi_lights = create_uniform_block(ubi, 1, "Lights", lights_fields, COUNT(lights_fields));
+    
     {
         Point_Light &point_light = world->point_lights[world->point_lights.add_default()];
         point_light.id = 10000;

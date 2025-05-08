@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "render/render_init.h"
 #include "render/glad.h"
 #include "render/shader.h"
 #include "render/uniform.h"
@@ -20,7 +21,33 @@
 
 #include "os/file.h"
 
-#include <string.h>
+#include "math/math_core.h"
+
+#define gl_check_error() {                          \
+        GLenum gl_error = glGetError();             \
+        while (gl_error != GL_NO_ERROR) {           \
+            error("OpenGL error 0x%X at %s:%d",     \
+                  gl_error, __FILE__, __LINE__);    \
+            gl_error = glGetError();                \
+        }                                           \
+    }
+
+void detect_render_capabilities() {
+    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &R_MAX_TEXTURE_SIZE);
+    
+    R_UNIFORM_BUFFER_BASE_ALIGNMENT = 16;    
+    glGetIntegerv(GL_MAX_UNIFORM_BUFFER_BINDINGS,     &R_MAX_UNIFORM_BUFFER_BINDINGS);
+    glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &R_UNIFORM_BUFFER_OFFSET_ALIGNMENT);
+    glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE,          &R_MAX_UNIFORM_BLOCK_SIZE);
+
+    log("Render capabilities:");
+    log("  Texture: Max Size %d texels", R_MAX_TEXTURE_SIZE);
+    log("  Uniform buffer: Max Bindings %d | Base Alignment %d | Offset Alignment %d",
+        R_MAX_UNIFORM_BUFFER_BINDINGS,
+        R_UNIFORM_BUFFER_BASE_ALIGNMENT,
+        R_UNIFORM_BUFFER_OFFSET_ALIGNMENT);
+    log("  Uniform block:  Max Size %d bytes", R_MAX_UNIFORM_BLOCK_SIZE);
+}
 
 static u32 gl_clear_buffer_bits(u32 flags) {
     u32 bits = 0;
@@ -693,11 +720,178 @@ void send_uniform_value_to_gpu(s32 shader_index, s32 uniform_index, u32 offset) 
     case UNIFORM_F32:     glUniform1fv(location,  uniform.count, (f32 *)data); break;
     case UNIFORM_F32_2:   glUniform2fv(location,  uniform.count, (f32 *)data); break;
     case UNIFORM_F32_3:   glUniform3fv(location,  uniform.count, (f32 *)data); break;
+    case UNIFORM_F32_4:   glUniform4fv(location,  uniform.count, (f32 *)data); break;
 	case UNIFORM_F32_4X4: glUniformMatrix4fv(location, uniform.count, GL_FALSE, (f32 *)data); break;
 	default:
 		error("Failed to sync uniform %s of unknown type %d", uniform.name, uniform.type);
 		break;
 	}
+}
+
+u32 get_uniform_type_size_gpu_aligned(Uniform_Type type) {
+    constexpr u32 N = 4;
+    
+    switch (type) {
+	case UNIFORM_U32:     return N;
+	case UNIFORM_F32:     return N;
+	case UNIFORM_F32_2:   return N * 2;
+	case UNIFORM_F32_3:   return N * 4;
+	case UNIFORM_F32_4:   return N * 4;
+	case UNIFORM_F32_4X4: return N * 16;
+    default:
+        error("Failed to get uniform gpu aligned size from type %d", type);
+        return 0;
+    }
+}
+
+u32 get_uniform_type_alignment(Uniform_Type type) {
+    constexpr u32 N = 4;
+
+    switch (type) {
+	case UNIFORM_U32:     return N;
+	case UNIFORM_F32:     return N;
+	case UNIFORM_F32_2:   return N * 2;
+	case UNIFORM_F32_3:   return N * 4;
+	case UNIFORM_F32_4:   return N * 4;
+	case UNIFORM_F32_4X4: return N * 4;
+    default:
+        error("Failed to get uniform alignment from type %d", type);
+        return 0;
+    }    
+}
+
+s32 create_uniform_buffer(u32 size) {
+    Uniform_Buffer buffer;
+    buffer.size = size;
+
+    gl_check_error();
+
+    glGenBuffers(1, &buffer.id);
+
+    glBindBuffer(GL_UNIFORM_BUFFER, buffer.id);
+    glBufferData(GL_UNIFORM_BUFFER, size, null, GL_STATIC_DRAW);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
+    return render_registry.uniform_buffers.add(buffer);
+}
+
+// std140 alignment rules
+static inline u32 get_uniform_block_field_offset_gpu_aligned(const Uniform_Block_Field *fields, s32 field_index, s32 field_element_index) {
+    u32 offset = 0;
+    for (s32 i = 0; i <= field_index; ++i) {
+        const auto &field = fields[i];
+
+        u32 stride = get_uniform_type_size_gpu_aligned(field.type);
+        u32 alignment = get_uniform_type_alignment(field.type);
+        
+        if (field.count > 1) {
+            alignment = R_UNIFORM_BUFFER_BASE_ALIGNMENT;
+            stride = Align(stride, R_UNIFORM_BUFFER_BASE_ALIGNMENT);
+        }
+
+        offset = Align(offset, alignment);
+
+        s32 element_count = field.count;
+        if (i == field_index) {
+            Assert(field_element_index < field.count);
+            element_count = field_element_index;
+        }
+        
+        offset += stride * element_count;
+    }
+
+    offset = Align(offset, R_UNIFORM_BUFFER_BASE_ALIGNMENT);
+
+    return offset;
+}
+
+// std140 alignment rules
+static inline u32 get_uniform_block_size_gpu_aligned(const Uniform_Block_Field *fields, s32 field_count) {
+    u32 size = 0;
+    for (s32 i = 0; i < field_count; ++i) {
+        const auto &field = fields[i];
+
+        u32 stride = get_uniform_type_size_gpu_aligned(field.type);
+        u32 alignment = get_uniform_type_alignment(field.type);
+        
+        if (field.count > 1) {
+            alignment = R_UNIFORM_BUFFER_BASE_ALIGNMENT;
+            stride = Align(stride, R_UNIFORM_BUFFER_BASE_ALIGNMENT);
+        }
+
+        size = Align(size, alignment);
+        size += stride * field.count;
+    }
+
+    size = Align(size, R_UNIFORM_BUFFER_BASE_ALIGNMENT);
+
+    return size;
+}
+
+s32 create_uniform_block(s32 uniform_buffer_index, s32 shader_binding, const char *name, const Uniform_Block_Field *fields, s32 field_count) {
+    Uniform_Block block;
+    block.uniform_buffer_index = uniform_buffer_index;
+    block.name = name;
+    block.field_count = field_count;
+    block.shader_binding = shader_binding;
+    block.offset = 0;
+    block.cpu_size = 0;
+    block.gpu_size = get_uniform_block_size_gpu_aligned(fields, field_count);
+    copy_bytes(block.fields, fields, field_count * sizeof(Uniform_Block_Field));
+    
+    For (render_registry.shaders) {
+        const u32 gl_block_index = glGetUniformBlockIndex(it.id, name);
+        if (gl_block_index != GL_INVALID_INDEX) {
+            glUniformBlockBinding(it.id, gl_block_index, shader_binding);
+        }
+    }
+
+    auto &buffer = render_registry.uniform_buffers[uniform_buffer_index];
+    const u32 used_size = get_uniform_buffer_used_size_gpu_aligned(uniform_buffer_index);
+
+    block.offset = Align(used_size, R_UNIFORM_BUFFER_OFFSET_ALIGNMENT);
+    Assert(block.offset + block.gpu_size < buffer.size);
+    
+    glBindBufferRange(GL_UNIFORM_BUFFER, shader_binding, buffer.id, block.offset, block.gpu_size);
+    
+    const s32 uniform_block_index = render_registry.uniform_blocks.add(block);
+    
+    Assert(buffer.block_count < MAX_UNIFORM_BUFFER_BLOCKS);
+    buffer.block_indices[buffer.block_count] = uniform_block_index;
+    buffer.block_count += 1;
+    
+    return uniform_block_index;
+}
+
+u32 get_uniform_block_field_size_gpu_aligned(const Uniform_Block_Field &field) {
+    if (field.count == 1) {
+        return get_uniform_type_size_gpu_aligned(field.type);
+    }
+
+    return get_uniform_type_size_gpu_aligned(UNIFORM_F32_4) * field.count;
+}
+
+u32 get_uniform_block_field_offset_gpu_aligned(s32 uniform_block_index, s32 field_index, s32 field_element_index) {
+    const auto &block = render_registry.uniform_blocks[uniform_block_index];
+    return get_uniform_block_field_offset_gpu_aligned(block.fields, field_index, field_element_index);
+}
+
+u32 get_uniform_block_size_gpu_aligned(s32 uniform_block_index) {
+    const auto &block = render_registry.uniform_blocks[uniform_block_index];
+    return get_uniform_block_size_gpu_aligned(block.fields, block.field_count);
+}
+
+void set_uniform_block_value(s32 ubbi, s32 field_index, s32 field_element_index, const void *data, u32 size) {
+    auto &block = render_registry.uniform_blocks[ubbi];
+    Assert(field_index < block.field_count);
+    
+    const u32 field_offset = get_uniform_block_field_offset_gpu_aligned(ubbi, field_index, field_element_index);
+    Assert(field_offset < block.gpu_size);
+
+    const auto &uniform_buffer = render_registry.uniform_buffers[block.uniform_buffer_index];
+    glBindBuffer(GL_UNIFORM_BUFFER, uniform_buffer.id);
+    glBufferSubData(GL_UNIFORM_BUFFER, block.offset + field_offset, size, data);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }
 
 static s32 gl_texture_format(Texture_Format_Type format) {

@@ -4,9 +4,8 @@
 
 #include "log.h"
 #include "sid.h"
+#include "str.h"
 #include "memory_eater.h"
-
-#include <string.h>
 
 void init_audio_registry() {
     audio_registry.sounds = Sparse_Array<Sound>(MAX_SOUNDS);
@@ -20,7 +19,7 @@ void cache_sound_sids(Sound_Sid_List *list) {
 
 void *extract_wav(void *data, s32 *channel_count, s32 *sample_rate, s32 *bits_per_sample, u32 *size) {
 	const char *riff = (char *)eat(&data, 4);
-	if (strncmp(riff, "RIFF", 4) != 0) {
+	if (str_compare(riff, "RIFF")) {
 		error("File is not a valid wave file, header does not begin with RIFF");
 		return null;
 	}
@@ -28,13 +27,13 @@ void *extract_wav(void *data, s32 *channel_count, s32 *sample_rate, s32 *bits_pe
 	eat_s32(&data); // file size
 
 	const char *wave_str = (char *)eat(&data, 4);
-	if (strncmp(wave_str, "WAVE", 4) != 0) {
+	if (str_compare(wave_str, "WAVE")) {
 		error("File is not a valid wave file, header does not contain WAVE");
 		return null;
 	}
 
 	const char *fmt_str = (char *)eat(&data, 4);
-	if (strncmp(fmt_str, "fmt", 3) != 0) {
+	if (str_compare(fmt_str, "fmt")) {
 		error("File is not a valid wave file, header does not contain FMT");
 		return null;
 	}
@@ -56,7 +55,7 @@ void *extract_wav(void *data, s32 *channel_count, s32 *sample_rate, s32 *bits_pe
 	if (bits_per_sample) *bits_per_sample = eat_s16(&data);
 
 	const char *data_str = (char *)eat(&data, 4);
-	if (strncmp(data_str, "data", 4) != 0) {
+	if (str_compare(data_str, "data")) {
 		error("File is not a valid wave file, header does not contain DATA");
 		return null;
 	}

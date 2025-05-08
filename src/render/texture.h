@@ -1,5 +1,9 @@
 #pragma once
 
+// Represents max texel count of texture width/height.
+// E.g 4096 -> max texture that can be uploaded to GPU is 4096x4096.
+inline s32 R_MAX_TEXTURE_SIZE;
+
 inline constexpr s32 MAX_TEXTURE_SIZE = KB(256);
 inline constexpr s32 MAX_PLAYER_MOVE_FRAMES = 4;
 

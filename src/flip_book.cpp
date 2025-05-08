@@ -3,8 +3,6 @@
 
 #include "render/texture.h"
 
-#include <string.h>
-
 void create_game_flip_books(Flip_Book_List *list) {
 	// @Cleanup: looks like we should automate this.
 
@@ -25,7 +23,7 @@ Flip_Book create_flip_book(sid *texture_sids, s32 count, f32 frame_time) {
 	Flip_Book book = {};
 	book.frame_count = count;
 	book.switch_frame_time = frame_time;
-	memcpy(book.frames, texture_sids, count * sizeof(sid));
+	copy_bytes(book.frames, texture_sids, count * sizeof(sid));
 	return book;
 }
 

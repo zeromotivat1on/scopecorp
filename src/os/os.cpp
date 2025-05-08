@@ -1,10 +1,9 @@
 #include "pch.h"
 #include "log.h"
+#include "str.h"
 #include "os/file.h"
-#include <string.h>
 
-bool read_file(const char *path, void *buffer, u64 size, u64 *bytes_read, bool log_error)
-{
+bool read_file(const char *path, void *buffer, u64 size, u64 *bytes_read, bool log_error) {
 	File file = open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_READ, log_error);
 	if (file == INVALID_FILE) {
 		return false;
@@ -26,7 +25,7 @@ void fix_directory_delimiters(char *path) {
     bool last_was_slash = false;
     
     while (*read != '\0') {
-        if (*read== '\\') *read = '/';
+        if (*read == '\\') *read = '/';
         if (*read == '/') {
             if (!last_was_slash) {
                 *write++ = *read;
@@ -43,7 +42,7 @@ void fix_directory_delimiters(char *path) {
 }
 
 void remove_extension(char *path) {
-    const char *dot   = strrchr(path, '.');
+    const char *dot   = str_char_from_end(path, '.');
     const s64 dot_pos = dot - path;
     path[dot_pos] = '\0';
 }

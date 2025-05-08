@@ -78,6 +78,8 @@ template <class F> Defer<F> operator+(Defer_Ref, F f) { return {f}; }
 
 #define For(x) for (auto &it : (x))
 
+#define Align(x, alignment) (((x) + (alignment) - 1) & ~((alignment) - 1))
+
 #define RUN_TREE_FOLDER DIR_RUN_TREE
 #define DATA_FOLDER     DIR_DATA
 #define PACK_FOLDER     DIR_DATA
@@ -93,11 +95,11 @@ template <class F> Defer<F> operator+(Defer_Ref, F f) { return {f}; }
 #define SOUND_PATH(x)   SOUND_FOLDER x
 #define FONT_PATH(x)    FONT_FOLDER x
 
-#if DEBUG
+#if DEVELOPER
 #define Assert(x) if (x) {} else { report_assert(#x, __FILE__, __LINE__); }
 void report_assert(const char* condition, const char* file, s32 line);
 void debug_break();
-#elif RELEASE
+#else
 #define Assert(x)
 #endif
 
@@ -112,6 +114,10 @@ enum Direction {
 inline constexpr u64 MAX_ALLOCL_SIZE = MB(65);
 inline constexpr u64 MAX_ALLOCF_SIZE = MB(1);
 
+// l - linear allocation, push/pop bytes
+// f - frame allocation, cleared at the end of every frame
+// h - heap allocation, default implementation
+
 bool alloc_init();
 void alloc_shutdown();
 void *alloch(u64 size);
@@ -122,10 +128,6 @@ void  freel(u64 size);
 void *allocf(u64 size);
 void  freef();
 
-// l - linear allocation, push/pop bytes
-// f - frame allocation, cleared at the end of every frame
-// h - heap allocation, default implementation
-
 #define allocht(T)     (T *)alloch(sizeof(T))
 #define alloclt(T)     (T *)allocl(sizeof(T))
 #define allocft(T)     (T *)allocf(sizeof(T))
@@ -135,3 +137,7 @@ void  freef();
 
 #define freelt(T)     freel(sizeof(T));
 #define freeltn(T, n) freel(sizeof(T) * (n));
+
+void set_bytes (void *data, s32 value, u64 size);
+void copy_bytes(void *dst, const void *src, u64 size);
+void move_bytes(void *dst, const void *src, u64 size);

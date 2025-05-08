@@ -2,6 +2,7 @@
 #include "log.h"
 #include "profile.h"
 
+#include "render/render_init.h"
 #include "render/glad.h"
 
 #define VC_EXTRALEAN 1
@@ -128,7 +129,7 @@ bool init_render_context(Window *window) {
 	wgl_create_dummy_context(&dummy_window);
 
 	if (dummy_window.hglrc == NULL) {
-		error("Failed to create dummy opengl context");
+		error("Failed to create dummy OpenGL context");
 		return false;
 	}
 
@@ -158,7 +159,7 @@ bool init_render_context(Window *window) {
 
 	window->win32->hglrc = wglCreateContextAttribsARB(window->win32->hdc, 0, context_attributes);
 	if (window->win32->hglrc == NULL) {
-		error("Failed to create opengl context");
+		error("Failed to create OpenGL context");
 		return false;
 	}
 
@@ -175,6 +176,7 @@ bool init_render_context(Window *window) {
 	}
 
 	ShowWindow(window->win32->hwnd, SW_NORMAL);
+
     return true;
 }
 

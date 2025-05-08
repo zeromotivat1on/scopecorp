@@ -1,12 +1,13 @@
  #pragma once
 
+#include "math/vector.h"
+
 inline constexpr s32 MAX_RENDER_QUEUE_SIZE = 1024;
 inline constexpr s32 MAX_RENDER_COMMAND_UNIFORMS = 16;
 
 struct Entity;
 struct World;
 struct Window;
-struct vec3;
 
 enum Clear_Flag : u32 {
     CLEAR_FLAG_COLOR   = 0x1,

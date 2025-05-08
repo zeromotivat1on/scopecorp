@@ -1,8 +1,5 @@
 #pragma once
 
-//#include "memory_storage.h"
-//#include <string>
-
 inline constexpr f32 MAX_HASH_TABLE_LOAD_FACTOR = 0.7f;
 
 template<typename K, typename V>
@@ -26,12 +23,12 @@ struct Hash_Table {
 
         inline void advance_to_valid() {
             while (index < table->capacity && table->hashes[index] == 0) {
-                ++index;
+                index += 1;
             }
         }
 
         inline Iterator &operator++() {
-            ++index;
+            index += 1;
             advance_to_valid();
             return *this;
         }
@@ -69,12 +66,12 @@ struct Hash_Table {
 
         inline void advance_to_valid() {
             while (index < table->capacity && table->hashes[index] == 0) {
-                ++index;
+                index += 1;
             }
         }
 
         inline Const_Iterator &operator++() {
-            ++index;
+            index += 1;
             advance_to_valid();
             return *this;
         }
@@ -141,8 +138,9 @@ struct Hash_Table {
             if (hashes[index] == hash && compare_function(key, table_key)) {
                 return values + index;
             }
-            
-            if (++index > capacity) index = 0;
+
+            index += 1;
+            if (index > capacity) index = 0;
         }
 
         return null;
@@ -155,14 +153,15 @@ struct Hash_Table {
         s32 index = hash % capacity;
 
         while (hashes[index] != 0) {
-            if (++index > capacity) index = 0;
+            index += 1;
+            if (index > capacity) index = 0;
         }
 
         keys  [index] = key;
         values[index] = value;
         hashes[index] = hash;
 
-        count++;
+        count += 1;
         return values + index;
     }
 
@@ -178,7 +177,8 @@ struct Hash_Table {
                 return true;
             }
 
-            if (++index > capacity) index = 0;
+            index += 1;
+            if (index > capacity) index = 0;
         }
 
         return false;

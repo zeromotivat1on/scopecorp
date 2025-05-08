@@ -61,7 +61,5 @@ void close(Window *window);
 bool alive(Window *window);
 bool set_title(Window *window, const char *title);
 void lock_cursor(Window *window, bool lock);
-
-bool init_render_context(Window *window);
 void swap_buffers(Window *window);
 void set_vsync(bool enable);

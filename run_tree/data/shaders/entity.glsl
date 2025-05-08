@@ -11,8 +11,13 @@ layout (location = 1) out vec2     f_uv;
 layout (location = 2) out flat int f_entity_id;
 layout (location = 3) out vec3     f_pixel_world_location;
 
+layout (std140) uniform Transforms {
+    mat4 u_view;
+    mat4 u_proj;
+    mat4 u_view_proj;
+};
+
 uniform mat4 u_model;
-uniform mat4 u_view_proj;
 uniform vec2 u_uv_scale;
 
 void main() {
@@ -36,11 +41,14 @@ layout (location = 3) in vec3     f_pixel_world_location;
 layout (location = 0) out vec4 out_color;
 layout (location = 1) out int  out_entity_id;
 
-struct Light {
-    vec3 location;
-    vec3 ambient;
-    vec3 diffuse;
-    vec3 specular;
+#define MAX_LIGHTS 64
+
+layout (std140) uniform Lights {
+    uint u_light_count;
+    vec4 u_light_locations[MAX_LIGHTS];
+    vec4 u_light_ambients [MAX_LIGHTS];
+    vec4 u_light_diffuses [MAX_LIGHTS];
+    vec4 u_light_speculars[MAX_LIGHTS];
 };
 
 struct Material {
@@ -52,22 +60,21 @@ struct Material {
 
 uniform sampler2D u_sampler;
 uniform vec3      u_camera_location;
-uniform Light     u_light;
 uniform Material  u_material;
 
 void main() {
-    const vec3 ambient = u_light.ambient * u_material.ambient;
+    const vec3 ambient = u_light_ambients[0].xyz * u_material.ambient;
 
     const vec3 normal = normalize(f_normal);
-    const vec3 light_direction = normalize(u_light.location - f_pixel_world_location);
+    const vec3 light_direction = normalize(u_light_locations[0].xyz - f_pixel_world_location);
     const float diffuse_factor = max(dot(normal, light_direction), 0.0f);
-    const vec3 diffuse = u_light.diffuse * (diffuse_factor * u_material.diffuse);
+    const vec3 diffuse = u_light_diffuses[0].xyz * (diffuse_factor * u_material.diffuse);
 
     float specular_strength = 0.1f;
     const vec3 view_direction = normalize(u_camera_location - f_pixel_world_location);
     const vec3 reflected_direction = reflect(-light_direction, normal);
     const float specular_factor = pow(max(dot(view_direction, reflected_direction), 0.0f), u_material.shininess);
-    const vec3 specular = u_light.specular * (specular_factor * u_material.specular);
+    const vec3 specular = u_light_speculars[0].xyz * (specular_factor * u_material.specular);
 
     const vec3 phong = ambient + diffuse + specular;
     //out_color = vec4(1, 0, 0, 1) * vec4(phong, 1.0f);

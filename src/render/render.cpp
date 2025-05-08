@@ -21,8 +21,6 @@
 
 #include "math/math_core.h"
 
-#include <string.h>
-
 static s32 MAX_GEOMETRY_VERTEX_BUFFER_SIZE = 0;
 static s32 GEOMETRY_VERTEX_DIMENSION       = 0;
 static s32 GEOMETRY_VERTEX_SIZE            = 0;
@@ -33,14 +31,16 @@ static const char *fragment_region_begin_name = "#begin fragment";
 static const char *fragment_region_end_name   = "#end fragment";
 
 void init_render_registry(Render_Registry *registry) {
-	registry->frame_buffers  = Sparse_Array<Frame_Buffer>(MAX_FRAME_BUFFERS);
-	registry->vertex_buffers = Sparse_Array<Vertex_Buffer>(MAX_VERTEX_BUFFERS);
-	registry->vertex_arrays  = Sparse_Array<Vertex_Array>(MAX_VERTEX_ARRAYS);
-	registry->index_buffers  = Sparse_Array<Index_Buffer>(MAX_INDEX_BUFFERS);
-	registry->shaders        = Sparse_Array<Shader>(MAX_SHADERS);
-	registry->textures       = Sparse_Array<Texture>(MAX_TEXTURES);
-	registry->materials      = Sparse_Array<Material>(MAX_MATERIALS);
-	registry->uniforms       = Sparse_Array<Uniform>(MAX_UNIFORMS);
+	registry->frame_buffers   = Sparse_Array<Frame_Buffer>(MAX_FRAME_BUFFERS);
+	registry->vertex_buffers  = Sparse_Array<Vertex_Buffer>(MAX_VERTEX_BUFFERS);
+	registry->vertex_arrays   = Sparse_Array<Vertex_Array>(MAX_VERTEX_ARRAYS);
+	registry->index_buffers   = Sparse_Array<Index_Buffer>(MAX_INDEX_BUFFERS);
+	registry->shaders         = Sparse_Array<Shader>(MAX_SHADERS);
+	registry->textures        = Sparse_Array<Texture>(MAX_TEXTURES);
+	registry->materials       = Sparse_Array<Material>(MAX_MATERIALS);
+	registry->uniforms        = Sparse_Array<Uniform>(MAX_UNIFORMS);
+	registry->uniform_buffers = Sparse_Array<Uniform_Buffer>(MAX_UNIFORM_BUFFERS);
+	registry->uniform_blocks  = Sparse_Array<Uniform_Block>(MAX_UNIFORM_BLOCKS);
 
     registry->uniform_value_cache.data     = allocl(MAX_UNIFORM_VALUE_CACHE_SIZE);
     registry->uniform_value_cache.size     = 0;
@@ -633,7 +633,7 @@ u32 cache_uniform_value_on_cpu(s32 uniform_index, const void *data) {
     const auto &uniform = render_registry.uniforms[uniform_index];
     auto &cache         = render_registry.uniform_value_cache;
     
-    const u32 size = uniform.count * uniform_value_type_size(uniform.type);
+    const u32 size = uniform.count * get_uniform_type_size(uniform.type);
     Assert(cache.size + size <= cache.capacity);
         
     const u32 offset = cache.size;
@@ -648,8 +648,50 @@ void update_uniform_value_on_cpu(s32 uniform_index, const void *data, u32 offset
     const auto &cache   = render_registry.uniform_value_cache;
     Assert(offset < cache.size);
     
-    const u32 size = uniform.count * uniform_value_type_size(uniform.type);
+    const u32 size = uniform.count * get_uniform_type_size(uniform.type);
     memcpy((u8 *)cache.data + offset, data, size);
+}
+
+u32 get_uniform_type_size(Uniform_Type type) {
+    switch (type) {
+	case UNIFORM_U32:     return 1  * sizeof(u32);
+	case UNIFORM_F32:     return 1  * sizeof(f32);
+	case UNIFORM_F32_2:   return 2  * sizeof(f32);
+	case UNIFORM_F32_3:   return 3  * sizeof(f32);
+	case UNIFORM_F32_4:   return 4  * sizeof(f32);
+	case UNIFORM_F32_4X4: return 16 * sizeof(f32);
+    default:
+        error("Failed to get uniform size from type %d", type);
+        return 0;
+    }
+}
+
+u32 get_uniform_buffer_used_size(u32 ubi) {
+    const auto &buffer = render_registry.uniform_buffers[ubi];
+    u32 size = 0;
+    
+    for (s32 i = 0; i < buffer.block_count; ++i) {
+        const auto &block = render_registry.uniform_blocks[buffer.block_indices[i]];
+        size += block.cpu_size;
+    }
+    
+    return size;
+}
+
+u32 get_uniform_buffer_used_size_gpu_aligned(u32 ubi) {
+    const auto &buffer = render_registry.uniform_buffers[ubi];
+    u32 size = 0;
+    
+    for (s32 i = 0; i < buffer.block_count; ++i) {
+        const auto &block = render_registry.uniform_blocks[buffer.block_indices[i]];
+        size += block.gpu_size;
+    }
+
+    return size;
+}
+
+u32 get_uniform_block_field_size(const Uniform_Block_Field &field) {
+    return get_uniform_type_size(field.type) * field.count;
 }
 
 s32 create_material(s32 shader_index, s32 texture_index) {
@@ -689,7 +731,7 @@ void set_material_uniforms(s32 material_index, const s32 *uniform_indices, s32 c
     
     for (s32 i = 0; i < material.uniform_count; ++i) {
         const auto &uniform = render_registry.uniforms[material.uniform_indices[i]];
-        const u32 uniform_data_size = uniform.count * uniform_value_type_size(uniform.type);
+        const u32 uniform_data_size = uniform.count * get_uniform_type_size(uniform.type);
 
         const u32 offset = cache.size;
         cache.size += uniform_data_size;
@@ -730,19 +772,6 @@ void fill_render_command_with_material_data(s32 material_index, Render_Command* 
     for (s32 i = 0; i < material.uniform_count; ++i) {
         command->uniform_indices[i]       = material.uniform_indices[i];
         command->uniform_value_offsets[i] = material.uniform_value_offsets[i];
-    }
-}
-
-u32 uniform_value_type_size(Uniform_Type type) {
-    switch (type) {
-	case UNIFORM_U32:      return 1  * sizeof(u32);
-	case UNIFORM_F32:      return 1  * sizeof(f32);
-	case UNIFORM_F32_2:    return 2  * sizeof(f32);
-	case UNIFORM_F32_3:    return 3  * sizeof(f32);
-	case UNIFORM_F32_4X4:  return 16 * sizeof(f32);
-    default:
-        error("Failed to get uniform value size from type %d", type);
-        return 0;
     }
 }
 
