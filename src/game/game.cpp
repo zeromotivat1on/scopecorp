@@ -187,10 +187,10 @@ void tick(World *world, f32 dt) {
 	auto *camera = desired_camera(world);
     update_matrices(camera);
 
-    // @Note: using hardcoded uniform block for Transforms.
-    set_uniform_block_value(0, 0, 0, &camera->view,      get_uniform_type_size_gpu_aligned(UNIFORM_F32_4X4));
-    set_uniform_block_value(0, 1, 0, &camera->proj,      get_uniform_type_size_gpu_aligned(UNIFORM_F32_4X4));
-    set_uniform_block_value(0, 2, 0, &camera->view_proj, get_uniform_type_size_gpu_aligned(UNIFORM_F32_4X4));
+    set_uniform_block_value(UNIFORM_BLOCK_CAMERA, 0, 0, &camera->eye,       get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
+    set_uniform_block_value(UNIFORM_BLOCK_CAMERA, 1, 0, &camera->view,      get_uniform_type_size_gpu_aligned(UNIFORM_F32_4X4));
+    set_uniform_block_value(UNIFORM_BLOCK_CAMERA, 2, 0, &camera->proj,      get_uniform_type_size_gpu_aligned(UNIFORM_F32_4X4));
+    set_uniform_block_value(UNIFORM_BLOCK_CAMERA, 3, 0, &camera->view_proj, get_uniform_type_size_gpu_aligned(UNIFORM_F32_4X4));
     
 	auto &skybox = world->skybox;
 	skybox.uv_offset = camera->eye;
@@ -198,8 +198,8 @@ void tick(World *world, f32 dt) {
 	set_material_uniform_value(skybox.draw_data.material_index, "u_offset", &skybox.uv_offset);
     const auto &point_light = world->point_lights[0];
 
-    set_uniform_block_value(1, 0, 0, &world->point_lights.count, get_uniform_type_size_gpu_aligned(UNIFORM_U32));
-            
+    set_uniform_block_value(UNIFORM_BLOCK_LIGHTS, 0, 0, &world->point_lights.count, get_uniform_type_size_gpu_aligned(UNIFORM_U32));
+    
     For (world->point_lights) {
         auto &aabb = world->aabbs[it.aabb_index];
         const vec3 half_extent = (aabb.max - aabb.min) * 0.5f;
@@ -207,18 +207,20 @@ void tick(World *world, f32 dt) {
         aabb.min = it.location - half_extent;
         aabb.max = it.location + half_extent;
 
-        // @Note: using hardcoded uniform block for Lights.
-        set_uniform_block_value(1, 1, 0, &it.location, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
-        set_uniform_block_value(1, 2, 0, &it.ambient, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
-        set_uniform_block_value(1, 3, 0, &it.diffuse, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
-        set_uniform_block_value(1, 4, 0, &it.specular, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
+        // @Speed: its a bit painful to see several set calls instead of just one.
+        // @Cleanup: figure out to make it cleaner, maybe get rid of field index parameters;
+        // 0 field index is light count, so skipped.
+        set_uniform_block_value(UNIFORM_BLOCK_LIGHTS, 1, it.u_light_index, &it.location, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
+        set_uniform_block_value(UNIFORM_BLOCK_LIGHTS, 2, it.u_light_index, &it.ambient, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
+        set_uniform_block_value(UNIFORM_BLOCK_LIGHTS, 3, it.u_light_index, &it.diffuse, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
+        set_uniform_block_value(UNIFORM_BLOCK_LIGHTS, 4, it.u_light_index, &it.specular, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
     }
     
 	For (world->static_meshes) {
         const s32 mti = it.draw_data.material_index;
         const mat4 model = mat4_transform(it.location, it.rotation, it.scale);
 		set_material_uniform_value(mti, "u_model",           &model);
-		set_material_uniform_value(mti, "u_camera_location", &camera->eye);
+		//set_material_uniform_value(mti, "u_camera_location", &camera->eye);
 
         const auto *material = render_registry.materials.find(mti);
         if (material) {
@@ -418,7 +420,7 @@ void tick(World *world, f32 dt) {
         const s32 mti = player.draw_data.material_index;
         const mat4 model = mat4_transform(player.location, player.rotation, player.scale);
         set_material_uniform_value(mti, "u_model",           &model);
-        set_material_uniform_value(mti, "u_camera_location", &camera->eye);
+        //set_material_uniform_value(mti, "u_camera_location", &camera->eye);
 
         const auto *material = render_registry.materials.find(mti);
         if (material) {

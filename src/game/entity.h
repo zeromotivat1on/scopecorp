@@ -77,5 +77,6 @@ struct Point_Light : Entity {
     vec3 diffuse  = vec3_white;
     vec3 specular = vec3_white;
 
-    s32 aabb_index = INVALID_INDEX; // for mouse-pick in editor
+    s32 u_light_index = INVALID_INDEX; // index in Lights uniform block
+    s32 aabb_index    = INVALID_INDEX; // for mouse-pick in editor
 };

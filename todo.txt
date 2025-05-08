@@ -1,5 +1,6 @@
-- Logging from other threads cause crashes even log implementation is synchronized.
-  This problem is observed in shader hot reload system.
+- Shader #include parsing.
+
+- Synchronize logging.
 
 - Enqueue draw command order is crucial for expected output, we need to add sort/priority
   of submitted draw commands. Also possible to add additional draw queues, e.g for ui.
@@ -8,5 +9,3 @@
   usages and in particular uniform value updates in different entities.
 
 - Fix ray overlap from mouse position in case of rotated camera.
-
-- Actually use panic memory storage or get rid of it.

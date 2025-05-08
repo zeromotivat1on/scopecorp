@@ -4,7 +4,7 @@
 // Stores arrays of sparse and dense indices, so deleting elements from sparse array
 // do not cause shift, indices are updated instead. Items stored densely as well.
 template<typename T>
-struct Sparse_Array {    
+struct Sparse_Array {
     T   *items    = null;
     s32 *dense    = null;
     s32 *sparse   = null;

@@ -873,6 +873,9 @@ u32 get_uniform_block_field_size_gpu_aligned(const Uniform_Block_Field &field) {
 
 u32 get_uniform_block_field_offset_gpu_aligned(s32 uniform_block_index, s32 field_index, s32 field_element_index) {
     const auto &block = render_registry.uniform_blocks[uniform_block_index];
+    Assert(field_index < block.field_count);
+    Assert(field_element_index < block.fields[field_index].count);
+    
     return get_uniform_block_field_offset_gpu_aligned(block.fields, field_index, field_element_index);
 }
 
@@ -881,17 +884,19 @@ u32 get_uniform_block_size_gpu_aligned(s32 uniform_block_index) {
     return get_uniform_block_size_gpu_aligned(block.fields, block.field_count);
 }
 
-void set_uniform_block_value(s32 ubbi, s32 field_index, s32 field_element_index, const void *data, u32 size) {
+void set_uniform_block_value(s32 ubbi, u32 offset, const void *data, u32 size) {
     auto &block = render_registry.uniform_blocks[ubbi];
-    Assert(field_index < block.field_count);
-    
-    const u32 field_offset = get_uniform_block_field_offset_gpu_aligned(ubbi, field_index, field_element_index);
-    Assert(field_offset < block.gpu_size);
+    Assert(offset < block.gpu_size);
 
     const auto &uniform_buffer = render_registry.uniform_buffers[block.uniform_buffer_index];
     glBindBuffer(GL_UNIFORM_BUFFER, uniform_buffer.id);
-    glBufferSubData(GL_UNIFORM_BUFFER, block.offset + field_offset, size, data);
+    glBufferSubData(GL_UNIFORM_BUFFER, block.offset + offset, size, data);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
+}
+
+void set_uniform_block_value(s32 ubbi, s32 field_index, s32 field_element_index, const void *data, u32 size) {
+    const u32 field_offset = get_uniform_block_field_offset_gpu_aligned(ubbi, field_index, field_element_index);
+    set_uniform_block_value(ubbi, field_offset, data, size);
 }
 
 static s32 gl_texture_format(Texture_Format_Type format) {

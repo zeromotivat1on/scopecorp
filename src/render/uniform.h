@@ -8,6 +8,12 @@ inline s32 R_UNIFORM_BUFFER_OFFSET_ALIGNMENT;
 
 inline s32 R_MAX_UNIFORM_BLOCK_SIZE;
 
+inline s32 UNIFORM_BLOCK_CAMERA;
+inline s32 UNIFORM_BLOCK_LIGHTS;
+
+inline constexpr s32 UNIFORM_BINDING_CAMERA = 0;
+inline constexpr s32 UNIFORM_BINDING_LIGHTS = 1;
+
 inline constexpr s32 MAX_UNIFORM_BUFFER_BLOCKS = 32;
 inline constexpr s32 MAX_UNIFORM_BLOCK_FIELDS  = 16;
 inline constexpr u32 MAX_UNIFORM_VALUE_CACHE_SIZE = KB(16);
@@ -86,4 +92,5 @@ u32 get_uniform_block_field_size(const Uniform_Block_Field &field);
 u32 get_uniform_block_field_size_gpu_aligned(const Uniform_Block_Field &field);
 u32 get_uniform_block_field_offset_gpu_aligned(s32 uniform_block_index, s32 field_index, s32 field_element_index);
 u32 get_uniform_block_size_gpu_aligned(s32 uniform_block_index);
+void set_uniform_block_value(s32 ubbi, u32 offset, const void *data, u32 size);
 void set_uniform_block_value(s32 ubbi, s32 field_index, s32 field_element_index, const void *data, u32 size);

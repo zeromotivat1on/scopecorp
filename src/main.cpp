@@ -295,27 +295,11 @@ s32 main() {
 		const u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
 		skybox.draw_data.index_buffer_index = create_index_buffer(indices, COUNT(indices), BUFFER_USAGE_STATIC);
 	}
-
-    const s32 ubi = create_uniform_buffer(KB(16));
-    const Uniform_Block_Field transform_matrices_fields[] = {
-        { UNIFORM_F32_4X4, 1 },
-        { UNIFORM_F32_4X4, 1 },
-        { UNIFORM_F32_4X4, 1 },
-    };
-    const s32 ubbi_transform_matrices = create_uniform_block(ubi, 0, "Transforms", transform_matrices_fields, COUNT(transform_matrices_fields));
-    
-    constexpr s32 MAX_UNIFORM_LIGHTS = 64; // must be the same as in shaders
-    const Uniform_Block_Field lights_fields[] = {
-        { UNIFORM_U32,   1 },
-        { UNIFORM_F32_3, MAX_UNIFORM_LIGHTS },
-        { UNIFORM_F32_3, MAX_UNIFORM_LIGHTS },
-        { UNIFORM_F32_3, MAX_UNIFORM_LIGHTS },
-        { UNIFORM_F32_3, MAX_UNIFORM_LIGHTS },
-    };
-    const s32 ubbi_lights = create_uniform_block(ubi, 1, "Lights", lights_fields, COUNT(lights_fields));
     
     {
-        Point_Light &point_light = world->point_lights[world->point_lights.add_default()];
+        const s32 index = world->point_lights.add_default();
+        
+        Point_Light &point_light = world->point_lights[index];
         point_light.id = 10000;
         
         point_light.location = vec3(0.0f, 2.0f, 0.0f);
@@ -325,13 +309,39 @@ s32 main() {
         point_light.diffuse  = vec3(0.5f);
         point_light.specular = vec3(1.0f);
 
+        point_light.u_light_index = index;
         point_light.aabb_index = world->aabbs.add_default();
         
         auto &aabb = world->aabbs[point_light.aabb_index];
 		aabb.min = point_light.location - point_light.scale * 0.5f;
 		aabb.max = aabb.min + point_light.scale;
     }
+
+    {
+        constexpr u32 UNIFORM_BUFFER_SIZE = KB(16);
+        const s32 ubi = create_uniform_buffer(UNIFORM_BUFFER_SIZE);
+        
+        constexpr s32 MAX_UNIFORM_LIGHTS = 64; // must be the same as in shaders
+        const Uniform_Block_Field lights_fields[] = {
+            { UNIFORM_U32,   1 },
+            { UNIFORM_F32_3, MAX_UNIFORM_LIGHTS },
+            { UNIFORM_F32_3, MAX_UNIFORM_LIGHTS },
+            { UNIFORM_F32_3, MAX_UNIFORM_LIGHTS },
+            { UNIFORM_F32_3, MAX_UNIFORM_LIGHTS },
+        };
+
+        const Uniform_Block_Field camera_fields[] = {
+            { UNIFORM_F32_3,   1 },
+            { UNIFORM_F32_4X4, 1 },
+            { UNIFORM_F32_4X4, 1 },
+            { UNIFORM_F32_4X4, 1 },
+        };
+
+        UNIFORM_BLOCK_LIGHTS = create_uniform_block(ubi, UNIFORM_BINDING_LIGHTS, "Lights", lights_fields, COUNT(lights_fields));
+        UNIFORM_BLOCK_CAMERA = create_uniform_block(ubi, UNIFORM_BINDING_CAMERA, "Camera", camera_fields, COUNT(camera_fields));
     
+    }
+
 	Camera &camera = world->camera;
 	camera.mode = MODE_PERSPECTIVE;
 	camera.yaw = 90.0f;
