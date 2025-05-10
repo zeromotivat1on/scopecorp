@@ -14,6 +14,9 @@ inline s32 UNIFORM_BLOCK_LIGHTS;
 inline constexpr s32 UNIFORM_BINDING_CAMERA = 0;
 inline constexpr s32 UNIFORM_BINDING_LIGHTS = 1;
 
+inline const char *UNIFORM_BLOCK_NAME_LIGHTS = "Lights";
+inline const char *UNIFORM_BLOCK_NAME_CAMERA = "Camera";
+
 inline constexpr s32 MAX_UNIFORM_BUFFER_BLOCKS = 32;
 inline constexpr s32 MAX_UNIFORM_BLOCK_FIELDS  = 16;
 inline constexpr u32 MAX_UNIFORM_VALUE_CACHE_SIZE = KB(16);

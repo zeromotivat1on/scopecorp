@@ -337,8 +337,8 @@ s32 main() {
             { UNIFORM_F32_4X4, 1 },
         };
 
-        UNIFORM_BLOCK_LIGHTS = create_uniform_block(ubi, UNIFORM_BINDING_LIGHTS, "Lights", lights_fields, COUNT(lights_fields));
-        UNIFORM_BLOCK_CAMERA = create_uniform_block(ubi, UNIFORM_BINDING_CAMERA, "Camera", camera_fields, COUNT(camera_fields));
+        UNIFORM_BLOCK_LIGHTS = create_uniform_block(ubi, UNIFORM_BINDING_LIGHTS, UNIFORM_BLOCK_NAME_LIGHTS, lights_fields, COUNT(lights_fields));
+        UNIFORM_BLOCK_CAMERA = create_uniform_block(ubi, UNIFORM_BINDING_CAMERA, UNIFORM_BLOCK_NAME_CAMERA, camera_fields, COUNT(camera_fields));
     
     }
 
