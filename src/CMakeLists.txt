@@ -19,7 +19,7 @@ target_sources(${GAME_EXE} PRIVATE
                 game/game.cpp
                 editor/editor.cpp
                 math/matrix.cpp math/math.cpp math/quat.cpp math/vector.cpp
-                render/render.cpp)
+                render/render.cpp render/shader.cpp)
                 
 target_precompile_headers(${GAME_EXE} PUBLIC pch.h)
 target_include_directories(${GAME_EXE} PRIVATE "${PROJECT_SOURCE_DIR}/src")

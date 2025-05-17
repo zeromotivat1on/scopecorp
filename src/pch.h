@@ -80,20 +80,12 @@ template <class F> Defer<F> operator+(Defer_Ref, F f) { return {f}; }
 
 #define Align(x, alignment) (((x) + (alignment) - 1) & ~((alignment) - 1))
 
-#define RUN_TREE_FOLDER DIR_RUN_TREE
-#define DATA_FOLDER     DIR_DATA
-#define PACK_FOLDER     DIR_DATA
-#define SHADER_FOLDER   DIR_SHADERS
-#define TEXTURE_FOLDER  DIR_TEXTURES
-#define SOUND_FOLDER    DIR_SOUNDS
-#define FONT_FOLDER     DIR_FONTS
-
-#define DATA_PATH(x)    DATA_FOLDER x
-#define PACK_PATH(x)    PACK_FOLDER x
-#define SHADER_PATH(x)  SHADER_FOLDER x
-#define TEXTURE_PATH(x) TEXTURE_FOLDER x
-#define SOUND_PATH(x)   SOUND_FOLDER x
-#define FONT_PATH(x)    FONT_FOLDER x
+#define PATH_DATA(x)    DIR_DATA x
+#define PATH_PACK(x)    DIR_DATA x
+#define PATH_SHADER(x)  DIR_SHADERS x
+#define PATH_TEXTURE(x) DIR_TEXTURES x
+#define PATH_SOUND(x)   DIR_SOUNDS x
+#define PATH_FONT(x)    DIR_FONTS x
 
 #if DEVELOPER
 #define Assert(x) if (x) {} else { report_assert(#x, __FILE__, __LINE__); }
@@ -114,12 +106,15 @@ enum Direction {
 inline constexpr u64 MAX_ALLOCL_SIZE = MB(65);
 inline constexpr u64 MAX_ALLOCF_SIZE = MB(1);
 
-// l - linear allocation, push/pop bytes
-// f - frame allocation, cleared at the end of every frame
-// h - heap allocation, default implementation
+// s  - stack allocation, default implementation
+// h  - heap allocation, default implementation
+// l  - linear allocation, push/pop bytes
+// f  - frame allocation, cleared at the end of every frame
+// lp - linear allocation from given pointer, push/pop bytes
 
 bool alloc_init();
 void alloc_shutdown();
+void *allocs(u64 size);
 void *alloch(u64 size);
 void *realloch(void *ptr, u64 size);
 void  freeh(void *ptr);
@@ -127,6 +122,8 @@ void *allocl(u64 size);
 void  freel(u64 size);
 void *allocf(u64 size);
 void  freef();
+void *alloclp(void **ptr, u64 size);
+void  freelp(void **ptr, u64 size);
 
 #define allocht(T)     (T *)alloch(sizeof(T))
 #define alloclt(T)     (T *)allocl(sizeof(T))

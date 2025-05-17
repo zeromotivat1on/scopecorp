@@ -1,5 +1,7 @@
 #pragma once
 
+#include "os/time.h"
+
 #ifdef TRACY_ENABLE
 #include "tracy/tracy/Tracy.hpp"
 #include "tracy/tracy/TracyC.h"

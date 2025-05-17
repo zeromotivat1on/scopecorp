@@ -10,12 +10,24 @@ void str_copy(char *dst, const char *src) {
     strcpy(dst, src);
 }
 
+void str_copy(char *dst, const char *src, u64 n) {
+    strncpy(dst, src, n);
+}
+
 void str_glue(char *dst, const char *src) {
     strcat(dst, src);
 }
 
+void str_glue(char *dst, const char *src, u64 n) {
+    strncat(dst, src, n);
+}
+
 bool str_cmp(const char *a, const char *b) {
     return strcmp(a, b) == 0;
+}
+
+bool str_cmp(const char *a, const char *b, u64 n) {
+    return strncmp(a, b, n) == 0;
 }
 
 char *str_sub(char *str, const char *sub) {

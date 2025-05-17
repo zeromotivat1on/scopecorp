@@ -130,6 +130,8 @@ s32 main() {
 
     auto &viewport_frame_buffer = render_registry.frame_buffers[viewport.frame_buffer_index];
 
+    viewport_frame_buffer.quantize_color_count = 32;
+    
 #if 0
     viewport_frame_buffer.pixel_size                  = 1.0f;
     viewport_frame_buffer.curve_distortion_factor     = 0.25f;
@@ -141,11 +143,12 @@ s32 main() {
 #endif
     
 	Hot_Reload_List hot_reload_list = {};
-	register_hot_reload_directory(&hot_reload_list, SHADER_FOLDER);
-	register_hot_reload_directory(&hot_reload_list, TEXTURE_FOLDER);
-	register_hot_reload_directory(&hot_reload_list, SOUND_FOLDER);
+    // @Note: shader includes does not count as shader hot reload.
+	register_hot_reload_directory(&hot_reload_list, DIR_SHADERS);
+	register_hot_reload_directory(&hot_reload_list, DIR_TEXTURES);
+	register_hot_reload_directory(&hot_reload_list, DIR_SOUNDS);
 
-	Font *font = create_font(FONT_PATH("consola.ttf"));
+	Font *font = create_font(PATH_FONT("consola.ttf"));
 	Font_Atlas *atlas = bake_font_atlas(font, 33, 126, 16);
     
 	world = alloclt(World);
@@ -372,7 +375,7 @@ s32 main() {
         tick(world, delta_time);        
 		set_listener_pos(player.location);
 
-        // @Cleanup: this one is pretty slow (~0.3ms), but bearable for now;
+        // @Cleanup: this one is pretty slow, but bearable for now (~0.2ms);
         // move to other thread later if it becomes a big deal.
         check_for_hot_reload(&hot_reload_list);
 

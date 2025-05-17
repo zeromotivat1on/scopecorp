@@ -57,6 +57,10 @@ void alloc_shutdown() {
 	vm_release(vm_base);
 }
 
+void *allocs(u64 size) {
+    return alloca(size);
+}
+
 void *alloch(u64 size) {
     return malloc(size);
 }
@@ -90,6 +94,16 @@ void *allocf(u64 size) {
 
 void freef() {
     allocf_size = 0;
+}
+
+void *alloclp(void **ptr, u64 size) {
+    void *ret = *ptr;
+    *ptr = (char *)*ptr + size;
+    return ret;
+}
+
+void freelp(void **ptr, u64 size) {
+    *ptr = (char *)*ptr - size;
 }
 
 void set_bytes(void *data, s32 value, u64 size) {

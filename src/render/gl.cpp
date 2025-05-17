@@ -42,7 +42,7 @@ void detect_render_capabilities() {
     glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE,          &R_MAX_UNIFORM_BLOCK_SIZE);
 
     log("Render capabilities:");
-    log("  Texture: Max Size %d texels", R_MAX_TEXTURE_SIZE);
+    log("  Texture: Max Size %dx%d texels", R_MAX_TEXTURE_SIZE, R_MAX_TEXTURE_SIZE);
     log("  Uniform buffer: Max Bindings %d | Base Alignment %d | Offset Alignment %d",
         R_MAX_UNIFORM_BUFFER_BINDINGS,
         R_UNIFORM_BUFFER_BASE_ALIGNMENT,
@@ -660,13 +660,13 @@ static u32 gl_link_program(u32 vertex_shader, u32 fragment_shader) {
 	return program;
 }
 
-s32 create_shader(const char *source) {
+s32 create_shader(const char *source, const char *path) {
 	char *vertex_src   = (char *)allocl(MAX_SHADER_SIZE);
 	char *fragment_src = (char *)allocl(MAX_SHADER_SIZE);
     defer { freel(2 * MAX_SHADER_SIZE); };
 
-	if (!parse_shader_source((char *)source, vertex_src, fragment_src)) {
-        error("Failed to parse shader");
+	if (!parse_shader(source, vertex_src, fragment_src)) {
+        error("Failed to create shader %s", path);
         return INVALID_INDEX;
     }
 
@@ -679,15 +679,15 @@ s32 create_shader(const char *source) {
 	return render_registry.shaders.add(shader);
 }
 
-bool recreate_shader(s32 shader_index, const char *source) {
+bool recreate_shader(s32 shader_index, const char *source, const char *path) {
     auto &shader = render_registry.shaders[shader_index];
 
     char *vertex_src   = (char *)allocl(MAX_SHADER_SIZE);
 	char *fragment_src = (char *)allocl(MAX_SHADER_SIZE);
     defer { freel(2 * MAX_SHADER_SIZE); };
 
-	if (!parse_shader_source((char *)source, vertex_src, fragment_src)) {
-        error("Failed to parse shader");
+	if (!parse_shader(source, vertex_src, fragment_src)) {
+        error("Failed to recreate shader %s", path);
         return false;
     }
     
@@ -699,6 +699,10 @@ bool recreate_shader(s32 shader_index, const char *source) {
 	shader.id = gl_link_program(vertex_shader, fragment_shader);
 
 	return true;
+}
+
+const char *get_desired_shader_file_extension() {
+    return ".glsl";
 }
 
 void send_uniform_value_to_gpu(s32 shader_index, s32 uniform_index, u32 offset) {

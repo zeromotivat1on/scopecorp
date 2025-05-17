@@ -26,11 +26,6 @@ static s32 MAX_GEOMETRY_VERTEX_BUFFER_SIZE = 0;
 static s32 GEOMETRY_VERTEX_DIMENSION       = 0;
 static s32 GEOMETRY_VERTEX_SIZE            = 0;
 
-static const char *vertex_region_begin_name   = "#begin vertex";
-static const char *vertex_region_end_name     = "#end vertex";
-static const char *fragment_region_begin_name = "#begin fragment";
-static const char *fragment_region_end_name   = "#end fragment";
-
 void init_render_registry(Render_Registry *registry) {
 	registry->frame_buffers   = Sparse_Array<Frame_Buffer>(MAX_FRAME_BUFFERS);
 	registry->vertex_buffers  = Sparse_Array<Vertex_Buffer>(MAX_VERTEX_BUFFERS);
@@ -800,43 +795,6 @@ s32 vertex_component_size(Vertex_Component_Type type) {
 		error("Failed to retreive size from unknown vertex attribute type %d", type);
 		return -1;
 	}
-}
-
-static bool parse_shader_region(const char *shader_src, char *region_src, const char *region_begin_name, const char *region_end_name) {
-    const char *region_begin = str_sub(shader_src, region_begin_name);
-    const char *region_end   = str_sub(shader_src, region_end_name);
-
-    if (!region_begin || !region_end) {
-        error("Failed to find shader region %s ... %s", region_begin_name, region_end_name);
-        return false;
-    }
-
-    region_begin += str_size(region_begin_name);
-
-    const u64 region_size = region_end - region_begin;
-    if (region_size >= MAX_SHADER_SIZE) {
-        error("Shader region %s ... %s size is too big %u", region_begin_name, region_end_name, region_size);
-        return false;
-    }
-    
-    copy_bytes(region_src, region_begin, region_size);
-	region_src[region_size] = '\0';
-
-    return true;
-}
-
-bool parse_shader_source(const char *shader_src, char *vertex_src, char *fragment_src) {
-    if (!parse_shader_region(shader_src, vertex_src, vertex_region_begin_name, vertex_region_end_name)) {
-        error("Failed to parse vertex shader region");
-        return false;
-    }
-
-    if (!parse_shader_region(shader_src, fragment_src, fragment_region_begin_name, fragment_region_end_name)) {
-        error("Failed to parse fragment shader region");
-        return false;
-    }
-
-    return true;
 }
 
 void update_render_stats() {

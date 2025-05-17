@@ -1,6 +1,8 @@
 #begin vertex
 #version 460 core
 
+#include "uniform_blocks.glsl.h"
+
 layout (location = 0) in vec3 v_location;
 layout (location = 1) in vec3 v_normal;
 layout (location = 2) in vec2 v_uv;
@@ -10,13 +12,6 @@ layout (location = 0) out vec3     f_normal;
 layout (location = 1) out vec2     f_uv;
 layout (location = 2) out flat int f_entity_id;
 layout (location = 3) out vec3     f_pixel_world_location;
-
-layout (std140) uniform Camera {
-    vec3 u_camera_location;
-    mat4 u_view;
-    mat4 u_proj;
-    mat4 u_view_proj;
-};
 
 uniform mat4 u_model;
 uniform vec2 u_uv_scale;
@@ -34,6 +29,8 @@ void main() {
 #begin fragment
 #version 460 core
 
+#include "uniform_blocks.glsl.h"
+
 layout (location = 0) in vec3     f_normal;
 layout (location = 1) in vec2     f_uv;
 layout (location = 2) in flat int f_entity_id;
@@ -41,23 +38,6 @@ layout (location = 3) in vec3     f_pixel_world_location;
 
 layout (location = 0) out vec4 out_color;
 layout (location = 1) out int  out_entity_id;
-
-#define MAX_LIGHTS 64
-
-layout (std140) uniform Camera {
-    vec3 u_camera_location;
-    mat4 u_view;
-    mat4 u_proj;
-    mat4 u_view_proj;
-};
-
-layout (std140) uniform Lights {
-    uint u_light_count;
-    vec3 u_light_locations[MAX_LIGHTS];
-    vec3 u_light_ambients [MAX_LIGHTS];
-    vec3 u_light_diffuses [MAX_LIGHTS];
-    vec3 u_light_speculars[MAX_LIGHTS];
-};
 
 struct Material {
     vec3  ambient;

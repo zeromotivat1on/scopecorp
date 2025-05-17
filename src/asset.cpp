@@ -12,26 +12,47 @@
 #include "audio/audio_registry.h"
 #include "render/render_registry.h"
 
+struct Asset_Source_Callback_Data {
+    Asset_Type asset_type = ASSET_NONE;
+    const char *filter_ext = null;
+};
+
 static u64 asset_table_hash(const sid &a) {
     return a;
 }
 
 static void init_asset_source_callback(const File_Callback_Data *data) {
+    auto *ascd = (Asset_Source_Callback_Data *)data->user_data;
+    const char *ext = str_char_from_end(data->path, '.');
+    
+    if (ascd->filter_ext && str_cmp(ascd->filter_ext, ext) == false) {      
+        //log("File path from callback %s is not accepted due to extension filter fail %s", data->path, ascd->filter_ext);
+        return;
+    }
+
+    if (ascd->asset_type == ASSET_SHADER_INCLUDE) {
+        asset_shader_include_count += 1;
+    }
+        
     Asset_Source source;
-    source.type = *(Asset_Type *)data->user_data;
+    source.type = ascd->asset_type;
     source.last_write_time = data->last_write_time;
     
     str_copy(source.path, data->path);
     fix_directory_delimiters(source.path);
     
     char relative_path[MAX_PATH_SIZE];
-    convert_to_relative_asset_path(data->path, relative_path);
+    convert_to_relative_asset_path(relative_path, data->path);
     
     asset_source_table.add(cache_sid(relative_path), source);
 }
 
-static inline void init_asset_sources(const char *path, Asset_Type type) {
-    for_each_file(path, init_asset_source_callback, &type);
+static inline void init_asset_sources(const char *path, Asset_Type type, const char *filter_ext = null) {
+    Asset_Source_Callback_Data ascd;
+    ascd.asset_type = type;
+    ascd.filter_ext = filter_ext;
+    
+    for_each_file(path, init_asset_source_callback, &ascd);
 }
 
 void init_asset_source_table(Asset_Source_Table *table) {
@@ -40,9 +61,11 @@ void init_asset_source_table(Asset_Source_Table *table) {
     *table = Asset_Source_Table(MAX_ASSETS);
     table->hash_function = &asset_table_hash;
 
-    init_asset_sources(SHADER_FOLDER,  ASSET_SHADER);
-    init_asset_sources(TEXTURE_FOLDER, ASSET_TEXTURE);
-    init_asset_sources(SOUND_FOLDER,   ASSET_SOUND);
+    // @Fix: we can't control order of values in hash table like this.
+    init_asset_sources(DIR_SHADERS,  ASSET_SHADER_INCLUDE, ".h");
+    init_asset_sources(DIR_SHADERS,  ASSET_SHADER, get_desired_shader_file_extension());
+    init_asset_sources(DIR_TEXTURES, ASSET_TEXTURE);
+    init_asset_sources(DIR_SOUNDS,   ASSET_SOUND);
 
     log("Initialized asset source table in %.2fms", CHECK_SCOPE_TIMER_MS(init));
 }
@@ -136,27 +159,68 @@ void save_asset_pack(const char *path) {
 
     auto *assets = (Asset *)allocl(asset_data_size);
     defer { freel(asset_source_table.count * sizeof(Asset)); };
-
+    
     s32 count = 0;
+
+    // @Cleanup: remove this loop, figure out how to load shader includes before shaders.
     For (asset_source_table) {
-        auto *asset = assets + count++;
-        asset->type = it.value.type;
-        asset->data_offset = get_file_pointer_position(file);
-        asset->registry_index = INVALID_INDEX;
+        if (it.value.type == ASSET_SHADER_INCLUDE) {
+            auto &asset = assets[count];
+            asset.type = it.value.type;
+            asset.data_offset = get_file_pointer_position(file);
+            asset.registry_index = INVALID_INDEX;
+            convert_to_relative_asset_path(asset.relative_path, it.value.path);
         
-        convert_to_relative_asset_path(it.value.path, asset->relative_path);
+            count += 1;
         
-        switch (it.value.type) {
-        case ASSET_SHADER: {
             void *buffer = allocl(MAX_SHADER_SIZE);
             u64 bytes_read = 0;
             read_file(it.value.path, buffer, MAX_SHADER_SIZE, &bytes_read);
 
             write_file(file, buffer, bytes_read);
             
-            asset->as_shader.size = (u32)bytes_read;
+            asset.as_shader_include.size = (u32)bytes_read;
             
             freel(MAX_SHADER_SIZE);
+        }
+    }
+    
+    For (asset_source_table) {
+        auto &asset = assets[count];
+        asset.type = it.value.type;
+        asset.data_offset = get_file_pointer_position(file);
+        asset.registry_index = INVALID_INDEX;
+        convert_to_relative_asset_path(asset.relative_path, it.value.path);
+
+        if (it.value.type != ASSET_SHADER_INCLUDE) // @Cleanup: temp if
+            count += 1;
+        
+        switch (it.value.type) {
+        case ASSET_SHADER: {           
+            void *buffer = allocl(MAX_SHADER_SIZE);
+            u64 bytes_read = 0;
+            read_file(it.value.path, buffer, MAX_SHADER_SIZE, &bytes_read);
+
+            write_file(file, buffer, bytes_read);
+            
+            asset.as_shader.size = (u32)bytes_read;
+            
+            freel(MAX_SHADER_SIZE);
+            
+            break;
+        }
+        case ASSET_SHADER_INCLUDE: {
+            /*
+            void *buffer = allocl(MAX_SHADER_SIZE);
+            u64 bytes_read = 0;
+            read_file(it.value.path, buffer, MAX_SHADER_SIZE, &bytes_read);
+
+            write_file(file, buffer, bytes_read);
+            
+            asset.as_shader_include.size = (u32)bytes_read;
+            
+            freel(MAX_SHADER_SIZE);
+            */
             break;
         }
         case ASSET_TEXTURE: {            
@@ -169,9 +233,9 @@ void save_asset_pack(const char *path) {
             const u64 size = memory.width * memory.height * memory.channel_count;
             write_file(file, memory.data, size);
 
-            asset->as_texture.width  = memory.width;
-            asset->as_texture.height = memory.height;
-            asset->as_texture.channel_count = memory.channel_count;
+            asset.as_texture.width  = memory.width;
+            asset.as_texture.height = memory.height;
+            asset.as_texture.channel_count = memory.channel_count;
             
             free_texture_memory(&memory);
             break;
@@ -185,16 +249,16 @@ void save_asset_pack(const char *path) {
 
             write_file(file, memory.data, memory.size);
 
-            asset->as_sound.size          = memory.size;
-            asset->as_sound.sample_rate   = memory.sample_rate;
-            asset->as_sound.channel_count = memory.channel_count;
-            asset->as_sound.bit_depth     = memory.bit_depth;
+            asset.as_sound.size          = memory.size;
+            asset.as_sound.sample_rate   = memory.sample_rate;
+            asset.as_sound.channel_count = memory.channel_count;
+            asset.as_sound.bit_depth     = memory.bit_depth;
             
             free_sound_memory(&memory);
             break;
         }
         default: {
-            error("Asset source for %s has no valid type", it.value.path);
+            error("Asset source for %s has invalid type", it.value.path);
             break;
         }
         }
@@ -233,6 +297,21 @@ void load_asset_pack(const char *path, Asset_Table *table) {
     const u64 asset_data_offset = sizeof(Asset_Pack_Header);
     set_file_pointer_position(file, asset_data_offset);
 
+    // This buffer is temp allocated for all shader include headers that will
+    // be used/reused during shader creation and freed at the end of asset pack load,
+    // which obviously indicated that we are done loading game assets.
+    //
+    // So, this is very important that all shader includes should come before shader
+    // sources (or at least those who use them) in asset pack file.
+    const s32 MAX_SHADER_INCLUDE_BUFFER_SIZE = asset_shader_include_count * MAX_SHADER_SIZE;
+    s32 shader_include_buffer_size = 0;
+    void *shader_include_buffer = allocl(MAX_SHADER_INCLUDE_BUFFER_SIZE);
+
+#if DEVELOPER
+    // Clear buffer only in game build without hot reload feature.
+    defer { freel(MAX_SHADER_INCLUDE_BUFFER_SIZE); };
+#endif
+    
     for (u32 i = 0; i < header.asset_count; ++i) {
         Asset asset;
         read_file(file, &asset, sizeof(Asset));
@@ -248,8 +327,24 @@ void load_asset_pack(const char *path, Asset_Table *table) {
             set_file_pointer_position(file, asset.data_offset);
             read_file(file, data, shader.size);
             set_file_pointer_position(file, last_position);
+            
+            asset.registry_index = create_shader((char *)data, asset.relative_path);
+            
+            break;
+        }
+        case ASSET_SHADER_INCLUDE: {
+            auto &shader_include = asset.as_shader_include;
 
-            asset.registry_index = create_shader((char *)data);
+            void *data = alloclp(&shader_include_buffer, MAX_SHADER_SIZE);
+            shader_include_buffer_size += MAX_SHADER_SIZE;
+            Assert(shader_include_buffer_size <= MAX_SHADER_INCLUDE_BUFFER_SIZE);
+
+            const u64 last_position = get_file_pointer_position(file);
+            set_file_pointer_position(file, asset.data_offset);
+            read_file(file, data, shader_include.size);
+            set_file_pointer_position(file, last_position);
+
+            shader_include.source = (char *)data;
             
             break;
         }
@@ -302,7 +397,7 @@ void load_asset_pack(const char *path, Asset_Table *table) {
     log("Loaded asset pack %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(load));
 }
 
-void convert_to_relative_asset_path(const char *full_path, char *relative_path) {
+void convert_to_relative_asset_path(char *relative_path, const char *full_path) {
     const char *data = str_sub(full_path, "\\data");
     if (!data) data = str_sub(full_path, "/data");
     if (!data) return;
@@ -311,8 +406,8 @@ void convert_to_relative_asset_path(const char *full_path, char *relative_path) 
     fix_directory_delimiters(relative_path);
 }
 
-void convert_to_full_asset_path(const char *relative_path, char *full_path) {
-    str_copy(full_path, RUN_TREE_FOLDER);
+void convert_to_full_asset_path(char *full_path, const char *relative_path) {
+    str_copy(full_path, DIR_RUN_TREE);
     str_glue(full_path, relative_path);
     fix_directory_delimiters(full_path);
 }

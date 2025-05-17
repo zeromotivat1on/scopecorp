@@ -19,14 +19,17 @@ void register_hot_reload_directory(Hot_Reload_List *list, const char *path) {
 
 static void hot_reload_file_callback(const File_Callback_Data *callback_data) {
     char relative_path[MAX_PATH_SIZE];
-    convert_to_relative_asset_path(callback_data->path, relative_path);
+    convert_to_relative_asset_path(relative_path, callback_data->path);
 
     const auto sid = cache_sid(relative_path);
     if (Asset_Source *source = asset_source_table.find(sid)) {
         if (source->last_write_time != callback_data->last_write_time) {
             auto list = (Hot_Reload_List *)callback_data->user_data;
+
             Assert(list->reload_count < MAX_HOT_RELOAD_ASSETS);
-            list->reload_sids[list->reload_count++] = sid;
+            list->reload_sids[list->reload_count] = sid;
+            list->reload_count += 1;
+            
             source->last_write_time = callback_data->last_write_time;
         }
     }
@@ -44,7 +47,7 @@ void check_for_hot_reload(Hot_Reload_List *list) {
         Asset &asset = asset_table[list->reload_sids[i]];
 
         char path[MAX_PATH_SIZE];
-        convert_to_full_asset_path(asset.relative_path, path);
+        convert_to_full_asset_path(path, asset.relative_path);
             
         switch (asset.type) {
         case ASSET_SHADER: {
@@ -55,7 +58,7 @@ void check_for_hot_reload(Hot_Reload_List *list) {
             if (read_file(path, data, MAX_SHADER_SIZE, &bytes_read)) {
                 data[bytes_read] = '\0';
     
-                if (recreate_shader(asset.registry_index, data)) {
+                if (recreate_shader(asset.registry_index, data, asset.relative_path)) {
                     log("Hot reloaded shader %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(asset));
                 } else {
                     error("Failed to hot reload shader %s, see errors above", path);

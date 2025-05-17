@@ -1,6 +1,6 @@
 #pragma once
 
-inline constexpr s32 MAX_SHADER_SIZE = KB(8);
+inline constexpr s32 MAX_SHADER_SIZE = KB(64);
 
 typedef u64 sid;
 
@@ -21,7 +21,8 @@ inline Shader_Sid_List shader_sids;
 
 void cache_shader_sids(Shader_Sid_List *list);
 
-s32  create_shader(const char *source);
-bool recreate_shader(s32 shader_index, const char *source);
+s32  create_shader(const char *source, const char *path); // path to log during errors
+bool recreate_shader(s32 shader_index, const char *source, const char *path);
+bool parse_shader(const char *source, char *out_vertex, char *out_fragment);
 
-bool parse_shader_source(const char *shader_src, char *vertex_src, char *fragment_src);
+const char *get_desired_shader_file_extension();

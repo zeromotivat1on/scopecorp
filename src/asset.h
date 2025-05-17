@@ -6,13 +6,14 @@
 
 inline constexpr s32 MAX_ASSETS = 256;
 
-#define GAME_ASSET_PACK_PATH   PACK_PATH("game.asset_pack")
+#define GAME_ASSET_PACK_PATH   PATH_PACK("game.asset_pack")
 #define ASSET_PACK_MAGIC_VALUE U32_PACK('c', 'o', 'r', 'p')
 #define ASSET_PACK_VERSION     0
 
 enum Asset_Type {
     ASSET_NONE,
     ASSET_SHADER,
+    ASSET_SHADER_INCLUDE,
     ASSET_TEXTURE,
     ASSET_SOUND,
 };
@@ -33,6 +34,11 @@ struct Asset_Shader {
     u32 size = 0;
 };
 
+struct Asset_Shader_Include {
+    u32 size = 0;
+    char *source = null;
+};
+
 struct Asset_Sound {
     u32 size = 0;
     s32 sample_rate   = 0;
@@ -47,9 +53,10 @@ struct Asset {
     char relative_path[MAX_PATH_SIZE] = {0};
 
     union {
-        Asset_Shader  as_shader;
         Asset_Texture as_texture;
-        Asset_Sound   as_sound;
+        Asset_Shader as_shader;
+        Asset_Shader_Include as_shader_include;
+        Asset_Sound as_sound;
     };
 
     Asset() : as_sound() {}
@@ -71,6 +78,7 @@ typedef Hash_Table<sid, Asset_Source> Asset_Source_Table;
 
 inline Asset_Table        asset_table;
 inline Asset_Source_Table asset_source_table;
+inline s32 asset_shader_include_count = 0;
 
 void init_asset_source_table(Asset_Source_Table *sources);
 void init_asset_table(Asset_Table *table);
@@ -78,5 +86,5 @@ void init_asset_table(Asset_Table *table);
 void save_asset_pack(const char *path);
 void load_asset_pack(const char *path, Asset_Table *table);
 
-void convert_to_relative_asset_path(const char *full_path, char *relative_path);
-void convert_to_full_asset_path(const char *relative_path, char *full_path);
+void convert_to_relative_asset_path(char *relative_path, const char *full_path);
+void convert_to_full_asset_path(char *full_path, const char *relative_path);

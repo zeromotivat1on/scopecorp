@@ -2,8 +2,11 @@
 
 u64  str_size(const char *str);
 void str_copy(char *dst, const char *src);
+void str_copy(char *dst, const char *src, u64 n);
 void str_glue(char *dst, const char *src);
+void str_glue(char *dst, const char *src, u64 n);
 bool str_cmp(const char *a, const char *b);
+bool str_cmp(const char *a, const char *b, u64 n);
 char *str_sub(char *str, const char *sub);
 char *str_char(char *str, s32 c);
 char *str_char_from_end(char *str, s32 c);
