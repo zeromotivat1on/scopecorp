@@ -38,6 +38,9 @@ inline Sound_Sid_List sound_sids;
 void cache_sound_sids(Sound_Sid_List *list);
 
 s32 create_sound(s32 sample_rate, s32 channel_count, s32 bit_depth, void *data, u32 size, u32 flags);
+void play_sound(sid sid);
+void play_sound_or_continue(sid sid); // do not play from start if already playing
+void stop_sound(sid sid);
 
 // Returned pointer is start of actual sound data.
 void *extract_wav(void *data, s32 *channel_count, s32 *sample_rate, s32 *bits_per_sample, u32 *size);

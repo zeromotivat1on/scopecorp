@@ -197,6 +197,8 @@ s32 main() {
 
 		const u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
 		player.draw_data.index_buffer_index = create_index_buffer(indices, COUNT(indices), BUFFER_USAGE_STATIC);
+
+        player.steps_sid = sound_sids.player_steps;
 	}
 
 	Static_Mesh &ground = world->static_meshes[create_static_mesh(world)];
@@ -278,7 +280,8 @@ s32 main() {
 	Skybox &skybox = world->skybox;
 	{   // Create skybox.
         skybox.id = S32_MAX;
-
+        skybox.uv_scale = vec2(8.0f, 4.0f);
+        
 		skybox.draw_data.material_index = material_index_list.skybox;
 
 		Vertex_Entity vertices[] = {

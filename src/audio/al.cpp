@@ -6,6 +6,7 @@
 #include "math/vector.h"
 
 #include "log.h"
+#include "asset.h"
 
 void init_audio_context() {
 	ALCdevice *audio_device = alcOpenDevice(null);
@@ -59,4 +60,24 @@ s32 create_sound(s32 sample_rate, s32 channel_count, s32 bit_depth, void *data, 
 
 void set_listener_pos(vec3 pos) {
 	alListener3f(AL_POSITION, pos.x, pos.y, pos.z);
+}
+
+void play_sound(sid sid) {
+    const auto &sound = audio_registry.sounds[asset_table[sid].registry_index];
+    alSourcePlay(sound.source);
+}
+
+void play_sound_or_continue(sid sid) {
+    const auto &sound = audio_registry.sounds[asset_table[sid].registry_index];
+
+    s32 state;
+    alGetSourcei(sound.source, AL_SOURCE_STATE, &state);
+    if (state != AL_PLAYING) {
+        alSourcePlay(sound.source);
+    }
+}
+
+void stop_sound(sid sid) {
+    const auto &sound = audio_registry.sounds[asset_table[sid].registry_index];
+    alSourceStop(sound.source);
 }

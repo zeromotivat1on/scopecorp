@@ -7,7 +7,7 @@
 inline constexpr s32 MAX_SOUNDS = 16;
 
 struct Audio_Registry {
-    Sparse_Array<Sound> sounds;    
+    Sparse_Array<Sound> sounds;
 };
 
 inline Audio_Registry audio_registry;

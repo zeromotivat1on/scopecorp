@@ -27,7 +27,7 @@ Flip_Book create_flip_book(sid *texture_sids, s32 count, f32 frame_time) {
 	return book;
 }
 
-sid current_frame(Flip_Book *book) {
+sid get_current_frame(Flip_Book *book) {
 	Assert(book->current_frame_index < book->frame_count);
 	return book->frames[book->current_frame_index];
 }

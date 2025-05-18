@@ -3,6 +3,8 @@
 #include "math/vector.h"
 #include "math/quat.h"
 
+typedef u64 sid;
+
 inline constexpr s32 INVALID_ENTITY_ID = -1;
 
 enum Entity_Type {
@@ -52,7 +54,8 @@ struct Player : Entity {
     Direction move_direction = DIRECTION_BACK;
     
     Flip_Book *flip_book = null;
-
+    sid steps_sid = 0;
+    
     s32 aabb_index         = INVALID_INDEX;
     s32 collide_aabb_index = INVALID_INDEX;
 };
@@ -66,7 +69,7 @@ struct Static_Mesh : Entity {
 struct Skybox : Entity {
     Skybox() { type = ENTITY_SKYBOX; }
 
-    vec2 uv_scale = vec2(8.0f, 4.0f);
+    vec2 uv_scale;
     vec3 uv_offset;
 };
 

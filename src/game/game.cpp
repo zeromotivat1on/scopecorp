@@ -219,8 +219,7 @@ void tick(World *world, f32 dt) {
 	For (world->static_meshes) {
         const s32 mti = it.draw_data.material_index;
         const mat4 model = mat4_transform(it.location, it.rotation, it.scale);
-		set_material_uniform_value(mti, "u_model",           &model);
-		//set_material_uniform_value(mti, "u_camera_location", &camera->eye);
+		set_material_uniform_value(mti, "u_model", &model);
 
         const auto *material = render_registry.materials.find(mti);
         if (material) {
@@ -387,40 +386,33 @@ void tick(World *world, f32 dt) {
         }
 
         if (player.velocity == vec3_zero) {
-            const Asset &asset = asset_table[texture_sids.player_idle[player.move_direction]];
+            const auto &asset = asset_table[texture_sids.player_idle[player.move_direction]];
             render_registry.materials[player.draw_data.material_index].texture_index = asset.registry_index;
         } else {
             player.flip_book = &flip_books.player_move[player.move_direction];
             tick(player.flip_book, dt);
 
-            const Asset &asset = asset_table[current_frame(player.flip_book)];
+            const auto &asset = asset_table[get_current_frame(player.flip_book)];
             render_registry.materials[player.draw_data.material_index].texture_index = asset.registry_index;
         }
             
         player.location += player.velocity;
     
-        const vec3 aabb_offset = vec3(player.scale.x * 0.5f, 0.0f, player.scale.x * 0.3f);
+        const auto aabb_offset = vec3(player.scale.x * 0.5f, 0.0f, player.scale.x * 0.3f);
         player_aabb.min = player.location - aabb_offset;
         player_aabb.max = player.location + aabb_offset + vec3(0.0f, player.scale.y, 0.0f);
 
-        // @Cleanup: remove direct al calls.
-        const Sound &steps_sound = audio_registry.sounds[asset_table[sound_sids.player_steps].registry_index];
-
-        s32 state;
-        alGetSourcei(steps_sound.source, AL_SOURCE_STATE, &state);
-        
         if (player.velocity == vec3_zero) {
-            if (state == AL_PLAYING) alSourceStop(steps_sound.source);
+            stop_sound(player.steps_sid);
         } else {
-            if (state != AL_PLAYING) alSourcePlay(steps_sound.source);
+            play_sound_or_continue(player.steps_sid);
         }
     }
 
     {
         const s32 mti = player.draw_data.material_index;
         const mat4 model = mat4_transform(player.location, player.rotation, player.scale);
-        set_material_uniform_value(mti, "u_model",           &model);
-        //set_material_uniform_value(mti, "u_camera_location", &camera->eye);
+        set_material_uniform_value(mti, "u_model", &model);
 
         const auto *material = render_registry.materials.find(mti);
         if (material) {
