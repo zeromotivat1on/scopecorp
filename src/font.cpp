@@ -30,7 +30,7 @@ Font *create_font(const char *path) {
 	return font;
 }
 
-s32 line_width_px(const Font_Atlas *atlas, const char *text, s32 text_size) {
+s32 get_line_width_px(const Font_Atlas *atlas, const char *text, s32 text_size) {
 	s32 width = 0;
 	for (s32 i = 0; i < text_size; ++i) {
 		if (text[i] == ' ') {
@@ -53,4 +53,8 @@ s32 line_width_px(const Font_Atlas *atlas, const char *text, s32 text_size) {
 		width += metric->advance_width;
 	}
 	return width;
+}
+
+s32 get_glyph_kern_advance(const Font *font, s32 c1, s32 c2) {
+    return stbtt_GetGlyphKernAdvance(font->info, c1, c2);
 }

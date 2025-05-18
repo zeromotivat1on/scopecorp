@@ -543,6 +543,9 @@ void draw_text(const char *text, u32 text_size, vec2 pos, vec3 color) {
         text_draw_buffer.char_count++;
         
 		x += metric->advance_width;
+        if (i < text_size - 1) {
+            x += atlas->px_h_scale * get_glyph_kern_advance(atlas->font, c, text[i + 1]);
+        }
 	}
 }
 

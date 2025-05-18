@@ -17,10 +17,6 @@ struct Asset_Source_Callback_Data {
     const char *filter_ext = null;
 };
 
-static u64 asset_table_hash(const sid &a) {
-    return a;
-}
-
 static void init_asset_source_callback(const File_Callback_Data *data) {
     auto *ascd = (Asset_Source_Callback_Data *)data->user_data;
     const char *ext = str_char_from_end(data->path, '.');
@@ -55,11 +51,15 @@ static inline void init_asset_sources(const char *path, Asset_Type type, const c
     for_each_file(path, init_asset_source_callback, &ascd);
 }
 
+static u64 asset_source_table_hash(const sid &a) {
+    return a;
+}
+
 void init_asset_source_table(Asset_Source_Table *table) {
     START_SCOPE_TIMER(init);
 
     *table = Asset_Source_Table(MAX_ASSETS);
-    table->hash_function = &asset_table_hash;
+    table->hash_function = &asset_source_table_hash;
 
     // @Fix: we can't control order of values in hash table like this.
     init_asset_sources(DIR_SHADERS,  ASSET_SHADER_INCLUDE, ".h");
@@ -68,6 +68,10 @@ void init_asset_source_table(Asset_Source_Table *table) {
     init_asset_sources(DIR_SOUNDS,   ASSET_SOUND);
 
     log("Initialized asset source table in %.2fms", CHECK_SCOPE_TIMER_MS(init));
+}
+
+static u64 asset_table_hash(const sid &a) {
+    return a;
 }
 
 void init_asset_table(Asset_Table *table) {

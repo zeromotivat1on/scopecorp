@@ -122,6 +122,62 @@ static void wgl_load_procs() {
 #undef load
 }
 
+static inline const char *gl_debug_message_source_string(GLenum source) {
+    switch (source) {
+    case GL_DEBUG_SOURCE_API:             return "API";
+    case GL_DEBUG_SOURCE_WINDOW_SYSTEM:   return "Window System";
+    case GL_DEBUG_SOURCE_SHADER_COMPILER: return "Shader Compiler";
+    case GL_DEBUG_SOURCE_THIRD_PARTY:     return "Third Party";
+    case GL_DEBUG_SOURCE_APPLICATION:     return "Application";
+    case GL_DEBUG_SOURCE_OTHER:           return "Other";
+    default:                              return "Invalid";
+    }
+}
+
+static inline const char *gl_debug_message_type_string(GLenum type) {
+    switch (type) {
+    case GL_DEBUG_TYPE_ERROR:               return "Error";
+    case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: return "Deprecated Behaviour";
+    case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:  return "Undefined Behaviour";
+    case GL_DEBUG_TYPE_PORTABILITY:         return "Portability";
+    case GL_DEBUG_TYPE_PERFORMANCE:         return "Performance";
+    case GL_DEBUG_TYPE_MARKER:              return "Marker";
+    case GL_DEBUG_TYPE_PUSH_GROUP:          return "Push Group";
+    case GL_DEBUG_TYPE_POP_GROUP:           return "Pop Group";
+    case GL_DEBUG_TYPE_OTHER:               return "Other";
+    default:                                return "Invalid";
+    }
+}
+
+static inline const char *gl_debug_message_severity_string(GLenum severity) {
+    switch (severity) {
+    case GL_DEBUG_SEVERITY_HIGH:         return "High";
+    case GL_DEBUG_SEVERITY_MEDIUM:       return "Medium";
+    case GL_DEBUG_SEVERITY_LOW:          return "Low";
+    case GL_DEBUG_SEVERITY_NOTIFICATION: return "Notification";
+    default:                             return "Invalid";
+    }
+}
+
+static inline Log_Level get_log_level_from_gl_debug_message_severity(GLenum severity) {
+    switch (severity) {
+    case GL_DEBUG_SEVERITY_HIGH:         return LOG_ERROR;
+    case GL_DEBUG_SEVERITY_MEDIUM:       return LOG_ERROR;
+    case GL_DEBUG_SEVERITY_LOW:          return LOG_NONE;
+    case GL_DEBUG_SEVERITY_NOTIFICATION: return LOG_NONE;
+    default:                             return LOG_ERROR;
+    }
+}
+
+static void gl_debug_message_callback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *user_data) {
+    const char *source_string   = gl_debug_message_source_string(source);
+    const char *type_string     = gl_debug_message_type_string(type);
+    const char *severity_string = gl_debug_message_severity_string(severity);
+
+    const auto log_level = get_log_level_from_gl_debug_message_severity(severity);
+    print(log_level, "GL debug message %d | %s | %s | %s\n  %.*s", id, source_string, type_string, severity_string, length, message);    
+}
+
 bool init_render_context(Window *window) {
     log("Platform: Windows | OpenGL");
     
@@ -174,6 +230,11 @@ bool init_render_context(Window *window) {
 		error("Failed to init GLAD");
 		return false;
 	}
+
+    glEnable(GL_DEBUG_OUTPUT);
+    glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS); 
+    glDebugMessageCallback(gl_debug_message_callback, null);
+    glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, null, GL_TRUE);
 
 	ShowWindow(window->win32->hwnd, SW_NORMAL);
 

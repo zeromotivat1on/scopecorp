@@ -130,6 +130,8 @@ void debug_break() {
 #endif DEBUG
 
 static void log_output_va(Log_Level log_level, const char *format, va_list args) {
+    if (log_level == LOG_NONE) return;
+    
 	const char *prefixes[] = { "\x1b[37m", "\x1b[93m", "\x1b[91m" };
 
 	static char buffer[4096];
@@ -138,6 +140,13 @@ static void log_output_va(Log_Level log_level, const char *format, va_list args)
 
 	// Restore default bg and fg colors.
 	puts("\x1b[39;49m");
+}
+
+void print(Log_Level level, const char *format, ...) {
+    va_list args;
+	va_start(args, format);
+	log_output_va(level, format, args);
+	va_end(args);
 }
 
 void log(const char *format, ...) {

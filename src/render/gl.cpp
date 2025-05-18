@@ -34,7 +34,7 @@
     }
 
 void detect_render_capabilities() {
-    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &R_MAX_TEXTURE_SIZE);
+    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &R_MAX_TEXTURE_TEXELS);
     
     R_UNIFORM_BUFFER_BASE_ALIGNMENT = 16;    
     glGetIntegerv(GL_MAX_UNIFORM_BUFFER_BINDINGS,     &R_MAX_UNIFORM_BUFFER_BINDINGS);
@@ -42,7 +42,7 @@ void detect_render_capabilities() {
     glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE,          &R_MAX_UNIFORM_BLOCK_SIZE);
 
     log("Render capabilities:");
-    log("  Texture: Max Size %dx%d texels", R_MAX_TEXTURE_SIZE, R_MAX_TEXTURE_SIZE);
+    log("  Texture: Max Size %dx%d texels", R_MAX_TEXTURE_TEXELS, R_MAX_TEXTURE_TEXELS);
     log("  Uniform buffer: Max Bindings %d | Base Alignment %d | Offset Alignment %d",
         R_MAX_UNIFORM_BUFFER_BINDINGS,
         R_UNIFORM_BUFFER_BASE_ALIGNMENT,
@@ -769,8 +769,6 @@ s32 create_uniform_buffer(u32 size) {
     Uniform_Buffer buffer;
     buffer.size = size;
 
-    gl_check_error();
-
     glGenBuffers(1, &buffer.id);
 
     glBindBuffer(GL_UNIFORM_BUFFER, buffer.id);
@@ -971,7 +969,7 @@ s32 create_texture(Texture_Type texture_type, Texture_Format_Type format_type, s
 }
 
 bool recreate_texture(s32 texture_index, Texture_Type texture_type, Texture_Format_Type format_type, s32 width, s32 height, void *data) {
-    Texture &texture = render_registry.textures[texture_index];
+    auto &texture = render_registry.textures[texture_index];
     
     const s32 type            = gl_texture_type(texture_type);
     const s32 format          = gl_texture_format(format_type);
@@ -1084,6 +1082,8 @@ Font_Atlas *bake_font_atlas(const Font *font, u32 start_charcode, u32 end_charco
 	atlas->end_charcode = end_charcode;
 	atlas->texture_index = create_texture(TEXTURE_TYPE_2D_ARRAY, TEXTURE_FORMAT_RGBA_8, font_size, font_size, null);
 
+    set_texture_filter(atlas->texture_index, TEXTURE_FILTER_NEAREST);
+    
 	rescale_font_atlas(atlas, font_size);
 
 	return atlas;
@@ -1122,11 +1122,6 @@ void rescale_font_atlas(Font_Atlas *atlas, s16 font_size) {
 
 	glBindTexture(GL_TEXTURE_2D_ARRAY, texture.id);
 	glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_R8, atlas->font_size, atlas->font_size, charcode_count, 0, GL_RED, GL_UNSIGNED_BYTE, null);
-
-	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 	u8 *bitmap = (u8 *)allocl(font_size * font_size);
     defer { freel(font_size * font_size); };
