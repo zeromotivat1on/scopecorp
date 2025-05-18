@@ -1,4 +1,5 @@
-- Shader #include parsing.
+- Its not clear if there will be cases of iteration over all assets of some type,
+  so maybe remove render/audio registry and let all assets reside in asset table.
 
 - Synchronize logging.
 
