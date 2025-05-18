@@ -1,4 +1,4 @@
-*.asset_pack
+*.pak
 
 run_tree/build
 run_tree/cmake

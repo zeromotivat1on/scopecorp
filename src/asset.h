@@ -6,7 +6,7 @@
 
 inline constexpr s32 MAX_ASSETS = 256;
 
-#define GAME_ASSET_PACK_PATH   PATH_PACK("game.asset_pack")
+#define GAME_ASSET_PACK_PATH   PATH_PACK(GAME_NAME ".pak")
 #define ASSET_PACK_MAGIC_VALUE U32_PACK('c', 'o', 'r', 'p')
 #define ASSET_PACK_VERSION     0
 
