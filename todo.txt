@@ -1,3 +1,7 @@
+- Separate aabb arrays for collision and editor visuals
+
+- Use structs in shaders for light data
+
 - Its not clear if there will be cases of iteration over all assets of some type,
   so maybe remove render/audio registry and let all assets reside in asset table.
 

@@ -36,14 +36,14 @@ struct Sparse_Array {
     }
 
     const T &operator[](s32 index) const {
+        Assert(index >= 0);
         Assert(index < count);
         Assert(sparse[index] != INVALID_INDEX);
         return items[sparse[index]];
     }
 
     T *find(s32 index) {
-        Assert(index >= 0);
-        Assert(index < capacity);
+        if (index < 0 || index >= count) return null;
         
         const s32 item_index = sparse[index];
         if (item_index == INVALID_INDEX) return null;

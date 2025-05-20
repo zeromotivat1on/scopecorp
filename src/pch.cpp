@@ -232,9 +232,11 @@ const char *to_string(Player_Movement_Behavior behavior) {
 
 const char *to_string(Entity_Type type) {
     switch (type) {
-    case ENTITY_PLAYER:      return "ENTITY_PLAYER";
-    case ENTITY_SKYBOX:      return "ENTITY_SKYBOX";
-    case ENTITY_STATIC_MESH: return "ENTITY_STATIC_MESH";
-    default:                 return "UNKNOWN";
+    case ENTITY_PLAYER:       return "ENTITY_PLAYER";
+    case ENTITY_SKYBOX:       return "ENTITY_SKYBOX";
+    case ENTITY_STATIC_MESH:  return "ENTITY_STATIC_MESH";
+    case ENTITY_DIRECT_LIGHT: return "ENTITY_DIRECT_LIGHT";
+    case ENTITY_POINT_LIGHT:  return "ENTITY_POINT_LIGHT";
+    default:                  return "UNKNOWN";
     }
 }

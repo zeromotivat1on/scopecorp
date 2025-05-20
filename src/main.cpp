@@ -301,11 +301,33 @@ s32 main() {
 		const u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
 		skybox.draw_data.index_buffer_index = create_index_buffer(indices, COUNT(indices), BUFFER_USAGE_STATIC);
 	}
+
+    if (1) {
+        const s32 index = world->direct_lights.add_default();
+        
+        auto &direct_light = world->direct_lights[index];
+        direct_light.id = 20000;
+
+        direct_light.location = vec3(0.0f, 5.0f, 0.0f);
+        direct_light.rotation = quat_from_axis_angle(vec3_right, 0.0f);
+        direct_light.scale = vec3(0.1f);
+        
+        direct_light.ambient  = vec3(0.1f);
+        direct_light.diffuse  = vec3(0.5f);
+        direct_light.specular = vec3(1.0f);
+
+        direct_light.u_light_index = index;
+        direct_light.aabb_index = world->aabbs.add_default();
+        
+        auto &aabb = world->aabbs[direct_light.aabb_index];
+		aabb.min = direct_light.location - direct_light.scale * 0.5f;
+		aabb.max = aabb.min + direct_light.scale;
+    }
     
-    {
+    if (1) {
         const s32 index = world->point_lights.add_default();
         
-        Point_Light &point_light = world->point_lights[index];
+        auto &point_light = world->point_lights[index];
         point_light.id = 10000;
         
         point_light.location = vec3(0.0f, 2.0f, 0.0f);
@@ -315,6 +337,10 @@ s32 main() {
         point_light.diffuse  = vec3(0.5f);
         point_light.specular = vec3(1.0f);
 
+        point_light.attenuation.constant  = 1.0f;
+        point_light.attenuation.linear    = 0.09f;
+        point_light.attenuation.quadratic = 0.032f;
+        
         point_light.u_light_index = index;
         point_light.aabb_index = world->aabbs.add_default();
         
@@ -322,19 +348,13 @@ s32 main() {
 		aabb.min = point_light.location - point_light.scale * 0.5f;
 		aabb.max = aabb.min + point_light.scale;
     }
-
+    
     {
         constexpr u32 UNIFORM_BUFFER_SIZE = KB(16);
         const s32 ubi = create_uniform_buffer(UNIFORM_BUFFER_SIZE);
         
         constexpr s32 MAX_UNIFORM_LIGHTS = 64; // must be the same as in shaders
-        const Uniform_Block_Field lights_fields[] = {
-            { UNIFORM_U32,   1 },
-            { UNIFORM_F32_3, MAX_UNIFORM_LIGHTS },
-            { UNIFORM_F32_3, MAX_UNIFORM_LIGHTS },
-            { UNIFORM_F32_3, MAX_UNIFORM_LIGHTS },
-            { UNIFORM_F32_3, MAX_UNIFORM_LIGHTS },
-        };
+        static_assert(MAX_UNIFORM_LIGHTS >= MAX_POINT_LIGHTS + MAX_DIRECT_LIGHTS);
 
         const Uniform_Block_Field camera_fields[] = {
             { UNIFORM_F32_3,   1 },
@@ -342,9 +362,31 @@ s32 main() {
             { UNIFORM_F32_4X4, 1 },
             { UNIFORM_F32_4X4, 1 },
         };
+        
+        const Uniform_Block_Field direct_light_fields[] = {
+            { UNIFORM_U32,   1 },
+            { UNIFORM_F32_3, MAX_DIRECT_LIGHTS },
+            { UNIFORM_F32_3, MAX_DIRECT_LIGHTS },
+            { UNIFORM_F32_3, MAX_DIRECT_LIGHTS },
+            { UNIFORM_F32_3, MAX_DIRECT_LIGHTS },
+        };
 
-        UNIFORM_BLOCK_LIGHTS = create_uniform_block(ubi, UNIFORM_BINDING_LIGHTS, UNIFORM_BLOCK_NAME_LIGHTS, lights_fields, COUNT(lights_fields));
+        const Uniform_Block_Field point_light_fields[] = {
+            { UNIFORM_U32,   1 },
+            { UNIFORM_F32_3, MAX_POINT_LIGHTS },
+            { UNIFORM_F32_3, MAX_POINT_LIGHTS },
+            { UNIFORM_F32_3, MAX_POINT_LIGHTS },
+            { UNIFORM_F32_3, MAX_POINT_LIGHTS },
+            { UNIFORM_F32,   MAX_POINT_LIGHTS },
+            { UNIFORM_F32,   MAX_POINT_LIGHTS },
+            { UNIFORM_F32,   MAX_POINT_LIGHTS },
+        };
+
         UNIFORM_BLOCK_CAMERA = create_uniform_block(ubi, UNIFORM_BINDING_CAMERA, UNIFORM_BLOCK_NAME_CAMERA, camera_fields, COUNT(camera_fields));
+        
+        UNIFORM_BLOCK_DIRECT_LIGHTS = create_uniform_block(ubi, UNIFORM_BINDING_DIRECT_LIGHTS, UNIFORM_BLOCK_NAME_DIRECT_LIGHTS, direct_light_fields, COUNT(direct_light_fields));
+        
+        UNIFORM_BLOCK_POINT_LIGHTS = create_uniform_block(ubi, UNIFORM_BINDING_POINT_LIGHTS, UNIFORM_BLOCK_NAME_POINT_LIGHTS, point_light_fields, COUNT(point_light_fields));
     
     }
 

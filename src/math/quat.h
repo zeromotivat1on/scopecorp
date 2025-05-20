@@ -52,3 +52,5 @@ struct quat {
 
 const char* to_string(const quat &q);
 quat quat_from_axis_angle(const vec3 &axes, f32 deg);
+
+vec3 get_forward_vector(const quat &q);

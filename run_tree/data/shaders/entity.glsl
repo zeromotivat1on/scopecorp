@@ -30,6 +30,7 @@ void main() {
 #version 460 core
 
 #include "uniform_blocks.glsl.h"
+#include "light.glsl.h"
 
 layout (location = 0) in vec3     f_normal;
 layout (location = 1) in vec2     f_uv;
@@ -50,20 +51,30 @@ uniform sampler2D u_sampler;
 uniform Material  u_material;
 
 void main() {
-    const vec3 ambient = u_light_ambients[0].xyz * u_material.ambient;
-
-    const vec3 normal = normalize(f_normal);
-    const vec3 light_direction = normalize(u_light_locations[0].xyz - f_pixel_world_location);
-    const float diffuse_factor = max(dot(normal, light_direction), 0.0f);
-    const vec3 diffuse = u_light_diffuses[0].xyz * (diffuse_factor * u_material.diffuse);
-
-    float specular_strength = 0.1f;
+    const vec3 normal = vec3(0, 1, 0);
     const vec3 view_direction = normalize(u_camera_location - f_pixel_world_location);
-    const vec3 reflected_direction = reflect(-light_direction, normal);
-    const float specular_factor = pow(max(dot(view_direction, reflected_direction), 0.0f), u_material.shininess);
-    const vec3 specular = u_light_speculars[0].xyz * (specular_factor * u_material.specular);
 
-    const vec3 phong = ambient + diffuse + specular;
+    vec3 phong;
+
+    for (int i = 0; i < u_direct_light_count; ++i) {
+        phong += get_direct_light(normal, view_direction,
+                                  u_direct_light_directions[i], u_direct_light_ambients[i],
+                                  u_direct_light_diffuses[i], u_direct_light_speculars[i],
+                                  u_material.ambient, u_material.diffuse,
+                                  u_material.specular, u_material.shininess);
+    }
+
+    for (int i = 0; i < u_point_light_count; ++i) {
+        phong += get_point_light(normal, view_direction, f_pixel_world_location,
+                                 u_point_light_locations[i], u_point_light_ambients[i],
+                                 u_point_light_diffuses[i], u_point_light_speculars[i],
+                                 u_point_light_attenuation_constants[i],
+                                 u_point_light_attenuation_linears[i],
+                                 u_point_light_attenuation_quadratics[i],
+                                 u_material.ambient, u_material.diffuse,
+                                 u_material.specular, u_material.shininess);
+    }
+
     //out_color = vec4(1, 0, 0, 1) * vec4(phong, 1.0f);
     out_color = texture(u_sampler, f_uv) * vec4(phong, 1.0f);
     out_entity_id = f_entity_id;

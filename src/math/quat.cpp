@@ -227,3 +227,11 @@ quat quat_from_axis_angle(const vec3 &axes, f32 deg) {
 
     return quat(x, y, z, w).normalize();
 }
+
+vec3 get_forward_vector(const quat &q) {
+    vec3 v;
+    v.x = 2 * (q.x * q.z + q.w * q.y);
+    v.y = 2 * (q.y * q.z - q.w * q.x);
+    v.z = 1 - 2 * (q.x * q.x + q.y * q.y);
+    return normalize(v);
+}

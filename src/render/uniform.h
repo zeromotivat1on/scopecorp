@@ -9,16 +9,20 @@ inline s32 R_UNIFORM_BUFFER_OFFSET_ALIGNMENT;
 inline s32 R_MAX_UNIFORM_BLOCK_SIZE;
 
 inline s32 UNIFORM_BLOCK_CAMERA;
-inline s32 UNIFORM_BLOCK_LIGHTS;
+inline s32 UNIFORM_BLOCK_DIRECT_LIGHTS;
+inline s32 UNIFORM_BLOCK_POINT_LIGHTS;
 
-inline constexpr s32 UNIFORM_BINDING_CAMERA = 0;
-inline constexpr s32 UNIFORM_BINDING_LIGHTS = 1;
+inline constexpr s32 UNIFORM_BINDING_CAMERA        = 0;
+inline constexpr s32 UNIFORM_BINDING_DIRECT_LIGHTS = 1;
+inline constexpr s32 UNIFORM_BINDING_POINT_LIGHTS  = 2;
 
-inline const char *UNIFORM_BLOCK_NAME_LIGHTS = "Lights";
+inline const char *UNIFORM_BLOCK_NAME_DIRECT_LIGHTS = "Direct_Lights";
+inline const char *UNIFORM_BLOCK_NAME_POINT_LIGHTS  = "Point_Lights";
 inline const char *UNIFORM_BLOCK_NAME_CAMERA = "Camera";
 
 inline constexpr s32 MAX_UNIFORM_BUFFER_BLOCKS = 32;
 inline constexpr s32 MAX_UNIFORM_BLOCK_FIELDS  = 16;
+
 inline constexpr u32 MAX_UNIFORM_VALUE_CACHE_SIZE = KB(16);
 
 enum Uniform_Type {

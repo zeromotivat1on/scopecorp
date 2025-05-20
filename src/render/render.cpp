@@ -418,48 +418,10 @@ void flush_geo_draw() {
     geometry_draw_buffer.vertex_count = 0;
 }
 
-void draw_geo_debug() {
-    const auto &player = world->player;
-    const vec3 player_center_location = player.location + vec3(0.0f, player.scale.y * 0.5f, 0.0f);
-    draw_geo_arrow(player_center_location, player_center_location + normalize(player.velocity) * 0.5f, vec3_red);
-
-    if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
-        draw_geo_aabb(world->aabbs[world->player.aabb_index], vec3_red);
-        
-        For (world->static_meshes) {
-            draw_geo_aabb(world->aabbs[it.aabb_index], vec3_red);
-        }
-
-        For (world->point_lights) {
-            draw_geo_aabb(world->aabbs[it.aabb_index], vec3_white);
-        }
-
-        if (world->mouse_picked_entity) {
-            const vec3 mouse_picked_color = vec3_yellow;
-            if (world->mouse_picked_entity->type == ENTITY_PLAYER) {
-                auto *player = (Player *)world->mouse_picked_entity;
-                draw_geo_aabb(world->aabbs[player->aabb_index], mouse_picked_color);
-            } else if (world->mouse_picked_entity->type == ENTITY_STATIC_MESH) {
-                auto *static_mesh = (Static_Mesh *)world->mouse_picked_entity;
-                draw_geo_aabb(world->aabbs[static_mesh->aabb_index], mouse_picked_color);
-            } else if (world->mouse_picked_entity->type == ENTITY_POINT_LIGHT) {
-                auto *point_light = (Point_Light *)world->mouse_picked_entity;
-                draw_geo_aabb(world->aabbs[point_light->aabb_index], mouse_picked_color);
-            }
-
-        }
-        
-        if (player.collide_aabb_index != INVALID_INDEX) {
-            draw_geo_aabb(world->aabbs[player.aabb_index],         vec3_green);
-            draw_geo_aabb(world->aabbs[player.collide_aabb_index], vec3_green);
-        }
-    }
-}
-
 void init_text_draw(Font_Atlas *atlas) {
-    const s32 color_buffer_size     = MAX_CHAR_RENDER_COUNT * sizeof(vec3);
-    const s32 charmap_buffer_size   = MAX_CHAR_RENDER_COUNT * sizeof(u32);
-    const s32 transform_buffer_size = MAX_CHAR_RENDER_COUNT * sizeof(mat4);
+    constexpr s32 color_buffer_size     = MAX_CHAR_RENDER_COUNT * sizeof(vec3);
+    constexpr s32 charmap_buffer_size   = MAX_CHAR_RENDER_COUNT * sizeof(u32);
+    constexpr s32 transform_buffer_size = MAX_CHAR_RENDER_COUNT * sizeof(mat4);
 
     text_draw_buffer.atlas = atlas;
     text_draw_buffer.colors     = (vec3 *)allocl(color_buffer_size);
@@ -828,5 +790,73 @@ Texture_Format_Type get_desired_texture_format(s32 channel_count) {
     default:
         error("Not really handled case for texture channel count %d, using %d texture format", channel_count, TEXTURE_FORMAT_RGBA_8);
         return TEXTURE_FORMAT_RGBA_8;
+    }
+}
+
+static bool draw_entity_aabb_callback(Entity *e, void *user_data) {
+    auto *aabb = world->aabbs.find(e->aabb_index);
+    if (aabb) {
+        vec3 aabb_color = vec3_black;
+        switch (e->type) {
+        case ENTITY_PLAYER:
+        case ENTITY_STATIC_MESH: {
+            aabb_color = vec3_red;
+            break;
+        }
+        case ENTITY_DIRECT_LIGHT:
+        case ENTITY_POINT_LIGHT: {
+            aabb_color = vec3_white;
+            break;
+        }
+        }
+        
+        draw_geo_aabb(*aabb, aabb_color);
+    }
+
+    return false;
+}
+
+void draw_geo_debug() {
+    const auto &player = world->player;
+
+    if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
+        const vec3 center = player.location + vec3(0.0f, player.scale.y * 0.5f, 0.0f);
+        draw_geo_arrow(center, center + normalize(player.velocity) * 0.5f, vec3_red);
+    }
+    
+    if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
+        for_each_entity(world, draw_entity_aabb_callback);
+
+        if (world->mouse_picked_entity) {
+            const vec3 mouse_picked_color = vec3_yellow;
+            
+            switch (world->mouse_picked_entity->type) {
+            case ENTITY_PLAYER: {
+                auto *player = (Player *)world->mouse_picked_entity;
+                draw_geo_aabb(world->aabbs[player->aabb_index], mouse_picked_color);
+                break;
+            }
+            case ENTITY_STATIC_MESH: {
+                auto *mesh = (Static_Mesh *)world->mouse_picked_entity;
+                draw_geo_aabb(world->aabbs[mesh->aabb_index], mouse_picked_color);
+                break;
+            }
+            case ENTITY_POINT_LIGHT: {
+                auto *light = (Point_Light *)world->mouse_picked_entity;
+                draw_geo_aabb(world->aabbs[light->aabb_index], mouse_picked_color);
+                break;
+            }
+            case ENTITY_DIRECT_LIGHT: {
+                auto *light = (Direct_Light *)world->mouse_picked_entity;
+                draw_geo_aabb(world->aabbs[light->aabb_index], mouse_picked_color);
+                break;
+            }
+            }
+        }
+        
+        if (player.collide_aabb_index != INVALID_INDEX) {
+            draw_geo_aabb(world->aabbs[player.aabb_index],         vec3_green);
+            draw_geo_aabb(world->aabbs[player.collide_aabb_index], vec3_green);
+        }
     }
 }

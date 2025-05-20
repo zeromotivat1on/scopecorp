@@ -11,6 +11,7 @@ enum Entity_Type {
     ENTITY_PLAYER,
     ENTITY_SKYBOX,
     ENTITY_STATIC_MESH,
+    ENTITY_DIRECT_LIGHT,
     ENTITY_POINT_LIGHT,
 };
 
@@ -33,6 +34,8 @@ struct Entity {
     quat rotation;
     vec3 scale = vec3(1.0f);
 
+    s32 aabb_index = INVALID_INDEX;
+    
     Entity_Draw_Data draw_data;
 };
 
@@ -56,14 +59,11 @@ struct Player : Entity {
     Flip_Book *flip_book = null;
     sid steps_sid = 0;
     
-    s32 aabb_index         = INVALID_INDEX;
     s32 collide_aabb_index = INVALID_INDEX;
 };
 
 struct Static_Mesh : Entity {
     Static_Mesh() { type = ENTITY_STATIC_MESH; }
-    
-    s32 aabb_index = INVALID_INDEX;
 };
 
 struct Skybox : Entity {
@@ -73,13 +73,30 @@ struct Skybox : Entity {
     vec3 uv_offset;
 };
 
-struct Point_Light : Entity {
-    Point_Light() { type = ENTITY_POINT_LIGHT; }
+struct Direct_Light : Entity {
+    Direct_Light() { type = ENTITY_DIRECT_LIGHT; }
 
     vec3 ambient  = vec3_white;
     vec3 diffuse  = vec3_white;
     vec3 specular = vec3_white;
 
-    s32 u_light_index = INVALID_INDEX; // index in Lights uniform block
-    s32 aabb_index    = INVALID_INDEX; // for mouse-pick in editor
+    s32 u_light_index = INVALID_INDEX; // index in Direct_Lights uniform block
+};
+
+struct Light_Attenuation {
+    f32 constant  = 0.0f;
+    f32 linear    = 0.0f;
+    f32 quadratic = 0.0f;
+};
+
+struct Point_Light : Entity {
+    Point_Light() { type = ENTITY_POINT_LIGHT; }
+    
+    vec3 ambient  = vec3_white;
+    vec3 diffuse  = vec3_white;
+    vec3 specular = vec3_white;
+
+    Light_Attenuation attenuation;
+    
+    s32 u_light_index = INVALID_INDEX; // index in Point_Lights uniform block
 };

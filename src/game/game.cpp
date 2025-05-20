@@ -120,32 +120,64 @@ void on_window_event(Window *window, Window_Event *event) {
                     const Ray ray = world_ray_from_viewport_location(desired_camera(world), &viewport, input_table.mouse_x, input_table.mouse_y);
                     const s32 aabb_index = find_closest_overlapped_aabb(ray, world->aabbs.items, world->aabbs.count);
                     if (aabb_index != INVALID_INDEX) {
-                        bool picked = false;
-                        if (!picked) {
-                            if (world->player.aabb_index == aabb_index) {
-                                mouse_pick_entity(world, &world->player);
-                                picked = true;
-                            }
-                        }
-                        
-                        if (!picked) {
-                            For (world->point_lights) {
-                                if (it.aabb_index == aabb_index) {
-                                    mouse_pick_entity(world, &it);
-                                    picked = true;
-                                    break;
+                        struct Find_Entity_By_AABB_Data {
+                            Entity *e = null;
+                            s32 aabb_index = INVALID_INDEX;
+                        };
+
+                        static const auto find_callback = [] (Entity *e, void *user_data) -> bool {
+                            auto *data = (Find_Entity_By_AABB_Data *)user_data;
+
+                            switch (e->type) {
+                            case ENTITY_PLAYER: {
+                                auto *player = (Player *)e;
+                                if (player->aabb_index == data->aabb_index) {
+                                    data->e = e;
+                                    return true;
                                 }
+                                
+                                break;
                             }
-                        }
-                        
-                        if (!picked) {
-                            For (world->static_meshes) {
-                                if (it.aabb_index == aabb_index) {
-                                    mouse_pick_entity(world, &it);
-                                    picked = true;
-                                    break;
+                            case ENTITY_STATIC_MESH: {
+                                auto *mesh = (Static_Mesh *)e;
+                                if (mesh->aabb_index == data->aabb_index) {
+                                    data->e = e;
+                                    return true;
                                 }
+                                
+                                break;
                             }
+                            case ENTITY_POINT_LIGHT: {
+                                auto *light = (Point_Light *)e;
+                                if (light->aabb_index == data->aabb_index) {
+                                    data->e = e;
+                                    return true;
+                                }
+                                
+                                break;
+                            }
+                            case ENTITY_DIRECT_LIGHT: {
+                                auto *light = (Direct_Light *)e;
+                                if (light->aabb_index == data->aabb_index) {
+                                    data->e = e;
+                                    return true;
+                                }
+                                
+                                break;
+                            }
+                            }
+
+                            return false;
+                        };
+                        
+                        Find_Entity_By_AABB_Data find_data;
+                        find_data.e = null;
+                        find_data.aabb_index = aabb_index;
+
+                        for_each_entity(world, find_callback, &find_data);
+
+                        if (find_data.e) {
+                            mouse_pick_entity(world, find_data.e);
                         }
                     }
                 } else {
@@ -176,7 +208,9 @@ void init_world(World *world) {
 
 	world->static_meshes = Sparse_Array<Static_Mesh>(MAX_STATIC_MESHES);
     world->point_lights  = Sparse_Array<Point_Light>(MAX_POINT_LIGHTS);
-    world->aabbs         = Sparse_Array<AABB>(MAX_AABBS);
+    world->direct_lights = Sparse_Array<Direct_Light>(MAX_DIRECT_LIGHTS);
+
+    world->aabbs = Sparse_Array<AABB>(MAX_AABBS);
 }
 
 void tick(World *world, f32 dt) {
@@ -196,9 +230,27 @@ void tick(World *world, f32 dt) {
 	skybox.uv_offset = camera->eye;
 	set_material_uniform_value(skybox.draw_data.material_index, "u_scale", &skybox.uv_scale);
 	set_material_uniform_value(skybox.draw_data.material_index, "u_offset", &skybox.uv_offset);
-    const auto &point_light = world->point_lights[0];
 
-    set_uniform_block_value(UNIFORM_BLOCK_LIGHTS, 0, 0, &world->point_lights.count, get_uniform_type_size_gpu_aligned(UNIFORM_U32));
+    set_uniform_block_value(UNIFORM_BLOCK_DIRECT_LIGHTS, 0, 0, &world->direct_lights.count, get_uniform_type_size_gpu_aligned(UNIFORM_U32));
+    set_uniform_block_value(UNIFORM_BLOCK_POINT_LIGHTS, 0, 0, &world->point_lights.count, get_uniform_type_size_gpu_aligned(UNIFORM_U32));
+
+    For (world->direct_lights) {
+        auto &aabb = world->aabbs[it.aabb_index];
+        const vec3 half_extent = (aabb.max - aabb.min) * 0.5f;
+        
+        aabb.min = it.location - half_extent;
+        aabb.max = it.location + half_extent;
+
+        const vec3 light_direction = get_forward_vector(it.rotation);
+
+        // @Speed: its a bit painful to see several set calls instead of just one.
+        // @Cleanup: figure out to make it cleaner, maybe get rid of field index parameters;
+        // 0 field index is light count, so skipped.
+        set_uniform_block_value(UNIFORM_BLOCK_DIRECT_LIGHTS, 1, it.u_light_index, &light_direction, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
+        set_uniform_block_value(UNIFORM_BLOCK_DIRECT_LIGHTS, 2, it.u_light_index, &it.ambient, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
+        set_uniform_block_value(UNIFORM_BLOCK_DIRECT_LIGHTS, 3, it.u_light_index, &it.diffuse, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
+        set_uniform_block_value(UNIFORM_BLOCK_DIRECT_LIGHTS, 4, it.u_light_index, &it.specular, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
+    }
     
     For (world->point_lights) {
         auto &aabb = world->aabbs[it.aabb_index];
@@ -207,13 +259,20 @@ void tick(World *world, f32 dt) {
         aabb.min = it.location - half_extent;
         aabb.max = it.location + half_extent;
 
+        const vec3 light_direction = vec3_zero;
+        
         // @Speed: its a bit painful to see several set calls instead of just one.
         // @Cleanup: figure out to make it cleaner, maybe get rid of field index parameters;
         // 0 field index is light count, so skipped.
-        set_uniform_block_value(UNIFORM_BLOCK_LIGHTS, 1, it.u_light_index, &it.location, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
-        set_uniform_block_value(UNIFORM_BLOCK_LIGHTS, 2, it.u_light_index, &it.ambient, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
-        set_uniform_block_value(UNIFORM_BLOCK_LIGHTS, 3, it.u_light_index, &it.diffuse, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
-        set_uniform_block_value(UNIFORM_BLOCK_LIGHTS, 4, it.u_light_index, &it.specular, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
+        set_uniform_block_value(UNIFORM_BLOCK_POINT_LIGHTS, 1, it.u_light_index, &it.location, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
+
+        set_uniform_block_value(UNIFORM_BLOCK_POINT_LIGHTS, 2, it.u_light_index, &it.ambient, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
+        set_uniform_block_value(UNIFORM_BLOCK_POINT_LIGHTS, 3, it.u_light_index, &it.diffuse, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
+        set_uniform_block_value(UNIFORM_BLOCK_POINT_LIGHTS, 4, it.u_light_index, &it.specular, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
+
+        set_uniform_block_value(UNIFORM_BLOCK_POINT_LIGHTS, 5, it.u_light_index, &it.attenuation.constant, get_uniform_type_size_gpu_aligned(UNIFORM_F32));
+        set_uniform_block_value(UNIFORM_BLOCK_POINT_LIGHTS, 6, it.u_light_index, &it.attenuation.linear, get_uniform_type_size_gpu_aligned(UNIFORM_F32));
+        set_uniform_block_value(UNIFORM_BLOCK_POINT_LIGHTS, 7, it.u_light_index, &it.attenuation.quadratic, get_uniform_type_size_gpu_aligned(UNIFORM_F32));
     }
     
 	For (world->static_meshes) {
@@ -505,21 +564,55 @@ Camera *desired_camera(World *world) {
 	return null;
 }
 
-Entity *find_entity_by_id(World* world, s32 id) {
-    if (world->player.id == id) return &world->player;
-    if (world->skybox.id == id) return &world->skybox;
-
-    For (world->static_meshes) {
-        if (it.id == id) return &it;
-	}
-
-    warn("Haven't found entity in world by id %d", id);
-
-    return null;
-}
-
 s32 create_static_mesh(World *world) {
     const s32 index = world->static_meshes.add_default();
     world->static_meshes[index].aabb_index = world->aabbs.add_default();
     return index;
+}
+
+Entity *find_entity_by_id(World* world, s32 id) {
+    struct Find_Entity_By_Id_Data {
+        Entity *e = null;
+        s32 id = INVALID_INDEX;
+    };
+
+    static const auto find_callback = [] (Entity *e, void *user_data) -> bool {
+        auto *data = (Find_Entity_By_Id_Data *)user_data;
+    
+        if (e->id == data->id) {
+            data->e = e;
+            return true;
+        }
+
+        return false;
+    };
+
+    Find_Entity_By_Id_Data find_data;
+    find_data.e  = null;
+    find_data.id = id;
+    
+    for_each_entity(world, find_callback, &find_data);
+
+    if (!find_data.e) {
+        warn("Haven't found entity in world by id %d", id);
+    }
+    
+    return find_data.e;
+}
+
+void for_each_entity(World *world, For_Each_Entity_Callback callback, void *user_data) {
+    if (callback(&world->player, user_data)) return;
+    if (callback(&world->skybox, user_data)) return;
+
+    For (world->static_meshes) {
+        if (callback(&it, user_data)) return;
+    }
+
+    For (world->direct_lights) {
+        if (callback(&it, user_data)) return;
+    }
+    
+    For (world->point_lights) {
+        if (callback(&it, user_data)) return;
+    }
 }
