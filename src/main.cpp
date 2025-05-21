@@ -312,9 +312,9 @@ s32 main() {
         direct_light.rotation = quat_from_axis_angle(vec3_right, 0.0f);
         direct_light.scale = vec3(0.1f);
         
-        direct_light.ambient  = vec3(0.1f);
-        direct_light.diffuse  = vec3(0.5f);
-        direct_light.specular = vec3(1.0f);
+        direct_light.ambient  = vec3_black;
+        direct_light.diffuse  = vec3_black;
+        direct_light.specular = vec3_black;
 
         direct_light.u_light_index = index;
         direct_light.aabb_index = world->aabbs.add_default();

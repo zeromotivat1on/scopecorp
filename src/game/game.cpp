@@ -466,9 +466,7 @@ void tick(World *world, f32 dt) {
         } else {
             play_sound_or_continue(player.steps_sid);
         }
-    }
 
-    {
         const s32 mti = player.draw_data.material_index;
         const mat4 model = mat4_transform(player.location, player.rotation, player.scale);
         set_material_uniform_value(mti, "u_model", &model);
