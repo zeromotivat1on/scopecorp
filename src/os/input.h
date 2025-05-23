@@ -1,7 +1,6 @@
 #pragma once
 
-enum Input_Key : s16
-{
+enum Input_Key : s16 {
     KEY_UNKNOWN,
 
     // Printable keys.
@@ -137,8 +136,7 @@ enum Input_Key : s16
     KEY_COUNT,
 };
 
-enum Gamepad_Button : s16
-{
+enum Gamepad_Button : s16 {
     GAMEPAD_BUTTON_INVALID = -1,
 
     GAMEPAD_FACE_UP = 0,
@@ -170,8 +168,7 @@ enum Gamepad_Button : s16
     GAMEPAD_X = GAMEPAD_FACE_LEFT,
 };
 
-enum Gamepad_Axis : s16
-{
+enum Gamepad_Axis : s16 {
     GAMEPAD_AXIS_INVALID = -1,
 
     GAMEPAD_LX = 0,
@@ -184,8 +181,7 @@ enum Gamepad_Axis : s16
     GAMEPAD_AXIS_COUNT,
 };
 
-struct Input_Table
-{
+struct Input_Table {
     bool key_states[KEY_COUNT]; 
     
     s16 virtual_keys[KEY_COUNT]; // key to virtual keycode

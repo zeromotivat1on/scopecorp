@@ -1,10 +1,13 @@
 #include "pch.h"
 #include "editor/hot_reload.h"
+#include "editor/debug_console.h"
 
 #include "os/time.h"
 #include "os/file.h"
+#include "os/input.h"
 
 #include "render/render_registry.h"
+#include "render/text_draw.h"
 
 #include "log.h"
 #include "profile.h"
@@ -95,4 +98,50 @@ void check_for_hot_reload(Hot_Reload_List *list) {
     }
 
     list->reload_count = 0;
+}
+
+void init_debug_console() {
+    debug_console.buffer = (char *)allocl(MAX_DEBUG_CONSOLE_BUFFER_SIZE);
+    debug_console.text_to_draw = debug_console.buffer;
+}
+
+void open_debug_console() {
+    if (debug_console.is_open) return;
+
+    debug_console.is_open = true;
+}
+
+void close_debug_console() {
+    if (!debug_console.is_open) return;
+
+    debug_console.is_open = false;    
+}
+
+void draw_debug_console() {
+    if (debug_console.is_open) {
+        draw_text(debug_console.text_input, debug_console.text_input_size, vec2(100.0f), vec3_red);
+    }
+}
+
+static inline bool is_printable_ascii(u32 character) {
+    return character >= 32 && character <= 126;
+}
+
+void on_debug_console_text_input(u32 character) {
+    if (!debug_console.is_open) return;
+
+    if (character == '`') {
+        return;
+    }
+    
+    if (character == '\n' || character == '\r') {
+        debug_console.text_input_size = 0;
+        return;
+    }
+
+    if (is_printable_ascii(character)) {
+        Assert(debug_console.text_input_size < MAX_DEBUG_CONSOLE_TEXT_INPUT_SIZE);
+        debug_console.text_input[debug_console.text_input_size] = (char)character;
+        debug_console.text_input_size += 1;
+    }
 }

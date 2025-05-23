@@ -30,6 +30,7 @@
 #include "game/game.h"
 
 #include "editor/hot_reload.h"
+#include "editor/debug_console.h"
 
 static void fill_cube_vertices(Vertex_Entity *vertices, s32 entity_id) {
     s32 i = 0;
@@ -457,6 +458,7 @@ s32 main() {
 #if DEVELOPER
         draw_geo_debug();
         draw_dev_stats();
+        draw_debug_console();
 #endif
         
         update_render_stats();
