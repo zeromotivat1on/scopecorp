@@ -145,7 +145,7 @@ void on_debug_console_text_input(u32 character) {
         debug_console.text_input_size = Max(0, debug_console.text_input_size);
     }
     
-    if (character >= 32 && character <= 126) {
+    if (is_ascii_printable(character)) {
         Assert(debug_console.text_input_size < MAX_DEBUG_CONSOLE_TEXT_INPUT_SIZE);
         debug_console.text_input[debug_console.text_input_size] = (char)character;
         debug_console.text_input_size += 1;

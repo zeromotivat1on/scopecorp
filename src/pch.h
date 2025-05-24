@@ -48,6 +48,8 @@ static_assert(sizeof(f64) == 8);
 
 #define U32_PACK(a, b, c, d) ((u32)(a) << 0  | (u32)(b) << 8  | (u32)(c) << 16 | (u32)(d) << 24)
 
+#define null nullptr
+
 #define ASCII_BACKSPACE       8
 #define ASCII_TAB             9
 #define ASCII_NEW_LINE        10
@@ -56,10 +58,9 @@ static_assert(sizeof(f64) == 8);
 #define ASCII_SPACE           32
 #define ASCII_GRAVE_ACCENT    96
 
-#define is_ascii(x)     ((x) >= 0 && (x) <= 127)
-#define is_ascii_ext(x) ((x) >= 0 && (x) <= 255)
-
-#define null nullptr
+#define is_ascii(x)           ((x) >= 0 && (x) <= 127)
+#define is_ascii_ext(x)       ((x) >= 0 && (x) <= 255)
+#define is_ascii_printable(x) ((x) >= 32 && (x) <= 126)
 
 #define INVALID_INDEX -1
 #define MAX_PATH_SIZE 256
