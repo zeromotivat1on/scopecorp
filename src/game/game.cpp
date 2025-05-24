@@ -42,6 +42,7 @@ void on_window_event(Window *window, Window_Event *event) {
         world->ed_camera = world->camera;
 
         set_material_uniform_value(ui.text_draw_buffer.material_index, "u_projection", &viewport.orthographic_projection);
+        set_material_uniform_value(ui.quad_draw_buffer.material_index, "u_projection", &viewport.orthographic_projection);
 
         const auto &frame_buffer = render_registry.frame_buffers[viewport.frame_buffer_index];
         const vec2 resolution = vec2(frame_buffer.width, frame_buffer.height);

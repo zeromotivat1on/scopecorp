@@ -42,13 +42,17 @@ void detect_render_capabilities() {
     glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &R_UNIFORM_BUFFER_OFFSET_ALIGNMENT);
     glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE,          &R_MAX_UNIFORM_BLOCK_SIZE);
 
+    glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &R_MAX_VERTEX_ATTRIBUTES);
+    for (s32 i = 0; i < R_MAX_VERTEX_ATTRIBUTES; ++i) {
+        glEnableVertexAttribArray(i);
+    }
+    
     log("Render capabilities:");
-    log("  Texture: Max Size %dx%d texels", R_MAX_TEXTURE_TEXELS, R_MAX_TEXTURE_TEXELS);
-    log("  Uniform buffer: Max Bindings %d | Base Alignment %d | Offset Alignment %d",
-        R_MAX_UNIFORM_BUFFER_BINDINGS,
-        R_UNIFORM_BUFFER_BASE_ALIGNMENT,
-        R_UNIFORM_BUFFER_OFFSET_ALIGNMENT);
-    log("  Uniform block:  Max Size %d bytes", R_MAX_UNIFORM_BLOCK_SIZE);
+    log("  Texture:\n    Max Size %dx%d texels", R_MAX_TEXTURE_TEXELS, R_MAX_TEXTURE_TEXELS);
+    log("  Uniform buffer:\n    Max Bindings %d\n    Base Alignment %d\n    Offset Alignment %d",
+        R_MAX_UNIFORM_BUFFER_BINDINGS, R_UNIFORM_BUFFER_BASE_ALIGNMENT, R_UNIFORM_BUFFER_OFFSET_ALIGNMENT);
+    log("  Uniform block:\n    Max Size %d bytes", R_MAX_UNIFORM_BLOCK_SIZE);
+    log("  Vertex buffer:\n    Max Attributes %d", R_MAX_VERTEX_ATTRIBUTES);
 }
 
 static u32 gl_clear_buffer_bits(u32 flags) {

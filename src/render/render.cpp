@@ -50,6 +50,7 @@ void cache_shader_sids(Shader_Sid_List *list) {
     list->frame_buffer = SID("/data/shaders/frame_buffer.glsl");
     list->geometry     = SID("/data/shaders/geometry.glsl");
     list->outline      = SID("/data/shaders/outline.glsl");
+    list->quad         = SID("/data/shaders/quad.glsl");
 }
 
 void cache_texture_sids(Texture_Sid_List *list) {
@@ -427,15 +428,14 @@ void ui_init() {
         constexpr s32 charmap_buffer_size   = MAX_UI_TEXT_DRAW_BUFFER_CHARS * sizeof(u32);
         constexpr s32 transform_buffer_size = MAX_UI_TEXT_DRAW_BUFFER_CHARS * sizeof(mat4);
 
-        auto &tdb = ui.text_draw_buffer;
-        
+        auto &tdb = ui.text_draw_buffer;    
         tdb.colors     = (vec3 *)allocl(color_buffer_size);
         tdb.charmap    = (u32  *)allocl(charmap_buffer_size);
         tdb.transforms = (mat4 *)allocl(transform_buffer_size);
-    
-        Vertex_Array_Binding bindings[4] = {};
 
         const f32 vertices[8] = { 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f };
+        
+        Vertex_Array_Binding bindings[4] = {};
         bindings[0].layout_size = 1;
         bindings[0].layout[0] = { VERTEX_F32_2, 0 };
         bindings[0].vertex_buffer_index = create_vertex_buffer(vertices, 8 * sizeof(f32), BUFFER_USAGE_STATIC);
@@ -455,14 +455,36 @@ void ui_init() {
         bindings[3].layout[3] = { VERTEX_F32_4, 1 };
         bindings[3].vertex_buffer_index = create_vertex_buffer(null, transform_buffer_size, BUFFER_USAGE_STREAM);
 
-        tdb.vertex_array_index = create_vertex_array(bindings, 4);
+        tdb.vertex_array_index = create_vertex_array(bindings, COUNT(bindings));
         tdb.material_index = create_material(asset_table[shader_sids.text].registry_index, INVALID_INDEX);
 
         const s32 u_projection = create_uniform("u_projection", UNIFORM_F32_4X4, 1);
         set_material_uniforms(tdb.material_index, &u_projection, 1);
     }
 
-    
+    {   // Quad draw buffer.
+        constexpr s32 pos_buffer_size   = MAX_UI_QUAD_DRAW_BUFFER_VERTICES * sizeof(vec2);
+        constexpr s32 color_buffer_size = MAX_UI_QUAD_DRAW_BUFFER_VERTICES * sizeof(vec4);
+
+        auto &qdb = ui.quad_draw_buffer;
+        qdb.positions = (vec2 *)allocl(pos_buffer_size);
+        qdb.colors    = (vec4 *)allocl(color_buffer_size);
+        
+        Vertex_Array_Binding bindings[2] = {};
+        bindings[0].layout_size = 1;
+        bindings[0].layout[0] = { VERTEX_F32_2, 0 };
+        bindings[0].vertex_buffer_index = create_vertex_buffer(null, pos_buffer_size, BUFFER_USAGE_STREAM);
+        
+        bindings[1].layout_size = 1;
+        bindings[1].layout[0] = { VERTEX_F32_4, 1 };
+        bindings[1].vertex_buffer_index = create_vertex_buffer(null, color_buffer_size, BUFFER_USAGE_STREAM);
+        
+        qdb.vertex_array_index = create_vertex_array(bindings, COUNT(bindings));
+        qdb.material_index = create_material(asset_table[shader_sids.quad].registry_index, INVALID_INDEX);
+
+        const s32 u_projection = create_uniform("u_projection", UNIFORM_F32_4X4, 1);
+        set_material_uniforms(qdb.material_index, &u_projection, 1);
+    }
 }
 
 void ui_draw_text(const char *text, u32 count, vec2 pos, vec3 color, s32 atlas_index) {
@@ -532,17 +554,49 @@ void ui_draw_text(const char *text, u32 count, vec2 pos, vec3 color, s32 atlas_i
 	}
 }
 
-void ui_draw_text_with_shadow(const char *text, u32 count, vec2 pos, vec3 color, vec2 shadow_offset, vec3 shadow_color) {
-	ui_draw_text(text, count, pos + shadow_offset, shadow_color);
-	ui_draw_text(text, count, pos, color);
+void ui_draw_text_with_shadow(const char *text, u32 count, vec2 pos, vec3 color, vec2 shadow_offset, vec3 shadow_color, s32 atlas_index) {
+	ui_draw_text(text, count, pos + shadow_offset, shadow_color, atlas_index);
+	ui_draw_text(text, count, pos, color, atlas_index);
 }
 
-void ui_draw_quad(vec2 p1, vec2 p2, vec4 color) {
+void ui_draw_quad(vec2 p0, vec2 p1, vec4 color) {
+    Assert(ui.draw_queue_size < MAX_UI_DRAW_QUEUE_SIZE);
+
+    auto &qdb = ui.quad_draw_buffer;
+
+    auto &ui_cmd = ui.draw_queue[ui.draw_queue_size];
+    ui_cmd.type = UI_DRAW_QUAD;
+    ui_cmd.element_count = 1;
+
+    ui.draw_queue_size += 1;
+
+    const f32 x0 = Min(p0.x, p1.x);
+    const f32 y0 = Min(p0.y, p1.y);
+
+    const f32 x1 = Max(p0.x, p1.x);
+    const f32 y1 = Max(p0.y, p1.y);
     
+    vec2 *vp = qdb.positions + qdb.vertex_count;
+    vec4 *vc = qdb.colors    + qdb.vertex_count;
+
+    vp[0] = vec2(x0, y0);
+    vc[0] = color;
+    
+    vp[1] = vec2(x1, y0);
+    vc[1] = color;
+    
+    vp[2] = vec2(x0, y1);
+    vc[2] = color;
+    
+    vp[3] = vec2(x1, y1);
+    vc[3] = color;
+
+    qdb.vertex_count += 4;
 }
 
 void ui_flush() {
     auto &tdb = ui.text_draw_buffer;
+    auto &qdb = ui.quad_draw_buffer;
 
     if (tdb.char_count > 0) {
         const auto &va = render_registry.vertex_arrays[tdb.vertex_array_index];
@@ -551,19 +605,26 @@ void ui_flush() {
         set_vertex_buffer_data(va.bindings[3].vertex_buffer_index, tdb.transforms, tdb.char_count * sizeof(mat4), 0);
     }
 
+    if (qdb.vertex_count > 0) {
+        const auto &va = render_registry.vertex_arrays[qdb.vertex_array_index];
+        set_vertex_buffer_data(va.bindings[0].vertex_buffer_index, qdb.positions, qdb.vertex_count * sizeof(vec2), 0);
+        set_vertex_buffer_data(va.bindings[1].vertex_buffer_index, qdb.colors, qdb.vertex_count * sizeof(vec4), 0);
+    }
+    
     s32 char_instance_offset = 0;
+    s32 quad_instance_offset = 0;
     
     // @Speed: instead of submitting each ui draw command as separate render command,
     // iterate over all adjacent same type ui draw commands in queue and batch them
     // with just 1 render command.
     for (s32 i = 0; i < ui.draw_queue_size; ++i) {
-        auto &ui_cmd = ui.draw_queue[i];
+        const auto &ui_cmd = ui.draw_queue[i];
         const auto &atlas = *ui.font_atlases[ui_cmd.atlas_index];
 
         if (ui_cmd.element_count == 0) continue;
         
         Render_Command r_cmd = {};
-        r_cmd.flags = RENDER_FLAG_VIEWPORT | RENDER_FLAG_SCISSOR | RENDER_FLAG_CULL_FACE | RENDER_FLAG_BLEND;
+        r_cmd.flags = RENDER_FLAG_VIEWPORT | RENDER_FLAG_SCISSOR | RENDER_FLAG_CULL_FACE | RENDER_FLAG_BLEND | RENDER_FLAG_RESET;
         r_cmd.render_mode  = RENDER_TRIANGLE_STRIP;
         r_cmd.polygon_mode = POLYGON_FILL;
         r_cmd.viewport.x      = viewport.x;
@@ -578,7 +639,7 @@ void ui_flush() {
         r_cmd.cull_face.winding = WINDING_COUNTER_CLOCKWISE;
         r_cmd.blend.source      = BLEND_SOURCE_ALPHA;
         r_cmd.blend.destination = BLEND_ONE_MINUS_SOURCE_ALPHA;
-    
+
         switch (ui_cmd.type) {
         case UI_DRAW_TEXT: {
             r_cmd.vertex_array_index = tdb.vertex_array_index;
@@ -586,7 +647,7 @@ void ui_flush() {
             r_cmd.instance_count = ui_cmd.element_count;
             r_cmd.instance_offset = char_instance_offset;
             
-            // @Cleanup: change paramter order in this function.
+            // @Cleanup: change paramater order in this function.
             fill_render_command_with_material_data(tdb.material_index, &r_cmd);
             r_cmd.texture_index = atlas.texture_index;
 
@@ -595,6 +656,16 @@ void ui_flush() {
             break;
         }
         case UI_DRAW_QUAD: {
+            r_cmd.vertex_array_index = qdb.vertex_array_index;
+            r_cmd.buffer_element_count = 4;
+            r_cmd.instance_count = ui_cmd.element_count;
+            r_cmd.instance_offset = quad_instance_offset;
+            
+            // @Cleanup: change paramater order in this function.
+            fill_render_command_with_material_data(qdb.material_index, &r_cmd);
+            
+            quad_instance_offset += ui_cmd.element_count;
+            
             break;
         }
         }
@@ -604,6 +675,7 @@ void ui_flush() {
 
     ui.draw_queue_size = 0;
     tdb.char_count = 0;
+    qdb.vertex_count = 0;
 }
 
 s32 vertex_array_vertex_count(s32 vertex_array_index) {

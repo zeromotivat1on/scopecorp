@@ -235,7 +235,7 @@ bool init_render_context(Window *window) {
     glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS); 
     glDebugMessageCallback(gl_debug_message_callback, null);
     glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, null, GL_TRUE);
-
+    
 	ShowWindow(window->win32->hwnd, SW_NORMAL);
 
     return true;

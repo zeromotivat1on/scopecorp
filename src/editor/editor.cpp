@@ -7,6 +7,7 @@
 #include "os/input.h"
 
 #include "render/ui.h"
+#include "render/viewport.h"
 #include "render/render_command.h"
 #include "render/render_registry.h"
 
@@ -119,12 +120,18 @@ void open_debug_console() {
 void close_debug_console() {
     if (!debug_console.is_open) return;
 
-    debug_console.is_open = false;    
+    debug_console.is_open = false;
 }
 
 void draw_debug_console() {
     if (debug_console.is_open) {
-        ui_draw_quad(vec2(50.0f), vec2(150.0f), vec4(1.0f, 1.0f, 1.0f, 0.1f));
+        const vec2 text_pos = vec2(100.0f);
+        
+        const vec2 quad_p0 = text_pos - vec2(debug_console.text_padding);
+        const vec2 quad_p1 = vec2(viewport.width - text_pos.x, quad_p0.y + ui.font_atlases[UI_DEFAULT_FONT_ATLAS_INDEX]->font_size + 2 * debug_console.text_padding);
+        const vec4 quad_color = vec4(0.0f, 0.0f, 0.0f, 0.6f);
+        
+        ui_draw_quad(quad_p0, quad_p1, quad_color);
         ui_draw_text(debug_console.text_input, debug_console.text_input_size, vec2(100.0f), vec3_red);
     }
 }
@@ -132,7 +139,7 @@ void draw_debug_console() {
 void on_debug_console_text_input(u32 character) {
     if (!debug_console.is_open) return;
 
-    log("%u", character);
+    //log("%u", character);
     
     if (character == ASCII_GRAVE_ACCENT) {
         return;
@@ -149,9 +156,12 @@ void on_debug_console_text_input(u32 character) {
         debug_console.text_input_size -= 1;
         debug_console.text_input_size = Max(0, debug_console.text_input_size);
     }
-    
+
     if (is_ascii_printable(character)) {
-        Assert(debug_console.text_input_size < MAX_DEBUG_CONSOLE_TEXT_INPUT_SIZE);
+        if (debug_console.text_input_size >= MAX_DEBUG_CONSOLE_TEXT_INPUT_SIZE) {
+            return;
+        }
+        
         debug_console.text_input[debug_console.text_input_size] = (char)character;
         debug_console.text_input_size += 1;
     }

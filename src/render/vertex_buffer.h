@@ -2,6 +2,8 @@
 
 #include "render/vertex.h"
 
+inline s32 R_MAX_VERTEX_ATTRIBUTES;
+
 inline constexpr s32 MAX_VERTEX_LAYOUT_SIZE    = 8;
 inline constexpr s32 MAX_VERTEX_ARRAY_BINDINGS = 8;
 
