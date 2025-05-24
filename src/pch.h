@@ -48,6 +48,17 @@ static_assert(sizeof(f64) == 8);
 
 #define U32_PACK(a, b, c, d) ((u32)(a) << 0  | (u32)(b) << 8  | (u32)(c) << 16 | (u32)(d) << 24)
 
+#define ASCII_BACKSPACE       8
+#define ASCII_TAB             9
+#define ASCII_NEW_LINE        10
+#define ASCII_CARRIAGE_RETURN 13
+#define ASCII_ESCAPE          27
+#define ASCII_SPACE           32
+#define ASCII_GRAVE_ACCENT    96
+
+#define is_ascii(x)     ((x) >= 0 && (x) <= 127)
+#define is_ascii_ext(x) ((x) >= 0 && (x) <= 255)
+
 #define null nullptr
 
 #define INVALID_INDEX -1
@@ -71,14 +82,19 @@ inline const char* build_type_name = "RELEASE";
 #define CONCAT_(a, b) a ## b 
 #define CONCAT(a, b) CONCAT_(a, b)
 
-struct Defer_Ref {};
-template <class F> struct Defer { F f; ~Defer() { f(); } };
-template <class F> Defer<F> operator+(Defer_Ref, F f) { return {f}; }
-#define defer const auto CONCAT(deferrer, __LINE__) = Defer_Ref{} + [&]()
+struct My_Defer_Ref {};
+template <class F> struct My_Defer { F f; ~My_Defer() { f(); } };
+template <class F> My_Defer<F> operator+(My_Defer_Ref, F f) { return {f}; }
+#define defer const auto CONCAT(deferrer, __LINE__) = My_Defer_Ref{} + [&]()
 
 #define For(x) for (auto &it : (x))
 
 #define Align(x, alignment) (((x) + (alignment) - 1) & ~((alignment) - 1))
+
+#define Sign(x)        ((x) > 0 ? 1 : -1)
+#define Min(a, b)      ((a) < (b) ? (a) : (b))
+#define Max(a, b)      ((a) > (b) ? (a) : (b))
+#define Clamp(x, a, b) (Min((b), Max((a), (x))))
 
 #define PATH_DATA(x)    DIR_DATA x
 #define PATH_PACK(x)    DIR_DATA x

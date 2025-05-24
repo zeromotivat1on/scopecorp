@@ -21,8 +21,8 @@
 #include "render/render_command.h"
 #include "render/render_registry.h"
 #include "render/geometry_draw.h"
-#include "render/text_draw.h"
 #include "render/viewport.h"
+#include "render/ui.h"
 
 #include "audio/audio_registry.h"
 
@@ -148,17 +148,15 @@ s32 main() {
 	register_hot_reload_directory(&hot_reload_list, DIR_SHADERS);
 	register_hot_reload_directory(&hot_reload_list, DIR_TEXTURES);
 	register_hot_reload_directory(&hot_reload_list, DIR_SOUNDS);
-
-	Font *font = create_font(PATH_FONT("consola.ttf"));
-	Font_Atlas *atlas = bake_font_atlas(font, 33, 126, 16);
     
 	world = alloclt(World);
 	init_world(world);
 
     init_render_queue(&entity_render_queue, MAX_RENDER_QUEUE_SIZE);
-    init_text_draw(atlas);
     init_geo_draw();
 
+    ui_init();
+    
 	Player &player = world->player;
 	{   // Create player.
         player.id = 1;
@@ -478,7 +476,7 @@ s32 main() {
         }
         
         draw_frame_buffer(viewport.frame_buffer_index, 0);
-        flush_text_draw();
+        ui_flush();
 
 		swap_buffers(window);
         PROFILE_FRAME("Game Frame");

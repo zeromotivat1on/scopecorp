@@ -14,7 +14,7 @@
 #include "os/input.h"
 #include "os/window.h"
 
-#include "render/text_draw.h"
+#include "render/ui.h"
 #include "render/viewport.h"
 #include "render/render_registry.h"
 
@@ -41,7 +41,7 @@ void on_window_event(Window *window, Window_Event *event) {
         on_viewport_resize(&world->camera, &viewport);
         world->ed_camera = world->camera;
 
-        set_material_uniform_value(text_draw_buffer.material_index, "u_projection", &viewport.orthographic_projection);
+        set_material_uniform_value(ui.text_draw_buffer.material_index, "u_projection", &viewport.orthographic_projection);
 
         const auto &frame_buffer = render_registry.frame_buffers[viewport.frame_buffer_index];
         const vec2 resolution = vec2(frame_buffer.width, frame_buffer.height);
@@ -327,7 +327,6 @@ void tick(World *world, f32 dt) {
             // @Cleanup: create sort of input stack to determine where to pass events.
             if (debug_console.is_open) {
                 player.velocity = vec3_zero;
-                player.move_direction = DIRECTION_BACK;
             } else {
                 const f32 speed = player.move_speed * dt;
                 vec3 velocity;
@@ -479,7 +478,7 @@ void tick(World *world, f32 dt) {
             if (window->cursor_locked) {   
                 camera.yaw += input_table.mouse_offset_x * mouse_sensitivity * dt;
                 camera.pitch += input_table.mouse_offset_y * mouse_sensitivity * dt;
-                camera.pitch = clamp(camera.pitch, -89.0f, 89.0f);
+                camera.pitch = Clamp(camera.pitch, -89.0f, 89.0f);
             }
                     
             const f32 speed = player.ed_camera_speed * dt;

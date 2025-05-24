@@ -6,8 +6,8 @@
 #include "os/file.h"
 #include "os/input.h"
 
+#include "render/ui.h"
 #include "render/render_registry.h"
-#include "render/text_draw.h"
 
 #include "log.h"
 #include "profile.h"
@@ -101,8 +101,8 @@ void check_for_hot_reload(Hot_Reload_List *list) {
 }
 
 void init_debug_console() {
-    debug_console.buffer = (char *)allocl(MAX_DEBUG_CONSOLE_BUFFER_SIZE);
-    debug_console.text_to_draw = debug_console.buffer;
+    debug_console.history_buffer = (char *)allocl(MAX_DEBUG_CONSOLE_BUFFER_SIZE);
+    debug_console.text_to_draw = debug_console.history_buffer;
 }
 
 void open_debug_console() {
@@ -119,27 +119,33 @@ void close_debug_console() {
 
 void draw_debug_console() {
     if (debug_console.is_open) {
-        draw_text(debug_console.text_input, debug_console.text_input_size, vec2(100.0f), vec3_red);
+        ui_draw_quad(vec2(50.0f), vec2(150.0f), vec4(1.0f, 1.0f, 1.0f, 0.1f));
+        ui_draw_text(debug_console.text_input, debug_console.text_input_size, vec2(100.0f), vec3_red);
     }
-}
-
-static inline bool is_printable_ascii(u32 character) {
-    return character >= 32 && character <= 126;
 }
 
 void on_debug_console_text_input(u32 character) {
     if (!debug_console.is_open) return;
 
-    if (character == '`') {
+    log("%u", character);
+    
+    if (character == ASCII_GRAVE_ACCENT) {
         return;
     }
     
-    if (character == '\n' || character == '\r') {
+    if (character == ASCII_NEW_LINE || character == ASCII_CARRIAGE_RETURN) {
+        
+        
         debug_console.text_input_size = 0;
         return;
     }
 
-    if (is_printable_ascii(character)) {
+    if (character == ASCII_BACKSPACE) {
+        debug_console.text_input_size -= 1;
+        debug_console.text_input_size = Max(0, debug_console.text_input_size);
+    }
+    
+    if (character >= 32 && character <= 126) {
         Assert(debug_console.text_input_size < MAX_DEBUG_CONSOLE_TEXT_INPUT_SIZE);
         debug_console.text_input[debug_console.text_input_size] = (char)character;
         debug_console.text_input_size += 1;

@@ -153,7 +153,8 @@ struct Render_Command {
     s32 buffer_element_count  = 0;
     s32 buffer_element_offset = 0;
     
-	s32 instance_count = 1;
+	s32 instance_count  = 1;
+	s32 instance_offset = 0;
 };
 
 struct Render_Queue {

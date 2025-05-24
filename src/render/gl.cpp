@@ -10,6 +10,7 @@
 #include "render/vertex_buffer.h"
 #include "render/render_command.h"
 #include "render/render_registry.h"
+#include "render/render_stats.h"
 #include "render/viewport.h"
 
 #include "log.h"
@@ -160,7 +161,9 @@ static s32 gl_texture_type(Texture_Type type) {
     }
 }
 
-void submit(const Render_Command *command) {    
+void submit(const Render_Command *command) {
+    draw_call_count += 1;
+    
     {
         const s32 mode = gl_polygon_mode(command->polygon_mode);
         glPolygonMode(GL_FRONT_AND_BACK, mode);
@@ -270,11 +273,11 @@ void submit(const Render_Command *command) {
 
             const s32 index_count = command->buffer_element_count;
             const void* index_ptr = (void *)(u64)command->buffer_element_offset;
-            glDrawElementsInstanced(render_mode, index_count, GL_UNSIGNED_INT, index_ptr, command->instance_count);
+            glDrawElementsInstancedBaseInstance(render_mode, index_count, GL_UNSIGNED_INT, index_ptr, command->instance_count, command->instance_offset);
         } else {
             const s32 vertex_count = command->buffer_element_count;
             const s32 vertex_first = command->buffer_element_offset;
-            glDrawArraysInstanced(render_mode, vertex_first, vertex_count, command->instance_count);
+            glDrawArraysInstancedBaseInstance(render_mode, vertex_first, vertex_count, command->instance_count, command->instance_offset);
         }
     }
     

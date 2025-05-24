@@ -4,9 +4,9 @@ inline constexpr s32 MAX_DEBUG_CONSOLE_BUFFER_SIZE     = KB(32);
 inline constexpr s32 MAX_DEBUG_CONSOLE_TEXT_INPUT_SIZE = 256;
 
 struct Debug_Console {
-    char *buffer = null;
+    char *history_buffer = null;
     char *text_to_draw = null;
-    s32 buffer_size = 0;
+    s32 history_buffer_size = 0;
     s32 draw_count  = 0;
     bool is_open = false;
     

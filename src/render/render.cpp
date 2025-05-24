@@ -11,7 +11,7 @@
 #include "render/render_command.h"
 #include "render/render_stats.h"
 #include "render/geometry_draw.h"
-#include "render/text_draw.h"
+#include "render/ui.h"
 
 #include "game/game.h"
 #include "game/world.h"
@@ -418,80 +418,99 @@ void flush_geo_draw() {
     geometry_draw_buffer.vertex_count = 0;
 }
 
-void init_text_draw(Font_Atlas *atlas) {
-    constexpr s32 color_buffer_size     = MAX_CHAR_RENDER_COUNT * sizeof(vec3);
-    constexpr s32 charmap_buffer_size   = MAX_CHAR_RENDER_COUNT * sizeof(u32);
-    constexpr s32 transform_buffer_size = MAX_CHAR_RENDER_COUNT * sizeof(mat4);
-
-    text_draw_buffer.atlas = atlas;
-    text_draw_buffer.colors     = (vec3 *)allocl(color_buffer_size);
-    text_draw_buffer.charmap    = (u32  *)allocl(charmap_buffer_size);
-    text_draw_buffer.transforms = (mat4 *)allocl(transform_buffer_size);
+void ui_init() {
+    Font *consola = create_font(PATH_FONT("consola.ttf"));
+    ui.font_atlases[UI_DEFAULT_FONT_ATLAS_INDEX] = bake_font_atlas(consola, 33, 126, 16);;
     
-    Vertex_Array_Binding bindings[4] = {};
+    {   // Text draw buffer.
+        constexpr s32 color_buffer_size     = MAX_UI_TEXT_DRAW_BUFFER_CHARS * sizeof(vec3);
+        constexpr s32 charmap_buffer_size   = MAX_UI_TEXT_DRAW_BUFFER_CHARS * sizeof(u32);
+        constexpr s32 transform_buffer_size = MAX_UI_TEXT_DRAW_BUFFER_CHARS * sizeof(mat4);
 
-    const f32 vertices[8] = { 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, };
-    bindings[0].layout_size = 1;
-    bindings[0].layout[0] = { VERTEX_F32_2, 0 };
-    bindings[0].vertex_buffer_index = create_vertex_buffer(vertices, 8 * sizeof(f32), BUFFER_USAGE_STATIC);
+        auto &tdb = ui.text_draw_buffer;
+        
+        tdb.colors     = (vec3 *)allocl(color_buffer_size);
+        tdb.charmap    = (u32  *)allocl(charmap_buffer_size);
+        tdb.transforms = (mat4 *)allocl(transform_buffer_size);
     
-    bindings[1].layout_size = 1;
-    bindings[1].layout[0] = { VERTEX_F32_3, 1 };
-    bindings[1].vertex_buffer_index = create_vertex_buffer(null, color_buffer_size, BUFFER_USAGE_STREAM);
+        Vertex_Array_Binding bindings[4] = {};
+
+        const f32 vertices[8] = { 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f };
+        bindings[0].layout_size = 1;
+        bindings[0].layout[0] = { VERTEX_F32_2, 0 };
+        bindings[0].vertex_buffer_index = create_vertex_buffer(vertices, 8 * sizeof(f32), BUFFER_USAGE_STATIC);
+    
+        bindings[1].layout_size = 1;
+        bindings[1].layout[0] = { VERTEX_F32_3, 1 };
+        bindings[1].vertex_buffer_index = create_vertex_buffer(null, color_buffer_size, BUFFER_USAGE_STREAM);
  
-    bindings[2].layout_size = 1;
-    bindings[2].layout[0] = { VERTEX_U32, 1 };
-    bindings[2].vertex_buffer_index = create_vertex_buffer(null, charmap_buffer_size, BUFFER_USAGE_STREAM);
+        bindings[2].layout_size = 1;
+        bindings[2].layout[0] = { VERTEX_U32, 1 };
+        bindings[2].vertex_buffer_index = create_vertex_buffer(null, charmap_buffer_size, BUFFER_USAGE_STREAM);
     
-    bindings[3].layout_size = 4;
-    bindings[3].layout[0] = { VERTEX_F32_4, 1 };
-    bindings[3].layout[1] = { VERTEX_F32_4, 1 };
-    bindings[3].layout[2] = { VERTEX_F32_4, 1 };
-    bindings[3].layout[3] = { VERTEX_F32_4, 1 };
-    bindings[3].vertex_buffer_index = create_vertex_buffer(null, transform_buffer_size, BUFFER_USAGE_STREAM);
+        bindings[3].layout_size = 4;
+        bindings[3].layout[0] = { VERTEX_F32_4, 1 };
+        bindings[3].layout[1] = { VERTEX_F32_4, 1 };
+        bindings[3].layout[2] = { VERTEX_F32_4, 1 };
+        bindings[3].layout[3] = { VERTEX_F32_4, 1 };
+        bindings[3].vertex_buffer_index = create_vertex_buffer(null, transform_buffer_size, BUFFER_USAGE_STREAM);
 
-    text_draw_buffer.vertex_array_index = create_vertex_array(bindings, 4);
-    text_draw_buffer.material_index = create_material(asset_table[shader_sids.text].registry_index, INVALID_INDEX);
+        tdb.vertex_array_index = create_vertex_array(bindings, 4);
+        tdb.material_index = create_material(asset_table[shader_sids.text].registry_index, INVALID_INDEX);
 
-    const s32 u_projection = create_uniform("u_projection", UNIFORM_F32_4X4, 1);
-    set_material_uniforms(text_draw_buffer.material_index, &u_projection, 1);
+        const s32 u_projection = create_uniform("u_projection", UNIFORM_F32_4X4, 1);
+        set_material_uniforms(tdb.material_index, &u_projection, 1);
+    }
+
+    
 }
 
-void draw_text(const char *text, u32 text_size, vec2 pos, vec3 color) {
-	const auto *atlas = text_draw_buffer.atlas;
+void ui_draw_text(const char *text, u32 count, vec2 pos, vec3 color, s32 atlas_index) {
+    Assert(atlas_index < MAX_UI_FONT_ATLASES);
+    Assert(ui.draw_queue_size < MAX_UI_DRAW_QUEUE_SIZE);
 
+	const auto &atlas = *ui.font_atlases[atlas_index];
+    auto &tdb = ui.text_draw_buffer;
+
+    auto &ui_cmd = ui.draw_queue[ui.draw_queue_size];
+    ui_cmd.type = UI_DRAW_TEXT;
+    ui_cmd.element_count = 0;
+    ui_cmd.atlas_index = atlas_index;
+    
+    ui.draw_queue_size += 1;
+    
 	f32 x = pos.x;
 	f32 y = pos.y;
 
-	for (u32 i = 0; i < text_size; ++i) {
-        Assert(text_draw_buffer.char_count < MAX_CHAR_RENDER_COUNT);
+	for (u32 i = 0; i < count; ++i) {
+        Assert(tdb.char_count < MAX_UI_TEXT_DRAW_BUFFER_CHARS);
         
 		const char c = text[i];
 
 		if (c == ' ') {
-			x += atlas->space_advance_width;
+			x += atlas.space_advance_width;
 			continue;
 		}
 
 		if (c == '\t') {
-			x += 4 * atlas->space_advance_width;
+			x += 4 * atlas.space_advance_width;
 			continue;
 		}
 
 		if (c == '\n') {
 			x = pos.x;
-			y -= atlas->line_height;
+			y -= atlas.line_height;
 			continue;
 		}
 
-		Assert((u32)c >= atlas->start_charcode);
-		Assert((u32)c <= atlas->end_charcode);
+		Assert((u32)c >= atlas.start_charcode);
+		Assert((u32)c <= atlas.end_charcode);
 
-		const u32 ci = c - atlas->start_charcode;
-		const Font_Glyph_Metric *metric = atlas->metrics + ci;
+		const u32 ci = c - atlas.start_charcode;
+		const Font_Glyph_Metric *metric = atlas.metrics + ci;
 
-		const f32 cw = (f32)atlas->font_size;
-		const f32 ch = (f32)atlas->font_size;
+		const f32 cw = (f32)atlas.font_size;
+		const f32 ch = (f32)atlas.font_size;
 		const f32 cx = x + metric->offset_x;
 		const f32 cy = y - (ch + metric->offset_y);
 
@@ -499,67 +518,92 @@ void draw_text(const char *text, u32 text_size, vec2 pos, vec3 color) {
         const vec3 scale     = vec3(cw, ch, 0.0f);
         const mat4 transform = mat4_identity().translate(location).scale(scale);
 
-        text_draw_buffer.colors[text_draw_buffer.char_count] = color;
-        text_draw_buffer.charmap[text_draw_buffer.char_count] = ci;
-		text_draw_buffer.transforms[text_draw_buffer.char_count] = transform;
-        text_draw_buffer.char_count++;
+        tdb.colors[tdb.char_count] = color;
+        tdb.charmap[tdb.char_count] = ci;
+		tdb.transforms[tdb.char_count] = transform;
+        tdb.char_count += 1;
+
+        ui_cmd.element_count += 1;
         
 		x += metric->advance_width;
-        if (i < text_size - 1) {
-            x += atlas->px_h_scale * get_glyph_kern_advance(atlas->font, c, text[i + 1]);
+        if (i < count - 1) {
+            x += atlas.px_h_scale * get_glyph_kern_advance(atlas.font, c, text[i + 1]);
         }
 	}
 }
 
-void draw_text_with_shadow(const char *text, u32 text_size, vec2 pos, vec3 color, vec2 shadow_offset, vec3 shadow_color) {
-	draw_text(text, text_size, pos + shadow_offset, shadow_color);
-	draw_text(text, text_size, pos, color);
+void ui_draw_text_with_shadow(const char *text, u32 count, vec2 pos, vec3 color, vec2 shadow_offset, vec3 shadow_color) {
+	ui_draw_text(text, count, pos + shadow_offset, shadow_color);
+	ui_draw_text(text, count, pos, color);
 }
 
-void flush_text_draw() {
-    PROFILE_SCOPE(__FUNCTION__);
-
-    if (text_draw_buffer.char_count == 0) return;
-
-    const auto &viewport_frame_buffer = render_registry.frame_buffers[viewport.frame_buffer_index];
-        
-    Render_Command command = {};
-    command.flags = RENDER_FLAG_VIEWPORT | RENDER_FLAG_SCISSOR | RENDER_FLAG_CULL_FACE | RENDER_FLAG_BLEND;
-	command.render_mode  = RENDER_TRIANGLE_STRIP;
-    command.polygon_mode = POLYGON_FILL;
-    command.viewport.x      = viewport.x;
-    command.viewport.y      = viewport.y;
-    command.viewport.width  = viewport.width;
-    command.viewport.height = viewport.height;
-    command.scissor.x      = viewport.x;
-    command.scissor.y      = viewport.y;
-    command.scissor.width  = viewport.width;
-    command.scissor.height = viewport.height;
-    command.cull_face.type    = CULL_FACE_BACK;
-    command.cull_face.winding = WINDING_COUNTER_CLOCKWISE;
-    command.blend.source      = BLEND_SOURCE_ALPHA;
-    command.blend.destination = BLEND_ONE_MINUS_SOURCE_ALPHA;
-    command.vertex_array_index = text_draw_buffer.vertex_array_index;
-    command.buffer_element_count = 4;
-    command.instance_count       = text_draw_buffer.char_count;
+void ui_draw_quad(vec2 p1, vec2 p2, vec4 color) {
     
-    fill_render_command_with_material_data(text_draw_buffer.material_index, &command);
-    command.texture_index = text_draw_buffer.atlas->texture_index;
+}
 
-    const auto &vertex_array = render_registry.vertex_arrays[text_draw_buffer.vertex_array_index];
-    set_vertex_buffer_data(vertex_array.bindings[1].vertex_buffer_index,
-                           text_draw_buffer.colors,
-                           text_draw_buffer.char_count * sizeof(vec3), 0);
-    set_vertex_buffer_data(vertex_array.bindings[2].vertex_buffer_index,
-                           text_draw_buffer.charmap,
-                           text_draw_buffer.char_count * sizeof(u32), 0);
-    set_vertex_buffer_data(vertex_array.bindings[3].vertex_buffer_index,
-                           text_draw_buffer.transforms,
-                           text_draw_buffer.char_count * sizeof(mat4), 0);
+void ui_flush() {
+    auto &tdb = ui.text_draw_buffer;
+
+    if (tdb.char_count > 0) {
+        const auto &va = render_registry.vertex_arrays[tdb.vertex_array_index];
+        set_vertex_buffer_data(va.bindings[1].vertex_buffer_index, tdb.colors, tdb.char_count * sizeof(vec3), 0);
+        set_vertex_buffer_data(va.bindings[2].vertex_buffer_index, tdb.charmap, tdb.char_count * sizeof(u32), 0);
+        set_vertex_buffer_data(va.bindings[3].vertex_buffer_index, tdb.transforms, tdb.char_count * sizeof(mat4), 0);
+    }
+
+    s32 char_instance_offset = 0;
+    
+    // @Speed: instead of submitting each ui draw command as separate render command,
+    // iterate over all adjacent same type ui draw commands in queue and batch them
+    // with just 1 render command.
+    for (s32 i = 0; i < ui.draw_queue_size; ++i) {
+        auto &ui_cmd = ui.draw_queue[i];
+        const auto &atlas = *ui.font_atlases[ui_cmd.atlas_index];
+
+        if (ui_cmd.element_count == 0) continue;
         
-    submit(&command);
+        Render_Command r_cmd = {};
+        r_cmd.flags = RENDER_FLAG_VIEWPORT | RENDER_FLAG_SCISSOR | RENDER_FLAG_CULL_FACE | RENDER_FLAG_BLEND;
+        r_cmd.render_mode  = RENDER_TRIANGLE_STRIP;
+        r_cmd.polygon_mode = POLYGON_FILL;
+        r_cmd.viewport.x      = viewport.x;
+        r_cmd.viewport.y      = viewport.y;
+        r_cmd.viewport.width  = viewport.width;
+        r_cmd.viewport.height = viewport.height;
+        r_cmd.scissor.x      = viewport.x;
+        r_cmd.scissor.y      = viewport.y;
+        r_cmd.scissor.width  = viewport.width;
+        r_cmd.scissor.height = viewport.height;
+        r_cmd.cull_face.type    = CULL_FACE_BACK;
+        r_cmd.cull_face.winding = WINDING_COUNTER_CLOCKWISE;
+        r_cmd.blend.source      = BLEND_SOURCE_ALPHA;
+        r_cmd.blend.destination = BLEND_ONE_MINUS_SOURCE_ALPHA;
+    
+        switch (ui_cmd.type) {
+        case UI_DRAW_TEXT: {
+            r_cmd.vertex_array_index = tdb.vertex_array_index;
+            r_cmd.buffer_element_count = 4;
+            r_cmd.instance_count = ui_cmd.element_count;
+            r_cmd.instance_offset = char_instance_offset;
+            
+            // @Cleanup: change paramter order in this function.
+            fill_render_command_with_material_data(tdb.material_index, &r_cmd);
+            r_cmd.texture_index = atlas.texture_index;
 
-    text_draw_buffer.char_count = 0;
+            char_instance_offset += ui_cmd.element_count;
+            
+            break;
+        }
+        case UI_DRAW_QUAD: {
+            break;
+        }
+        }
+
+        submit(&r_cmd);
+    }
+
+    ui.draw_queue_size = 0;
+    tdb.char_count = 0;
 }
 
 s32 vertex_array_vertex_count(s32 vertex_array_index) {
@@ -777,10 +821,6 @@ void update_render_stats() {
         average_dt  = dt_sum / dt_frame_count;
         average_fps = 1.0f / average_dt;
     }
-    
-    draw_call_count = entity_render_queue.size +
-        (s32)(geometry_draw_buffer.vertex_count > 0) +
-        (s32)(text_draw_buffer.char_count > 0);
 }
 
 Texture_Format_Type get_desired_texture_format(s32 channel_count) {

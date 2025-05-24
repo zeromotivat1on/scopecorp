@@ -32,9 +32,9 @@ bool overlap(const Sphere &a, const Sphere &b) {
 }
 
 bool overlap(const Sphere &sphere, const AABB &aabb) {
-    const f32 x = clamp(sphere.pos.x, aabb.min.x, aabb.max.x);
-    const f32 y = clamp(sphere.pos.y, aabb.min.y, aabb.max.y);
-    const f32 z = clamp(sphere.pos.z, aabb.min.z, aabb.max.z);
+    const f32 x = Clamp(sphere.pos.x, aabb.min.x, aabb.max.x);
+    const f32 y = Clamp(sphere.pos.y, aabb.min.y, aabb.max.y);
+    const f32 z = Clamp(sphere.pos.z, aabb.min.z, aabb.max.z);
     return overlap(vec3(x, y, z), sphere);
 }
 
@@ -49,8 +49,8 @@ bool overlap(const Ray &ray, const AABB &aabb, f32 *near) {
         const f32 t1 = (aabb.min[d] - ray.origin[d]) * ray_dir_inv[d];
         const f32 t2 = (aabb.max[d] - ray.origin[d]) * ray_dir_inv[d];
 
-        tmin = min(max(t1, tmin), max(t2, tmin));
-        tmax = max(min(t1, tmax), min(t2, tmax));
+        tmin = Min(Max(t1, tmin), Max(t2, tmin));
+        tmax = Max(Min(t1, tmax), Min(t2, tmax));
     }
 
     if (near) *near = tmin;
