@@ -15,17 +15,6 @@ struct vec2;
 struct vec3;
 struct Font_Atlas;
 
-struct Text_Draw_Buffer {
-    vec3 *colors     = null;
-    u32  *charmap    = null;
-    mat4 *transforms = null;
-
-    s32 char_count = 0;
-
-    s32 vertex_array_index = INVALID_INDEX;
-    s32 material_index     = INVALID_INDEX;
-};
-
 enum UI_Draw_Type {
     UI_DRAW_TEXT,
     UI_DRAW_QUAD,
@@ -37,6 +26,17 @@ struct UI_Draw_Command {
     s32 atlas_index = 0; // for text draw command
 };
 
+struct UI_Text_Draw_Buffer {
+    vec3 *colors     = null;
+    u32  *charmap    = null;
+    mat4 *transforms = null;
+
+    s32 char_count = 0;
+
+    s32 vertex_array_index = INVALID_INDEX;
+    s32 material_index     = INVALID_INDEX;
+};
+
 struct UI {
     Font_Atlas *font_atlases[MAX_UI_FONT_ATLASES];
     UI_Draw_Command draw_queue[MAX_UI_DRAW_QUEUE_SIZE];
@@ -44,7 +44,7 @@ struct UI {
     s32 font_atlas_count = 0;
     s32 draw_queue_size = 0;
 
-    Text_Draw_Buffer text_draw_buffer;
+    UI_Text_Draw_Buffer text_draw_buffer;
 };
 
 inline UI ui;
