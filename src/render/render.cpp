@@ -139,7 +139,7 @@ void enqueue(Render_Queue *queue, const Render_Command *command) {
 }
 
 void flush(Render_Queue *queue) {
-    PROFILE_SCOPE(__FUNCTION__);
+    PROFILE_SCOPE("flush_render_queue");
     
 	for (s32 i = 0; i < queue->size; ++i)
         submit(queue->commands + i);
@@ -595,6 +595,8 @@ void ui_draw_quad(vec2 p0, vec2 p1, vec4 color) {
 }
 
 void ui_flush() {
+    PROFILE_SCOPE(__FUNCTION__);
+
     auto &tdb = ui.text_draw_buffer;
     auto &qdb = ui.quad_draw_buffer;
 
