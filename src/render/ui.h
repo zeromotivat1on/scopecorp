@@ -1,9 +1,5 @@
 #pragma once
 
-#include "font.h"
-#include "math/matrix.h"
-#include "render/render_command.h"
-
 inline constexpr s32 MAX_UI_FONT_ATLASES = 32;
 inline constexpr s32 MAX_UI_DRAW_QUEUE_SIZE = 1024;
 inline constexpr s32 MAX_UI_TEXT_DRAW_BUFFERS = 8;
@@ -13,6 +9,8 @@ inline constexpr s32 UI_DEFAULT_FONT_ATLAS_INDEX = 0;
 
 struct vec2;
 struct vec3;
+struct vec4;
+struct mat4;
 struct Font_Atlas;
 
 enum UI_Draw_Type {

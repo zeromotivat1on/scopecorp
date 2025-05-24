@@ -7,10 +7,15 @@
 #include "os/input.h"
 
 #include "render/ui.h"
+#include "render/render_command.h"
 #include "render/render_registry.h"
+
+#include "math/vector.h"
+#include "math/matrix.h"
 
 #include "log.h"
 #include "profile.h"
+#include "font.h"
 #include "asset.h"
 
 void register_hot_reload_directory(Hot_Reload_List *list, const char *path) {
