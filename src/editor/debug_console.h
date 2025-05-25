@@ -22,4 +22,5 @@ void init_debug_console();
 void open_debug_console();
 void close_debug_console();
 void draw_debug_console();
+void add_to_debug_console_history(const char *text, u32 count);
 void on_debug_console_input(u32 character);

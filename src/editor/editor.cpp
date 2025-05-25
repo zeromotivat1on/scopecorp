@@ -108,6 +108,8 @@ void check_for_hot_reload(Hot_Reload_List *list) {
 }
 
 void init_debug_console() {
+    if (debug_console.history) return;
+    
     debug_console.history = (char *)allocl(MAX_DEBUG_CONSOLE_HISTORY_SIZE);
     debug_console.history[0] = '\0';
 }
@@ -146,7 +148,7 @@ void draw_debug_console() {
         
         const vec2 iq_p0 = it_pos - vec2(text_padding);
         const vec2 iq_p1 = vec2(viewport.width - it_pos.x, iq_p0.y + lower_case_height + 2 * text_padding);
-        const vec4 iq_color = vec4(0.0f, 0.0f, 0.0f, 0.64f);
+        const vec4 iq_color = vec4(0.0f, 0.0f, 0.0f, 0.8f);
         
         const vec2 ht_pos = vec2(100.0f, viewport.height - 100.0f);
         const vec4 ht_color = vec4(0.8f, 0.8f, 0.8f, 1.0f);
@@ -155,7 +157,7 @@ void draw_debug_console() {
 
         const vec2 hq_p0 = vec2(iq_p0.x, iq_p1.y + text_padding);
         const vec2 hq_p1 = vec2(viewport.width - ht_pos.x, ht_pos.y + ascent + text_padding);
-        const vec4 hq_color = vec4(0.0f, 0.0f, 0.0f, 0.64f);
+        const vec4 hq_color = vec4(0.0f, 0.0f, 0.0f, 0.8f);
         
         ui_draw_quad(iq_p0, iq_p1, iq_color);
         ui_draw_quad(hq_p0, hq_p1, hq_color);
@@ -163,6 +165,15 @@ void draw_debug_console() {
         ui_draw_text_with_shadow(input, input_size, it_pos, it_color, its_offset, its_color);
         ui_draw_text_with_shadow(history, history_size, ht_pos, ht_color, hts_offset, hts_color);
     }
+}
+
+void add_to_debug_console_history(const char *text, u32 count) {
+    if (!debug_console.history) {
+        init_debug_console();
+    }
+    
+    str_glue(debug_console.history, text, count);
+    debug_console.history_size += count;
 }
 
 void on_debug_console_input(u32 character) {
