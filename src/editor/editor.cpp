@@ -127,6 +127,8 @@ void close_debug_console() {
 }
 
 void draw_debug_console() {
+    PROFILE_SCOPE(__FUNCTION__);
+    
     constexpr f32 text_padding = 16.0f;
         
     if (debug_console.is_open) {
