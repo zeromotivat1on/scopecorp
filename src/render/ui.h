@@ -5,8 +5,8 @@
 inline constexpr s32 MAX_UI_FONT_ATLASES = 32;
 inline constexpr s32 MAX_UI_DRAW_QUEUE_SIZE = 1024;
 inline constexpr s32 MAX_UI_TEXT_DRAW_BUFFERS = 8;
-inline constexpr s32 MAX_UI_TEXT_DRAW_BUFFER_CHARS = 1024;
-inline constexpr s32 MAX_UI_QUAD_DRAW_BUFFER_VERTICES = 512;
+inline constexpr s32 MAX_UI_TEXT_DRAW_BUFFER_CHARS = 4096;
+inline constexpr s32 MAX_UI_QUAD_DRAW_BUFFER_QUADS = 512;
 
 inline constexpr s32 UI_DEFAULT_FONT_ATLAS_INDEX = 0;
 
@@ -25,7 +25,7 @@ struct UI_Draw_Command {
 };
 
 struct UI_Text_Draw_Buffer {
-    vec3 *colors     = null;
+    vec4 *colors     = null;
     u32  *charmap    = null;
     mat4 *transforms = null;
 
@@ -38,7 +38,9 @@ struct UI_Text_Draw_Buffer {
 struct UI_Quad_Draw_Buffer {
     vec2 *positions = null;
     vec4 *colors    = null;
-    s32 vertex_count = 0;
+
+    s32 quad_count = 0;
+    
     s32 vertex_array_index = INVALID_INDEX;
     s32 material_index     = INVALID_INDEX;
 };
@@ -57,7 +59,9 @@ struct UI {
 inline UI ui;
 
 void ui_init();
-void ui_draw_text(const char *text, u32 count, vec2 pos, vec3 color, s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX);
-void ui_draw_text_with_shadow(const char *text, u32 count, vec2 pos, vec3 color, vec2 shadow_offset, vec3 shadow_color, s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX);
+void ui_draw_text(const char *text, vec2 pos, vec4 color, s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX);
+void ui_draw_text(const char *text, u32 count, vec2 pos, vec4 color, s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX);
+void ui_draw_text_with_shadow(const char *text, vec2 pos, vec4 color, vec2 shadow_offset, vec4 shadow_color, s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX);
+void ui_draw_text_with_shadow(const char *text, u32 count, vec2 pos, vec4 color, vec2 shadow_offset, vec4 shadow_color, s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX);
 void ui_draw_quad(vec2 p0, vec2 p1, vec4 color);
 void ui_flush();

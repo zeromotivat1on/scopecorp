@@ -15,6 +15,7 @@
 #include "math/matrix.h"
 
 #include "log.h"
+#include "str.h"
 #include "profile.h"
 #include "font.h"
 #include "asset.h"
@@ -107,8 +108,8 @@ void check_for_hot_reload(Hot_Reload_List *list) {
 }
 
 void init_debug_console() {
-    debug_console.history_buffer = (char *)allocl(MAX_DEBUG_CONSOLE_BUFFER_SIZE);
-    debug_console.text_to_draw = debug_console.history_buffer;
+    debug_console.history = (char *)allocl(MAX_DEBUG_CONSOLE_HISTORY_SIZE);
+    debug_console.history[0] = '\0';
 }
 
 void open_debug_console() {
@@ -124,19 +125,47 @@ void close_debug_console() {
 }
 
 void draw_debug_console() {
+    constexpr f32 text_padding = 16.0f;
+        
     if (debug_console.is_open) {
-        const vec2 text_pos = vec2(100.0f);
+        auto &history = debug_console.history;
+        auto &history_size = debug_console.history_size;
+        auto &input = debug_console.input;
+        auto &input_size = debug_console.input_size;
+    
+        const auto &atlas = *ui.font_atlases[UI_DEFAULT_FONT_ATLAS_INDEX];
+
+        const f32 ascent = atlas.font->ascent * atlas.px_h_scale;
+        // @Cleanup: probably not ideal solution to get lower-case glyph height.
+        const f32 lower_case_height = (atlas.font->ascent + atlas.font->descent) * atlas.px_h_scale;
+            
+        const vec2 it_pos = vec2(100.0f);
+        const vec4 it_color = vec4_white;
+        const vec2 its_offset = vec2(atlas.font_size * 0.1f, -atlas.font_size * 0.1f);
+        const vec4 its_color = vec4_black;
         
-        const vec2 quad_p0 = text_pos - vec2(debug_console.text_padding);
-        const vec2 quad_p1 = vec2(viewport.width - text_pos.x, quad_p0.y + ui.font_atlases[UI_DEFAULT_FONT_ATLAS_INDEX]->font_size + 2 * debug_console.text_padding);
-        const vec4 quad_color = vec4(0.0f, 0.0f, 0.0f, 0.6f);
+        const vec2 iq_p0 = it_pos - vec2(text_padding);
+        const vec2 iq_p1 = vec2(viewport.width - it_pos.x, iq_p0.y + lower_case_height + 2 * text_padding);
+        const vec4 iq_color = vec4(0.0f, 0.0f, 0.0f, 0.64f);
         
-        ui_draw_quad(quad_p0, quad_p1, quad_color);
-        ui_draw_text(debug_console.text_input, debug_console.text_input_size, vec2(100.0f), vec3_red);
+        const vec2 ht_pos = vec2(100.0f, viewport.height - 100.0f);
+        const vec4 ht_color = vec4(0.8f, 0.8f, 0.8f, 1.0f);
+        const vec2 hts_offset = vec2(atlas.font_size * 0.1f, -atlas.font_size * 0.1f);
+        const vec4 hts_color = vec4_black;
+
+        const vec2 hq_p0 = vec2(iq_p0.x, iq_p1.y + text_padding);
+        const vec2 hq_p1 = vec2(viewport.width - ht_pos.x, ht_pos.y + ascent + text_padding);
+        const vec4 hq_color = vec4(0.0f, 0.0f, 0.0f, 0.64f);
+        
+        ui_draw_quad(iq_p0, iq_p1, iq_color);
+        ui_draw_quad(hq_p0, hq_p1, hq_color);
+        
+        ui_draw_text_with_shadow(input, input_size, it_pos, it_color, its_offset, its_color);
+        ui_draw_text_with_shadow(history, history_size, ht_pos, ht_color, hts_offset, hts_color);
     }
 }
 
-void on_debug_console_text_input(u32 character) {
+void on_debug_console_input(u32 character) {
     if (!debug_console.is_open) return;
 
     //log("%u", character);
@@ -144,25 +173,56 @@ void on_debug_console_text_input(u32 character) {
     if (character == ASCII_GRAVE_ACCENT) {
         return;
     }
-    
+
+    auto &history = debug_console.history;
+    auto &history_size = debug_console.history_size;
+    auto &input = debug_console.input;
+    auto &input_size = debug_console.input_size;
+
     if (character == ASCII_NEW_LINE || character == ASCII_CARRIAGE_RETURN) {
+        if (input_size > 0) {
+            // @Cleanup: make better history overlow handling.
+            if (history_size + input_size > MAX_DEBUG_CONSOLE_HISTORY_SIZE) {
+                history[0] = '\0';
+                history_size = 0;
+            }
+
+            input[input_size] = '\0';
+
+            const bool clear = str_cmp(input, DEBUG_CONSOLE_COMMAND_CLEAR);
+            if (clear) {
+                history[0] = '\0';
+                history_size = 0;
+            } else {
+                static const u32 warning_size = (u32)str_size(DEBUG_CONSOLE_UNKNOWN_COMMAND_WARNING);
+                str_glue(history, DEBUG_CONSOLE_UNKNOWN_COMMAND_WARNING);
+                history_size += warning_size;
+            }
+
+            if (!clear) {
+                str_glue(history, input, input_size);
+                str_glue(history, "\n",  1);
+
+                history_size += input_size + 1;
+            }
+            
+            input_size = 0;
+        }
         
-        
-        debug_console.text_input_size = 0;
         return;
     }
 
     if (character == ASCII_BACKSPACE) {
-        debug_console.text_input_size -= 1;
-        debug_console.text_input_size = Max(0, debug_console.text_input_size);
+        input_size -= 1;
+        input_size = Max(0, input_size);
     }
 
     if (is_ascii_printable(character)) {
-        if (debug_console.text_input_size >= MAX_DEBUG_CONSOLE_TEXT_INPUT_SIZE) {
+        if (input_size >= MAX_DEBUG_CONSOLE_INPUT_SIZE) {
             return;
         }
         
-        debug_console.text_input[debug_console.text_input_size] = (char)character;
-        debug_console.text_input_size += 1;
+        input[input_size] = (char)character;
+        input_size += 1;
     }
 }

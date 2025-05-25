@@ -156,12 +156,14 @@ s32 main() {
     init_geo_draw();
 
     ui_init();
+
+    init_debug_console();
     
-	Player &player = world->player;
+	auto &player = world->player;
 	{   // Create player.
         player.id = 1;
 
-        const Asset *asset = asset_table.find(texture_sids.player_idle[DIRECTION_BACK]);
+        const auto *asset = asset_table.find(texture_sids.player_idle[DIRECTION_BACK]);
         const auto &texture = render_registry.textures[asset->registry_index];
         
         const f32 scale_aspect = (f32)texture.width / texture.height;
@@ -200,7 +202,7 @@ s32 main() {
         player.steps_sid = sound_sids.player_steps;
 	}
 
-	Static_Mesh &ground = world->static_meshes[create_static_mesh(world)];
+	auto &ground = world->static_meshes[create_static_mesh(world)];
 	{   // Create ground.
         ground.id = 10;
         
@@ -233,7 +235,7 @@ s32 main() {
 		ground.draw_data.index_buffer_index = create_index_buffer(indices, COUNT(indices), BUFFER_USAGE_STATIC);
 	}
 
-	Static_Mesh &cube = world->static_meshes[create_static_mesh(world)];
+	auto &cube = world->static_meshes[create_static_mesh(world)];
 	{   // Create cube.
         cube.id = 20;
                 
@@ -276,7 +278,7 @@ s32 main() {
 		cube.draw_data.index_buffer_index = create_index_buffer(indices, COUNT(indices), BUFFER_USAGE_STATIC);
 	}
 
-	Skybox &skybox = world->skybox;
+	auto &skybox = world->skybox;
 	{   // Create skybox.
         skybox.id = S32_MAX;
         skybox.uv_scale = vec2(8.0f, 4.0f);
@@ -389,7 +391,7 @@ s32 main() {
     
     }
 
-	Camera &camera = world->camera;
+	auto &camera = world->camera;
 	camera.mode = MODE_PERSPECTIVE;
 	camera.yaw = 90.0f;
 	camera.pitch = 0.0f;

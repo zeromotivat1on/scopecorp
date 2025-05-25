@@ -121,7 +121,7 @@ void on_window_event(Window *window, Window_Event *event) {
 	}
 	case WINDOW_EVENT_TEXT_INPUT: {
         if (debug_console.is_open) {
-            on_debug_console_text_input(event->character);
+            on_debug_console_input(event->character);
         }
         
         break;
@@ -354,7 +354,7 @@ void tick(World *world, f32 dt) {
                         player.move_direction = DIRECTION_BACK;
                     }
                 } else if (game_state.player_movement_behavior == MOVE_RELATIVE_TO_CAMERA) {
-                    Camera &camera = world->camera;
+                    auto &camera = world->camera;
                     const vec3 camera_forward = forward(camera.yaw, camera.pitch);
                     const vec3 camera_right = camera.up.cross(camera_forward).normalize();
 
@@ -437,11 +437,11 @@ void tick(World *world, f32 dt) {
     {   // Tick camera.
         if (game_state.mode == MODE_GAME) {
             if (game_state.camera_behavior == STICK_TO_PLAYER) {
-                Camera &camera = world->camera;
+                auto &camera = world->camera;
                 camera.eye = player.location + player.camera_offset;
                 camera.at = camera.eye + forward(camera.yaw, camera.pitch);
             } else if (game_state.camera_behavior == FOLLOW_PLAYER) {
-                Camera &camera = world->camera;
+                auto &camera = world->camera;
                 const vec3 camera_dead_zone = player.camera_dead_zone;
                 const vec3 dead_zone_min = camera.eye - camera_dead_zone * 0.5f;
                 const vec3 dead_zone_max = camera.eye + camera_dead_zone * 0.5f;
@@ -473,41 +473,43 @@ void tick(World *world, f32 dt) {
                 camera.at = camera.eye + forward(camera.yaw, camera.pitch);
             }
         } else if (game_state.mode == MODE_EDITOR) {
-            const f32 mouse_sensitivity = player.mouse_sensitivity;
-            Camera &camera = world->ed_camera;
+            if (!debug_console.is_open) {
+                const f32 mouse_sensitivity = player.mouse_sensitivity;
+                auto &camera = world->ed_camera;
 
-            if (window->cursor_locked) {   
-                camera.yaw += input_table.mouse_offset_x * mouse_sensitivity * dt;
-                camera.pitch += input_table.mouse_offset_y * mouse_sensitivity * dt;
-                camera.pitch = Clamp(camera.pitch, -89.0f, 89.0f);
-            }
+                if (window->cursor_locked) {   
+                    camera.yaw += input_table.mouse_offset_x * mouse_sensitivity * dt;
+                    camera.pitch += input_table.mouse_offset_y * mouse_sensitivity * dt;
+                    camera.pitch = Clamp(camera.pitch, -89.0f, 89.0f);
+                }
                     
-            const f32 speed = player.ed_camera_speed * dt;
-            const vec3 camera_forward = forward(camera.yaw, camera.pitch);
-            const vec3 camera_right = camera.up.cross(camera_forward).normalize();
+                const f32 speed = player.ed_camera_speed * dt;
+                const vec3 camera_forward = forward(camera.yaw, camera.pitch);
+                const vec3 camera_right = camera.up.cross(camera_forward).normalize();
 
-            vec3 velocity;
+                vec3 velocity;
 
-            if (input_table.key_states[KEY_D])
-                velocity += speed * camera_right;
+                if (input_table.key_states[KEY_D])
+                    velocity += speed * camera_right;
 
-            if (input_table.key_states[KEY_A])
-                velocity -= speed * camera_right;
+                if (input_table.key_states[KEY_A])
+                    velocity -= speed * camera_right;
 
-            if (input_table.key_states[KEY_W])
-                velocity += speed * camera_forward;
+                if (input_table.key_states[KEY_W])
+                    velocity += speed * camera_forward;
 
-            if (input_table.key_states[KEY_S])
-                velocity -= speed * camera_forward;
+                if (input_table.key_states[KEY_S])
+                    velocity -= speed * camera_forward;
 
-            if (input_table.key_states[KEY_E])
-                velocity += speed * camera.up;
+                if (input_table.key_states[KEY_E])
+                    velocity += speed * camera.up;
 
-            if (input_table.key_states[KEY_Q])
-                velocity -= speed * camera.up;
+                if (input_table.key_states[KEY_Q])
+                    velocity -= speed * camera.up;
 
-            camera.eye += velocity.truncate(speed);
-            camera.at = camera.eye + camera_forward;
+                camera.eye += velocity.truncate(speed);
+                camera.at = camera.eye + camera_forward;
+            }
         }
     }
     

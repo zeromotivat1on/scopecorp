@@ -424,12 +424,12 @@ void ui_init() {
     ui.font_atlases[UI_DEFAULT_FONT_ATLAS_INDEX] = bake_font_atlas(consola, 33, 126, 16);;
     
     {   // Text draw buffer.
-        constexpr s32 color_buffer_size     = MAX_UI_TEXT_DRAW_BUFFER_CHARS * sizeof(vec3);
+        constexpr s32 color_buffer_size     = MAX_UI_TEXT_DRAW_BUFFER_CHARS * sizeof(vec4);
         constexpr s32 charmap_buffer_size   = MAX_UI_TEXT_DRAW_BUFFER_CHARS * sizeof(u32);
         constexpr s32 transform_buffer_size = MAX_UI_TEXT_DRAW_BUFFER_CHARS * sizeof(mat4);
 
         auto &tdb = ui.text_draw_buffer;    
-        tdb.colors     = (vec3 *)allocl(color_buffer_size);
+        tdb.colors     = (vec4 *)allocl(color_buffer_size);
         tdb.charmap    = (u32  *)allocl(charmap_buffer_size);
         tdb.transforms = (mat4 *)allocl(transform_buffer_size);
 
@@ -438,16 +438,16 @@ void ui_init() {
         Vertex_Array_Binding bindings[4] = {};
         bindings[0].layout_size = 1;
         bindings[0].layout[0] = { VERTEX_F32_2, 0 };
-        bindings[0].vertex_buffer_index = create_vertex_buffer(vertices, 8 * sizeof(f32), BUFFER_USAGE_STATIC);
-    
+        bindings[0].vertex_buffer_index = create_vertex_buffer(vertices, sizeof(vertices), BUFFER_USAGE_STATIC);
+        
         bindings[1].layout_size = 1;
-        bindings[1].layout[0] = { VERTEX_F32_3, 1 };
+        bindings[1].layout[0] = { VERTEX_F32_4, 1 };
         bindings[1].vertex_buffer_index = create_vertex_buffer(null, color_buffer_size, BUFFER_USAGE_STREAM);
- 
+        
         bindings[2].layout_size = 1;
         bindings[2].layout[0] = { VERTEX_U32, 1 };
         bindings[2].vertex_buffer_index = create_vertex_buffer(null, charmap_buffer_size, BUFFER_USAGE_STREAM);
-    
+        
         bindings[3].layout_size = 4;
         bindings[3].layout[0] = { VERTEX_F32_4, 1 };
         bindings[3].layout[1] = { VERTEX_F32_4, 1 };
@@ -463,8 +463,8 @@ void ui_init() {
     }
 
     {   // Quad draw buffer.
-        constexpr s32 pos_buffer_size   = MAX_UI_QUAD_DRAW_BUFFER_VERTICES * sizeof(vec2);
-        constexpr s32 color_buffer_size = MAX_UI_QUAD_DRAW_BUFFER_VERTICES * sizeof(vec4);
+        constexpr s32 pos_buffer_size   = 4 * MAX_UI_QUAD_DRAW_BUFFER_QUADS * sizeof(vec2);
+        constexpr s32 color_buffer_size = 1 * MAX_UI_QUAD_DRAW_BUFFER_QUADS * sizeof(vec4);
 
         auto &qdb = ui.quad_draw_buffer;
         qdb.positions = (vec2 *)allocl(pos_buffer_size);
@@ -487,7 +487,11 @@ void ui_init() {
     }
 }
 
-void ui_draw_text(const char *text, u32 count, vec2 pos, vec3 color, s32 atlas_index) {
+void ui_draw_text(const char *text, vec2 pos, vec4 color, s32 atlas_index) {
+    ui_draw_text(text, (u32)str_size(text), pos, color, atlas_index);
+}
+
+void ui_draw_text(const char *text, u32 count, vec2 pos, vec4 color, s32 atlas_index) {
     Assert(atlas_index < MAX_UI_FONT_ATLASES);
     Assert(ui.draw_queue_size < MAX_UI_DRAW_QUEUE_SIZE);
 
@@ -554,7 +558,11 @@ void ui_draw_text(const char *text, u32 count, vec2 pos, vec3 color, s32 atlas_i
 	}
 }
 
-void ui_draw_text_with_shadow(const char *text, u32 count, vec2 pos, vec3 color, vec2 shadow_offset, vec3 shadow_color, s32 atlas_index) {
+void ui_draw_text_with_shadow(const char *text, vec2 pos, vec4 color, vec2 shadow_offset, vec4 shadow_color, s32 atlas_index) {
+    ui_draw_text_with_shadow(text, (u32)str_size(text), pos, color, shadow_offset, shadow_color, atlas_index);
+}
+
+void ui_draw_text_with_shadow(const char *text, u32 count, vec2 pos, vec4 color, vec2 shadow_offset, vec4 shadow_color, s32 atlas_index) {
 	ui_draw_text(text, count, pos + shadow_offset, shadow_color, atlas_index);
 	ui_draw_text(text, count, pos, color, atlas_index);
 }
@@ -576,22 +584,17 @@ void ui_draw_quad(vec2 p0, vec2 p1, vec4 color) {
     const f32 x1 = Max(p0.x, p1.x);
     const f32 y1 = Max(p0.y, p1.y);
     
-    vec2 *vp = qdb.positions + qdb.vertex_count;
-    vec4 *vc = qdb.colors    + qdb.vertex_count;
+    vec2 *vp = qdb.positions + 4 * qdb.quad_count;
+    vec4 *vc = qdb.colors    + 1 * qdb.quad_count;
 
     vp[0] = vec2(x0, y0);
+    vp[1] = vec2(x1, y0);
+    vp[2] = vec2(x0, y1);    
+    vp[3] = vec2(x1, y1);
+
     vc[0] = color;
     
-    vp[1] = vec2(x1, y0);
-    vc[1] = color;
-    
-    vp[2] = vec2(x0, y1);
-    vc[2] = color;
-    
-    vp[3] = vec2(x1, y1);
-    vc[3] = color;
-
-    qdb.vertex_count += 4;
+    qdb.quad_count += 1;
 }
 
 void ui_flush() {
@@ -602,23 +605,23 @@ void ui_flush() {
 
     if (tdb.char_count > 0) {
         const auto &va = render_registry.vertex_arrays[tdb.vertex_array_index];
-        set_vertex_buffer_data(va.bindings[1].vertex_buffer_index, tdb.colors, tdb.char_count * sizeof(vec3), 0);
+        set_vertex_buffer_data(va.bindings[1].vertex_buffer_index, tdb.colors, tdb.char_count * sizeof(vec4), 0);
         set_vertex_buffer_data(va.bindings[2].vertex_buffer_index, tdb.charmap, tdb.char_count * sizeof(u32), 0);
         set_vertex_buffer_data(va.bindings[3].vertex_buffer_index, tdb.transforms, tdb.char_count * sizeof(mat4), 0);
     }
 
-    if (qdb.vertex_count > 0) {
+    if (qdb.quad_count > 0) {
         const auto &va = render_registry.vertex_arrays[qdb.vertex_array_index];
-        set_vertex_buffer_data(va.bindings[0].vertex_buffer_index, qdb.positions, qdb.vertex_count * sizeof(vec2), 0);
-        set_vertex_buffer_data(va.bindings[1].vertex_buffer_index, qdb.colors, qdb.vertex_count * sizeof(vec4), 0);
+        set_vertex_buffer_data(va.bindings[0].vertex_buffer_index, qdb.positions, 4 * qdb.quad_count * sizeof(vec2), 0);
+        set_vertex_buffer_data(va.bindings[1].vertex_buffer_index, qdb.colors, qdb.quad_count * sizeof(vec4), 0);
     }
     
     s32 char_instance_offset = 0;
     s32 quad_instance_offset = 0;
     
     // @Speed: instead of submitting each ui draw command as separate render command,
-    // iterate over all adjacent same type ui draw commands in queue and batch them
-    // with just 1 render command.
+    // iterate over all adjacent same type ui draw commands in queue or sort them,
+    // and batch these ui commands with just 1 render command.
     for (s32 i = 0; i < ui.draw_queue_size; ++i) {
         const auto &ui_cmd = ui.draw_queue[i];
         const auto &atlas = *ui.font_atlases[ui_cmd.atlas_index];
@@ -660,6 +663,7 @@ void ui_flush() {
         case UI_DRAW_QUAD: {
             r_cmd.vertex_array_index = qdb.vertex_array_index;
             r_cmd.buffer_element_count = 4;
+            r_cmd.buffer_element_offset = 4 * quad_instance_offset;
             r_cmd.instance_count = ui_cmd.element_count;
             r_cmd.instance_offset = quad_instance_offset;
             
@@ -677,7 +681,7 @@ void ui_flush() {
 
     ui.draw_queue_size = 0;
     tdb.char_count = 0;
-    qdb.vertex_count = 0;
+    qdb.quad_count = 0;
 }
 
 s32 vertex_array_vertex_count(s32 vertex_array_index) {
