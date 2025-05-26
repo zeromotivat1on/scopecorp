@@ -10,6 +10,8 @@
 #include "game/game.h"
 #include "game/world.h"
 
+// @Cleanyp: define stb related macros that allow to override usage of std.
+
 #define STB_SPRINTF_IMPLEMENTATION
 #include "stb_sprintf.h"
 
@@ -19,7 +21,6 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
 
-#include <malloc.h>
 #include <string.h>
 
 static void *vm_base     = null;

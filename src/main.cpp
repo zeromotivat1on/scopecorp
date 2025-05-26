@@ -81,8 +81,6 @@ s32 main() {
         return 1;
     }
 
-    init_debug_console();
-    
     init_sid_table();
 	init_input_table();
     
@@ -100,7 +98,7 @@ s32 main() {
     }
 
     detect_render_capabilities();
-    
+
     init_audio_context();
 
     lock_cursor(window, true);
@@ -110,16 +108,19 @@ s32 main() {
     init_render_registry(&render_registry);
     init_audio_registry();
 
+    cache_shader_sids(&shader_sids);
+    cache_texture_sids(&texture_sids);
+    cache_sound_sids(&sound_sids);
+
     init_asset_source_table(&asset_source_table);
     init_asset_table(&asset_table);
     
     save_asset_pack(GAME_ASSET_PACK_PATH);
     load_asset_pack(GAME_ASSET_PACK_PATH, &asset_table);
-
-    cache_shader_sids(&shader_sids);
-    cache_texture_sids(&texture_sids);
-    cache_sound_sids(&sound_sids);
     
+    init_debug_console();
+
+    // @Cleanup: move these to asset pak?
 	create_game_materials(&material_index_list);
 	create_game_flip_books(&flip_books);
     

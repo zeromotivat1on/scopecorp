@@ -420,7 +420,7 @@ void flush_geo_draw() {
 }
 
 void ui_init() {
-    Font *consola = create_font(PATH_FONT("consola.ttf"));
+    Font *consola = create_font(asset_table[SID("/data/fonts/consola.ttf")].as_font.data);
     Font_Atlas *consola_atlas = bake_font_atlas(consola, 33, 126, 16);
     
     ui.font_atlases[UI_DEFAULT_FONT_ATLAS_INDEX] = consola_atlas;

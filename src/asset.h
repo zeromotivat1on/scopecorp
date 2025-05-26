@@ -16,6 +16,7 @@ enum Asset_Type {
     ASSET_SHADER_INCLUDE,
     ASSET_TEXTURE,
     ASSET_SOUND,
+    ASSET_FONT,
 };
 
 struct Asset_Source {
@@ -35,8 +36,8 @@ struct Asset_Shader {
 };
 
 struct Asset_Shader_Include {
-    u32 size = 0;
     char *source = null;
+    u32 size = 0;
 };
 
 struct Asset_Sound {
@@ -46,16 +47,23 @@ struct Asset_Sound {
 	s32 bit_depth     = 0;
 };
 
+struct Asset_Font {
+    char *data = null;
+    u32 size = 0;
+};
+
 struct Asset {
     Asset_Type type = ASSET_NONE;
     u64 data_offset = 0;
     s32 registry_index = INVALID_INDEX; // index to appropriate registry (audio, render etc.)
     char relative_path[MAX_PATH_SIZE] = {0};
 
+    // @Cleanup: get rid of it.
     union {
         Asset_Texture as_texture;
         Asset_Shader as_shader;
         Asset_Shader_Include as_shader_include;
+        Asset_Font as_font;
         Asset_Sound as_sound;
     };
 

@@ -4,6 +4,7 @@
 #include "sid.h"
 #include "str.h"
 #include "profile.h"
+#include "font.h"
 #include "stb_image.h"
 
 #include "os/file.h"
@@ -66,6 +67,7 @@ void init_asset_source_table(Asset_Source_Table *table) {
     init_asset_sources(DIR_SHADERS,  ASSET_SHADER, get_desired_shader_file_extension());
     init_asset_sources(DIR_TEXTURES, ASSET_TEXTURE);
     init_asset_sources(DIR_SOUNDS,   ASSET_SOUND);
+    init_asset_sources(DIR_FONTS,    ASSET_FONT);
 
     log("Initialized asset source table in %.2fms", CHECK_SCOPE_TIMER_MS(init));
 }
@@ -261,6 +263,19 @@ void save_asset_pack(const char *path) {
             free_sound_memory(&memory);
             break;
         }
+        case ASSET_FONT: {
+            char *buffer = allocltn(char, MAX_FONT_SIZE);
+            u64 bytes_read = 0;
+            read_file(it.value.path, buffer, MAX_FONT_SIZE, &bytes_read);
+            
+            write_file(file, buffer, bytes_read);
+            
+            asset.as_font.size = (u32)bytes_read;
+            
+            freel(MAX_FONT_SIZE);
+            
+            break;
+        }
         default: {
             error("Asset source for %s has invalid type", it.value.path);
             break;
@@ -386,6 +401,20 @@ void load_asset_pack(const char *path, Asset_Table *table) {
             set_file_pointer_position(file, last_position);
 
             asset.registry_index = create_sound(sound.sample_rate, sound.channel_count, sound.bit_depth, data, sound.size, 0);
+            
+            break;
+        }
+        case ASSET_FONT: {
+            auto &font = asset.as_font;
+
+            void *data = allocl(MAX_FONT_SIZE);
+
+            const u64 last_position = get_file_pointer_position(file);
+            set_file_pointer_position(file, asset.data_offset);
+            read_file(file, data, font.size);
+            set_file_pointer_position(file, last_position);
+
+            font.data = (char *)data;
             
             break;
         }

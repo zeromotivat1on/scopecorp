@@ -1,8 +1,10 @@
 #pragma once
 
+inline constexpr s32 MAX_FONT_SIZE = MB(1);
+
 struct Font {
-	char path[256];
 	struct stbtt_fontinfo *info;
+
 	// Unscaled font vertical params, scale by px_h_scale from Font_Atlas.
 	s32 ascent;
 	s32 descent;
@@ -27,7 +29,7 @@ struct Font_Atlas {
 	s16 font_size; // size of glyph square bitmap
 };
 
-Font *create_font(const char *path);
+Font *create_font(const char *data);
 Font_Atlas *bake_font_atlas(const Font *font, u32 start_charcode, u32 end_charcode, s16 font_size);
 void rescale_font_atlas(Font_Atlas *atlas, s16 font_size);
 s32 get_line_width_px(const Font_Atlas *atlas, const char *text, s32 text_size);

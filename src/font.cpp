@@ -6,25 +6,12 @@
 
 #include "os/file.h"
 
-Font *create_font(const char *path) {
+Font *create_font(const char *data) {
 	Font *font = alloclt(Font);
 	font->info = alloclt(stbtt_fontinfo);
-	str_copy(font->path, path);
 
-	u64 buffer_size = MB(1);
-	u8 *buffer = allocltn(u8, buffer_size);
-    
-	u64 data_size = 0;
-	if (!read_file(path, buffer, buffer_size, &data_size)) {
-        freel(buffer_size);
-		return null;
-	}
-
-	// Free left memory.
-	if (buffer_size > data_size) freel(buffer_size - data_size);
-
-	// @Cleanup: set stbtt allocator to allocate from linear allocation.
-	stbtt_InitFont(font->info, buffer, stbtt_GetFontOffsetForIndex(buffer, 0));
+    // @Cleanup: set stbtt allocator to allocate from linear allocation.
+    stbtt_InitFont(font->info, (u8 *)data, stbtt_GetFontOffsetForIndex((u8 *)data, 0));
 	stbtt_GetFontVMetrics(font->info, &font->ascent, &font->descent, &font->line_gap);
 
 	return font;
