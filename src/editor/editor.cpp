@@ -11,6 +11,7 @@
 #include "render/render_command.h"
 #include "render/render_registry.h"
 
+#include "math/math_core.h"
 #include "math/vector.h"
 #include "math/matrix.h"
 
@@ -108,10 +109,16 @@ void check_for_hot_reload(Hot_Reload_List *list) {
 }
 
 void init_debug_console() {
-    if (debug_console.history) return;
-    
-    debug_console.history = (char *)allocl(MAX_DEBUG_CONSOLE_HISTORY_SIZE);
-    debug_console.history[0] = '\0';
+    Assert(!debug_console.history);
+
+    auto &history = debug_console.history;
+    auto &history_y = debug_console.history_y;
+    auto &history_min_y = debug_console.history_min_y;
+        
+    history = (char *)allocl(MAX_DEBUG_CONSOLE_HISTORY_SIZE);
+    history[0] = '\0';
+    history_min_y = viewport.height - DEBUG_CONSOLE_MARGIN;
+    history_y = history_min_y;
 }
 
 void open_debug_console() {
@@ -128,54 +135,88 @@ void close_debug_console() {
 
 void draw_debug_console() {
     PROFILE_SCOPE(__FUNCTION__);
-    
-    constexpr f32 text_padding = 16.0f;
         
     if (debug_console.is_open) {
         auto &history = debug_console.history;
         auto &history_size = debug_console.history_size;
+        auto &history_height = debug_console.history_height;
+        auto &history_y = debug_console.history_y;
+        auto &history_min_y = debug_console.history_min_y;
         auto &input = debug_console.input;
         auto &input_size = debug_console.input_size;
     
         const auto &atlas = *ui.font_atlases[UI_DEFAULT_FONT_ATLAS_INDEX];
 
+        history_min_y = viewport.height - DEBUG_CONSOLE_MARGIN;
+        
         const f32 ascent = atlas.font->ascent * atlas.px_h_scale;
         // @Cleanup: probably not ideal solution to get lower-case glyph height.
         const f32 lower_case_height = (atlas.font->ascent + atlas.font->descent) * atlas.px_h_scale;
             
-        const vec2 it_pos = vec2(100.0f);
+        const vec2 it_pos = vec2(DEBUG_CONSOLE_MARGIN);
         const vec4 it_color = vec4_white;
         const vec2 its_offset = vec2(atlas.font_size * 0.1f, -atlas.font_size * 0.1f);
         const vec4 its_color = vec4_black;
         
-        const vec2 iq_p0 = it_pos - vec2(text_padding);
-        const vec2 iq_p1 = vec2(viewport.width - it_pos.x, iq_p0.y + lower_case_height + 2 * text_padding);
+        const vec2 iq_p0 = it_pos - vec2(DEBUG_CONSOLE_PADDING);
+        const vec2 iq_p1 = vec2(viewport.width - DEBUG_CONSOLE_MARGIN, iq_p0.y + lower_case_height + 2 * DEBUG_CONSOLE_PADDING);
         const vec4 iq_color = vec4(0.0f, 0.0f, 0.0f, 0.8f);
         
-        const vec2 ht_pos = vec2(100.0f, viewport.height - 100.0f);
+        const vec2 ht_pos = vec2(DEBUG_CONSOLE_MARGIN, history_min_y);
         const vec4 ht_color = vec4(0.8f, 0.8f, 0.8f, 1.0f);
         const vec2 hts_offset = vec2(atlas.font_size * 0.1f, -atlas.font_size * 0.1f);
         const vec4 hts_color = vec4_black;
 
-        const vec2 hq_p0 = vec2(iq_p0.x, iq_p1.y + text_padding);
-        const vec2 hq_p1 = vec2(viewport.width - ht_pos.x, ht_pos.y + ascent + text_padding);
+        const vec2 hq_p0 = vec2(iq_p0.x, iq_p1.y + DEBUG_CONSOLE_PADDING);
+        const vec2 hq_p1 = vec2(viewport.width - DEBUG_CONSOLE_MARGIN, ht_pos.y + ascent + DEBUG_CONSOLE_PADDING);
         const vec4 hq_color = vec4(0.0f, 0.0f, 0.0f, 0.8f);
+        const f32 hq_height = absf(hq_p0.y - hq_p1.y);
+
+        const f32 max_history_height = hq_height - 2 * DEBUG_CONSOLE_PADDING;
+
+        history_height = 0.0f;
+        char *history_start = history;
+        f32 history_visible_height = 0.0f;
+        f32 history_pointer_y = history_y;
+        s32 history_draw_count = 0;
+        
+        for (s32 i = 0; i < history_size; ++i) {
+            if (history_pointer_y > history_min_y) {
+                history_start += 1;
+                history_visible_height = 0.0f;
+            } else {
+                history_draw_count += 1;
+            }
+            
+            if (history[i] == ASCII_NEW_LINE) {
+                history_height += atlas.line_height;
+                history_visible_height += atlas.line_height;
+                history_pointer_y -= atlas.line_height;
+                
+                if (history_visible_height > max_history_height) {
+                    break;
+                }
+            }
+        }
         
         ui_draw_quad(iq_p0, iq_p1, iq_color);
         ui_draw_quad(hq_p0, hq_p1, hq_color);
         
         ui_draw_text_with_shadow(input, input_size, it_pos, it_color, its_offset, its_color);
-        ui_draw_text_with_shadow(history, history_size, ht_pos, ht_color, hts_offset, hts_color);
+        ui_draw_text_with_shadow(history_start, history_draw_count, ht_pos, ht_color, hts_offset, hts_color);
     }
 }
 
 void add_to_debug_console_history(const char *text, u32 count) {
     if (!debug_console.history) {
-        init_debug_console();
+        return;
     }
-    
-    str_glue(debug_console.history, text, count);
-    debug_console.history_size += count;
+
+    auto &history = debug_console.history;
+    auto &history_size = debug_console.history_size;
+
+    str_glue(history, text, count);
+    history_size += count;
 }
 
 void on_debug_console_input(u32 character) {
@@ -189,8 +230,12 @@ void on_debug_console_input(u32 character) {
 
     auto &history = debug_console.history;
     auto &history_size = debug_console.history_size;
+    auto &history_y = debug_console.history_y;
+    auto &history_min_y = debug_console.history_min_y;
     auto &input = debug_console.input;
     auto &input_size = debug_console.input_size;
+
+    const auto &atlas = *ui.font_atlases[UI_DEFAULT_FONT_ATLAS_INDEX];
 
     if (character == ASCII_NEW_LINE || character == ASCII_CARRIAGE_RETURN) {
         if (input_size > 0) {
@@ -206,6 +251,7 @@ void on_debug_console_input(u32 character) {
             if (clear) {
                 history[0] = '\0';
                 history_size = 0;
+                history_y = history_min_y;
             } else {
                 static const u32 warning_size = (u32)str_size(DEBUG_CONSOLE_UNKNOWN_COMMAND_WARNING);
                 str_glue(history, DEBUG_CONSOLE_UNKNOWN_COMMAND_WARNING);
@@ -238,4 +284,23 @@ void on_debug_console_input(u32 character) {
         input[input_size] = (char)character;
         input_size += 1;
     }
+}
+
+void on_debug_console_scroll(s32 delta) {
+    auto &history_height = debug_console.history_height;
+    auto &history_y = debug_console.history_y;
+    auto &history_min_y = debug_console.history_min_y;
+
+    const auto &atlas = *ui.font_atlases[UI_DEFAULT_FONT_ATLAS_INDEX];
+
+    history_y -= delta * atlas.line_height;
+    history_y = Clamp(history_y, history_min_y, history_min_y + history_height);
+}
+
+void on_debug_console_resize(s16 width, s16 height) {
+    auto &history_y = debug_console.history_y;
+    auto &history_min_y = debug_console.history_min_y;
+    
+    history_min_y = height - DEBUG_CONSOLE_MARGIN;
+    history_y = history_min_y;
 }

@@ -50,7 +50,7 @@ void cache_shader_sids(Shader_Sid_List *list) {
     list->frame_buffer = SID("/data/shaders/frame_buffer.glsl");
     list->geometry     = SID("/data/shaders/geometry.glsl");
     list->outline      = SID("/data/shaders/outline.glsl");
-    list->quad         = SID("/data/shaders/quad.glsl");
+    list->ui_element   = SID("/data/shaders/ui_element.glsl");
 }
 
 void cache_texture_sids(Texture_Sid_List *list) {
@@ -480,7 +480,7 @@ void ui_init() {
         bindings[1].vertex_buffer_index = create_vertex_buffer(null, color_buffer_size, BUFFER_USAGE_STREAM);
         
         qdb.vertex_array_index = create_vertex_array(bindings, COUNT(bindings));
-        qdb.material_index = create_material(asset_table[shader_sids.quad].registry_index, INVALID_INDEX);
+        qdb.material_index = create_material(asset_table[shader_sids.ui_element].registry_index, INVALID_INDEX);
 
         const s32 u_projection = create_uniform("u_projection", UNIFORM_F32_4X4, 1);
         set_material_uniforms(qdb.material_index, &u_projection, 1);

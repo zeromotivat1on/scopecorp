@@ -41,6 +41,8 @@ void on_window_event(Window *window, Window_Event *event) {
         on_viewport_resize(&world->camera, &viewport);
         world->ed_camera = world->camera;
 
+        on_debug_console_resize(viewport.width, viewport.height);
+        
         set_material_uniform_value(ui.text_draw_buffer.material_index, "u_projection", &viewport.orthographic_projection);
         set_material_uniform_value(ui.quad_draw_buffer.material_index, "u_projection", &viewport.orthographic_projection);
 
@@ -127,91 +129,96 @@ void on_window_event(Window *window, Window_Event *event) {
         break;
 	}
 	case WINDOW_EVENT_MOUSE: {
-        if (game_state.mode == MODE_EDITOR) {
-            if (event->key_code == MOUSE_MIDDLE) {
-                lock_cursor(window, !window->cursor_locked);
-            }
-
-            if (event->key_press && event->key_code == MOUSE_RIGHT) {
-                if (world->mouse_picked_entity) {
-                    world->mouse_picked_entity->flags &= ~ENTITY_FLAG_SELECTED_IN_EDITOR;
-                    world->mouse_picked_entity = null;
+        if (debug_console.is_open) {
+            on_debug_console_scroll(Sign(event->scroll_delta));
+        }
+        else {
+            if (game_state.mode == MODE_EDITOR) {
+                if (event->key_code == MOUSE_MIDDLE) {
+                    lock_cursor(window, !window->cursor_locked);
                 }
-            } else if (event->key_press && event->key_code == MOUSE_LEFT) {
-                if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
-                    const Ray ray = world_ray_from_viewport_location(desired_camera(world), &viewport, input_table.mouse_x, input_table.mouse_y);
-                    const s32 aabb_index = find_closest_overlapped_aabb(ray, world->aabbs.items, world->aabbs.count);
-                    if (aabb_index != INVALID_INDEX) {
-                        struct Find_Entity_By_AABB_Data {
-                            Entity *e = null;
-                            s32 aabb_index = INVALID_INDEX;
-                        };
 
-                        static const auto find_callback = [] (Entity *e, void *user_data) -> bool {
-                            auto *data = (Find_Entity_By_AABB_Data *)user_data;
-
-                            switch (e->type) {
-                            case ENTITY_PLAYER: {
-                                auto *player = (Player *)e;
-                                if (player->aabb_index == data->aabb_index) {
-                                    data->e = e;
-                                    return true;
-                                }
-                                
-                                break;
-                            }
-                            case ENTITY_STATIC_MESH: {
-                                auto *mesh = (Static_Mesh *)e;
-                                if (mesh->aabb_index == data->aabb_index) {
-                                    data->e = e;
-                                    return true;
-                                }
-                                
-                                break;
-                            }
-                            case ENTITY_POINT_LIGHT: {
-                                auto *light = (Point_Light *)e;
-                                if (light->aabb_index == data->aabb_index) {
-                                    data->e = e;
-                                    return true;
-                                }
-                                
-                                break;
-                            }
-                            case ENTITY_DIRECT_LIGHT: {
-                                auto *light = (Direct_Light *)e;
-                                if (light->aabb_index == data->aabb_index) {
-                                    data->e = e;
-                                    return true;
-                                }
-                                
-                                break;
-                            }
-                            }
-
-                            return false;
-                        };
-                        
-                        Find_Entity_By_AABB_Data find_data;
-                        find_data.e = null;
-                        find_data.aabb_index = aabb_index;
-
-                        for_each_entity(world, find_callback, &find_data);
-
-                        if (find_data.e) {
-                            mouse_pick_entity(world, find_data.e);
-                        }
+                if (event->key_press && event->key_code == MOUSE_RIGHT) {
+                    if (world->mouse_picked_entity) {
+                        world->mouse_picked_entity->flags &= ~ENTITY_FLAG_SELECTED_IN_EDITOR;
+                        world->mouse_picked_entity = null;
                     }
-                } else {
-                    const s32 id = read_frame_buffer_pixel(viewport.frame_buffer_index, 1, input_table.mouse_x, input_table.mouse_y);
-                    auto *e = find_entity_by_id(world, id);
-                    if (e) {
-                        mouse_pick_entity(world, e);
+                } else if (event->key_press && event->key_code == MOUSE_LEFT) {
+                    if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
+                        const Ray ray = world_ray_from_viewport_location(desired_camera(world), &viewport, input_table.mouse_x, input_table.mouse_y);
+                        const s32 aabb_index = find_closest_overlapped_aabb(ray, world->aabbs.items, world->aabbs.count);
+                        if (aabb_index != INVALID_INDEX) {
+                            struct Find_Entity_By_AABB_Data {
+                                Entity *e = null;
+                                s32 aabb_index = INVALID_INDEX;
+                            };
+
+                            static const auto find_callback = [] (Entity *e, void *user_data) -> bool {
+                                auto *data = (Find_Entity_By_AABB_Data *)user_data;
+
+                                switch (e->type) {
+                                case ENTITY_PLAYER: {
+                                    auto *player = (Player *)e;
+                                    if (player->aabb_index == data->aabb_index) {
+                                        data->e = e;
+                                        return true;
+                                    }
+                                
+                                    break;
+                                }
+                                case ENTITY_STATIC_MESH: {
+                                    auto *mesh = (Static_Mesh *)e;
+                                    if (mesh->aabb_index == data->aabb_index) {
+                                        data->e = e;
+                                        return true;
+                                    }
+                                
+                                    break;
+                                }
+                                case ENTITY_POINT_LIGHT: {
+                                    auto *light = (Point_Light *)e;
+                                    if (light->aabb_index == data->aabb_index) {
+                                        data->e = e;
+                                        return true;
+                                    }
+                                
+                                    break;
+                                }
+                                case ENTITY_DIRECT_LIGHT: {
+                                    auto *light = (Direct_Light *)e;
+                                    if (light->aabb_index == data->aabb_index) {
+                                        data->e = e;
+                                        return true;
+                                    }
+                                
+                                    break;
+                                }
+                                }
+
+                                return false;
+                            };
+                        
+                            Find_Entity_By_AABB_Data find_data;
+                            find_data.e = null;
+                            find_data.aabb_index = aabb_index;
+
+                            for_each_entity(world, find_callback, &find_data);
+
+                            if (find_data.e) {
+                                mouse_pick_entity(world, find_data.e);
+                            }
+                        }
+                    } else {
+                        const s32 id = read_frame_buffer_pixel(viewport.frame_buffer_index, 1, input_table.mouse_x, input_table.mouse_y);
+                        auto *e = find_entity_by_id(world, id);
+                        if (e) {
+                            mouse_pick_entity(world, e);
+                        }
                     }
                 }
             }
         }
-
+        
         break;
     }
 	case WINDOW_EVENT_QUIT: {

@@ -15,7 +15,7 @@ struct Shader_Sid_List {
 	sid frame_buffer;
     sid geometry;
     sid outline;
-    sid quad;
+    sid ui_element;
 };
 
 inline Shader_Sid_List shader_sids;

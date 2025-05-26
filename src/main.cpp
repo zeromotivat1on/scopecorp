@@ -80,6 +80,8 @@ s32 main() {
         error("Failed to initialize allocation");
         return 1;
     }
+
+    init_debug_console();
     
     init_sid_table();
 	init_input_table();
@@ -156,8 +158,6 @@ s32 main() {
     init_geo_draw();
 
     ui_init();
-
-    init_debug_console();
     
 	auto &player = world->player;
 	{   // Create player.
