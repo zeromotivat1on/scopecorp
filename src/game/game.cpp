@@ -18,8 +18,7 @@
 #include "render/viewport.h"
 #include "render/render_registry.h"
 
-#include "audio/al.h"
-#include "audio/audio_registry.h"
+#include "audio/sound.h"
 
 static void mouse_pick_entity(World *world, Entity *e) {
     if (world->mouse_picked_entity) {
