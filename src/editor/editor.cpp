@@ -191,11 +191,11 @@ void draw_debug_console() {
         const vec4 hq_color = vec4(0.0f, 0.0f, 0.0f, 0.8f);
         const f32 hq_height = absf(hq_p0.y - hq_p1.y);
 
-        const f32 max_history_height = hq_height - 2 * DEBUG_CONSOLE_PADDING;
+        const f32 max_history_height = hq_height - DEBUG_CONSOLE_PADDING;
 
         history_height = 0.0f;
         char *history_start = history;
-        f32 history_visible_height = 0.0f;
+        f32 history_visible_height = history_size > 0 ? atlas.line_height : 0.0f;
         f32 history_pointer_y = history_y;
         s32 history_draw_count = 0;
         
