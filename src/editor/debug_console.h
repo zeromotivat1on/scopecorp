@@ -6,8 +6,11 @@
 
 inline constexpr s32 MAX_DEBUG_CONSOLE_HISTORY_SIZE = KB(32);
 inline constexpr s32 MAX_DEBUG_CONSOLE_INPUT_SIZE   = 64;
+
 inline constexpr f32 DEBUG_CONSOLE_MARGIN  = 100.0f;
 inline constexpr f32 DEBUG_CONSOLE_PADDING = 16.0f;
+
+inline constexpr f32 DEBUG_CONSOLE_CURSOR_BLINK_INTERVAL = 0.5f;
 
 struct Debug_Console {
     char *history = null;
@@ -15,10 +18,12 @@ struct Debug_Console {
     f32 history_height = 0.0f;
     f32 history_y = 0.0f;
     f32 history_min_y = 0.0f;
-        
+    
     char input[MAX_DEBUG_CONSOLE_INPUT_SIZE];
     s32 input_size = 0;
 
+    f32 cursor_blink_dt = 0.0f;
+    
     bool is_open = false;
 };
 
