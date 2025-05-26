@@ -678,11 +678,21 @@ s32 create_shader(const char *source, const char *path) {
     }
 
 	const u32 vertex_shader = gl_create_shader(GL_VERTEX_SHADER, vertex_src);
+    if (vertex_shader == INVALID_INDEX) {
+        return INVALID_INDEX;
+    }
+    
 	const u32 fragment_shader = gl_create_shader(GL_FRAGMENT_SHADER, fragment_src);
-
+    if (fragment_shader == INVALID_INDEX) {
+        return INVALID_INDEX;
+    }
+    
     Shader shader;
 	shader.id = gl_link_program(vertex_shader, fragment_shader);
-
+    if (shader.id == INVALID_INDEX) {
+        return INVALID_INDEX;
+    }
+    
 	return render_registry.shaders.add(shader);
 }
 
@@ -697,14 +707,26 @@ bool recreate_shader(s32 shader_index, const char *source, const char *path) {
         error("Failed to recreate shader %s", path);
         return false;
     }
-    
-	// We are free to delete old shader program at this stage.
-	glDeleteProgram(shader.id);
 
 	const u32 vertex_shader = gl_create_shader(GL_VERTEX_SHADER, vertex_src);
+    if (vertex_shader == INVALID_INDEX) {
+        return false;
+    }
+    
 	const u32 fragment_shader = gl_create_shader(GL_FRAGMENT_SHADER, fragment_src);
-	shader.id = gl_link_program(vertex_shader, fragment_shader);
+    if (fragment_shader == INVALID_INDEX) {
+        return false;
+    }
+    
+	const u32 new_shader_id = gl_link_program(vertex_shader, fragment_shader);
+    if (new_shader_id == INVALID_INDEX) {
+        return false;
+    }
 
+    // We are free to delete old shader program at this stage.
+	glDeleteProgram(shader.id);
+    shader.id = new_shader_id;
+        
 	return true;
 }
 
