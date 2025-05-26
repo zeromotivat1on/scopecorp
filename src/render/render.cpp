@@ -45,11 +45,11 @@ void init_render_registry(Render_Registry *registry) {
 
 void cache_shader_sids(Shader_Sid_List *list) {
     list->entity       = SID("/data/shaders/entity.glsl");
-    list->text         = SID("/data/shaders/text.glsl");
     list->skybox       = SID("/data/shaders/skybox.glsl");
     list->frame_buffer = SID("/data/shaders/frame_buffer.glsl");
     list->geometry     = SID("/data/shaders/geometry.glsl");
     list->outline      = SID("/data/shaders/outline.glsl");
+    list->ui_text      = SID("/data/shaders/ui_text.glsl");
     list->ui_element   = SID("/data/shaders/ui_element.glsl");
 }
 
@@ -421,7 +421,10 @@ void flush_geo_draw() {
 
 void ui_init() {
     Font *consola = create_font(PATH_FONT("consola.ttf"));
-    ui.font_atlases[UI_DEFAULT_FONT_ATLAS_INDEX] = bake_font_atlas(consola, 33, 126, 16);;
+    Font_Atlas *consola_atlas = bake_font_atlas(consola, 33, 126, 16);
+    
+    ui.font_atlases[UI_DEFAULT_FONT_ATLAS_INDEX] = consola_atlas;
+    ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX] = consola_atlas;
     
     {   // Text draw buffer.
         constexpr s32 color_buffer_size     = MAX_UI_TEXT_DRAW_BUFFER_CHARS * sizeof(vec4);
@@ -456,7 +459,7 @@ void ui_init() {
         bindings[3].vertex_buffer_index = create_vertex_buffer(null, transform_buffer_size, BUFFER_USAGE_STREAM);
 
         tdb.vertex_array_index = create_vertex_array(bindings, COUNT(bindings));
-        tdb.material_index = create_material(asset_table[shader_sids.text].registry_index, INVALID_INDEX);
+        tdb.material_index = create_material(asset_table[shader_sids.ui_text].registry_index, INVALID_INDEX);
 
         const s32 u_projection = create_uniform("u_projection", UNIFORM_F32_4X4, 1);
         set_material_uniforms(tdb.material_index, &u_projection, 1);

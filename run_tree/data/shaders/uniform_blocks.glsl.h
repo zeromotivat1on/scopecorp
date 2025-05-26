@@ -8,6 +8,11 @@ layout (std140) uniform Camera {
     mat4 u_view_proj;
 };
 
+layout (std140) uniform Viewport {
+    vec2 u_viewport_resolution;
+    mat4 u_viewport_ortho;
+};
+
 layout (std140) uniform Direct_Lights {
     uint u_direct_light_count;
     

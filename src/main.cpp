@@ -363,7 +363,12 @@ s32 main() {
             { UNIFORM_F32_4X4, 1 },
             { UNIFORM_F32_4X4, 1 },
         };
-        
+
+        const Uniform_Block_Field viewport_fields[] = {
+            { UNIFORM_F32_2,   1 },
+            { UNIFORM_F32_4X4, 1 },
+        };
+         
         const Uniform_Block_Field direct_light_fields[] = {
             { UNIFORM_U32,   1 },
             { UNIFORM_F32_3, MAX_DIRECT_LIGHTS },
@@ -384,11 +389,12 @@ s32 main() {
         };
 
         UNIFORM_BLOCK_CAMERA = create_uniform_block(ubi, UNIFORM_BINDING_CAMERA, UNIFORM_BLOCK_NAME_CAMERA, camera_fields, COUNT(camera_fields));
+
+        UNIFORM_BLOCK_VIEWPORT = create_uniform_block(ubi, UNIFORM_BINDING_VIEWPORT, UNIFORM_BLOCK_NAME_VIEWPORT, viewport_fields, COUNT(viewport_fields));
         
         UNIFORM_BLOCK_DIRECT_LIGHTS = create_uniform_block(ubi, UNIFORM_BINDING_DIRECT_LIGHTS, UNIFORM_BLOCK_NAME_DIRECT_LIGHTS, direct_light_fields, COUNT(direct_light_fields));
         
         UNIFORM_BLOCK_POINT_LIGHTS = create_uniform_block(ubi, UNIFORM_BINDING_POINT_LIGHTS, UNIFORM_BLOCK_NAME_POINT_LIGHTS, point_light_fields, COUNT(point_light_fields));
-    
     }
 
 	auto &camera = world->camera;

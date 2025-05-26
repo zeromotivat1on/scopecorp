@@ -1,6 +1,8 @@
 #begin vertex
 #version 460 core
 
+#include "uniform_blocks.glsl.h"
+
 layout (location = 0) in vec2 v_vertex; // location and uv
 layout (location = 1) in vec3 v_color;
 layout (location = 2) in uint v_charcode;
@@ -10,10 +12,8 @@ layout (location = 0) out vec2      f_uv;
 layout (location = 1) out vec3      f_color;
 layout (location = 2) out flat uint f_charcode;
 
-uniform mat4 u_projection;
-
 void main() {
-    gl_Position = u_projection * v_transform * vec4(v_vertex, 0.0f, 1.0f);
+    gl_Position = u_viewport_ortho * v_transform * vec4(v_vertex, 0.0f, 1.0f);
     
     f_uv = vec2(v_vertex.x, 1.0f - v_vertex.y); // vertical flip
     f_color = v_color;

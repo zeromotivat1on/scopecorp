@@ -10,11 +10,11 @@ struct Shader {
 
 struct Shader_Sid_List {
 	sid entity;
-	sid text;
 	sid skybox;
 	sid frame_buffer;
     sid geometry;
     sid outline;
+    sid ui_text;
     sid ui_element;
 };
 

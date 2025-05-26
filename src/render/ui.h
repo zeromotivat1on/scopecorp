@@ -9,6 +9,7 @@ inline constexpr s32 MAX_UI_TEXT_DRAW_BUFFER_CHARS = 4096;
 inline constexpr s32 MAX_UI_QUAD_DRAW_BUFFER_QUADS = 512;
 
 inline constexpr s32 UI_DEFAULT_FONT_ATLAS_INDEX = 0;
+inline constexpr s32 UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX = 0;
 
 struct mat4;
 struct Font_Atlas;

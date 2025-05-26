@@ -148,7 +148,7 @@ void draw_debug_console() {
         auto &input_size = debug_console.input_size;
         auto &cursor_blink_dt = debug_console.cursor_blink_dt;
     
-        const auto &atlas = *ui.font_atlases[UI_DEFAULT_FONT_ATLAS_INDEX];
+        const auto &atlas = *ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
 
         history_min_y = viewport.height - DEBUG_CONSOLE_MARGIN;
 
@@ -223,8 +223,8 @@ void draw_debug_console() {
         ui_draw_quad(iq_p0, iq_p1, iq_color);
         ui_draw_quad(hq_p0, hq_p1, hq_color);
         
-        ui_draw_text_with_shadow(input, input_size, it_pos, it_color, its_offset, its_color);
-        ui_draw_text_with_shadow(history_start, history_draw_count, ht_pos, ht_color, hts_offset, hts_color);
+        ui_draw_text(input, input_size, it_pos, it_color, UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX);
+        ui_draw_text(history_start, history_draw_count, ht_pos, ht_color, UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX);
 
         ui_draw_quad(cursor_p0, cursor_p1, cursor_color);
     }
@@ -259,7 +259,7 @@ void on_debug_console_input(u32 character) {
     auto &input_size = debug_console.input_size;
     auto &cursor_blink_dt = debug_console.cursor_blink_dt;
 
-    const auto &atlas = *ui.font_atlases[UI_DEFAULT_FONT_ATLAS_INDEX];
+    const auto &atlas = *ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
 
     cursor_blink_dt = 0.0f;
     
@@ -317,7 +317,7 @@ void on_debug_console_scroll(s32 delta) {
     auto &history_y = debug_console.history_y;
     auto &history_min_y = debug_console.history_min_y;
 
-    const auto &atlas = *ui.font_atlases[UI_DEFAULT_FONT_ATLAS_INDEX];
+    const auto &atlas = *ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
 
     history_y -= delta * atlas.line_height;
     history_y = Clamp(history_y, history_min_y, history_min_y + history_height);

@@ -36,18 +36,19 @@ void on_window_event(Window *window, Window_Event *event) {
 	case WINDOW_EVENT_RESIZE: {
         resize_viewport(&viewport, window->width, window->height);
         viewport.orthographic_projection = mat4_orthographic(0, viewport.width, 0, viewport.height, -1, 1);
-            
+
+        const vec2 viewport_resolution = vec2(viewport.width, viewport.height);
+        set_uniform_block_value(UNIFORM_BLOCK_VIEWPORT, 0, 0, &viewport_resolution, get_uniform_type_size_gpu_aligned(UNIFORM_F32_2));        
+        set_uniform_block_value(UNIFORM_BLOCK_VIEWPORT, 1, 0, &viewport.orthographic_projection, get_uniform_type_size_gpu_aligned(UNIFORM_F32_4X4));        
+        
         on_viewport_resize(&world->camera, &viewport);
         world->ed_camera = world->camera;
 
         on_debug_console_resize(viewport.width, viewport.height);
-        
-        set_material_uniform_value(ui.text_draw_buffer.material_index, "u_projection", &viewport.orthographic_projection);
-        set_material_uniform_value(ui.quad_draw_buffer.material_index, "u_projection", &viewport.orthographic_projection);
 
         const auto &frame_buffer = render_registry.frame_buffers[viewport.frame_buffer_index];
-        const vec2 resolution = vec2(frame_buffer.width, frame_buffer.height);
-        set_material_uniform_value(frame_buffer.material_index, "u_resolution", &resolution);
+        const vec2 frame_buffer_resolution = vec2(frame_buffer.width, frame_buffer.height);
+        set_material_uniform_value(frame_buffer.material_index, "u_resolution", &frame_buffer_resolution);
 
         break;
 	}
