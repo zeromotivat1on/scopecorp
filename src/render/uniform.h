@@ -23,6 +23,7 @@ inline const char *UNIFORM_BLOCK_NAME_VIEWPORT = "Viewport";
 inline const char *UNIFORM_BLOCK_NAME_DIRECT_LIGHTS = "Direct_Lights";
 inline const char *UNIFORM_BLOCK_NAME_POINT_LIGHTS  = "Point_Lights";
 
+inline constexpr s32 MAX_UNIFORM_NAME_SIZE = 64;
 inline constexpr s32 MAX_UNIFORM_BUFFER_BLOCKS = 32;
 inline constexpr s32 MAX_UNIFORM_BLOCK_FIELDS  = 16;
 
@@ -52,7 +53,7 @@ struct Uniform_Material {
 };
 
 struct Uniform {
-	const char *name = null;
+	char name[MAX_UNIFORM_NAME_SIZE];
 	Uniform_Type type;
 	s32 count = 1;
 };

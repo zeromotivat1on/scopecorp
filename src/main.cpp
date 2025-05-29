@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "log.h"
+#include "str.h"
 #include "sid.h"
 #include "font.h"
 #include "flip_book.h"
@@ -118,14 +119,13 @@ s32 main() {
     save_asset_pack(GAME_ASSET_PACK_PATH);
     load_asset_pack(GAME_ASSET_PACK_PATH, &asset_table);
     
-    init_debug_console();
-
     // @Cleanup: move these to asset pak?
 	create_game_materials(&material_index_list);
 	create_game_flip_books(&flip_books);
     
     viewport.aspect_type = VIEWPORT_4X3;
     viewport.resolution_scale = 1.0f;
+
 
     const Texture_Format_Type color_attachments[] = { TEXTURE_FORMAT_RGB_8, TEXTURE_FORMAT_RED_INTEGER };
     viewport.frame_buffer_index = create_frame_buffer(window->width, window->height,
@@ -146,20 +146,26 @@ s32 main() {
     viewport_frame_buffer.scanline_intensity          = 0.95f;
 #endif
     
+    resize_viewport(&viewport, window->width, window->height);
+
+    ui_init();
+    init_debug_console();
+
+    init_render_queue(&entity_render_queue, MAX_RENDER_QUEUE_SIZE);
+    init_geo_draw();
+
 	Hot_Reload_List hot_reload_list = {};
     // @Note: shader includes does not count as shader hot reload.
 	register_hot_reload_directory(&hot_reload_list, DIR_SHADERS);
 	register_hot_reload_directory(&hot_reload_list, DIR_TEXTURES);
 	register_hot_reload_directory(&hot_reload_list, DIR_SOUNDS);
     
-	world = alloclt(World);
+    world = alloclt(World);
 	init_world(world);
 
-    init_render_queue(&entity_render_queue, MAX_RENDER_QUEUE_SIZE);
-    init_geo_draw();
+#if 1
+    str_copy(world->name, "main");
 
-    ui_init();
-    
 	auto &player = world->player;
 	{   // Create player.
         player.id = 1;
@@ -303,7 +309,8 @@ s32 main() {
 		const u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
 		skybox.draw_data.index_buffer_index = create_index_buffer(indices, COUNT(indices), BUFFER_USAGE_STATIC);
 	}
-
+    
+    
     if (1) {
         const s32 index = world->direct_lights.add_default();
         
@@ -350,7 +357,29 @@ s32 main() {
 		aabb.min = point_light.location - point_light.scale * 0.5f;
 		aabb.max = aabb.min + point_light.scale;
     }
-    
+
+    auto &camera = world->camera;
+	camera.mode = MODE_PERSPECTIVE;
+	camera.yaw = 90.0f;
+	camera.pitch = 0.0f;
+	camera.eye = player.location + player.camera_offset;
+	camera.at = camera.eye + forward(camera.yaw, camera.pitch);
+	camera.up = vec3(0.0f, 1.0f, 0.0f);
+	camera.fov = 60.0f;
+	camera.near = 0.001f;
+	camera.far = 1000.0f;
+	camera.left = 0.0f;
+	camera.right = (f32)window->width;
+	camera.bottom = 0.0f;
+	camera.top = (f32)window->height;
+
+	world->ed_camera = camera;
+
+    save_world(world);
+#else
+    load_world(world, "C:/dev/scopecorp/run_tree/data/levels/main.wl");    
+#endif
+      
     {
         constexpr u32 UNIFORM_BUFFER_SIZE = KB(16);
         const s32 ubi = create_uniform_buffer(UNIFORM_BUFFER_SIZE);
@@ -398,23 +427,6 @@ s32 main() {
         UNIFORM_BLOCK_POINT_LIGHTS = create_uniform_block(ubi, UNIFORM_BINDING_POINT_LIGHTS, UNIFORM_BLOCK_NAME_POINT_LIGHTS, point_light_fields, COUNT(point_light_fields));
     }
 
-	auto &camera = world->camera;
-	camera.mode = MODE_PERSPECTIVE;
-	camera.yaw = 90.0f;
-	camera.pitch = 0.0f;
-	camera.eye = player.location + player.camera_offset;
-	camera.at = camera.eye + forward(camera.yaw, camera.pitch);
-	camera.up = vec3(0.0f, 1.0f, 0.0f);
-	camera.fov = 60.0f;
-	camera.near = 0.001f;
-	camera.far = 1000.0f;
-	camera.left = 0.0f;
-	camera.right = (f32)window->width;
-	camera.bottom = 0.0f;
-	camera.top = (f32)window->height;
-
-	world->ed_camera = camera;
-
 	delta_time = 0.0f;
 	s64 begin_counter = performance_counter();
 
@@ -426,7 +438,7 @@ s32 main() {
 
 		poll_events(window);
         tick(world, delta_time);        
-		set_listener_pos(player.location);
+		//set_listener_pos(player.location);
 
         // @Cleanup: this one is pretty slow, but bearable for now (~0.2ms);
         // move to other thread later if it becomes a big deal.

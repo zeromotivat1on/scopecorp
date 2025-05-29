@@ -16,6 +16,7 @@ struct Debug_Console {
     char *history = null;
     s32 history_size = 0;
     f32 history_height = 0.0f;
+    f32 history_max_width = 0.0f;
     f32 history_y = 0.0f;
     f32 history_min_y = 0.0f;
     

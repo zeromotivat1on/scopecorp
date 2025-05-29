@@ -43,7 +43,7 @@ struct Sparse_Array {
     }
 
     T *find(s32 index) {
-        if (index < 0 || index >= count) return null;
+        if (index < 0 || index >= capacity) return null;
         
         const s32 item_index = sparse[index];
         if (item_index == INVALID_INDEX) return null;
@@ -52,8 +52,7 @@ struct Sparse_Array {
     }
 
     T *find_or_add_default(s32 index) {
-        Assert(index >= 0);
-        Assert(index < capacity);
+        if (index < 0 || index >= capacity) return null;
         
         s32 item_index = sparse[index];
         if (item_index == INVALID_INDEX) {
@@ -64,7 +63,7 @@ struct Sparse_Array {
     }
     
     s32 add(const T &item) {
-        for (s32 i = 0; i < count + 1; ++i)
+        for (s32 i = 0; i < capacity; ++i)
             if (sparse[i] == INVALID_INDEX)
                 return add(i, item);
         
@@ -72,7 +71,7 @@ struct Sparse_Array {
     }
 
     s32 add_default() {
-        for (s32 i = 0; i < count + 1; ++i)
+        for (s32 i = 0; i < capacity; ++i)
             if (sparse[i] == INVALID_INDEX)
                 return add_default(i);
         

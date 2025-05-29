@@ -543,70 +543,61 @@ s32 create_vertex_buffer(const void *data, u32 size, Buffer_Usage_Type usage) {
 	buffer.size  = size;
 	buffer.usage = usage;
 
-	glGenBuffers(1, &buffer.id);
-	glBindBuffer(GL_ARRAY_BUFFER, buffer.id);
-	glBufferData(GL_ARRAY_BUFFER, size, data, gl_usage(usage));
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glCreateBuffers(1, &buffer.id);
+	glNamedBufferData(buffer.id, size, data, gl_usage(usage));
 
 	return render_registry.vertex_buffers.add(buffer);
 }
 
 void set_vertex_buffer_data(s32 vertex_buffer_index, const void *data, u32 size, u32 offset) {
     const auto &buffer = render_registry.vertex_buffers[vertex_buffer_index];
-
-	glBindBuffer(GL_ARRAY_BUFFER, buffer.id);
-    glBufferSubData(GL_ARRAY_BUFFER, offset, size, data);    
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glNamedBufferSubData(buffer.id, offset, size, data);
 }
 
 s32 create_vertex_array(const Vertex_Array_Binding *bindings, s32 binding_count) {
-    Vertex_Array array;
-    array.binding_count = binding_count;
-    copy_bytes(array.bindings, bindings, binding_count * sizeof(Vertex_Array_Binding));
+    Assert(binding_count <= MAX_VERTEX_ARRAY_BINDINGS);
     
-    glGenVertexArrays(1, &array.id);
-    glBindVertexArray(array.id);
+    Vertex_Array va;
+    va.binding_count = binding_count;
+    copy_bytes(va.bindings, bindings, binding_count * sizeof(Vertex_Array_Binding));    
+    glCreateVertexArrays(1, &va.id);
 
-    s32 binding_index = 0;
-    for (s32 i = 0; i < binding_count; ++i) {
-        Assert(binding_index < MAX_VERTEX_ARRAY_BINDINGS);
-        
-        const auto &binding = bindings[i];
+    s32 attribute_index = 0;
+    for (s32 binding_index = 0; binding_index < binding_count; ++binding_index) {        
+        const auto &binding = bindings[binding_index];
         const auto &vertex_buffer = render_registry.vertex_buffers[binding.vertex_buffer_index];
-        
-        glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer.id);
 
         s32 vertex_size = 0;
-        for (s32 j = 0; j < binding.layout_size; ++j)
+        for (s32 j = 0; j < binding.layout_size; ++j) {
             vertex_size += vertex_component_size(binding.layout[j].type);
-    
+        }
+
+        glVertexArrayVertexBuffer(va.id, binding_index, vertex_buffer.id, 0, vertex_size);
+
+        s32 offset = 0;
         for (s32 j = 0; j < binding.layout_size; ++j) {
             const auto &component = binding.layout[j];
             
-            s32 offset = 0;
-            for (s32 k = 0; k < j; ++k)
-                offset += vertex_component_size(binding.layout[k].type);
-
             const s32 data_type = gl_vertex_data_type(component.type);
             const s32 dimension = vertex_component_dimension(component.type);
 
-            glEnableVertexAttribArray(binding_index);
+            glEnableVertexArrayAttrib(va.id, attribute_index);
+            glVertexArrayAttribBinding(va.id, attribute_index, binding_index);
             
-            if (component.type == VERTEX_S32 || component.type == VERTEX_U32)
-                glVertexAttribIPointer(binding_index, dimension, data_type, vertex_size, (void *)(u64)offset);
-            else
-                glVertexAttribPointer(binding_index, dimension, data_type, component.normalize, vertex_size, (void *)(u64)offset);
-            
-            glVertexAttribDivisor(binding_index, component.advance_rate);
+            if (component.type == VERTEX_S32 || component.type == VERTEX_U32) {
+                glVertexArrayAttribIFormat(va.id, attribute_index, dimension, data_type, offset);
+            } else {
+                glVertexArrayAttribFormat(va.id, attribute_index, dimension, data_type, component.normalize, offset);
+            }
 
-            binding_index++;
+            glVertexArrayBindingDivisor(va.id, attribute_index, component.advance_rate);
+
+            offset += vertex_component_size(component.type);
+            attribute_index += 1;
         }
 	}
 
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindVertexArray(0);
-
-    return render_registry.vertex_arrays.add(array);
+    return render_registry.vertex_arrays.add(va);
 }
 
 s32 create_index_buffer(const u32 *indices, s32 count, Buffer_Usage_Type usage_type) {
@@ -614,12 +605,8 @@ s32 create_index_buffer(const u32 *indices, s32 count, Buffer_Usage_Type usage_t
 	buffer.index_count = count;
 	buffer.usage_type = usage_type;
 
-	glGenBuffers(1, &buffer.id);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffer.id);
-
-	const s32 usage = gl_usage(usage_type);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, count * sizeof(u32), indices, usage);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+	glCreateBuffers(1, &buffer.id);
+	glNamedBufferData(buffer.id, count * sizeof(u32), indices, gl_usage(usage_type));
 
 	return render_registry.index_buffers.add(buffer);
 }
@@ -798,11 +785,8 @@ s32 create_uniform_buffer(u32 size) {
     Uniform_Buffer buffer;
     buffer.size = size;
 
-    glGenBuffers(1, &buffer.id);
-
-    glBindBuffer(GL_UNIFORM_BUFFER, buffer.id);
-    glBufferData(GL_UNIFORM_BUFFER, size, null, GL_STATIC_DRAW);
-    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+    glCreateBuffers(1, &buffer.id);
+    glNamedBufferData(buffer.id, size, null, GL_STATIC_DRAW);
 
     return render_registry.uniform_buffers.add(buffer);
 }
@@ -916,19 +900,17 @@ u32 get_uniform_block_size_gpu_aligned(s32 uniform_block_index) {
     return get_uniform_block_size_gpu_aligned(block.fields, block.field_count);
 }
 
-void set_uniform_block_value(s32 ubbi, u32 offset, const void *data, u32 size) {
-    auto &block = render_registry.uniform_blocks[ubbi];
+void set_uniform_block_value(s32 uniform_block_index, u32 offset, const void *data, u32 size) {
+    auto &block = render_registry.uniform_blocks[uniform_block_index];
     Assert(offset < block.gpu_size);
 
     const auto &uniform_buffer = render_registry.uniform_buffers[block.uniform_buffer_index];
-    glBindBuffer(GL_UNIFORM_BUFFER, uniform_buffer.id);
-    glBufferSubData(GL_UNIFORM_BUFFER, block.offset + offset, size, data);
-    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+    glNamedBufferSubData(uniform_buffer.id, block.offset + offset, size, data);
 }
 
-void set_uniform_block_value(s32 ubbi, s32 field_index, s32 field_element_index, const void *data, u32 size) {
-    const u32 field_offset = get_uniform_block_field_offset_gpu_aligned(ubbi, field_index, field_element_index);
-    set_uniform_block_value(ubbi, field_offset, data, size);
+void set_uniform_block_value(s32 uniform_block_index, s32 field_index, s32 field_element_index, const void *data, u32 size) {
+    const u32 field_offset = get_uniform_block_field_offset_gpu_aligned(uniform_block_index, field_index, field_element_index);
+    set_uniform_block_value(uniform_block_index, field_offset, data, size);
 }
 
 static s32 gl_texture_format(Texture_Format_Type format) {
@@ -1036,10 +1018,8 @@ void set_texture_wrap(s32 texture_index, Texture_Wrap_Type wrap_type) {
     const s32 type = gl_texture_type(texture.type);
     const s32 wrap = gl_texture_wrap(wrap_type);
 
-    glBindTexture(type, texture.id);
-    glTexParameteri(type, GL_TEXTURE_WRAP_S, wrap);
-    glTexParameteri(type, GL_TEXTURE_WRAP_T, wrap);
-    glBindTexture(type, 0);
+    glTextureParameteri(texture.id, GL_TEXTURE_WRAP_S, wrap);
+    glTextureParameteri(texture.id, GL_TEXTURE_WRAP_T, wrap);
 }
 
 static s32 gl_texture_min_filter(Texture_Filter_Type filter, bool has_mipmaps) {
@@ -1073,10 +1053,8 @@ void set_texture_filter(s32 texture_index, Texture_Filter_Type filter_type) {
     const s32 min_filter = gl_texture_min_filter(filter_type, has_mipmaps);
     const s32 mag_filter = gl_texture_mag_filter(filter_type);
 
-    glBindTexture(type, texture.id);
-    glTexParameteri(type, GL_TEXTURE_MIN_FILTER, min_filter);
-    glTexParameteri(type, GL_TEXTURE_MAG_FILTER, mag_filter);
-    glBindTexture(type, 0);
+    glTextureParameteri(texture.id, GL_TEXTURE_MIN_FILTER, min_filter);
+    glTextureParameteri(texture.id, GL_TEXTURE_MAG_FILTER, mag_filter);
 }
 
 void generate_texture_mipmaps(s32 texture_index) {
@@ -1084,9 +1062,7 @@ void generate_texture_mipmaps(s32 texture_index) {
     texture.flags |= TEXTURE_FLAG_HAS_MIPMAPS;
 
     const s32 type = gl_texture_type(texture.type);
-    glBindTexture(type, texture.id);
-    glGenerateMipmap(type);
-    glBindTexture(type, 0);
+    glGenerateTextureMipmap(texture.id);
 }
 
 void delete_texture(s32 texture_index) {

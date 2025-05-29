@@ -5,16 +5,25 @@
 #include "collision.h"
 #include "game/entity.h"
 
+#define WORLD_LEVEL_EXTENSION_NAME ".wl"
+
+inline constexpr s32 MAX_WORLD_NAME_SIZE = 64;
+
 inline constexpr s32 MAX_STATIC_MESHES = 1024;
 inline constexpr s32 MAX_DIRECT_LIGHTS = 4;
 inline constexpr s32 MAX_POINT_LIGHTS  = 32;
 inline constexpr s32 MAX_AABBS = 2048;
 
-typedef bool (* For_Each_Entity_Callback)(Entity *e, void *user_data);
+enum For_Each_Result {
+    RESULT_CONTINUE,
+    RESULT_BREAK,
+};
+
+typedef For_Each_Result (* For_Each_Entity_Callback)(Entity *e, void *user_data);
 
 struct World {
-    char path[MAX_PATH_SIZE] = {0};
-    
+    char name[MAX_WORLD_NAME_SIZE];
+
 	f32 dt;
 
 	Player player;
@@ -35,6 +44,8 @@ struct World {
 inline World *world = null;
 
 void init_world(World *world);
+void save_world(World *world);
+void load_world(World *world, const char *path);
 void tick(World *world, f32 dt);
 Camera *desired_camera(World *world);
 

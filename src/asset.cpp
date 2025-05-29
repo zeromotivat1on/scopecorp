@@ -137,7 +137,7 @@ void free_sound_memory(Sound_Memory *memory) {
 }
 
 void save_asset_pack(const char *path) {
-    START_SCOPE_TIMER(load);
+    START_SCOPE_TIMER(save);
 
     File file = open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_WRITE);
     defer { close_file(file); };
@@ -286,7 +286,7 @@ void save_asset_pack(const char *path) {
     set_file_pointer_position(file, asset_data_offset);
     write_file(file, assets, asset_data_size);
 
-    log("Saved asset pack %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(load));
+    log("Saved asset pack %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(save));
 }
 
 void load_asset_pack(const char *path, Asset_Table *table) {

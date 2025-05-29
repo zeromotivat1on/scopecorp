@@ -115,11 +115,12 @@ void init_debug_console() {
     auto &history = debug_console.history;
     auto &history_y = debug_console.history_y;
     auto &history_min_y = debug_console.history_min_y;
-        
+    auto &history_max_width = debug_console.history_max_width;
+
     history = (char *)allocl(MAX_DEBUG_CONSOLE_HISTORY_SIZE);
     history[0] = '\0';
-    history_min_y = viewport.height - DEBUG_CONSOLE_MARGIN;
-    history_y = history_min_y;
+
+    on_debug_console_resize(viewport.width, viewport.height);
 }
 
 void open_debug_console() {
@@ -144,13 +145,12 @@ void draw_debug_console() {
         auto &history_height = debug_console.history_height;
         auto &history_y = debug_console.history_y;
         auto &history_min_y = debug_console.history_min_y;
+        auto &history_max_width = debug_console.history_max_width;
         auto &input = debug_console.input;
         auto &input_size = debug_console.input_size;
         auto &cursor_blink_dt = debug_console.cursor_blink_dt;
     
         const auto &atlas = *ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
-
-        history_min_y = viewport.height - DEBUG_CONSOLE_MARGIN;
 
         cursor_blink_dt += delta_time;
         
@@ -165,7 +165,7 @@ void draw_debug_console() {
         const vec4 its_color = vec4_black;
         
         const vec2 iq_p0 = it_pos - vec2(DEBUG_CONSOLE_PADDING);
-        const vec2 iq_p1 = vec2(viewport.width - DEBUG_CONSOLE_MARGIN, iq_p0.y + lower_case_height + 2 * DEBUG_CONSOLE_PADDING);
+        const vec2 iq_p1 = vec2(viewport.width - DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING, iq_p0.y + lower_case_height + 2 * DEBUG_CONSOLE_PADDING);
         const vec4 iq_color = vec4(0.0f, 0.0f, 0.0f, 0.8f);
 
         const s32 input_width_px = get_line_width_px(&atlas, input, input_size);
@@ -187,7 +187,7 @@ void draw_debug_console() {
         const vec4 hts_color = vec4_black;
 
         const vec2 hq_p0 = vec2(iq_p0.x, iq_p1.y + DEBUG_CONSOLE_PADDING);
-        const vec2 hq_p1 = vec2(viewport.width - DEBUG_CONSOLE_MARGIN, ht_pos.y + ascent + DEBUG_CONSOLE_PADDING);
+        const vec2 hq_p1 = vec2(viewport.width - DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING, ht_pos.y + ascent + DEBUG_CONSOLE_PADDING);
         const vec4 hq_color = vec4(0.0f, 0.0f, 0.0f, 0.8f);
         const f32 hq_height = absf(hq_p0.y - hq_p1.y);
 
@@ -237,15 +237,41 @@ void add_to_debug_console_history(const char *text, u32 count) {
 
     auto &history = debug_console.history;
     auto &history_size = debug_console.history_size;
+    auto &history_max_width = debug_console.history_max_width;
 
-    str_glue(history, text, count);
-    history_size += count;
+    const auto &atlas = *ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
+
+    f32 text_width = 0.0f; 
+    for (u32 i = 0; i < count; ++i) {
+        const char c = text[i];
+
+        // @Cleanup: make better history overflow handling.
+        if (history_size > MAX_DEBUG_CONSOLE_HISTORY_SIZE) {
+            history[0] = '\0';
+            history_size = 0;
+        }
+   
+        if (text_width < history_max_width) {            
+            text_width += get_char_width_px(&atlas, c);
+            if (c == ASCII_NEW_LINE) {
+                text_width = 0;
+            }
+        } else { // wrap lines that do not fit into debug console window
+            history[history_size] = ASCII_NEW_LINE;
+            history_size += 1;
+
+            text_width = 0;
+        }
+
+        history[history_size] = c;
+        history_size += 1; 
+    }
+
+    history[history_size] = '\0';
 }
 
 void on_debug_console_input(u32 character) {
     if (!debug_console.is_open) return;
-
-    //log("%u", character);
     
     if (character == ASCII_GRAVE_ACCENT) {
         return;
@@ -265,33 +291,32 @@ void on_debug_console_input(u32 character) {
     
     if (character == ASCII_NEW_LINE || character == ASCII_CARRIAGE_RETURN) {
         if (input_size > 0) {
-            // @Cleanup: make better history overlow handling.
+            static char add_text[MAX_DEBUG_CONSOLE_INPUT_SIZE + 128] = { '\0' };
+            
+            // @Cleanup: make better history overflow handling.
             if (history_size + input_size > MAX_DEBUG_CONSOLE_HISTORY_SIZE) {
                 history[0] = '\0';
                 history_size = 0;
             }
 
-            input[input_size] = '\0';
-
-            const bool clear = str_cmp(input, DEBUG_CONSOLE_COMMAND_CLEAR);
+            const bool clear = str_cmp(input, DEBUG_CONSOLE_COMMAND_CLEAR, input_size);
             if (clear) {
                 history[0] = '\0';
                 history_size = 0;
                 history_y = history_min_y;
             } else {
                 static const u32 warning_size = (u32)str_size(DEBUG_CONSOLE_UNKNOWN_COMMAND_WARNING);
-                str_glue(history, DEBUG_CONSOLE_UNKNOWN_COMMAND_WARNING);
-                history_size += warning_size;
+                str_glue(add_text, DEBUG_CONSOLE_UNKNOWN_COMMAND_WARNING, warning_size);
             }
 
             if (!clear) {
-                str_glue(history, input, input_size);
-                str_glue(history, "\n",  1);
-
-                history_size += input_size + 1;
+                str_glue(add_text, input, input_size);
+                str_glue(add_text, "\n",  1);
+                add_to_debug_console_history(add_text, (u32)str_size(add_text));
             }
             
             input_size = 0;
+            add_text[0] = '\0';
         }
         
         return;
@@ -326,7 +351,10 @@ void on_debug_console_scroll(s32 delta) {
 void on_debug_console_resize(s16 width, s16 height) {
     auto &history_y = debug_console.history_y;
     auto &history_min_y = debug_console.history_min_y;
-    
+    auto &history_max_width = debug_console.history_max_width;
+
     history_min_y = height - DEBUG_CONSOLE_MARGIN;
     history_y = history_min_y;
+
+    history_max_width = width - 2 * DEBUG_CONSOLE_MARGIN;
 }

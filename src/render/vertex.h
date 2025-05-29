@@ -2,7 +2,7 @@
 
 #include "math/vector.h"
 
-enum Vertex_Component_Type {
+enum Vertex_Component_Type : u8 {
     VERTEX_S32,
     VERTEX_U32,
     VERTEX_F32,

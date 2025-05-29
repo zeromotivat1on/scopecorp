@@ -17,27 +17,28 @@ Font *create_font(const char *data) {
 	return font;
 }
 
-s32 get_line_width_px(const Font_Atlas *atlas, const char *text, s32 text_size) {
+s32 get_char_width_px(const Font_Atlas *atlas, const char c) {
+    if (c == ASCII_SPACE) {
+        return atlas->space_advance_width;
+    }
+
+    if (c == ASCII_TAB) {
+        return 4 * atlas->space_advance_width;
+    }
+
+    if (c == ASCII_NEW_LINE) {
+        return 0;
+    }
+
+    const u32 ci = c - atlas->start_charcode;
+    const Font_Glyph_Metric *metric = atlas->metrics + ci;
+    return metric->advance_width;
+}
+
+s32 get_line_width_px(const Font_Atlas *atlas, const char *text, s32 count) {
 	s32 width = 0;
-	for (s32 i = 0; i < text_size; ++i) {
-		if (text[i] == ' ') {
-			width += atlas->space_advance_width;
-			continue;
-		}
-
-		if (text[i] == '\t') {
-			width += 4 * atlas->space_advance_width;
-			continue;
-		}
-
-        if (text[i] == '\n') {
-            width = 0;
-            continue;
-        }
-
-		const u32 ci = text[i] - atlas->start_charcode;
-		const Font_Glyph_Metric *metric = atlas->metrics + ci;
-		width += metric->advance_width;
+	for (s32 i = 0; i < count; ++i) {
+        width += get_char_width_px(atlas, text[i]);
 	}
 	return width;
 }

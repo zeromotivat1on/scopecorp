@@ -66,5 +66,6 @@ target_compile_definitions(${GAME_EXE} PRIVATE
                                DIR_TEXTURES="${RUN_TREE_DIR}/data/textures/"
                                DIR_SOUNDS="${RUN_TREE_DIR}/data/sounds/"
                                DIR_FONTS="${RUN_TREE_DIR}/data/fonts/"
+                               DIR_LEVELS="${RUN_TREE_DIR}/data/levels/"
                                # Other
                                GAME_NAME="${GAME_EXE}")

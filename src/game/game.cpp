@@ -4,6 +4,7 @@
 
 #include "editor/debug_console.h"
 
+#include "str.h"
 #include "log.h"
 #include "profile.h"
 #include "flip_book.h"
@@ -11,6 +12,7 @@
 
 #include "math/math_core.h"
 
+#include "os/file.h"
 #include "os/input.h"
 #include "os/window.h"
 
@@ -153,7 +155,7 @@ void on_window_event(Window *window, Window_Event *event) {
                                 s32 aabb_index = INVALID_INDEX;
                             };
 
-                            static const auto find_callback = [] (Entity *e, void *user_data) -> bool {
+                            static const auto cb_find_entity_by_aabb = [] (Entity *e, void *user_data) -> For_Each_Result {
                                 auto *data = (Find_Entity_By_AABB_Data *)user_data;
 
                                 switch (e->type) {
@@ -161,7 +163,7 @@ void on_window_event(Window *window, Window_Event *event) {
                                     auto *player = (Player *)e;
                                     if (player->aabb_index == data->aabb_index) {
                                         data->e = e;
-                                        return true;
+                                        return RESULT_BREAK;
                                     }
                                 
                                     break;
@@ -170,7 +172,7 @@ void on_window_event(Window *window, Window_Event *event) {
                                     auto *mesh = (Static_Mesh *)e;
                                     if (mesh->aabb_index == data->aabb_index) {
                                         data->e = e;
-                                        return true;
+                                        return RESULT_BREAK;
                                     }
                                 
                                     break;
@@ -179,7 +181,7 @@ void on_window_event(Window *window, Window_Event *event) {
                                     auto *light = (Point_Light *)e;
                                     if (light->aabb_index == data->aabb_index) {
                                         data->e = e;
-                                        return true;
+                                        return RESULT_BREAK;
                                     }
                                 
                                     break;
@@ -188,21 +190,21 @@ void on_window_event(Window *window, Window_Event *event) {
                                     auto *light = (Direct_Light *)e;
                                     if (light->aabb_index == data->aabb_index) {
                                         data->e = e;
-                                        return true;
+                                        return RESULT_BREAK;
                                     }
                                 
                                     break;
                                 }
                                 }
 
-                                return false;
+                                return RESULT_CONTINUE;
                             };
                         
                             Find_Entity_By_AABB_Data find_data;
                             find_data.e = null;
                             find_data.aabb_index = aabb_index;
 
-                            for_each_entity(world, find_callback, &find_data);
+                            for_each_entity(world, cb_find_entity_by_aabb, &find_data);
 
                             if (find_data.e) {
                                 mouse_pick_entity(world, find_data.e);
@@ -240,6 +242,103 @@ void init_world(World *world) {
     world->direct_lights = Sparse_Array<Direct_Light>(MAX_DIRECT_LIGHTS);
 
     world->aabbs = Sparse_Array<AABB>(MAX_AABBS);
+}
+
+template <typename T>
+static void read_sparse_array(File file, Sparse_Array<T> *array) {
+    // @Cleanup: read sparse array directly with replace or add read data to existing one?
+
+    read_file(file, &array->count, sizeof(array->count));
+
+    s32 capacity = 0;
+    read_file(file, &capacity, sizeof(capacity));
+    Assert(capacity <= array->capacity);
+
+    read_file(file, array->items,  capacity * sizeof(T));
+    read_file(file, array->dense,  capacity * sizeof(s32));
+    read_file(file, array->sparse, capacity * sizeof(s32));
+}
+
+template <typename T>
+static void write_sparse_array(File file, Sparse_Array<T> *array) {
+    write_file(file, &array->count,    sizeof(array->count));
+    write_file(file, &array->capacity, sizeof(array->capacity));
+    write_file(file, array->items,    array->capacity * sizeof(T));
+    write_file(file, array->dense,    array->capacity * sizeof(s32));
+    write_file(file, array->sparse,   array->capacity * sizeof(s32));
+}
+
+void save_world(World *world) {
+    START_SCOPE_TIMER(save);
+
+    char path[MAX_PATH_SIZE];
+    str_copy(path, DIR_LEVELS);
+    str_glue(path, world->name);
+    str_glue(path, WORLD_LEVEL_EXTENSION_NAME);
+    
+    File file = open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_WRITE);
+    defer { close_file(file); };
+    
+    if (file == INVALID_FILE) {
+        log("World level %s does not exist, creating new one", path);
+        file = open_file(path, FILE_OPEN_NEW, FILE_FLAG_WRITE);
+        if (file == INVALID_FILE) {
+            error("Failed to create new world level %s", path);
+            return;
+        }
+    }
+
+    write_file(file, &world->name, MAX_WORLD_NAME_SIZE);
+    
+    write_file(file, &world->player,    sizeof(world->player));
+    write_file(file, &world->camera,    sizeof(world->camera));
+    write_file(file, &world->ed_camera, sizeof(world->ed_camera));
+    write_file(file, &world->skybox,    sizeof(world->skybox));
+
+    write_sparse_array(file, &world->static_meshes);
+    write_sparse_array(file, &world->point_lights);
+    write_sparse_array(file, &world->direct_lights);
+    write_sparse_array(file, &world->aabbs);
+
+    write_sparse_array(file, &render_registry.vertex_buffers);
+    write_sparse_array(file, &render_registry.vertex_arrays);
+    write_sparse_array(file, &render_registry.index_buffers);
+    write_sparse_array(file, &render_registry.materials);
+    write_sparse_array(file, &render_registry.uniforms);
+    
+    log("Saved world level %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(save));
+}
+
+void load_world(World *world, const char *path) {
+    START_SCOPE_TIMER(load);
+
+    File file = open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_READ);
+    defer { close_file(file); };
+    
+    if (file == INVALID_FILE) {
+        error("Failed to open asset pack for load %s", path);
+        return;
+    }
+
+    read_file(file, &world->name, MAX_WORLD_NAME_SIZE);
+    
+    read_file(file, &world->player,    sizeof(world->player));
+    read_file(file, &world->camera,    sizeof(world->camera));
+    read_file(file, &world->ed_camera, sizeof(world->ed_camera));
+    read_file(file, &world->skybox,    sizeof(world->skybox));
+
+    read_sparse_array(file, &world->static_meshes);
+    read_sparse_array(file, &world->point_lights);
+    read_sparse_array(file, &world->direct_lights);
+    read_sparse_array(file, &world->aabbs);
+
+    read_sparse_array(file, &render_registry.vertex_buffers);
+    read_sparse_array(file, &render_registry.vertex_arrays);
+    read_sparse_array(file, &render_registry.index_buffers);
+    read_sparse_array(file, &render_registry.materials);
+    read_sparse_array(file, &render_registry.uniforms);
+
+    log("Loaded world level %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(load));
 }
 
 void tick(World *world, f32 dt) {
@@ -614,22 +713,22 @@ Entity *find_entity_by_id(World* world, s32 id) {
         s32 id = INVALID_INDEX;
     };
 
-    static const auto find_callback = [] (Entity *e, void *user_data) -> bool {
+    static const auto cb_find_entity_by_id = [] (Entity *e, void *user_data) -> For_Each_Result {
         auto *data = (Find_Entity_By_Id_Data *)user_data;
     
         if (e->id == data->id) {
             data->e = e;
-            return true;
+            return RESULT_BREAK;
         }
 
-        return false;
+        return RESULT_CONTINUE;
     };
 
     Find_Entity_By_Id_Data find_data;
     find_data.e  = null;
     find_data.id = id;
     
-    for_each_entity(world, find_callback, &find_data);
+    for_each_entity(world, cb_find_entity_by_id, &find_data);
 
     if (!find_data.e) {
         warn("Haven't found entity in world by id %d", id);
@@ -639,18 +738,18 @@ Entity *find_entity_by_id(World* world, s32 id) {
 }
 
 void for_each_entity(World *world, For_Each_Entity_Callback callback, void *user_data) {
-    if (callback(&world->player, user_data)) return;
-    if (callback(&world->skybox, user_data)) return;
+    if (callback(&world->player, user_data) == RESULT_BREAK) return;
+    if (callback(&world->skybox, user_data) == RESULT_BREAK) return;
 
     For (world->static_meshes) {
-        if (callback(&it, user_data)) return;
+        if (callback(&it, user_data) == RESULT_BREAK) return;
     }
 
     For (world->direct_lights) {
-        if (callback(&it, user_data)) return;
+        if (callback(&it, user_data) == RESULT_BREAK) return;
     }
     
     For (world->point_lights) {
-        if (callback(&it, user_data)) return;
+        if (callback(&it, user_data) == RESULT_BREAK) return;
     }
 }
