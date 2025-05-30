@@ -1,5 +1,4 @@
 *.pak
-*.wl
 
 ideas.txt
 
@@ -8,3 +7,4 @@ run_tree/cmake
 run_tree/data/sounds
 run_tree/data/textures
 run_tree/data/fonts
+run_tree/data/levels
