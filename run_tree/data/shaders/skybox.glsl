@@ -37,7 +37,8 @@ layout (location = 1) out int  out_entity_id;
 uniform sampler2D u_sampler;
 
 void main() {
-    out_color = texture(u_sampler, f_uv);
+    out_color = vec4(0, 0, 0, 1);
+    //out_color = texture(u_sampler, f_uv);
     out_entity_id = f_entity_id;
 }
 #end fragment

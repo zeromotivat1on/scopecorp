@@ -1,4 +1,6 @@
 *.pak
+*.wl
+
 ideas.txt
 
 run_tree/build

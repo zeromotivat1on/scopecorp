@@ -8,6 +8,15 @@
 #include "log.h"
 #include "asset.h"
 
+#define al_check_error() {                          \
+        ALenum al_error = alGetError();             \
+        while (al_error != AL_NO_ERROR) {           \
+            error("OpenAL error 0x%X at %s:%d",     \
+                  al_error, __FILE__, __LINE__);    \
+            al_error = alGetError();                \
+        }                                           \
+    }
+
 void init_audio_context() {
 	ALCdevice *audio_device = alcOpenDevice(null);
 	if (!audio_device) {
@@ -55,6 +64,8 @@ s32 create_sound(s32 sample_rate, s32 channel_count, s32 bit_depth, void *data, 
 	alSourcei(sound.source, AL_LOOPING, flags & SOUND_FLAG_LOOP);
 	alSourcei(sound.source, AL_BUFFER, sound.buffer);
 
+    al_check_error();
+    
 	return audio_registry.sounds.add(sound);
 }
 
@@ -65,6 +76,7 @@ void set_listener_pos(vec3 pos) {
 void play_sound(sid sid) {
     const auto &sound = audio_registry.sounds[asset_table[sid].registry_index];
     alSourcePlay(sound.source);
+    al_check_error();
 }
 
 void play_sound_or_continue(sid sid) {
@@ -75,9 +87,13 @@ void play_sound_or_continue(sid sid) {
     if (state != AL_PLAYING) {
         alSourcePlay(sound.source);
     }
+
+    al_check_error();
 }
 
 void stop_sound(sid sid) {
     const auto &sound = audio_registry.sounds[asset_table[sid].registry_index];
     alSourceStop(sound.source);
+
+    al_check_error();
 }

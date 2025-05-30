@@ -50,6 +50,10 @@ static_assert(sizeof(f64) == 8);
 
 #define null nullptr
 
+#if _MSC_VER
+#define LITTLE_ENDIAN 1
+#endif
+
 #define ASCII_BACKSPACE       8
 #define ASCII_TAB             9
 #define ASCII_NEW_LINE        10

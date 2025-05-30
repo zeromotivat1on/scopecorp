@@ -11,6 +11,8 @@
 #include "os/time.h"
 
 #include "audio/audio_registry.h"
+#include "audio/wav.h"
+
 #include "render/render_registry.h"
 
 struct Asset_Source_Callback_Data {
@@ -176,7 +178,7 @@ void save_asset_pack(const char *path) {
             asset.data_offset = get_file_pointer_position(file);
             asset.registry_index = INVALID_INDEX;
             convert_to_relative_asset_path(asset.relative_path, it.value.path);
-        
+            
             count += 1;
         
             void *buffer = allocl(MAX_SHADER_SIZE);
@@ -247,6 +249,25 @@ void save_asset_pack(const char *path) {
             break;
         }
         case ASSET_SOUND: {
+            void *buffer = allocl(MAX_SOUND_SIZE);
+            defer { freel(MAX_SOUND_SIZE); };
+            
+            if (read_file(it.value.path, buffer, MAX_SOUND_SIZE)) {
+                Wav_Header wavh;
+                void *sampled_data = parse_wav(buffer, &wavh);
+                if (sampled_data) {
+                    write_file(file, sampled_data, wavh.sampled_data_size);
+
+                    asset.as_sound.size          = wavh.sampled_data_size;
+                    asset.as_sound.sample_rate   = wavh.samples_per_second;
+                    asset.as_sound.channel_count = wavh.channel_count;
+                    asset.as_sound.bit_depth     = wavh.bits_per_sample;
+                } else {
+                    error("Failed to parse sound %s", it.value.path);
+                }
+            }
+
+            /*
             Sound_Memory memory = load_sound_memory(it.value.path);
             if (!memory.data) {
                 error("Failed to load sound memory from %s", it.value.path);
@@ -261,6 +282,8 @@ void save_asset_pack(const char *path) {
             asset.as_sound.bit_depth     = memory.bit_depth;
             
             free_sound_memory(&memory);
+            */
+            
             break;
         }
         case ASSET_FONT: {

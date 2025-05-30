@@ -346,6 +346,8 @@ void tick(World *world, f32 dt) {
     
 	world->dt = dt;
 
+    play_sound_or_continue(sound_sids.world);
+    
 	auto *camera = desired_camera(world);
     update_matrices(camera);
 

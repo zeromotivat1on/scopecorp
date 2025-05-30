@@ -259,10 +259,11 @@ void submit(const Render_Command *command) {
 
 	if (command->texture_index != INVALID_INDEX) {
 		const auto &texture = render_registry.textures[command->texture_index];
-        const s32 type      = gl_texture_type(texture.type);
-        
-		glBindTexture(type, texture.id);
-		glActiveTexture(GL_TEXTURE0);
+        //const s32 type      = gl_texture_type(texture.type);
+
+		//glBindTexture(type, texture.id);
+		//glActiveTexture(GL_TEXTURE0);
+        glBindTextureUnit(0, texture.id);
 	}
 
     if (command->vertex_array_index != INVALID_INDEX) {
@@ -957,12 +958,12 @@ s32 create_texture(Texture_Type texture_type, Texture_Format_Type format_type, s
     texture.width = width;
     texture.height = height;
 
-    glGenTextures(1, &texture.id);
-
     const s32 type            = gl_texture_type(texture_type);
     const s32 format          = gl_texture_format(format_type);
     const s32 internal_format = gl_texture_internal_format(format_type);
     const s32 data_type       = gl_texture_data_type(format_type);
+
+    glCreateTextures(type, 1, &texture.id);
     
     if (type < 0 || format < 0 || internal_format < 0 || data_type < 0) {
         error("Failed to create texture, see errors above");
@@ -973,6 +974,7 @@ s32 create_texture(Texture_Type texture_type, Texture_Format_Type format_type, s
 
     // @Todo: properly set data based on texture type.
     glTexImage2D(type, 0, internal_format, width, height, 0, format, data_type, data);
+    //glTextureStorage2D(texture.id, 1, internal_format, width, height);
     
 	glBindTexture(type, 0);
     
