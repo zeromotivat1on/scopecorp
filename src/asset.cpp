@@ -10,10 +10,14 @@
 #include "os/file.h"
 #include "os/time.h"
 
-#include "audio/audio_registry.h"
 #include "audio/wav.h"
+#include "audio/sound.h"
 
-#include "render/render_registry.h"
+#include "render/shader.h"
+#include "render/texture.h"
+#include "render/material.h"
+#include "render/uniform.h"
+#include "render/mesh.h"
 
 struct Asset_Source_Callback_Data {
     Asset_Type asset_type = ASSET_NONE;
@@ -28,13 +32,9 @@ static void init_asset_source_callback(const File_Callback_Data *data) {
         //log("File path from callback %s is not accepted due to extension filter fail %s", data->path, ascd->filter_ext);
         return;
     }
-
-    if (ascd->asset_type == ASSET_SHADER_INCLUDE) {
-        asset_shader_include_count += 1;
-    }
-        
+    
     Asset_Source source;
-    source.type = ascd->asset_type;
+    source.asset_type = ascd->asset_type;
     source.last_write_time = data->last_write_time;
     
     str_copy(source.path, data->path);
@@ -42,8 +42,10 @@ static void init_asset_source_callback(const File_Callback_Data *data) {
     
     char relative_path[MAX_PATH_SIZE];
     convert_to_relative_asset_path(relative_path, data->path);
-    
-    asset_source_table.add(cache_sid(relative_path), source);
+
+    auto &ast = asset_source_table;
+    ast.table.add(cache_sid(relative_path), source);
+    ast.count_by_type[source.asset_type] += 1;
 }
 
 static inline void init_asset_sources(const char *path, Asset_Type type, const char *filter_ext = null) {
@@ -58,18 +60,23 @@ static u64 asset_source_table_hash(const sid &a) {
     return a;
 }
 
-void init_asset_source_table(Asset_Source_Table *table) {
+void init_asset_source_table() {
     START_SCOPE_TIMER(init);
 
-    *table = Asset_Source_Table(MAX_ASSETS);
-    table->hash_function = &asset_source_table_hash;
-
+    auto &ast = asset_source_table;
+    
+    ast.table = Hash_Table<sid, Asset_Source>(MAX_ASSET_SOURCES);
+    ast.table.hash_function = &asset_source_table_hash;
+    set_bytes(ast.count_by_type, 0, sizeof(ast.count_by_type));
+    
     // @Fix: we can't control order of values in hash table like this.
-    init_asset_sources(DIR_SHADERS,  ASSET_SHADER_INCLUDE, ".h");
-    init_asset_sources(DIR_SHADERS,  ASSET_SHADER, get_desired_shader_file_extension());
-    init_asset_sources(DIR_TEXTURES, ASSET_TEXTURE);
-    init_asset_sources(DIR_SOUNDS,   ASSET_SOUND);
-    init_asset_sources(DIR_FONTS,    ASSET_FONT);
+    init_asset_sources(DIR_SHADERS,   ASSET_SHADER_INCLUDE, ".h");
+    init_asset_sources(DIR_SHADERS,   ASSET_SHADER, get_desired_shader_file_extension());
+    init_asset_sources(DIR_TEXTURES,  ASSET_TEXTURE);
+    init_asset_sources(DIR_MATERIALS, ASSET_MATERIAL);
+    init_asset_sources(DIR_MESHES,    ASSET_MESH);
+    init_asset_sources(DIR_SOUNDS,    ASSET_SOUND);
+    init_asset_sources(DIR_FONTS,     ASSET_FONT);
 
     log("Initialized asset source table in %.2fms", CHECK_SCOPE_TIMER_MS(init));
 }
@@ -78,64 +85,31 @@ static u64 asset_table_hash(const sid &a) {
     return a;
 }
 
-void init_asset_table(Asset_Table *table) {
+void init_asset_table() {
     constexpr f32 scale = 2.0f - MAX_HASH_TABLE_LOAD_FACTOR;
-    *table = Asset_Table((s32)(MAX_ASSETS * scale));
-    table->hash_function = &asset_table_hash;
-}
 
-Texture_Memory load_texture_memory(const char *path, bool log_error) {
-    Texture_Memory memory = {};
+    auto &table = asset_table;
+
+    table.shader_includes = Hash_Table<sid, Shader_Include>((s32)(MAX_SHADER_INCLUDES * scale));
+    table.shader_includes.hash_function = &asset_table_hash;
     
-	u64 buffer_size = 0;
-	void *buffer = allocl(MAX_TEXTURE_SIZE);
-	defer { freel(MAX_TEXTURE_SIZE); };
+    table.shaders = Hash_Table<sid, Shader>((s32)(MAX_SHADERS * scale));
+    table.shaders.hash_function = &asset_table_hash;
 
-	if (!read_file(path, buffer, MAX_TEXTURE_SIZE, &buffer_size, log_error)) {
-		return {};
-	}
+    table.textures = Hash_Table<sid, Texture>((s32)(MAX_TEXTURES * scale));
+    table.textures.hash_function = &asset_table_hash;
 
-	memory.data = stbi_load_from_memory((u8 *)buffer, (s32)buffer_size,
-                                        &memory.width, &memory.height,
-                                        &memory.channel_count, 0);
-    
-	if (!memory.data) {
-		if (log_error) error("Failed to load texture %s, stbi reason %s", path, stbi_failure_reason());
-		return {};
-	}
+    table.materials = Hash_Table<sid, Material>((s32)(MAX_MATERIALS * scale));
+    table.materials.hash_function = &asset_table_hash;
 
-    Assert(memory.width * memory.height * memory.channel_count <= MAX_TEXTURE_SIZE);
-    
-    return memory;
-}
+    table.meshes = Hash_Table<sid, Mesh>((s32)(MAX_MESHES * scale));
+    table.meshes.hash_function = &asset_table_hash;
 
-void free_texture_memory(Texture_Memory *memory) {
-    stbi_image_free(memory->data);
-    *memory = {};
-}
+    table.sounds = Hash_Table<sid, Sound>((s32)(MAX_SOUNDS * scale));
+    table.sounds.hash_function = &asset_table_hash;
 
-Sound_Memory load_sound_memory(const char *path) {
-    Sound_Memory memory = {};
-
-    u64 buffer_size = 0;
-	void *buffer = allocl(MAX_SOUND_SIZE);
-    if (!read_file(path, buffer, MAX_SOUND_SIZE, &buffer_size)) {
-        freel(MAX_SOUND_SIZE);
-        return {};
-    }
-    
-	memory.data = extract_wav(buffer, &memory.channel_count, &memory.sample_rate, &memory.bit_depth, &memory.size);
-	if (!memory.data) {
-        freel(MAX_SOUND_SIZE);
-        return {};
-    }
-
-    return memory;
-}
-
-void free_sound_memory(Sound_Memory *memory) {
-    freel(MAX_SOUND_SIZE);
-    *memory = {};
+    table.fonts = Hash_Table<sid, Font>((s32)(MAX_FONTS * scale));
+    table.fonts.hash_function = &asset_table_hash;
 }
 
 void save_asset_pack(const char *path) {
@@ -152,167 +126,196 @@ void save_asset_pack(const char *path) {
             return;
         }
     }
+    
+    auto &ast = asset_source_table;
 
     Asset_Pack_Header header;
     header.magic_value = ASSET_PACK_MAGIC_VALUE;
     header.version     = ASSET_PACK_VERSION;
-    header.asset_count = asset_source_table.count;
+    copy_bytes(header.count_by_type, ast.count_by_type, sizeof(header.count_by_type));
+
+    u64 offset_by_type[ASSET_TYPE_COUNT];
+    u64 offset = sizeof(Asset_Pack_Header);
+    for (u8 i = 0; i < ASSET_TYPE_COUNT; ++i) {
+        offset_by_type[i] = offset;
+        offset += get_asset_type_size((Asset_Type)i) * ast.count_by_type[i];
+    }
+
+    copy_bytes(header.offset_by_type, offset_by_type, sizeof(header.offset_by_type));
+
+    header.data_offset = offset;
+    
     write_file(file, &header, sizeof(Asset_Pack_Header));
 
-    const u64 asset_data_offset  = sizeof(Asset_Pack_Header);
-    const u64 asset_data_size    = asset_source_table.count * sizeof(Asset);
-    const u64 binary_data_offset = asset_data_offset + asset_data_size;
-    
-    set_file_pointer_position(file, binary_data_offset);
+    For (ast.table) {
+        const auto asset_type = it.value.asset_type;
+        Assert(asset_type >= 0 && asset_type < ASSET_TYPE_COUNT);
 
-    auto *assets = (Asset *)allocl(asset_data_size);
-    defer { freel(asset_source_table.count * sizeof(Asset)); };
-    
-    s32 count = 0;
-
-    // @Cleanup: remove this loop, figure out how to load shader includes before shaders.
-    For (asset_source_table) {
-        if (it.value.type == ASSET_SHADER_INCLUDE) {
-            auto &asset = assets[count];
-            asset.type = it.value.type;
-            asset.data_offset = get_file_pointer_position(file);
-            asset.registry_index = INVALID_INDEX;
-            convert_to_relative_asset_path(asset.relative_path, it.value.path);
-            
-            count += 1;
+        const u32 asset_size = get_asset_type_size(asset_type);
+        const u64 asset_offset = offset_by_type[asset_type];
+        offset_by_type[asset_type] += asset_size;
         
-            void *buffer = allocl(MAX_SHADER_SIZE);
-            u64 bytes_read = 0;
-            read_file(it.value.path, buffer, MAX_SHADER_SIZE, &bytes_read);
-
-            write_file(file, buffer, bytes_read);
-            
-            asset.as_shader_include.size = (u32)bytes_read;
-            
-            freel(MAX_SHADER_SIZE);
-        }
-    }
-    
-    For (asset_source_table) {
-        auto &asset = assets[count];
-        asset.type = it.value.type;
-        asset.data_offset = get_file_pointer_position(file);
-        asset.registry_index = INVALID_INDEX;
-        convert_to_relative_asset_path(asset.relative_path, it.value.path);
-
-        if (it.value.type != ASSET_SHADER_INCLUDE) // @Cleanup: temp if
-            count += 1;
+        set_file_pointer_position(file, asset_offset);
         
-        switch (it.value.type) {
-        case ASSET_SHADER: {           
-            void *buffer = allocl(MAX_SHADER_SIZE);
-            u64 bytes_read = 0;
-            read_file(it.value.path, buffer, MAX_SHADER_SIZE, &bytes_read);
-
-            write_file(file, buffer, bytes_read);
-            
-            asset.as_shader.size = (u32)bytes_read;
-            
-            freel(MAX_SHADER_SIZE);
-            
-            break;
-        }
+        switch (asset_type) {
         case ASSET_SHADER_INCLUDE: {
-            /*
+            Shader_Include include = {};
+            convert_to_relative_asset_path(include.path, it.value.path);
+
             void *buffer = allocl(MAX_SHADER_SIZE);
+            defer { freel(MAX_SHADER_SIZE); };
+
             u64 bytes_read = 0;
             read_file(it.value.path, buffer, MAX_SHADER_SIZE, &bytes_read);
 
-            write_file(file, buffer, bytes_read);
+            include.data_offset = offset;
+            include.data_size = bytes_read;
+            write_file(file, &include, asset_size);
+
+            set_file_pointer_position(file, include.data_offset);
+            write_file(file, buffer, include.data_size);
+            offset += include.data_size;
             
-            asset.as_shader_include.size = (u32)bytes_read;
-            
-            freel(MAX_SHADER_SIZE);
-            */
             break;
         }
-        case ASSET_TEXTURE: {            
-            Texture_Memory memory = load_texture_memory(it.value.path);
-            if (!memory.data) {
-                error("Failed to load texture memory from %s", it.value.path);
-                break;
-            }
+        case ASSET_SHADER: {
+            Shader shader = {};
+            convert_to_relative_asset_path(shader.path, it.value.path);
 
-            const u64 size = memory.width * memory.height * memory.channel_count;
-            write_file(file, memory.data, size);
+            void *buffer = allocl(MAX_SHADER_SIZE);
+            defer { freel(MAX_SHADER_SIZE); };
 
-            asset.as_texture.width  = memory.width;
-            asset.as_texture.height = memory.height;
-            asset.as_texture.channel_count = memory.channel_count;
+            u64 bytes_read = 0;
+            read_file(it.value.path, buffer, MAX_SHADER_SIZE, &bytes_read);
+
+            shader.data_offset = offset;
+            shader.data_size = bytes_read;
+            write_file(file, &shader, asset_size);
+
+            set_file_pointer_position(file, shader.data_offset);
+            write_file(file, buffer, shader.data_size);
+            offset += shader.data_size;
             
-            free_texture_memory(&memory);
+            break;
+        }
+        case ASSET_TEXTURE: {
+            Texture texture = {};
+            convert_to_relative_asset_path(texture.path, it.value.path);
+
+            void *buffer = allocl(MAX_TEXTURE_SIZE);
+            defer { freel(MAX_TEXTURE_SIZE); };
+
+            u64 bytes_read = 0;
+            read_file(it.value.path, buffer, MAX_TEXTURE_SIZE, &bytes_read);
+
+            void *data = stbi_load_from_memory((u8 *)buffer, (s32)bytes_read, &texture.width, &texture.height, &texture.channel_count, 0);
+            defer { stbi_image_free(data); };
+
+            texture.type = TEXTURE_TYPE_2D; // @Cleanup: detect texture type.
+            texture.format = get_texture_format_from_channel_count(texture.channel_count);
+            texture.data_offset = offset;
+            texture.data_size = texture.width * texture.height * texture.channel_count;
+            write_file(file, &texture, asset_size);
+
+            set_file_pointer_position(file, texture.data_offset);
+            write_file(file, data, texture.data_size);
+            offset += texture.data_size;
+            
+            break;
+        }
+        case ASSET_MATERIAL: {
+            Material material = {};
+            convert_to_relative_asset_path(material.path, it.value.path);
+
+            void *buffer = allocl(MAX_MATERIAL_SIZE);
+            defer { freel(MAX_MATERIAL_SIZE); };
+
+            u64 bytes_read = 0;
+            read_file(it.value.path, buffer, MAX_MATERIAL_SIZE, &bytes_read);
+
+            material.data_offset = offset;
+            material.data_size = bytes_read;
+            write_file(file, &material, asset_size);
+
+            set_file_pointer_position(file, material.data_offset);
+            write_file(file, buffer, material.data_size);
+            offset += material.data_size;
+            
+            break;
+        }
+        case ASSET_MESH: {
+            Mesh mesh = {};
+            convert_to_relative_asset_path(mesh.path, it.value.path);
+
+            void *buffer = allocl(MAX_MESH_SIZE);
+            defer { freel(MAX_MESH_SIZE); };
+
+            u64 bytes_read = 0;
+            read_file(it.value.path, buffer, MAX_MESH_SIZE, &bytes_read);
+
+            mesh.data_offset = offset;
+            mesh.data_size = bytes_read;
+            write_file(file, &mesh, asset_size);
+
+            set_file_pointer_position(file, mesh.data_offset);
+            write_file(file, buffer, mesh.data_size);
+            offset += mesh.data_size;
+            
             break;
         }
         case ASSET_SOUND: {
+            Sound sound = {};
+            convert_to_relative_asset_path(sound.path, it.value.path);
+
             void *buffer = allocl(MAX_SOUND_SIZE);
             defer { freel(MAX_SOUND_SIZE); };
-            
-            if (read_file(it.value.path, buffer, MAX_SOUND_SIZE)) {
-                Wav_Header wavh;
-                void *sampled_data = parse_wav(buffer, &wavh);
-                if (sampled_data) {
-                    write_file(file, sampled_data, wavh.sampled_data_size);
 
-                    asset.as_sound.size          = wavh.sampled_data_size;
-                    asset.as_sound.sample_rate   = wavh.samples_per_second;
-                    asset.as_sound.channel_count = wavh.channel_count;
-                    asset.as_sound.bit_depth     = wavh.bits_per_sample;
-                } else {
-                    error("Failed to parse sound %s", it.value.path);
-                }
-            }
+            u64 bytes_read = 0;
+            read_file(it.value.path, buffer, MAX_SOUND_SIZE, &bytes_read);
 
-            /*
-            Sound_Memory memory = load_sound_memory(it.value.path);
-            if (!memory.data) {
-                error("Failed to load sound memory from %s", it.value.path);
-                break;
-            }
+            Wav_Header wav;
+            void *sampled_data = parse_wav(buffer, &wav);
 
-            write_file(file, memory.data, memory.size);
+            sound.channel_count = wav.channel_count;
+            sound.sample_rate = wav.samples_per_second;
+            sound.bit_rate = wav.bits_per_sample;
+            sound.data_offset = offset;
+            sound.data_size = wav.sampled_data_size;
+            write_file(file, &sound, asset_size);
 
-            asset.as_sound.size          = memory.size;
-            asset.as_sound.sample_rate   = memory.sample_rate;
-            asset.as_sound.channel_count = memory.channel_count;
-            asset.as_sound.bit_depth     = memory.bit_depth;
-            
-            free_sound_memory(&memory);
-            */
+            set_file_pointer_position(file, sound.data_offset);
+            write_file(file, buffer, sound.data_size);
+            offset += sound.data_size;
             
             break;
         }
         case ASSET_FONT: {
-            char *buffer = allocltn(char, MAX_FONT_SIZE);
+            Font font = {};
+            convert_to_relative_asset_path(font.path, it.value.path);
+
+            void *buffer = allocl(MAX_FONT_SIZE);
+            defer { freel(MAX_FONT_SIZE); };
+
             u64 bytes_read = 0;
             read_file(it.value.path, buffer, MAX_FONT_SIZE, &bytes_read);
+
+            font.data_offset = offset;
+            font.data_size = bytes_read;
+            write_file(file, &font, asset_size);
+
+            set_file_pointer_position(file, font.data_offset);
+            write_file(file, buffer, font.data_size);
+            offset += font.data_size;
             
-            write_file(file, buffer, bytes_read);
-            
-            asset.as_font.size = (u32)bytes_read;
-            
-            freel(MAX_FONT_SIZE);
-            
-            break;
-        }
-        default: {
-            error("Asset source for %s has invalid type", it.value.path);
             break;
         }
         }
     }
 
-    set_file_pointer_position(file, asset_data_offset);
-    write_file(file, assets, asset_data_size);
-
     log("Saved asset pack %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(save));
 }
 
-void load_asset_pack(const char *path, Asset_Table *table) {
+void load_asset_pack(const char *path) {
     START_SCOPE_TIMER(load);
 
     File file = open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_READ);
@@ -336,17 +339,14 @@ void load_asset_pack(const char *path, Asset_Table *table) {
         return;
     }
     
-    const u64 asset_data_offset = sizeof(Asset_Pack_Header);
-    set_file_pointer_position(file, asset_data_offset);
-
     // This buffer is temp allocated for all shader include headers that will
     // be used/reused during shader creation and freed at the end of asset pack load,
     // which obviously indicated that we are done loading game assets.
     //
     // So, this is very important that all shader includes should come before shader
     // sources (or at least those who use them) in asset pack file.
-    const s32 MAX_SHADER_INCLUDE_BUFFER_SIZE = asset_shader_include_count * MAX_SHADER_SIZE;
-    s32 shader_include_buffer_size = 0;
+    const u64 MAX_SHADER_INCLUDE_BUFFER_SIZE = header.count_by_type[ASSET_SHADER_INCLUDE] * MAX_SHADER_SIZE;
+    u64 shader_include_buffer_size = 0;
     void *shader_include_buffer = allocl(MAX_SHADER_INCLUDE_BUFFER_SIZE);
 
 #if DEVELOPER
@@ -354,100 +354,135 @@ void load_asset_pack(const char *path, Asset_Table *table) {
     defer { freel(MAX_SHADER_INCLUDE_BUFFER_SIZE); };
 #endif
     
-    for (u32 i = 0; i < header.asset_count; ++i) {
-        Asset asset;
-        read_file(file, &asset, sizeof(Asset));
+    for (u8 i = 0; i < ASSET_TYPE_COUNT; ++i) {
+        const auto asset_type  = (Asset_Type)i;
+        const s32 asset_count  = header.count_by_type[i];
+        const u64 asset_offset = header.offset_by_type[i];
+        const u32 asset_size   = get_asset_type_size(asset_type);
 
-        switch (asset.type) {
-        case ASSET_SHADER: {
-            const auto &shader = asset.as_shader;
+        for (s32 j = 0; j < asset_count; ++j) {
+            set_file_pointer_position(file, asset_offset + asset_size * j);
 
-            void *data = allocl(shader.size);
-            defer { freel(shader.size); };
+            switch (asset_type) {
+            case ASSET_SHADER_INCLUDE: {
+                Shader_Include include = {};
+                read_file(file, &include, asset_size);
 
-            const u64 last_position = get_file_pointer_position(file);
-            set_file_pointer_position(file, asset.data_offset);
-            read_file(file, data, shader.size);
-            set_file_pointer_position(file, last_position);
-            
-            asset.registry_index = create_shader((char *)data, asset.relative_path);
-            
-            break;
+                void *data = alloclp(&shader_include_buffer, include.data_size);
+                shader_include_buffer_size += include.data_size;
+                Assert(shader_include_buffer_size <= MAX_SHADER_INCLUDE_BUFFER_SIZE);
+
+                set_file_pointer_position(file, include.data_offset);
+                read_file(file, data, include.data_size);
+
+                include.data = data;
+
+                asset_table.shader_includes.add(cache_sid(include.path), include);
+                
+                break;
+            }
+            case ASSET_SHADER: {                
+                Shader shader = {};
+                read_file(file, &shader, asset_size);
+
+                void *data = allocl(shader.data_size);
+                defer { freel(shader.data_size); };
+
+                set_file_pointer_position(file, shader.data_offset);
+                read_file(file, data, shader.data_size);
+
+                init_shader_asset(&shader, data);
+
+                asset_table.shaders.add(cache_sid(shader.path), shader);
+                
+                break;
+            }
+            case ASSET_TEXTURE: {
+                Texture texture = {};
+                read_file(file, &texture, asset_size);
+
+                void *data = allocl(texture.data_size);
+                defer { freel(texture.data_size); };
+                
+                set_file_pointer_position(file, texture.data_offset);
+                read_file(file, data, texture.data_size);
+                
+                init_texture_asset(&texture, data);
+
+                // @Cleanup: hardcoded!
+                generate_texture_mipmaps(&texture);
+                set_texture_wrap(&texture, TEXTURE_WRAP_REPEAT);
+                set_texture_filter(&texture, TEXTURE_FILTER_NEAREST);
+
+                asset_table.textures.add(cache_sid(texture.path), texture);
+
+                break;
+            }
+            case ASSET_MATERIAL: {
+                Material material = {};
+                read_file(file, &material, asset_size);
+
+                void *data = allocl(material.data_size);
+                defer { freel(material.data_size); };
+
+                set_file_pointer_position(file, material.data_offset);
+                read_file(file, data, material.data_size);
+
+                init_material_asset(&material, data);
+                
+                asset_table.materials.add(cache_sid(material.path), material);
+
+                break;
+            }
+            case ASSET_MESH: {
+                Mesh mesh = {};
+                read_file(file, &mesh, asset_size);
+
+                void *data = allocl(mesh.data_size);
+                defer { freel(mesh.data_size); };
+
+                set_file_pointer_position(file, mesh.data_offset);
+                read_file(file, data, mesh.data_size);
+
+                init_mesh_asset(&mesh, data);
+                
+                asset_table.meshes.add(cache_sid(mesh.path), mesh);
+
+                break;
+            }
+            case ASSET_SOUND: {
+                Sound sound = {};
+                read_file(file, &sound, asset_size);
+
+                void *data = allocl(sound.data_size);
+                defer { freel(sound.data_size); };
+
+                set_file_pointer_position(file, sound.data_offset);
+                read_file(file, data, sound.data_size);
+
+                init_sound_asset(&sound, data);
+                
+                asset_table.sounds.add(cache_sid(sound.path), sound);
+
+                break;
+            }
+            case ASSET_FONT: {
+                Font font = {};
+                read_file(file, &font, asset_size);
+
+                void *data = allocl(font.data_size);
+
+                set_file_pointer_position(file, font.data_offset);
+                read_file(file, data, font.data_size);
+
+                font.data = data;
+
+                asset_table.fonts.add(cache_sid(font.path), font);
+
+                break;
+            }
+            }
         }
-        case ASSET_SHADER_INCLUDE: {
-            auto &shader_include = asset.as_shader_include;
-
-            void *data = alloclp(&shader_include_buffer, MAX_SHADER_SIZE);
-            shader_include_buffer_size += MAX_SHADER_SIZE;
-            Assert(shader_include_buffer_size <= MAX_SHADER_INCLUDE_BUFFER_SIZE);
-
-            const u64 last_position = get_file_pointer_position(file);
-            set_file_pointer_position(file, asset.data_offset);
-            read_file(file, data, shader_include.size);
-            set_file_pointer_position(file, last_position);
-
-            shader_include.source = (char *)data;
-            
-            break;
-        }
-        case ASSET_TEXTURE: {
-            const auto &texture = asset.as_texture;
-            const u64 size = texture.width * texture.height * texture.channel_count;
-
-            void *data = allocl(size);
-            defer { freel(size); };
-            
-            const u64 last_position = get_file_pointer_position(file);
-            set_file_pointer_position(file, asset.data_offset);
-            read_file(file, data, size);
-            set_file_pointer_position(file, last_position);
-
-            const auto format = get_desired_texture_format(texture.channel_count);            
-            asset.registry_index = create_texture(TEXTURE_TYPE_2D, format, texture.width, texture.height, data);
-
-            // @Cleanup: hardcoded!
-            generate_texture_mipmaps(asset.registry_index);
-            set_texture_wrap(asset.registry_index, TEXTURE_WRAP_REPEAT);
-            set_texture_filter(asset.registry_index, TEXTURE_FILTER_NEAREST);
-    
-            break;
-        }
-        case ASSET_SOUND: {
-            const auto &sound = asset.as_sound;
-
-            void *data = allocl(sound.size);
-            defer { freel(sound.size); };
-            
-            const u64 last_position = get_file_pointer_position(file);
-            set_file_pointer_position(file, asset.data_offset);
-            read_file(file, data, sound.size);
-            set_file_pointer_position(file, last_position);
-
-            asset.registry_index = create_sound(sound.sample_rate, sound.channel_count, sound.bit_depth, data, sound.size, 0);
-            
-            break;
-        }
-        case ASSET_FONT: {
-            auto &font = asset.as_font;
-
-            void *data = allocl(MAX_FONT_SIZE);
-
-            const u64 last_position = get_file_pointer_position(file);
-            set_file_pointer_position(file, asset.data_offset);
-            read_file(file, data, font.size);
-            set_file_pointer_position(file, last_position);
-
-            font.data = (char *)data;
-            
-            break;
-        }
-        default: {
-            error("Invalid asset type %d in asset %s", asset.type, asset.relative_path);
-            break;
-        }
-        }
-
-        asset_table.add(cache_sid(asset.relative_path), asset);
     }
 
     log("Loaded asset pack %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(load));
@@ -466,4 +501,19 @@ void convert_to_full_asset_path(char *full_path, const char *relative_path) {
     str_copy(full_path, DIR_RUN_TREE);
     str_glue(full_path, relative_path);
     fix_directory_delimiters(full_path);
+}
+
+u32 get_asset_type_size(Asset_Type type) {
+    switch (type) {
+    case ASSET_SHADER_INCLUDE: return sizeof(Shader_Include);
+    case ASSET_SHADER:         return sizeof(Shader);
+    case ASSET_TEXTURE:        return sizeof(Texture);
+    case ASSET_MATERIAL:       return sizeof(Material);
+    case ASSET_MESH:           return sizeof(Mesh);
+    case ASSET_SOUND:          return sizeof(Sound);
+    case ASSET_FONT:           return sizeof(Font);
+    default:
+        error("Failed to get asset size from type %d", type);
+        return 0;
+    }
 }

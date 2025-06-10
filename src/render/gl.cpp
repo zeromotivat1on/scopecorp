@@ -6,11 +6,10 @@
 #include "render/material.h"
 #include "render/texture.h"
 #include "render/frame_buffer.h"
-#include "render/index_buffer.h"
-#include "render/vertex_buffer.h"
+#include "render/buffer_storage.h"
 #include "render/render_command.h"
-#include "render/render_registry.h"
 #include "render/render_stats.h"
+#include "render/mesh.h"
 #include "render/viewport.h"
 
 #include "log.h"
@@ -25,14 +24,17 @@
 
 #include "math/math_core.h"
 
-#define gl_check_error() {                          \
-        GLenum gl_error = glGetError();             \
-        while (gl_error != GL_NO_ERROR) {           \
-            error("OpenGL error 0x%X at %s:%d",     \
-                  gl_error, __FILE__, __LINE__);    \
-            gl_error = glGetError();                \
-        }                                           \
-    }
+u32 R_USAGE_DRAW_STATIC  = GL_STATIC_DRAW;
+u32 R_USAGE_DRAW_DYNAMIC = GL_DYNAMIC_DRAW;
+u32 R_USAGE_DRAW_STREAM  = GL_STREAM_DRAW;
+
+u32 R_FLAG_MAP_READ       = GL_MAP_READ_BIT;
+u32 R_FLAG_MAP_WRITE      = GL_MAP_WRITE_BIT;
+u32 R_FLAG_MAP_PERSISTENT = GL_MAP_PERSISTENT_BIT;
+u32 R_FLAG_MAP_COHERENT   = GL_MAP_COHERENT_BIT;
+
+u32 R_FLAG_STORAGE_DYNAMIC = GL_DYNAMIC_STORAGE_BIT;
+u32 R_FLAG_STORAGE_CLIENT  = GL_CLIENT_STORAGE_BIT;
 
 void detect_render_capabilities() {
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &R_MAX_TEXTURE_TEXELS);
@@ -46,7 +48,10 @@ void detect_render_capabilities() {
     for (s32 i = 0; i < R_MAX_VERTEX_ATTRIBUTES; ++i) {
         glEnableVertexAttribArray(i);
     }
-    
+
+    // MAX_VERTEX_ARRAY_BINDINGS index is used for entity id vertex array binding.
+    Assert(MAX_VERTEX_ARRAY_BINDINGS + 1 <= R_MAX_VERTEX_ATTRIBUTES);
+                    
     log("Render capabilities:");
     log("  Texture:\n    Max Size %dx%d texels", R_MAX_TEXTURE_TEXELS, R_MAX_TEXTURE_TEXELS);
     log("  Uniform buffer:\n    Max Bindings %d\n    Base Alignment %d\n    Offset Alignment %d",
@@ -241,48 +246,69 @@ void submit(const Render_Command *command) {
         glStencilMask(command->stencil.mask);
     }
     
-    if (command->frame_buffer_index != INVALID_INDEX) {
-        const auto &frame_buffer = render_registry.frame_buffers[command->frame_buffer_index];
-        glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer.id);
+    if (command->rid_frame_buffer != RID_NONE) {
+        glBindFramebuffer(GL_FRAMEBUFFER, command->rid_frame_buffer);
     }
 
-    if (command->shader_index != INVALID_INDEX) {
-        const auto &shader = render_registry.shaders[command->shader_index];
-        glUseProgram(shader.id);
-        
-        for (s32 i = 0; i < command->uniform_count; ++i) {
-            send_uniform_value_to_gpu(command->shader_index,
-                                      command->uniform_indices[i],
-                                      command->uniform_value_offsets[i]);
+    if (command->sid_material != SID_NONE) {
+        const auto &material = asset_table.materials[command->sid_material];
+        if (material.sid_shader != SID_NONE) {
+            const auto &shader = asset_table.shaders[material.sid_shader];
+
+            glUseProgram(shader.rid);
+            
+            for (s32 i = 0; i < material.uniform_count; ++i) {
+                r_set_uniform(shader.rid, material.uniforms + i);
+            }
+        }
+
+        if (material.sid_texture != SID_NONE) {
+            const auto &texture = asset_table.textures[material.sid_texture];
+            glBindTextureUnit(0, texture.rid);
         }
     }
 
-	if (command->texture_index != INVALID_INDEX) {
-		const auto &texture = render_registry.textures[command->texture_index];
-        //const s32 type      = gl_texture_type(texture.type);
+    if (command->rid_override_texture != SID_NONE) {
+        glBindTextureUnit(0, command->rid_override_texture);
+    }
+    
+    if (command->rid_vertex_array != SID_NONE) {
+        glBindVertexArray(command->rid_vertex_array);
 
-		//glBindTexture(type, texture.id);
-		//glActiveTexture(GL_TEXTURE0);
-        glBindTextureUnit(0, texture.id);
-	}
+#if DEVELOPER
+        // Add extra binding for entity id.
+        glVertexArrayVertexBuffer(command->rid_vertex_array,
+                                  EID_VERTEX_BINDING_INDEX,
+                                  vertex_buffer_storage.rid,
+                                  EID_VERTEX_DATA_OFFSET + command->eid_vertex_data_offset,
+                                  sizeof(u32));
+        glEnableVertexArrayAttrib(command->rid_vertex_array, EID_VERTEX_BINDING_INDEX);
+        glVertexArrayAttribBinding(command->rid_vertex_array,
+                                   EID_VERTEX_BINDING_INDEX, EID_VERTEX_BINDING_INDEX);
+        glVertexArrayAttribIFormat(command->rid_vertex_array,
+                                   EID_VERTEX_BINDING_INDEX, 1, GL_UNSIGNED_INT, 0);
+        glVertexArrayBindingDivisor(command->rid_vertex_array,
+                                    EID_VERTEX_BINDING_INDEX, 1);
 
-    if (command->vertex_array_index != INVALID_INDEX) {
-        const auto &vertex_array = render_registry.vertex_arrays[command->vertex_array_index];
-        glBindVertexArray(vertex_array.id);
 
-        const s32 render_mode = gl_draw_mode(command->render_mode);
+#endif
         
-        if (command->index_buffer_index != INVALID_INDEX) {
-            const auto &index_buffer = render_registry.index_buffers[command->index_buffer_index];
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer.id);
-
-            const s32 index_count = command->buffer_element_count;
-            const void* index_ptr = (void *)(u64)command->buffer_element_offset;
-            glDrawElementsInstancedBaseInstance(render_mode, index_count, GL_UNSIGNED_INT, index_ptr, command->instance_count, command->instance_offset);
+        const s32 render_mode = gl_draw_mode(command->render_mode);
+        if (command->flags & RENDER_FLAG_INDEXED) {
+            // @Cleanup: this should be bound by default like vertex buffer storage.
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer_storage.rid);
+            glDrawElementsInstancedBaseInstance(render_mode,
+                                                command->buffer_element_count,
+                                                GL_UNSIGNED_INT,
+                                                (void *)(u64)command->buffer_element_offset,
+                                                command->instance_count,
+                                                command->instance_offset);
         } else {
-            const s32 vertex_count = command->buffer_element_count;
-            const s32 vertex_first = command->buffer_element_offset;
-            glDrawArraysInstancedBaseInstance(render_mode, vertex_first, vertex_count, command->instance_count, command->instance_offset);
+            glDrawArraysInstancedBaseInstance(render_mode,
+                                              command->buffer_element_offset,
+                                              command->buffer_element_count,
+                                              command->instance_count,
+                                              command->instance_offset);
         }
     }
     
@@ -321,126 +347,107 @@ void submit(const Render_Command *command) {
             glStencilMask(0xFF);
         }
 
-        if (command->frame_buffer_index != INVALID_INDEX) {
+        if (command->rid_frame_buffer != RID_NONE) {
             glBindFramebuffer(GL_FRAMEBUFFER, 0);
         }
         
-        if (command->texture_index != INVALID_INDEX) {
-            const auto &texture = render_registry.textures[command->texture_index];
-            const s32 type      = gl_texture_type(texture.type);
-            glBindTexture(type, 0);
-        }
-
-        if (command->index_buffer_index != INVALID_INDEX) {
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-        }
-
-        if (command->vertex_array_index != INVALID_INDEX) {
+        if (command->rid_vertex_array != RID_NONE) {
             glBindVertexArray(0);
         }
+        
+        if (command->rid_override_texture != SID_NONE) {
+            glBindTextureUnit(0, 0);
+        }
+        
+        if (command->sid_material != SID_NONE) {
+            const auto &material = asset_table.materials[command->sid_material];
+            if (material.sid_shader != SID_NONE) {
+                glUseProgram(0);
+            }
 
-        if (command->shader_index != INVALID_INDEX) {
-            glUseProgram(0);
+            if (material.sid_texture != SID_NONE) {
+                glBindTextureUnit(0, 0);
+            }
         }
     }
 }
 
-s32 create_frame_buffer(s16 width, s16 height, const Texture_Format_Type *color_attachments, s32 color_attachment_count, Texture_Format_Type depth_attachment) {
-    Assert(color_attachment_count <= MAX_FRAME_BUFFER_COLOR_ATTACHMENTS);
+void r_init_frame_buffer(s16 width, s16 height, const Texture_Format_Type *color_formats, s32 color_format_count, Texture_Format_Type depth_format, Frame_Buffer *frame_buffer) {
+    Assert(color_format_count <= MAX_FRAME_BUFFER_COLOR_ATTACHMENTS);
     
-    Frame_Buffer frame_buffer = {};
-    glGenFramebuffers(1, &frame_buffer.id);
-    glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer.id);
+    glGenFramebuffers(1, &frame_buffer->rid);
+    glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer->rid);
 
-    for (s32 i = 0; i < MAX_FRAME_BUFFER_COLOR_ATTACHMENTS; ++i)
-        frame_buffer.color_attachment_indices[i] = INVALID_INDEX;
+    for (s32 i = 0; i < MAX_FRAME_BUFFER_COLOR_ATTACHMENTS; ++i) {
+        frame_buffer->color_attachments[i].rid_texture = RID_NONE;
+        frame_buffer->color_attachments[i].format = color_formats[i];
+    }
+    
+    u32 gl_color_attachments[MAX_FRAME_BUFFER_COLOR_ATTACHMENTS];
+    for (s32 i = 0; i < color_format_count; ++i) {
+        gl_color_attachments[i] = GL_COLOR_ATTACHMENT0 + i;
+    }
+    
+    glDrawBuffers(color_format_count, gl_color_attachments);
+    
+    frame_buffer->color_attachment_count = color_format_count;
 
-    u32 gl_attachments[MAX_FRAME_BUFFER_COLOR_ATTACHMENTS];
-    for (s32 i = 0; i < color_attachment_count; ++i)
-        gl_attachments[i] = GL_COLOR_ATTACHMENT0 + i;
+    frame_buffer->depth_attachment.rid_texture = RID_NONE;
+    frame_buffer->depth_attachment.format = depth_format;
+
+    frame_buffer->sid_material = SID("/data/materials/frame_buffer.mat");
+
+    auto &material = asset_table.materials[frame_buffer->sid_material];
         
-    glDrawBuffers(color_attachment_count, gl_attachments);
-    
-    frame_buffer.color_attachment_count = color_attachment_count;
-    copy_bytes(frame_buffer.color_attachment_formats, color_attachments, color_attachment_count * sizeof(Texture_Format_Type));
-
-    frame_buffer.depth_attachment_index  = INVALID_INDEX;
-    frame_buffer.depth_attachment_format = depth_attachment;
-
-    frame_buffer.material_index = create_material(asset_table[shader_sids.frame_buffer].registry_index, INVALID_INDEX);
-
-    const s32 uniforms[] = {
-        create_uniform("u_resolution",                  UNIFORM_F32_2, 1),
-        create_uniform("u_pixel_size",                  UNIFORM_F32,   1),
-        create_uniform("u_curve_distortion_factor",     UNIFORM_F32,   1),
-        create_uniform("u_chromatic_aberration_offset", UNIFORM_F32,   1),
-        create_uniform("u_quantize_color_count",        UNIFORM_U32,   1),
-        create_uniform("u_noise_blend_factor",          UNIFORM_F32,   1),
-        create_uniform("u_scanline_count",              UNIFORM_U32,   1),
-        create_uniform("u_scanline_intensity",          UNIFORM_F32,   1),
-    };
-    
-    set_material_uniforms(frame_buffer.material_index, uniforms, COUNT(uniforms));
-
     const vec2 resolution = vec2(width, height);
-    set_material_uniform_value(frame_buffer.material_index, 0, &resolution);
+    set_material_uniform_value(&material, "u_resolution", &resolution, sizeof(resolution));
     
-    const s32 fbi = render_registry.frame_buffers.add(frame_buffer);
-    recreate_frame_buffer(fbi, width, height);
-    
-    return fbi;
+    r_recreate_frame_buffer(frame_buffer, width, height);
 }
 
-void recreate_frame_buffer(s32 fbi, s16 width, s16 height) {
-    auto &frame_buffer = render_registry.frame_buffers[fbi];
+void r_recreate_frame_buffer(Frame_Buffer *frame_buffer, s16 width, s16 height) {
+    frame_buffer->width = width;
+    frame_buffer->height = height;
 
-    frame_buffer.width = width;
-    frame_buffer.height = height;
-
-    glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer.id);	
+    glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer->rid);	
     
-    for (s32 i = 0; i < frame_buffer.color_attachment_count; ++i) {
-        s32 attachment = frame_buffer.color_attachment_indices[i];
-        if (attachment != INVALID_INDEX) delete_texture(attachment);
+    for (s32 i = 0; i < frame_buffer->color_attachment_count; ++i) {
+        auto &attachment = frame_buffer->color_attachments[i];
+        if (attachment.rid_texture != RID_NONE) {
+            r_delete_texture(attachment.rid_texture);
+            attachment.rid_texture = RID_NONE;
+        }
 
-        const auto format = frame_buffer.color_attachment_formats[i];
-        attachment = create_texture(TEXTURE_TYPE_2D, format, width, height, null);
-        set_texture_filter(attachment, TEXTURE_FILTER_NEAREST);
-        set_texture_wrap(attachment, TEXTURE_WRAP_BORDER);
+        attachment.rid_texture = r_create_texture(TEXTURE_TYPE_2D, attachment.format, width, height, null);
+        r_set_texture_filter(attachment.rid_texture, TEXTURE_FILTER_NEAREST, false);
+        r_set_texture_wrap(attachment.rid_texture, TEXTURE_WRAP_BORDER);
         
-        const auto &texture = render_registry.textures[attachment];
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, texture.id, 0);
-        
-        frame_buffer.color_attachment_indices[i] = attachment;
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, attachment.rid_texture, 0);        
     }
 
     {
-        s32 attachment = frame_buffer.depth_attachment_index;
-        if (attachment != INVALID_INDEX) delete_texture(attachment);
+        auto &attachment = frame_buffer->depth_attachment;
+        if (attachment.rid_texture != RID_NONE) {
+            r_delete_texture(attachment.rid_texture);
+            attachment.rid_texture = RID_NONE;
+        }
 
-        const auto format = frame_buffer.depth_attachment_format;
-        attachment = create_texture(TEXTURE_TYPE_2D, format, width, height, null);
-        set_texture_filter(attachment, TEXTURE_FILTER_NEAREST);
+        attachment.rid_texture = r_create_texture(TEXTURE_TYPE_2D, attachment.format, width, height, null);
+        r_set_texture_filter(attachment.rid_texture, TEXTURE_FILTER_NEAREST, false);
         
-        const auto &texture = render_registry.textures[attachment];
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, texture.id, 0);
-        
-        frame_buffer.depth_attachment_index = attachment;
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, attachment.rid_texture, 0);        
     }
-    
+        
     const u32 status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
     if (status != GL_FRAMEBUFFER_COMPLETE) {
-        warn("Framebuffer %d is not complete, status 0x%X", fbi, status);
+        warn("Framebuffer %u is not complete, GL status 0x%X", frame_buffer->rid, status);
     }
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-s32 read_frame_buffer_pixel(s32 fbi, s32 color_attachment_index, s32 x, s32 y) {
-    const auto &frame_buffer = render_registry.frame_buffers[fbi];
-    Assert(color_attachment_index < frame_buffer.color_attachment_count);
-
-    glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer.id);
+s32 r_read_frame_buffer_pixel(rid rid_frame_buffer, s32 color_attachment_index, s32 x, s32 y) {
+    glBindFramebuffer(GL_FRAMEBUFFER, rid_frame_buffer);
     glReadBuffer(GL_COLOR_ATTACHMENT0 + color_attachment_index);
 
     s32 pixel = -1;
@@ -452,8 +459,16 @@ s32 read_frame_buffer_pixel(s32 fbi, s32 color_attachment_index, s32 x, s32 y) {
     return pixel;
 }
 
-static s32 create_frame_buffer_vertex_array() {
-    struct Vertex_Quad { vec2 pos; vec2 uv; };
+rid rid_fb_va = RID_NONE;
+u32 fb_index_data_offset = 0;
+u32 fb_index_count = 0;
+
+void r_init_frame_buffer_draw() {
+    struct Vertex_Quad {
+        vec2 pos;
+        vec2 uv;
+    };
+    
     const Vertex_Quad vertices[] = {
         { vec2( 1.0f,  1.0f), vec2(1.0f, 1.0f) },
         { vec2( 1.0f, -1.0f), vec2(1.0f, 0.0f) },
@@ -462,35 +477,38 @@ static s32 create_frame_buffer_vertex_array() {
     };
 
     Vertex_Array_Binding binding = {};
+    binding.binding_index = 0;
+    binding.data_offset = vertex_buffer_storage.size;
     binding.layout_size = 2;
     binding.layout[0] = { VERTEX_F32_2, 0 };
     binding.layout[1] = { VERTEX_F32_2, 0 };
-    binding.vertex_buffer_index = create_vertex_buffer(vertices, COUNT(vertices) * sizeof(Vertex_Quad), BUFFER_USAGE_STATIC);
 
-    return create_vertex_array(&binding, 1);
-}
-
-static s32 create_frame_buffer_index_buffer() {
-    const u32 indices[] = { 0, 2, 1, 2, 0, 3 };
-    return create_index_buffer(indices, COUNT(indices), BUFFER_USAGE_STATIC);
-}
-
-void draw_frame_buffer(s32 fbi, s32 color_attachment_index) {
-    static const s32 vertex_array_index = create_frame_buffer_vertex_array();
-    static const s32 index_buffer_index = create_frame_buffer_index_buffer();
+    void *vertex_data = r_alloclv(sizeof(vertices));
+    copy_bytes(vertex_data, vertices, sizeof(vertices));
     
-    const auto &frame_buffer = render_registry.frame_buffers[fbi];
+    rid_fb_va = r_create_vertex_array(&binding, 1);
 
-    set_material_uniform_value(frame_buffer.material_index, 1, &frame_buffer.pixel_size);
-    set_material_uniform_value(frame_buffer.material_index, 2, &frame_buffer.curve_distortion_factor);
-    set_material_uniform_value(frame_buffer.material_index, 3, &frame_buffer.chromatic_aberration_offset);
-    set_material_uniform_value(frame_buffer.material_index, 4, &frame_buffer.quantize_color_count);
-    set_material_uniform_value(frame_buffer.material_index, 5, &frame_buffer.noise_blend_factor);
-    set_material_uniform_value(frame_buffer.material_index, 6, &frame_buffer.scanline_count);
-    set_material_uniform_value(frame_buffer.material_index, 7, &frame_buffer.scanline_intensity);
+    const u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
+    fb_index_count = COUNT(indices);
+    fb_index_data_offset = index_buffer_storage.size;
+
+    void *index_data = r_allocli(sizeof(indices));
+    copy_bytes(index_data, indices, sizeof(indices));
+}
+
+void draw_frame_buffer(Frame_Buffer *frame_buffer, s32 color_attachment_index) {
+    auto &material = asset_table.materials[frame_buffer->sid_material];
+    
+    set_material_uniform_value(&material, "u_pixel_size", &frame_buffer->pixel_size, sizeof(frame_buffer->pixel_size));
+    set_material_uniform_value(&material, "u_curve_distortion_factor", &frame_buffer->curve_distortion_factor, sizeof(frame_buffer->curve_distortion_factor));
+    set_material_uniform_value(&material, "u_chromatic_aberration_offset", &frame_buffer->chromatic_aberration_offset, sizeof(frame_buffer->chromatic_aberration_offset));
+    set_material_uniform_value(&material, "u_quantize_color_count", &frame_buffer->quantize_color_count, sizeof(frame_buffer->quantize_color_count));
+    set_material_uniform_value(&material, "u_noise_blend_factor", &frame_buffer->noise_blend_factor, sizeof(frame_buffer->noise_blend_factor));
+    set_material_uniform_value(&material, "u_scanline_count", &frame_buffer->scanline_count, sizeof(frame_buffer->scanline_count));
+    set_material_uniform_value(&material, "u_scanline_intensity", &frame_buffer->scanline_intensity, sizeof(frame_buffer->scanline_intensity));
     
     Render_Command command = {};
-    command.flags = RENDER_FLAG_VIEWPORT | RENDER_FLAG_SCISSOR | RENDER_FLAG_CULL_FACE;
+    command.flags = RENDER_FLAG_VIEWPORT | RENDER_FLAG_SCISSOR | RENDER_FLAG_CULL_FACE | RENDER_FLAG_INDEXED;
     command.render_mode  = RENDER_TRIANGLES;
     command.polygon_mode = POLYGON_FILL;
     command.viewport.x      = viewport.x;
@@ -503,27 +521,15 @@ void draw_frame_buffer(s32 fbi, s32 color_attachment_index) {
     command.scissor.height = viewport.height;
     command.cull_face.type    = CULL_FACE_BACK;
     command.cull_face.winding = WINDING_COUNTER_CLOCKWISE;
-    command.vertex_array_index = vertex_array_index;
-    command.index_buffer_index = index_buffer_index;
-    
-    fill_render_command_with_material_data(frame_buffer.material_index, &command);
-    command.texture_index = frame_buffer.color_attachment_indices[color_attachment_index];
-    
-    const auto &index_buffer = render_registry.index_buffers[index_buffer_index];
-    command.buffer_element_count = index_buffer.index_count;
+
+    command.rid_vertex_array = rid_fb_va;
+    command.sid_material = frame_buffer->sid_material;
+    command.rid_override_texture = frame_buffer->color_attachments[color_attachment_index].rid_texture;
+
+    command.buffer_element_count = fb_index_count;
+    command.buffer_element_offset = fb_index_data_offset;
     
     submit(&command);
-}
-
-static s32 gl_usage(Buffer_Usage_Type type) {
-	switch (type) {
-	case BUFFER_USAGE_STATIC:  return GL_STATIC_DRAW;
-	case BUFFER_USAGE_DYNAMIC: return GL_DYNAMIC_DRAW;
-	case BUFFER_USAGE_STREAM:  return GL_STREAM_DRAW;
-	default:
-		error("Failed to get GL usage from given buffer usage %d", type);
-		return -1;
-	}
 }
 
 static s32 gl_vertex_data_type(Vertex_Component_Type type) {
@@ -539,81 +545,78 @@ static s32 gl_vertex_data_type(Vertex_Component_Type type) {
     }
 }
 
-s32 create_vertex_buffer(const void *data, u32 size, Buffer_Usage_Type usage) {
-	Vertex_Buffer buffer = {0};
-	buffer.size  = size;
-	buffer.usage = usage;
-
-	glCreateBuffers(1, &buffer.id);
-	glNamedBufferData(buffer.id, size, data, gl_usage(usage));
-
-	return render_registry.vertex_buffers.add(buffer);
+rid r_create_storage(const void *data, u32 size, u32 flags) {
+    rid rid;
+	glCreateBuffers(1, &rid);
+    glNamedBufferStorage(rid, size, data, flags);
+    return rid;
 }
 
-void set_vertex_buffer_data(s32 vertex_buffer_index, const void *data, u32 size, u32 offset) {
-    const auto &buffer = render_registry.vertex_buffers[vertex_buffer_index];
-    glNamedBufferSubData(buffer.id, offset, size, data);
+rid r_create_buffer(const void *data, u32 size, u32 usage) {
+    rid rid;
+	glCreateBuffers(1, &rid);
+	glNamedBufferData(rid, size, data, usage);
+	return rid;
 }
 
-s32 create_vertex_array(const Vertex_Array_Binding *bindings, s32 binding_count) {
+void *r_map_buffer(rid rid, u32 offset, u32 size, u32 flags) {
+    return glMapNamedBufferRange(rid, offset, size, flags);
+}
+
+bool r_unmap_buffer(rid rid) {
+    return glUnmapNamedBuffer(rid);
+}
+
+void r_flush_buffer(rid rid, u32 offset, u32 size) {
+    glFlushMappedNamedBufferRange(rid, offset, size);
+}
+
+rid r_create_vertex_array(const Vertex_Array_Binding *bindings, s32 binding_count) {
     Assert(binding_count <= MAX_VERTEX_ARRAY_BINDINGS);
     
-    Vertex_Array va;
-    va.binding_count = binding_count;
-    copy_bytes(va.bindings, bindings, binding_count * sizeof(Vertex_Array_Binding));    
-    glCreateVertexArrays(1, &va.id);
+    rid rid = RID_NONE;
+    glCreateVertexArrays(1, &rid);
 
     s32 attribute_index = 0;
     for (s32 binding_index = 0; binding_index < binding_count; ++binding_index) {        
         const auto &binding = bindings[binding_index];
-        const auto &vertex_buffer = render_registry.vertex_buffers[binding.vertex_buffer_index];
-
+        
         s32 vertex_size = 0;
         for (s32 j = 0; j < binding.layout_size; ++j) {
-            vertex_size += vertex_component_size(binding.layout[j].type);
+            vertex_size += get_vertex_component_size(binding.layout[j].type);
         }
 
-        glVertexArrayVertexBuffer(va.id, binding_index, vertex_buffer.id, 0, vertex_size);
+        glVertexArrayVertexBuffer(rid, binding.binding_index, vertex_buffer_storage.rid,
+                                  binding.data_offset, vertex_size);
 
         s32 offset = 0;
         for (s32 j = 0; j < binding.layout_size; ++j) {
             const auto &component = binding.layout[j];
             
             const s32 data_type = gl_vertex_data_type(component.type);
-            const s32 dimension = vertex_component_dimension(component.type);
+            const s32 dimension = get_vertex_component_dimension(component.type);
 
-            glEnableVertexArrayAttrib(va.id, attribute_index);
-            glVertexArrayAttribBinding(va.id, attribute_index, binding_index);
+            glEnableVertexArrayAttrib(rid, attribute_index);
+            glVertexArrayAttribBinding(rid, attribute_index, binding_index);
             
             if (component.type == VERTEX_S32 || component.type == VERTEX_U32) {
-                glVertexArrayAttribIFormat(va.id, attribute_index, dimension, data_type, offset);
+                glVertexArrayAttribIFormat(rid, attribute_index, dimension, data_type, offset);
             } else {
-                glVertexArrayAttribFormat(va.id, attribute_index, dimension, data_type, component.normalize, offset);
+                glVertexArrayAttribFormat(rid, attribute_index, dimension, data_type, component.normalize, offset);
             }
 
-            glVertexArrayBindingDivisor(va.id, attribute_index, component.advance_rate);
+            glVertexArrayBindingDivisor(rid, attribute_index, component.advance_rate);
 
-            offset += vertex_component_size(component.type);
+            offset += get_vertex_component_size(component.type);
             attribute_index += 1;
         }
 	}
 
-    return render_registry.vertex_arrays.add(va);
-}
-
-s32 create_index_buffer(const u32 *indices, s32 count, Buffer_Usage_Type usage_type) {
-	Index_Buffer buffer;
-	buffer.index_count = count;
-	buffer.usage_type = usage_type;
-
-	glCreateBuffers(1, &buffer.id);
-	glNamedBufferData(buffer.id, count * sizeof(u32), indices, gl_usage(usage_type));
-
-	return render_registry.index_buffers.add(buffer);
+    return rid;
 }
 
 static u32 gl_create_shader(GLenum type, const char *src) {
-	u32 shader = glCreateShader(type);
+	const u32 shader = glCreateShader(type);
 	glShaderSource(shader, 1, &src, null);
 	glCompileShader(shader);
 
@@ -655,141 +658,72 @@ static u32 gl_link_program(u32 vertex_shader, u32 fragment_shader) {
 	return program;
 }
 
-s32 create_shader(const char *source, const char *path) {
+void init_shader_asset(Shader *shader, void *data) {
+    auto source = (const char *)data;
+        
 	char *vertex_src   = (char *)allocl(MAX_SHADER_SIZE);
 	char *fragment_src = (char *)allocl(MAX_SHADER_SIZE);
     defer { freel(2 * MAX_SHADER_SIZE); };
 
 	if (!parse_shader(source, vertex_src, fragment_src)) {
-        error("Failed to create shader %s", path);
-        return INVALID_INDEX;
+        return;
     }
 
 	const u32 vertex_shader = gl_create_shader(GL_VERTEX_SHADER, vertex_src);
-    if (vertex_shader == INVALID_INDEX) {
-        return INVALID_INDEX;
+    if (vertex_shader == GL_INVALID_INDEX) {
+        return;
     }
     
 	const u32 fragment_shader = gl_create_shader(GL_FRAGMENT_SHADER, fragment_src);
-    if (fragment_shader == INVALID_INDEX) {
-        return INVALID_INDEX;
-    }
-    
-    Shader shader;
-	shader.id = gl_link_program(vertex_shader, fragment_shader);
-    if (shader.id == INVALID_INDEX) {
-        return INVALID_INDEX;
-    }
-    
-	return render_registry.shaders.add(shader);
-}
-
-bool recreate_shader(s32 shader_index, const char *source, const char *path) {
-    auto &shader = render_registry.shaders[shader_index];
-
-    char *vertex_src   = (char *)allocl(MAX_SHADER_SIZE);
-	char *fragment_src = (char *)allocl(MAX_SHADER_SIZE);
-    defer { freel(2 * MAX_SHADER_SIZE); };
-
-	if (!parse_shader(source, vertex_src, fragment_src)) {
-        error("Failed to recreate shader %s", path);
-        return false;
+    if (fragment_shader == GL_INVALID_INDEX) {
+        return;
     }
 
-	const u32 vertex_shader = gl_create_shader(GL_VERTEX_SHADER, vertex_src);
-    if (vertex_shader == INVALID_INDEX) {
-        return false;
-    }
-    
-	const u32 fragment_shader = gl_create_shader(GL_FRAGMENT_SHADER, fragment_src);
-    if (fragment_shader == INVALID_INDEX) {
-        return false;
-    }
-    
-	const u32 new_shader_id = gl_link_program(vertex_shader, fragment_shader);
-    if (new_shader_id == INVALID_INDEX) {
-        return false;
-    }
+	const rid rid_new_shader = (rid)gl_link_program(vertex_shader, fragment_shader);
+    if (rid_new_shader > 0) {
+        if (shader->rid != RID_NONE) {
+            glDeleteProgram(shader->rid);
+        }
 
-    // We are free to delete old shader program at this stage.
-	glDeleteProgram(shader.id);
-    shader.id = new_shader_id;
-        
-	return true;
+        shader->rid = rid_new_shader;
+
+        // Set or update uniform block bindings.
+        Assert(COUNT(UNIFORM_BLOCK_NAMES) == COUNT(UNIFORM_BLOCK_BINDINGS));
+        for (s32 i = 0; i < COUNT(UNIFORM_BLOCK_NAMES); ++i) {
+            const u32 index = glGetUniformBlockIndex(shader->rid, UNIFORM_BLOCK_NAMES[i]);
+            if (index != GL_INVALID_INDEX) {
+                glUniformBlockBinding(shader->rid, index, UNIFORM_BLOCK_BINDINGS[i]);
+            }   
+        }
+    }
 }
 
 const char *get_desired_shader_file_extension() {
     return ".glsl";
 }
 
-void send_uniform_value_to_gpu(s32 shader_index, s32 uniform_index, u32 offset) {
-    const auto &cache = render_registry.uniform_value_cache;
-    Assert(offset < cache.size);
+void r_set_uniform(rid rid_shader, const Uniform *uniform) {
+    const auto &cache = uniform_value_cache;
+    Assert(uniform->value_offset < cache.size);
 
-    const auto &uniform = render_registry.uniforms[uniform_index];
-    const auto &shader  = render_registry.shaders[shader_index];
-    const s32 location  = glGetUniformLocation(shader.id, uniform.name);
-    
+    const s32 location = glGetUniformLocation(rid_shader, uniform->name);
     if (location < 0) {
-        //error("Failed to get uniform %s location from shader %d", uniform.name, shader_index);
         return;
     }
     
-    const void *data = (u8 *)cache.data + offset;
+    const void *data = (u8 *)cache.data + uniform->value_offset;
     
-    switch (uniform.type) {
-	case UNIFORM_U32:     glUniform1uiv(location, uniform.count, (u32 *)data); break;
-    case UNIFORM_F32:     glUniform1fv(location,  uniform.count, (f32 *)data); break;
-    case UNIFORM_F32_2:   glUniform2fv(location,  uniform.count, (f32 *)data); break;
-    case UNIFORM_F32_3:   glUniform3fv(location,  uniform.count, (f32 *)data); break;
-    case UNIFORM_F32_4:   glUniform4fv(location,  uniform.count, (f32 *)data); break;
-	case UNIFORM_F32_4X4: glUniformMatrix4fv(location, uniform.count, GL_FALSE, (f32 *)data); break;
+    switch (uniform->type) {
+	case UNIFORM_U32:     glUniform1uiv(location, uniform->count, (u32 *)data); break;
+    case UNIFORM_F32:     glUniform1fv(location,  uniform->count, (f32 *)data); break;
+    case UNIFORM_F32_2:   glUniform2fv(location,  uniform->count, (f32 *)data); break;
+    case UNIFORM_F32_3:   glUniform3fv(location,  uniform->count, (f32 *)data); break;
+    case UNIFORM_F32_4:   glUniform4fv(location,  uniform->count, (f32 *)data); break;
+	case UNIFORM_F32_4X4: glUniformMatrix4fv(location, uniform->count, GL_FALSE, (f32 *)data); break;
 	default:
-		error("Failed to sync uniform %s of unknown type %d", uniform.name, uniform.type);
+		error("Failed to sync uniform %s of unknown type %d", uniform->name, uniform->type);
 		break;
 	}
-}
-
-u32 get_uniform_type_size_gpu_aligned(Uniform_Type type) {
-    constexpr u32 N = 4;
-    
-    switch (type) {
-	case UNIFORM_U32:     return N;
-	case UNIFORM_F32:     return N;
-	case UNIFORM_F32_2:   return N * 2;
-	case UNIFORM_F32_3:   return N * 4;
-	case UNIFORM_F32_4:   return N * 4;
-	case UNIFORM_F32_4X4: return N * 16;
-    default:
-        error("Failed to get uniform gpu aligned size from type %d", type);
-        return 0;
-    }
-}
-
-u32 get_uniform_type_alignment(Uniform_Type type) {
-    constexpr u32 N = 4;
-
-    switch (type) {
-	case UNIFORM_U32:     return N;
-	case UNIFORM_F32:     return N;
-	case UNIFORM_F32_2:   return N * 2;
-	case UNIFORM_F32_3:   return N * 4;
-	case UNIFORM_F32_4:   return N * 4;
-	case UNIFORM_F32_4X4: return N * 4;
-    default:
-        error("Failed to get uniform alignment from type %d", type);
-        return 0;
-    }    
-}
-
-s32 create_uniform_buffer(u32 size) {
-    Uniform_Buffer buffer;
-    buffer.size = size;
-
-    glCreateBuffers(1, &buffer.id);
-    glNamedBufferData(buffer.id, size, null, GL_STATIC_DRAW);
-
-    return render_registry.uniform_buffers.add(buffer);
 }
 
 // std140 alignment rules
@@ -845,39 +779,72 @@ static inline u32 get_uniform_block_size_gpu_aligned(const Uniform_Block_Field *
     return size;
 }
 
-s32 create_uniform_block(s32 uniform_buffer_index, s32 shader_binding, const char *name, const Uniform_Block_Field *fields, s32 field_count) {
-    Uniform_Block block;
-    block.uniform_buffer_index = uniform_buffer_index;
-    block.name = name;
-    block.field_count = field_count;
-    block.shader_binding = shader_binding;
-    block.offset = 0;
-    block.cpu_size = 0;
-    block.gpu_size = get_uniform_block_size_gpu_aligned(fields, field_count);
-    copy_bytes(block.fields, fields, field_count * sizeof(Uniform_Block_Field));
+u32 get_uniform_type_size_gpu_aligned(Uniform_Type type) {
+    constexpr u32 N = 4;
     
-    For (render_registry.shaders) {
-        const u32 gl_block_index = glGetUniformBlockIndex(it.id, name);
-        if (gl_block_index != GL_INVALID_INDEX) {
-            glUniformBlockBinding(it.id, gl_block_index, shader_binding);
-        }
+    switch (type) {
+	case UNIFORM_U32:     return N;
+	case UNIFORM_F32:     return N;
+	case UNIFORM_F32_2:   return N * 2;
+	case UNIFORM_F32_3:   return N * 4;
+	case UNIFORM_F32_4:   return N * 4;
+	case UNIFORM_F32_4X4: return N * 16;
+    default:
+        error("Failed to get uniform gpu aligned size from type %d", type);
+        return 0;
     }
+}
 
-    auto &buffer = render_registry.uniform_buffers[uniform_buffer_index];
-    const u32 used_size = get_uniform_buffer_used_size_gpu_aligned(uniform_buffer_index);
+u32 get_uniform_type_alignment(Uniform_Type type) {
+    constexpr u32 N = 4;
 
-    block.offset = Align(used_size, R_UNIFORM_BUFFER_OFFSET_ALIGNMENT);
-    Assert(block.offset + block.gpu_size < buffer.size);
+    switch (type) {
+	case UNIFORM_U32:     return N;
+	case UNIFORM_F32:     return N;
+	case UNIFORM_F32_2:   return N * 2;
+	case UNIFORM_F32_3:   return N * 4;
+	case UNIFORM_F32_4:   return N * 4;
+	case UNIFORM_F32_4X4: return N * 4;
+    default:
+        error("Failed to get uniform alignment from type %d", type);
+        return 0;
+    }    
+}
+
+rid r_create_uniform_buffer(u32 size) {
+    rid rid = RID_NONE;
+    glCreateBuffers(1, &rid);
+    glNamedBufferData(rid, size, null, GL_STATIC_DRAW);
+    return rid;
+}
+
+void r_add_uniform_block(rid rid_uniform_buffer, s32 shader_binding, const char *name, const Uniform_Block_Field *fields, s32 field_count, Uniform_Block *block) {
+    const u32 size = get_uniform_block_size_gpu_aligned(fields, field_count);
+    const u32 offset = UNIFORM_BUFFER_SIZE;
+
+    UNIFORM_BUFFER_SIZE += size;
+    UNIFORM_BUFFER_SIZE = Align(UNIFORM_BUFFER_SIZE, R_UNIFORM_BUFFER_OFFSET_ALIGNMENT);
+    Assert(UNIFORM_BUFFER_SIZE <= MAX_UNIFORM_BUFFER_SIZE);
     
-    glBindBufferRange(GL_UNIFORM_BUFFER, shader_binding, buffer.id, block.offset, block.gpu_size);
-    
-    const s32 uniform_block_index = render_registry.uniform_blocks.add(block);
-    
-    Assert(buffer.block_count < MAX_UNIFORM_BUFFER_BLOCKS);
-    buffer.block_indices[buffer.block_count] = uniform_block_index;
-    buffer.block_count += 1;
-    
-    return uniform_block_index;
+    glBindBufferRange(GL_UNIFORM_BUFFER, shader_binding, rid_uniform_buffer, offset, size);
+
+    block->rid_uniform_buffer = rid_uniform_buffer;
+    block->name = name;
+    copy_bytes(block->fields, fields, field_count * sizeof(Uniform_Block_Field));
+    block->field_count = field_count;
+    block->shader_binding = shader_binding;
+    block->offset = offset;
+    block->size = size;
+}
+
+void r_set_uniform_block_value(Uniform_Block *block, s32 field_index, s32 field_element_index, const void *data, u32 size) {
+    const u32 field_offset = get_uniform_block_field_offset_gpu_aligned(block, field_index, field_element_index);
+    r_set_uniform_block_value(block, field_offset, data, size);
+}
+
+void r_set_uniform_block_value(Uniform_Block *block, u32 offset, const void *data, u32 size) {
+    Assert(offset + size <= block->size);
+    glNamedBufferSubData(block->rid_uniform_buffer, block->offset + offset, size, data);
 }
 
 u32 get_uniform_block_field_size_gpu_aligned(const Uniform_Block_Field &field) {
@@ -888,30 +855,10 @@ u32 get_uniform_block_field_size_gpu_aligned(const Uniform_Block_Field &field) {
     return get_uniform_type_size_gpu_aligned(UNIFORM_F32_4) * field.count;
 }
 
-u32 get_uniform_block_field_offset_gpu_aligned(s32 uniform_block_index, s32 field_index, s32 field_element_index) {
-    const auto &block = render_registry.uniform_blocks[uniform_block_index];
-    Assert(field_index < block.field_count);
-    Assert(field_element_index < block.fields[field_index].count);
-    
-    return get_uniform_block_field_offset_gpu_aligned(block.fields, field_index, field_element_index);
-}
-
-u32 get_uniform_block_size_gpu_aligned(s32 uniform_block_index) {
-    const auto &block = render_registry.uniform_blocks[uniform_block_index];
-    return get_uniform_block_size_gpu_aligned(block.fields, block.field_count);
-}
-
-void set_uniform_block_value(s32 uniform_block_index, u32 offset, const void *data, u32 size) {
-    auto &block = render_registry.uniform_blocks[uniform_block_index];
-    Assert(offset < block.gpu_size);
-
-    const auto &uniform_buffer = render_registry.uniform_buffers[block.uniform_buffer_index];
-    glNamedBufferSubData(uniform_buffer.id, block.offset + offset, size, data);
-}
-
-void set_uniform_block_value(s32 uniform_block_index, s32 field_index, s32 field_element_index, const void *data, u32 size) {
-    const u32 field_offset = get_uniform_block_field_offset_gpu_aligned(uniform_block_index, field_index, field_element_index);
-    set_uniform_block_value(uniform_block_index, field_offset, data, size);
+u32 get_uniform_block_field_offset_gpu_aligned(Uniform_Block *block, s32 field_index, s32 field_element_index) {
+    Assert(field_index < block->field_count);
+    Assert(field_element_index < block->fields[field_index].count);
+    return get_uniform_block_field_offset_gpu_aligned(block->fields, field_index, field_element_index);
 }
 
 static s32 gl_texture_format(Texture_Format_Type format) {
@@ -951,57 +898,42 @@ static s32 gl_texture_data_type(Texture_Format_Type format) {
     }
 }
 
-s32 create_texture(Texture_Type texture_type, Texture_Format_Type format_type, s32 width, s32 height, void *data) {
-    Texture texture = {0};
-    texture.type = texture_type;
-    texture.format = format_type;
-    texture.width = width;
-    texture.height = height;
-
-    const s32 type            = gl_texture_type(texture_type);
-    const s32 format          = gl_texture_format(format_type);
-    const s32 internal_format = gl_texture_internal_format(format_type);
-    const s32 data_type       = gl_texture_data_type(format_type);
-
-    glCreateTextures(type, 1, &texture.id);
+rid r_create_texture(Texture_Type type, Texture_Format_Type format, s32 width, s32 height, void *data) {
+    const s32 gl_type            = gl_texture_type(type);
+    const s32 gl_format          = gl_texture_format(format);
+    const s32 gl_internal_format = gl_texture_internal_format(format);
+    const s32 gl_data_type       = gl_texture_data_type(format);
     
-    if (type < 0 || format < 0 || internal_format < 0 || data_type < 0) {
-        error("Failed to create texture, see errors above");
-        return INVALID_INDEX;
-    }
-    
-	glBindTexture(type, texture.id);
-
-    // @Todo: properly set data based on texture type.
-    glTexImage2D(type, 0, internal_format, width, height, 0, format, data_type, data);
-    //glTextureStorage2D(texture.id, 1, internal_format, width, height);
-    
-	glBindTexture(type, 0);
-    
-    return render_registry.textures.add(texture);
+    rid rid;
+    glCreateTextures(gl_type, 1, &rid);
+    glBindTexture(gl_type, rid);
+    glTexImage2D(gl_type, 0, gl_internal_format, width, height, 0, gl_format, gl_data_type, data);
+    glBindTexture(gl_type, 0);
+    return rid;
 }
 
-bool recreate_texture(s32 texture_index, Texture_Type texture_type, Texture_Format_Type format_type, s32 width, s32 height, void *data) {
-    auto &texture = render_registry.textures[texture_index];
-    
-    const s32 type            = gl_texture_type(texture_type);
-    const s32 format          = gl_texture_format(format_type);
-    const s32 internal_format = gl_texture_internal_format(format_type);
-    const s32 data_type       = gl_texture_data_type(format_type);
-    
-    if (type < 0 || format < 0 || internal_format < 0 || data_type < 0) {
-        error("Failed to create texture, see errors above");
-        return false;
+void init_texture_asset(Texture *texture, void *data) {
+    const s32 gl_type            = gl_texture_type(texture->type);
+    const s32 gl_format          = gl_texture_format(texture->format);
+    const s32 gl_internal_format = gl_texture_internal_format(texture->format);
+    const s32 gl_data_type       = gl_texture_data_type(texture->format);
+
+    if (texture->rid == RID_NONE) {
+        glCreateTextures(gl_type, 1, &texture->rid);
     }
     
-	glBindTexture(type, texture.id);
+    if (gl_type < 0 || gl_format < 0 || gl_internal_format < 0 || gl_data_type < 0) {
+        error("Failed to create texture, see errors above");
+        return;
+    }
+    
+	glBindTexture(gl_type, texture->rid);
 
     // @Todo: properly set data based on texture type.
-    glTexImage2D(type, 0, internal_format, width, height, 0, format, data_type, data);
+    glTexImage2D(gl_type, 0, gl_internal_format, texture->width, texture->height, 0, gl_format, gl_data_type, data);
+    //glTextureStorage2D(texture.id, 1, internal_format, width, height);
     
-	glBindTexture(type, 0);
-
-    return true;
+	glBindTexture(gl_type, 0);
 }
 
 static s32 gl_texture_wrap(Texture_Wrap_Type wrap) {
@@ -1013,15 +945,18 @@ static s32 gl_texture_wrap(Texture_Wrap_Type wrap) {
     }
 }
 
-void set_texture_wrap(s32 texture_index, Texture_Wrap_Type wrap_type) {
-    auto &texture = render_registry.textures[texture_index];
-    texture.wrap = wrap_type;
-    
-    const s32 type = gl_texture_type(texture.type);
-    const s32 wrap = gl_texture_wrap(wrap_type);
+void r_set_texture_wrap(rid rid_texture, Texture_Wrap_Type wrap) {
+    const s32 gl_wrap = gl_texture_wrap(wrap);
+    glTextureParameteri(rid_texture, GL_TEXTURE_WRAP_S, gl_wrap);
+    glTextureParameteri(rid_texture, GL_TEXTURE_WRAP_T, gl_wrap);
+}
 
-    glTextureParameteri(texture.id, GL_TEXTURE_WRAP_S, wrap);
-    glTextureParameteri(texture.id, GL_TEXTURE_WRAP_T, wrap);
+void set_texture_wrap(Texture *texture, Texture_Wrap_Type wrap) {
+    texture->wrap = wrap;
+    
+    const s32 gl_wrap = gl_texture_wrap(wrap);
+    glTextureParameteri(texture->rid, GL_TEXTURE_WRAP_S, gl_wrap);
+    glTextureParameteri(texture->rid, GL_TEXTURE_WRAP_T, gl_wrap);
 }
 
 static s32 gl_texture_min_filter(Texture_Filter_Type filter, bool has_mipmaps) {
@@ -1045,70 +980,47 @@ static s32 gl_texture_mag_filter(Texture_Filter_Type filter) {
     }
 }
 
-void set_texture_filter(s32 texture_index, Texture_Filter_Type filter_type) {
-    auto &texture = render_registry.textures[texture_index];
-    texture.filter = filter_type;
+void r_set_texture_filter(rid rid_texture, Texture_Filter_Type filter, bool has_mipmaps) {
+    const s32 gl_min_filter = gl_texture_min_filter(filter, has_mipmaps);
+    const s32 gl_mag_filter = gl_texture_mag_filter(filter);
 
-    const bool has_mipmaps = texture.flags & TEXTURE_FLAG_HAS_MIPMAPS;
+    glTextureParameteri(rid_texture, GL_TEXTURE_MIN_FILTER, gl_min_filter);
+    glTextureParameteri(rid_texture, GL_TEXTURE_MAG_FILTER, gl_mag_filter);
+}
+
+void set_texture_filter(Texture *texture, Texture_Filter_Type filter) {
+    texture->filter = filter;
+
+    const bool has_mipmaps = texture->flags & TEXTURE_FLAG_HAS_MIPMAPS;
     
-    const s32 type = gl_texture_type(texture.type);
-    const s32 min_filter = gl_texture_min_filter(filter_type, has_mipmaps);
-    const s32 mag_filter = gl_texture_mag_filter(filter_type);
+    const s32 gl_min_filter = gl_texture_min_filter(filter, has_mipmaps);
+    const s32 gl_mag_filter = gl_texture_mag_filter(filter);
 
-    glTextureParameteri(texture.id, GL_TEXTURE_MIN_FILTER, min_filter);
-    glTextureParameteri(texture.id, GL_TEXTURE_MAG_FILTER, mag_filter);
+    glTextureParameteri(texture->rid, GL_TEXTURE_MIN_FILTER, gl_min_filter);
+    glTextureParameteri(texture->rid, GL_TEXTURE_MAG_FILTER, gl_mag_filter);
 }
 
-void generate_texture_mipmaps(s32 texture_index) {
-    auto &texture = render_registry.textures[texture_index];
-    texture.flags |= TEXTURE_FLAG_HAS_MIPMAPS;
-
-    const s32 type = gl_texture_type(texture.type);
-    glGenerateTextureMipmap(texture.id);
+void generate_texture_mipmaps(Texture *texture) {
+    texture->flags |= TEXTURE_FLAG_HAS_MIPMAPS;
+    glGenerateTextureMipmap(texture->rid);
 }
 
-void delete_texture(s32 texture_index) {
-    auto *texture = render_registry.textures.find(texture_index);
-    if (!texture) {
-        warn("Failed to delete invalid texture %d", texture_index);
-        return;
-    }
-
-    glDeleteTextures(1, &texture->id);
-    render_registry.textures.remove(texture_index);
+void r_delete_texture(rid rid_texture) {
+    glDeleteTextures(1, &rid_texture);
 }
 
-Font_Atlas *bake_font_atlas(const Font *font, u32 start_charcode, u32 end_charcode, s16 font_size) {
-	Font_Atlas *atlas = alloclt(Font_Atlas);
-	atlas->font = font;
-	atlas->texture_index = INVALID_INDEX;
-
-	const u32 charcode_count = end_charcode - start_charcode + 1;
-	atlas->metrics = allocltn(Font_Glyph_Metric, charcode_count);
-	atlas->start_charcode = start_charcode;
-	atlas->end_charcode = end_charcode;
-	atlas->texture_index = create_texture(TEXTURE_TYPE_2D_ARRAY, TEXTURE_FORMAT_RGBA_8, font_size, font_size, null);
-
-    set_texture_filter(atlas->texture_index, TEXTURE_FILTER_NEAREST);
-    
-	rescale_font_atlas(atlas, font_size);
-
-	return atlas;
+void delete_texture(Texture *texture) {
+    glDeleteTextures(1, &texture->rid);
+    texture->rid = RID_NONE;
 }
 
 void rescale_font_atlas(Font_Atlas *atlas, s16 font_size) {
-	if (atlas->texture_index == INVALID_INDEX) {
+	if (atlas->rid_texture == RID_NONE) {
 		error("Failed to rescale font atlas with invalid texture");
 		return;
 	}
 
-	auto &texture = render_registry.textures[atlas->texture_index];
-	Assert(texture.type == TEXTURE_TYPE_2D_ARRAY);
-
-	texture.width = font_size;
-	texture.height = font_size;
-
-	const Font *font = atlas->font;
+	const Font_Info *font = atlas->font;
 	atlas->font_size = font_size;
 
 	const u32 charcode_count = atlas->end_charcode - atlas->start_charcode + 1;
@@ -1127,7 +1039,7 @@ void rescale_font_atlas(Font_Atlas *atlas, s16 font_size) {
 	// stbtt rasterizes glyphs as 8bpp, so tell GL to use 1 byte per color channel.
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
-	glBindTexture(GL_TEXTURE_2D_ARRAY, texture.id);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, atlas->rid_texture);
 	glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_R8, atlas->font_size, atlas->font_size, charcode_count, 0, GL_RED, GL_UNSIGNED_BYTE, null);
 
 	u8 *bitmap = (u8 *)allocl(font_size * font_size);

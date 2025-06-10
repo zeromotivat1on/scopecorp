@@ -20,58 +20,23 @@
 #include "render/render_init.h"
 #include "render/render_stats.h"
 #include "render/render_command.h"
-#include "render/render_registry.h"
-#include "render/geometry_draw.h"
+#include "render/buffer_storage.h"
+#include "render/geometry.h"
 #include "render/viewport.h"
+#include "render/shader.h"
+#include "render/texture.h"
+#include "render/material.h"
+#include "render/uniform.h"
+#include "render/mesh.h"
 #include "render/ui.h"
 
-#include "audio/audio_registry.h"
+#include "audio/sound.h"
 
 #include "game/world.h"
 #include "game/game.h"
 
 #include "editor/hot_reload.h"
 #include "editor/debug_console.h"
-
-static void fill_cube_vertices(Vertex_Entity *vertices, s32 entity_id) {
-    s32 i = 0;
-    
-    // Front face
-    vertices[i++] = { vec3(-0.5f,  0.5f,  0.5f), vec3_forward, vec2(0.0f, 0.0f), entity_id };
-    vertices[i++] = { vec3( 0.5f,  0.5f,  0.5f), vec3_forward, vec2(1.0f, 0.0f), entity_id };
-    vertices[i++] = { vec3(-0.5f, -0.5f,  0.5f), vec3_forward, vec2(0.0f, 1.0f), entity_id };
-    vertices[i++] = { vec3( 0.5f, -0.5f,  0.5f), vec3_forward, vec2(1.0f, 1.0f), entity_id };
-
-    // Back face
-    vertices[i++] = { vec3(-0.5f,  0.5f, -0.5f), vec3_back, vec2(0.0f, 0.0f), entity_id };
-    vertices[i++] = { vec3( 0.5f,  0.5f, -0.5f), vec3_back, vec2(1.0f, 0.0f), entity_id };
-    vertices[i++] = { vec3(-0.5f, -0.5f, -0.5f), vec3_back, vec2(0.0f, 1.0f), entity_id };
-    vertices[i++] = { vec3( 0.5f, -0.5f, -0.5f), vec3_back, vec2(1.0f, 1.0f), entity_id };
-
-    // Left face
-    vertices[i++] = { vec3(-0.5f,  0.5f, -0.5f), vec3_left, vec2(0.0f, 0.0f), entity_id };
-    vertices[i++] = { vec3(-0.5f,  0.5f,  0.5f), vec3_left, vec2(1.0f, 0.0f), entity_id };
-    vertices[i++] = { vec3(-0.5f, -0.5f, -0.5f), vec3_left, vec2(0.0f, 1.0f), entity_id };
-    vertices[i++] = { vec3(-0.5f, -0.5f,  0.5f), vec3_left, vec2(1.0f, 1.0f), entity_id };
-
-    // Right face
-    vertices[i++] = { vec3( 0.5f,  0.5f, -0.5f), vec3_right, vec2(0.0f, 0.0f), entity_id };
-    vertices[i++] = { vec3( 0.5f,  0.5f,  0.5f), vec3_right, vec2(1.0f, 0.0f), entity_id };
-    vertices[i++] = { vec3( 0.5f, -0.5f, -0.5f), vec3_right, vec2(0.0f, 1.0f), entity_id };
-    vertices[i++] = { vec3( 0.5f, -0.5f,  0.5f), vec3_right, vec2(1.0f, 1.0f), entity_id };
-
-    // Top face
-    vertices[i++] = { vec3(-0.5f,  0.5f, -0.5f), vec3_up, vec2(0.0f, 0.0f), entity_id };
-    vertices[i++] = { vec3( 0.5f,  0.5f, -0.5f), vec3_up, vec2(1.0f, 0.0f), entity_id };
-    vertices[i++] = { vec3(-0.5f,  0.5f,  0.5f), vec3_up, vec2(0.0f, 1.0f), entity_id };
-    vertices[i++] = { vec3( 0.5f,  0.5f,  0.5f), vec3_up, vec2(1.0f, 1.0f), entity_id };
-
-    // Bottom face
-    vertices[i++] = { vec3(-0.5f, -0.5f, -0.5f), vec3_down, vec2(0.0f, 0.0f), entity_id };
-    vertices[i++] = { vec3( 0.5f, -0.5f, -0.5f), vec3_down, vec2(1.0f, 0.0f), entity_id };
-    vertices[i++] = { vec3(-0.5f, -0.5f,  0.5f), vec3_down, vec2(0.0f, 1.0f), entity_id };
-    vertices[i++] = { vec3( 0.5f, -0.5f,  0.5f), vec3_down, vec2(1.0f, 1.0f), entity_id };
-}
 
 s32 main() {
     PROFILE_START(startup, "Startup");
@@ -85,7 +50,7 @@ s32 main() {
     init_sid_table();
 	init_input_table();
     
-	window = create_window(1280, 720, GAME_NAME, 0, 0);
+	window = create_window(1920, 1080, GAME_NAME, 0, 0);
 	if (!window) {
 		error("Failed to create window");
 		return 1;
@@ -100,50 +65,51 @@ s32 main() {
 
     detect_render_capabilities();
 
+    r_init_buffer_storages();
+    
     init_audio_context();
 
     lock_cursor(window, true);
     set_vsync(false);
     stbi_set_flip_vertically_on_load(true);
-    
-    init_render_registry(&render_registry);
-    init_audio_registry();
 
-    cache_shader_sids(&shader_sids);
+    uniform_value_cache.data = allocl(MAX_UNIFORM_VALUE_CACHE_SIZE);
+    uniform_value_cache.size = 0;
+    uniform_value_cache.capacity = MAX_UNIFORM_VALUE_CACHE_SIZE;
+    
     cache_texture_sids(&texture_sids);
-    cache_sound_sids(&sound_sids);
 
-    init_asset_source_table(&asset_source_table);
-    init_asset_table(&asset_table);
-    
+    init_asset_source_table();
+    init_asset_table();
+
+#if DEVELOPER
     save_asset_pack(GAME_ASSET_PACK_PATH);
-    load_asset_pack(GAME_ASSET_PACK_PATH, &asset_table);
+#endif
+    
+    load_asset_pack(GAME_ASSET_PACK_PATH);
     
     // @Cleanup: move these to asset pak?
-	create_game_materials(&material_index_list);
 	create_game_flip_books(&flip_books);
     
     viewport.aspect_type = VIEWPORT_4X3;
     viewport.resolution_scale = 1.0f;
-
-
+    
     const Texture_Format_Type color_attachments[] = { TEXTURE_FORMAT_RGB_8, TEXTURE_FORMAT_RED_INTEGER };
-    viewport.frame_buffer_index = create_frame_buffer(window->width, window->height,
-                                                      color_attachments, COUNT(color_attachments),
-                                                      TEXTURE_FORMAT_DEPTH_24_STENCIL_8);
+    r_init_frame_buffer(window->width, window->height,
+                        color_attachments, COUNT(color_attachments),
+                        TEXTURE_FORMAT_DEPTH_24_STENCIL_8,
+                        &viewport.frame_buffer);
 
-    auto &viewport_frame_buffer = render_registry.frame_buffers[viewport.frame_buffer_index];
-
-    viewport_frame_buffer.quantize_color_count = 32;
+    viewport.frame_buffer.quantize_color_count = 32;
     
 #if 0
-    viewport_frame_buffer.pixel_size                  = 1.0f;
-    viewport_frame_buffer.curve_distortion_factor     = 0.25f;
-    viewport_frame_buffer.chromatic_aberration_offset = 0.002f;
-    viewport_frame_buffer.quantize_color_count        = 16;
-    viewport_frame_buffer.noise_blend_factor          = 0.1f;
-    viewport_frame_buffer.scanline_count              = 64;
-    viewport_frame_buffer.scanline_intensity          = 0.95f;
+    viewport.frame_buffer.pixel_size                  = 1.0f;
+    viewport.frame_buffer.curve_distortion_factor     = 0.25f;
+    viewport.frame_buffer.chromatic_aberration_offset = 0.002f;
+    viewport.frame_buffer.quantize_color_count        = 16;
+    viewport.frame_buffer.noise_blend_factor          = 0.1f;
+    viewport.frame_buffer.scanline_count              = 64;
+    viewport.frame_buffer.scanline_intensity          = 0.95f;
 #endif
     
     resize_viewport(&viewport, window->width, window->height);
@@ -152,13 +118,18 @@ s32 main() {
     init_debug_console();
 
     init_render_queue(&entity_render_queue, MAX_RENDER_QUEUE_SIZE);
-    init_geo_draw();
+    geo_init();
 
+    // @Cleanup: just make it better.
+    extern void r_init_frame_buffer_draw();
+    r_init_frame_buffer_draw();
+    
 	Hot_Reload_List hot_reload_list = {};
     // @Note: shader includes does not count as shader hot reload.
 	register_hot_reload_directory(&hot_reload_list, DIR_SHADERS);
 	register_hot_reload_directory(&hot_reload_list, DIR_TEXTURES);
-	register_hot_reload_directory(&hot_reload_list, DIR_SOUNDS);
+	register_hot_reload_directory(&hot_reload_list, DIR_MATERIALS);
+	register_hot_reload_directory(&hot_reload_list, DIR_MESHES);
     
     world = alloclt(World);
 	init_world(world);
@@ -167,11 +138,10 @@ s32 main() {
     str_copy(world->name, "main");
 
 	auto &player = world->player;
-	{   // Create player.
+	{
         player.id = 1;
 
-        const auto *asset = asset_table.find(texture_sids.player_idle[DIRECTION_BACK]);
-        const auto &texture = render_registry.textures[asset->registry_index];
+        const auto &texture = asset_table.textures[texture_sids.player_idle[DIRECTION_BACK]];
         
         const f32 scale_aspect = (f32)texture.width / texture.height;
         const f32 y_scale = 1.0f * scale_aspect;
@@ -182,68 +152,46 @@ s32 main() {
 		player.scale = vec3(x_scale, y_scale, 1.0f);
         player.location = vec3(0.0f, F32_MIN, 0.0f);
 
-		player.draw_data.material_index = material_index_list.player;
-
-        static const vec3 uv_scale = vec3(1.0f);
-		set_material_uniform_value(player.draw_data.material_index, "u_uv_scale", &uv_scale);
+		player.draw_data.sid_mesh     = SID_MESH_PLAYER;
+		player.draw_data.sid_material = SID_MATERIAL_PLAYER;
+        player.draw_data.eid_vertex_data_offset = EID_VERTEX_DATA_SIZE;
         
-        // Little uv offset as source textures have small transient border.
-        const f32 uv_offset = 0.02f;
-		const Vertex_Entity vertices[4] = { // center in bottom mid point of quad
-			{ vec3( 0.5f,  1.0f, 0.0f), vec3_up, vec2(1.0f - uv_offset, 1.0f - uv_offset), player.id },
-            { vec3( 0.5f,  0.0f, 0.0f), vec3_up, vec2(1.0f - uv_offset, 0.0f + uv_offset), player.id },
-            { vec3(-0.5f,  0.0f, 0.0f), vec3_up, vec2(0.0f + uv_offset, 0.0f + uv_offset), player.id },
-            { vec3(-0.5f,  1.0f, 0.0f), vec3_up, vec2(0.0f + uv_offset, 1.0f - uv_offset), player.id },
-		};
+        *(u32 *)((u8 *)EID_VERTEX_DATA + EID_VERTEX_DATA_SIZE) = player.id;
+        EID_VERTEX_DATA_SIZE += sizeof(u32);
+            
+        const vec2 uv_scale = vec2(1.0f);
+        auto &material = asset_table.materials[player.draw_data.sid_material];
+		set_material_uniform_value(&material, "u_uv_scale", &uv_scale, sizeof(uv_scale));
         
-        Vertex_Array_Binding binding = {};
-        binding.layout_size = COUNT(vertex_entity_layout);
-        copy_bytes(binding.layout, vertex_entity_layout, sizeof(vertex_entity_layout));
-        binding.vertex_buffer_index = create_vertex_buffer(vertices, COUNT(vertices) * sizeof(Vertex_Entity), BUFFER_USAGE_STATIC);
-        
-		player.draw_data.vertex_array_index = create_vertex_array(&binding, 1);
-
-		const u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
-		player.draw_data.index_buffer_index = create_index_buffer(indices, COUNT(indices), BUFFER_USAGE_STATIC);
-
-        player.steps_sid = sound_sids.player_steps;
+        player.sid_sound_steps = SID_SOUND_PLAYER_STEPS;
 	}
 
 	auto &ground = world->static_meshes[create_static_mesh(world)];
-	{   // Create ground.
+	{
         ground.id = 10;
         
-		ground.scale = vec3(32.0f, 32.0f, 0.0f);
+		ground.scale = vec3(16.0f, 16.0f, 0.0f);
         ground.rotation = quat_from_axis_angle(vec3_right, 90.0f);
 
         auto &aabb = world->aabbs[ground.aabb_index];
-        const vec3 aabb_offset = vec3(ground.scale.x, 0.0f, ground.scale.y);
+        const vec3 aabb_offset = vec3(ground.scale.x * 2, 0.0f, ground.scale.y * 2);
         aabb.min = ground.location - aabb_offset * 0.5f;
 		aabb.max = aabb.min + aabb_offset;
 
-        ground.draw_data.material_index = material_index_list.ground;
-		set_material_uniform_value(ground.draw_data.material_index, "u_uv_scale", &ground.scale);
-
-		const Vertex_Entity vertices[] = {
-			{ vec3( 0.5f,  0.5f, 0.0f), vec3_up, vec2(1.0f, 1.0f), ground.id },
-            { vec3( 0.5f, -0.5f, 0.0f), vec3_up, vec2(1.0f, 0.0f), ground.id },
-            { vec3(-0.5f, -0.5f, 0.0f), vec3_up, vec2(0.0f, 0.0f), ground.id },
-            { vec3(-0.5f,  0.5f, 0.0f), vec3_up, vec2(0.0f, 1.0f), ground.id },
-		};
+        ground.draw_data.sid_mesh     = SID_MESH_QUAD;
+        ground.draw_data.sid_material = SID_MATERIAL_GROUND;
+        ground.draw_data.eid_vertex_data_offset = EID_VERTEX_DATA_SIZE;
         
-        Vertex_Array_Binding binding = {};
-        binding.layout_size = COUNT(vertex_entity_layout);
-        copy_bytes(binding.layout, vertex_entity_layout, sizeof(vertex_entity_layout));
-        binding.vertex_buffer_index = create_vertex_buffer(vertices, COUNT(vertices) * sizeof(Vertex_Entity), BUFFER_USAGE_STATIC);
-        
-		ground.draw_data.vertex_array_index = create_vertex_array(&binding, 1);
+        *(u32 *)((u8 *)EID_VERTEX_DATA + EID_VERTEX_DATA_SIZE) = ground.id;
+        EID_VERTEX_DATA_SIZE += sizeof(u32);
 
-		const u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
-		ground.draw_data.index_buffer_index = create_index_buffer(indices, COUNT(indices), BUFFER_USAGE_STATIC);
+        auto &material = asset_table.materials[ground.draw_data.sid_material];
+        const vec2 uv_scale = vec2(ground.scale.x, ground.scale.y);
+		set_material_uniform_value(&material, "u_uv_scale", &uv_scale, sizeof(uv_scale));
 	}
 
 	auto &cube = world->static_meshes[create_static_mesh(world)];
-	{   // Create cube.
+	{
         cube.id = 20;
                 
 		cube.location = vec3(3.0f, 0.5f, 4.0f);
@@ -252,62 +200,29 @@ s32 main() {
 		aabb.min = cube.location - cube.scale * 0.5f;
 		aabb.max = aabb.min + cube.scale;
 
-		cube.draw_data.material_index = material_index_list.cube;
-
-        const vec3 uv_scale = vec3(1.0f);
-		set_material_uniform_value(cube.draw_data.material_index, "u_uv_scale", &uv_scale);
+		cube.draw_data.sid_mesh     = SID_MESH_CUBE;
+		cube.draw_data.sid_material = SID_MATERIAL_CUBE;
+        cube.draw_data.eid_vertex_data_offset = EID_VERTEX_DATA_SIZE;
         
-		Vertex_Entity vertices[24];
-        fill_cube_vertices(vertices, cube.id);
+        *(u32 *)((u8 *)EID_VERTEX_DATA + EID_VERTEX_DATA_SIZE) = cube.id;
+        EID_VERTEX_DATA_SIZE += sizeof(u32);
         
-        Vertex_Array_Binding binding = {};
-        binding.layout_size = COUNT(vertex_entity_layout);
-        copy_bytes(binding.layout, vertex_entity_layout, sizeof(vertex_entity_layout));
-        binding.vertex_buffer_index = create_vertex_buffer(vertices, COUNT(vertices) * sizeof(Vertex_Entity), BUFFER_USAGE_STATIC);
-                
-		cube.draw_data.vertex_array_index = create_vertex_array(&binding, 1);
-
-		const u32 indices[] = {
-			// Front face
-			0,   1,  2,  1,  3,  2,
-			// Back face
-			4,   6,  5,  5,  6,  7,
-			// Left face
-			8,   9, 10,  9, 11, 10,
-			// Right face
-			12, 14, 13, 13, 14, 15,
-			// Bottom face
-			16, 17, 18, 17, 19, 18,
-			// Top face
-			20, 22, 21, 21, 22, 23
-		};
-        
-		cube.draw_data.index_buffer_index = create_index_buffer(indices, COUNT(indices), BUFFER_USAGE_STATIC);
+        const vec2 uv_scale = vec2(1.0f);
+        auto &material = asset_table.materials[cube.draw_data.sid_material];
+		set_material_uniform_value(&material, "u_uv_scale", &uv_scale, sizeof(uv_scale));
 	}
 
 	auto &skybox = world->skybox;
-	{   // Create skybox.
+	{
         skybox.id = S32_MAX;
         skybox.uv_scale = vec2(8.0f, 4.0f);
         
-		skybox.draw_data.material_index = material_index_list.skybox;
-
-		Vertex_Entity vertices[] = {
-			{ vec3( 1.0f,  1.0f, 1.0f - F32_EPSILON), vec3_zero, vec2(1.0f, 1.0f), skybox.id },
-            { vec3( 1.0f, -1.0f, 1.0f - F32_EPSILON), vec3_zero, vec2(1.0f, 0.0f), skybox.id },
-            { vec3(-1.0f, -1.0f, 1.0f - F32_EPSILON), vec3_zero, vec2(0.0f, 0.0f), skybox.id },
-            { vec3(-1.0f,  1.0f, 1.0f - F32_EPSILON), vec3_zero, vec2(0.0f, 1.0f), skybox.id },
-		};
-
-        Vertex_Array_Binding binding = {};
-        binding.layout_size = COUNT(vertex_entity_layout);
-        copy_bytes(binding.layout, vertex_entity_layout, sizeof(vertex_entity_layout));
-        binding.vertex_buffer_index = create_vertex_buffer(vertices, COUNT(vertices) * sizeof(Vertex_Entity), BUFFER_USAGE_STATIC);
-                
-		skybox.draw_data.vertex_array_index = create_vertex_array(&binding, 1);
+		skybox.draw_data.sid_mesh     = SID_MESH_SKYBOX;
+		skybox.draw_data.sid_material = SID_MATERIAL_SKYBOX;
+        skybox.draw_data.eid_vertex_data_offset = EID_VERTEX_DATA_SIZE;
         
-		const u32 indices[6] = { 0, 2, 1, 2, 0, 3 };
-		skybox.draw_data.index_buffer_index = create_index_buffer(indices, COUNT(indices), BUFFER_USAGE_STATIC);
+        *(u32 *)((u8 *)EID_VERTEX_DATA + EID_VERTEX_DATA_SIZE) = skybox.id;
+        EID_VERTEX_DATA_SIZE += sizeof(u32);
 	}
     
     
@@ -375,14 +290,15 @@ s32 main() {
 
 	world->ed_camera = camera;
 
-    save_world(world);
+    //save_world_level(world);
 #else
-    load_world(world, "C:/dev/scopecorp/run_tree/data/levels/main.wl");    
+    char main_level_path[MAX_PATH_SIZE];
+    convert_to_full_asset_path(main_level_path, "/data/levels/main.wl");
+    //load_world_level(world, main_level_path);    
 #endif
       
     {
-        constexpr u32 UNIFORM_BUFFER_SIZE = KB(16);
-        const s32 ubi = create_uniform_buffer(UNIFORM_BUFFER_SIZE);
+        RID_UNIFORM_BUFFER = r_create_uniform_buffer(MAX_UNIFORM_BUFFER_SIZE);
         
         constexpr s32 MAX_UNIFORM_LIGHTS = 64; // must be the same as in shaders
         static_assert(MAX_UNIFORM_LIGHTS >= MAX_POINT_LIGHTS + MAX_DIRECT_LIGHTS);
@@ -418,13 +334,29 @@ s32 main() {
             { UNIFORM_F32,   MAX_POINT_LIGHTS },
         };
 
-        UNIFORM_BLOCK_CAMERA = create_uniform_block(ubi, UNIFORM_BINDING_CAMERA, UNIFORM_BLOCK_NAME_CAMERA, camera_fields, COUNT(camera_fields));
+        r_add_uniform_block(RID_UNIFORM_BUFFER,
+                            UNIFORM_BLOCK_BINDING_CAMERA,
+                            UNIFORM_BLOCK_NAME_CAMERA,
+                            camera_fields, COUNT(camera_fields),
+                            &uniform_block_camera);
 
-        UNIFORM_BLOCK_VIEWPORT = create_uniform_block(ubi, UNIFORM_BINDING_VIEWPORT, UNIFORM_BLOCK_NAME_VIEWPORT, viewport_fields, COUNT(viewport_fields));
-        
-        UNIFORM_BLOCK_DIRECT_LIGHTS = create_uniform_block(ubi, UNIFORM_BINDING_DIRECT_LIGHTS, UNIFORM_BLOCK_NAME_DIRECT_LIGHTS, direct_light_fields, COUNT(direct_light_fields));
-        
-        UNIFORM_BLOCK_POINT_LIGHTS = create_uniform_block(ubi, UNIFORM_BINDING_POINT_LIGHTS, UNIFORM_BLOCK_NAME_POINT_LIGHTS, point_light_fields, COUNT(point_light_fields));
+        r_add_uniform_block(RID_UNIFORM_BUFFER,
+                            UNIFORM_BLOCK_BINDING_VIEWPORT,
+                            UNIFORM_BLOCK_NAME_VIEWPORT,
+                            viewport_fields, COUNT(viewport_fields),
+                            &uniform_block_viewport);
+
+        r_add_uniform_block(RID_UNIFORM_BUFFER,
+                            UNIFORM_BLOCK_BINDING_DIRECT_LIGHTS,
+                            UNIFORM_BLOCK_NAME_DIRECT_LIGHTS,
+                            direct_light_fields, COUNT(direct_light_fields),
+                            &uniform_block_direct_lights);
+
+        r_add_uniform_block(RID_UNIFORM_BUFFER,
+                            UNIFORM_BLOCK_BINDING_POINT_LIGHTS,
+                            UNIFORM_BLOCK_NAME_POINT_LIGHTS,
+                            point_light_fields, COUNT(point_light_fields),
+                            &uniform_block_point_lights);
     }
 
 	delta_time = 0.0f;
@@ -437,17 +369,18 @@ s32 main() {
         PROFILE_SCOPE("game_frame");
 
 		poll_events(window);
+
+        // @Cleanup: this one is pretty slow, but bearable for now.
+        // Move to other thread later if it becomes a big deal.
+        check_for_hot_reload(&hot_reload_list);
+
         tick(world, delta_time);        
 		//set_listener_pos(player.location);
-
-        // @Cleanup: this one is pretty slow, but bearable for now (~0.2ms);
-        // move to other thread later if it becomes a big deal.
-        check_for_hot_reload(&hot_reload_list);
 
 #if 0
         static f32 pixel_size_time = -1.0f;
         if (pixel_size_time > 180.0f) pixel_size_time = 0.0f;
-        viewport_frame_buffer.pixel_size = (sin(pixel_size_time) + 1.0f) * viewport_frame_buffer.width * 0.05f;
+        viewport.frame_buffer.pixel_size = (sin(pixel_size_time) + 1.0f) * viewport.frame_buffer.width * 0.05f;
         pixel_size_time += delta_time * 4.0f;
 #endif
         
@@ -455,13 +388,13 @@ s32 main() {
         frame_buffer_command.flags = RENDER_FLAG_VIEWPORT | RENDER_FLAG_SCISSOR;
         frame_buffer_command.viewport.x = 0;
         frame_buffer_command.viewport.y = 0;
-        frame_buffer_command.viewport.width  = viewport_frame_buffer.width;
-        frame_buffer_command.viewport.height = viewport_frame_buffer.height;
+        frame_buffer_command.viewport.width  = viewport.frame_buffer.width;
+        frame_buffer_command.viewport.height = viewport.frame_buffer.height;
         frame_buffer_command.scissor.x = 0;
         frame_buffer_command.scissor.y = 0;
-        frame_buffer_command.scissor.width  = viewport_frame_buffer.width;
-        frame_buffer_command.scissor.height = viewport_frame_buffer.height;
-        frame_buffer_command.frame_buffer_index = viewport.frame_buffer_index;
+        frame_buffer_command.scissor.width  = viewport.frame_buffer.width;
+        frame_buffer_command.scissor.height = viewport.frame_buffer.height;
+        frame_buffer_command.rid_frame_buffer = viewport.frame_buffer.rid;
         submit(&frame_buffer_command);
 
         {
@@ -475,7 +408,7 @@ s32 main() {
         draw_world(world);
 
 #if DEVELOPER
-        draw_geo_debug();
+        geo_draw_debug();
         draw_dev_stats();
         draw_debug_console();
 #endif
@@ -483,7 +416,7 @@ s32 main() {
         update_render_stats();
         
 		flush(&entity_render_queue);
-        flush_geo_draw();
+        geo_flush();
          
         frame_buffer_command.flags = RENDER_FLAG_RESET;
         submit(&frame_buffer_command);
@@ -496,7 +429,7 @@ s32 main() {
             submit(&command);
         }
         
-        draw_frame_buffer(viewport.frame_buffer_index, 0);
+        draw_frame_buffer(&viewport.frame_buffer, 0);
         ui_flush();
 
 		swap_buffers(window);
@@ -510,7 +443,9 @@ s32 main() {
         
 #if DEVELOPER
         // If dt is too large, we could have resumed from a breakpoint.
-        if (delta_time > 1.0f) delta_time = 0.16f;
+        if (delta_time > 1.0f) {
+            delta_time = 0.16f;
+        }
 #endif
 	}
 

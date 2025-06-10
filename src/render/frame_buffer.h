@@ -2,20 +2,23 @@
 
 inline constexpr s32 MAX_FRAME_BUFFER_COLOR_ATTACHMENTS = 4;
 
-enum Texture_Format_Type;
+enum Texture_Format_Type : u8;
+
+struct Frame_Buffer_Attachment {
+    rid rid_texture = RID_NONE;
+    Texture_Format_Type format;
+};
 
 struct Frame_Buffer {
-    u32 id = 0;
-    s32 material_index = INVALID_INDEX;
+    rid rid = RID_NONE;
+    sid sid_material = SID_NONE;
+    
     s16 width  = 0;
     s16 height = 0;
 
-    Texture_Format_Type color_attachment_formats[MAX_FRAME_BUFFER_COLOR_ATTACHMENTS];
-    s32 color_attachment_indices[MAX_FRAME_BUFFER_COLOR_ATTACHMENTS];
     s32 color_attachment_count = 0;
-
-    Texture_Format_Type depth_attachment_format;
-    s32 depth_attachment_index = INVALID_INDEX;
+    Frame_Buffer_Attachment color_attachments[MAX_FRAME_BUFFER_COLOR_ATTACHMENTS];
+    Frame_Buffer_Attachment depth_attachment;
 
     f32 pixel_size                  = 1.0f;
     f32 curve_distortion_factor     = 0.0f;
@@ -26,8 +29,8 @@ struct Frame_Buffer {
     f32 scanline_intensity          = 0.0f;
 };
 
-s32  create_frame_buffer(s16 width, s16 height, const Texture_Format_Type *color_attachments, s32 color_attachment_count, Texture_Format_Type depth_attachment);
-void recreate_frame_buffer(s32 fbi, s16 width, s16 height);
-s32 read_frame_buffer_pixel(s32 fbi, s32 color_attachment_index, s32 x, s32 y);
+void r_init_frame_buffer(s16 width, s16 height, const Texture_Format_Type *color_format, s32 color_format_count, Texture_Format_Type depth_format, Frame_Buffer *frame_buffer);
+void r_recreate_frame_buffer(Frame_Buffer *frame_buffer, s16 width, s16 height);
+s32 r_read_frame_buffer_pixel(rid rid_frame_buffer, s32 color_attachment_index, s32 x, s32 y);
 
-void draw_frame_buffer(s32 fbi, s32 color_attachment_index);
+void draw_frame_buffer(Frame_Buffer *frame_buffer, s32 color_attachment_index);

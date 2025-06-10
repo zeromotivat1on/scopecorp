@@ -83,8 +83,8 @@ static bool parse_shader_region(const char *in, char *out, Shader_Region_Type ty
         char relative_path[MAX_PATH_SIZE];
         convert_to_relative_asset_path(relative_path, path);
         
-        const auto &shader_include = asset_table[cache_sid(relative_path)].as_shader_include;
-        str_glue(out, shader_include.source, shader_include.size);
+        const auto &shader_include = asset_table.shader_includes[cache_sid(relative_path)];
+        str_glue(out, (char *)shader_include.data, shader_include.data_size);
 
         // @Robustness: this may lead to undesired behavior if several
         // include statements will be on same line.

@@ -2,8 +2,6 @@
 #include "game/game.h"
 #include "game/world.h"
 
-#include "editor/debug_console.h"
-
 #include "str.h"
 #include "log.h"
 #include "profile.h"
@@ -16,9 +14,13 @@
 #include "os/input.h"
 #include "os/window.h"
 
+#include "editor/debug_console.h"
+
 #include "render/ui.h"
 #include "render/viewport.h"
-#include "render/render_registry.h"
+#include "render/uniform.h"
+#include "render/material.h"
+#include "render/texture.h"
 
 #include "audio/sound.h"
 
@@ -40,17 +42,18 @@ void on_window_event(Window *window, Window_Event *event) {
         viewport.orthographic_projection = mat4_orthographic(0, viewport.width, 0, viewport.height, -1, 1);
 
         const vec2 viewport_resolution = vec2(viewport.width, viewport.height);
-        set_uniform_block_value(UNIFORM_BLOCK_VIEWPORT, 0, 0, &viewport_resolution, get_uniform_type_size_gpu_aligned(UNIFORM_F32_2));        
-        set_uniform_block_value(UNIFORM_BLOCK_VIEWPORT, 1, 0, &viewport.orthographic_projection, get_uniform_type_size_gpu_aligned(UNIFORM_F32_4X4));        
+        r_set_uniform_block_value(&uniform_block_viewport, 0, 0, &viewport_resolution, get_uniform_type_size_gpu_aligned(UNIFORM_F32_2));        
+        r_set_uniform_block_value(&uniform_block_viewport, 1, 0, &viewport.orthographic_projection, get_uniform_type_size_gpu_aligned(UNIFORM_F32_4X4));        
         
         on_viewport_resize(&world->camera, &viewport);
         world->ed_camera = world->camera;
 
         on_debug_console_resize(viewport.width, viewport.height);
 
-        const auto &frame_buffer = render_registry.frame_buffers[viewport.frame_buffer_index];
+        auto &frame_buffer = viewport.frame_buffer;
+        auto &material = asset_table.materials[frame_buffer.sid_material];
         const vec2 frame_buffer_resolution = vec2(frame_buffer.width, frame_buffer.height);
-        set_material_uniform_value(frame_buffer.material_index, "u_resolution", &frame_buffer_resolution);
+        set_material_uniform_value(&material, "u_resolution", &frame_buffer_resolution, sizeof(frame_buffer_resolution));
 
         break;
 	}
@@ -211,7 +214,7 @@ void on_window_event(Window *window, Window_Event *event) {
                             }
                         }
                     } else {
-                        const s32 id = read_frame_buffer_pixel(viewport.frame_buffer_index, 1, input_table.mouse_x, input_table.mouse_y);
+                        const s32 id = r_read_frame_buffer_pixel(viewport.frame_buffer.rid, 1, input_table.mouse_x, input_table.mouse_y);
                         auto *e = find_entity_by_id(world, id);
                         if (e) {
                             mouse_pick_entity(world, e);
@@ -268,7 +271,7 @@ static void write_sparse_array(File file, Sparse_Array<T> *array) {
     write_file(file, array->sparse,   array->capacity * sizeof(s32));
 }
 
-void save_world(World *world) {
+void save_world_level(World *world) {
     START_SCOPE_TIMER(save);
 
     char path[MAX_PATH_SIZE];
@@ -299,17 +302,11 @@ void save_world(World *world) {
     write_sparse_array(file, &world->point_lights);
     write_sparse_array(file, &world->direct_lights);
     write_sparse_array(file, &world->aabbs);
-
-    write_sparse_array(file, &render_registry.vertex_buffers);
-    write_sparse_array(file, &render_registry.vertex_arrays);
-    write_sparse_array(file, &render_registry.index_buffers);
-    write_sparse_array(file, &render_registry.materials);
-    write_sparse_array(file, &render_registry.uniforms);
     
     log("Saved world level %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(save));
 }
 
-void load_world(World *world, const char *path) {
+void load_world_level(World *world, const char *path) {
     START_SCOPE_TIMER(load);
 
     File file = open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_READ);
@@ -332,12 +329,6 @@ void load_world(World *world, const char *path) {
     read_sparse_array(file, &world->direct_lights);
     read_sparse_array(file, &world->aabbs);
 
-    read_sparse_array(file, &render_registry.vertex_buffers);
-    read_sparse_array(file, &render_registry.vertex_arrays);
-    read_sparse_array(file, &render_registry.index_buffers);
-    read_sparse_array(file, &render_registry.materials);
-    read_sparse_array(file, &render_registry.uniforms);
-
     log("Loaded world level %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(load));
 }
 
@@ -346,23 +337,28 @@ void tick(World *world, f32 dt) {
     
 	world->dt = dt;
 
-    play_sound_or_continue(sound_sids.world);
+    play_sound_or_continue(SID_SOUND_WIND_AMBIENCE);
     
 	auto *camera = desired_camera(world);
     update_matrices(camera);
 
-    set_uniform_block_value(UNIFORM_BLOCK_CAMERA, 0, 0, &camera->eye,       get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
-    set_uniform_block_value(UNIFORM_BLOCK_CAMERA, 1, 0, &camera->view,      get_uniform_type_size_gpu_aligned(UNIFORM_F32_4X4));
-    set_uniform_block_value(UNIFORM_BLOCK_CAMERA, 2, 0, &camera->proj,      get_uniform_type_size_gpu_aligned(UNIFORM_F32_4X4));
-    set_uniform_block_value(UNIFORM_BLOCK_CAMERA, 3, 0, &camera->view_proj, get_uniform_type_size_gpu_aligned(UNIFORM_F32_4X4));
+    r_set_uniform_block_value(&uniform_block_camera, 0, 0, &camera->eye,       get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
+    r_set_uniform_block_value(&uniform_block_camera, 1, 0, &camera->view,      get_uniform_type_size_gpu_aligned(UNIFORM_F32_4X4));
+    r_set_uniform_block_value(&uniform_block_camera, 2, 0, &camera->proj,      get_uniform_type_size_gpu_aligned(UNIFORM_F32_4X4));
+    r_set_uniform_block_value(&uniform_block_camera, 3, 0, &camera->view_proj, get_uniform_type_size_gpu_aligned(UNIFORM_F32_4X4));
     
 	auto &skybox = world->skybox;
-	skybox.uv_offset = camera->eye;
-	set_material_uniform_value(skybox.draw_data.material_index, "u_scale", &skybox.uv_scale);
-	set_material_uniform_value(skybox.draw_data.material_index, "u_offset", &skybox.uv_offset);
 
-    set_uniform_block_value(UNIFORM_BLOCK_DIRECT_LIGHTS, 0, 0, &world->direct_lights.count, get_uniform_type_size_gpu_aligned(UNIFORM_U32));
-    set_uniform_block_value(UNIFORM_BLOCK_POINT_LIGHTS, 0, 0, &world->point_lights.count, get_uniform_type_size_gpu_aligned(UNIFORM_U32));
+    {
+        auto &material = asset_table.materials[skybox.draw_data.sid_material];
+            
+        skybox.uv_offset = camera->eye;
+        set_material_uniform_value(&material, "u_scale", &skybox.uv_scale, sizeof(skybox.uv_scale));
+        set_material_uniform_value(&material, "u_offset", &skybox.uv_offset, sizeof(skybox.uv_offset));
+    }
+
+    r_set_uniform_block_value(&uniform_block_direct_lights, 0, 0, &world->direct_lights.count, get_uniform_type_size_gpu_aligned(UNIFORM_U32));
+    r_set_uniform_block_value(&uniform_block_point_lights, 0, 0, &world->point_lights.count, get_uniform_type_size_gpu_aligned(UNIFORM_U32));
 
     For (world->direct_lights) {
         auto &aabb = world->aabbs[it.aabb_index];
@@ -376,10 +372,10 @@ void tick(World *world, f32 dt) {
         // @Speed: its a bit painful to see several set calls instead of just one.
         // @Cleanup: figure out to make it cleaner, maybe get rid of field index parameters;
         // 0 field index is light count, so skipped.
-        set_uniform_block_value(UNIFORM_BLOCK_DIRECT_LIGHTS, 1, it.u_light_index, &light_direction, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
-        set_uniform_block_value(UNIFORM_BLOCK_DIRECT_LIGHTS, 2, it.u_light_index, &it.ambient, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
-        set_uniform_block_value(UNIFORM_BLOCK_DIRECT_LIGHTS, 3, it.u_light_index, &it.diffuse, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
-        set_uniform_block_value(UNIFORM_BLOCK_DIRECT_LIGHTS, 4, it.u_light_index, &it.specular, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
+        r_set_uniform_block_value(&uniform_block_direct_lights, 1, it.u_light_index, &light_direction, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
+        r_set_uniform_block_value(&uniform_block_direct_lights, 2, it.u_light_index, &it.ambient, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
+        r_set_uniform_block_value(&uniform_block_direct_lights, 3, it.u_light_index, &it.diffuse, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
+        r_set_uniform_block_value(&uniform_block_direct_lights, 4, it.u_light_index, &it.specular, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
     }
     
     For (world->point_lights) {
@@ -394,29 +390,27 @@ void tick(World *world, f32 dt) {
         // @Speed: its a bit painful to see several set calls instead of just one.
         // @Cleanup: figure out to make it cleaner, maybe get rid of field index parameters;
         // 0 field index is light count, so skipped.
-        set_uniform_block_value(UNIFORM_BLOCK_POINT_LIGHTS, 1, it.u_light_index, &it.location, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
+        r_set_uniform_block_value(&uniform_block_point_lights, 1, it.u_light_index, &it.location, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
 
-        set_uniform_block_value(UNIFORM_BLOCK_POINT_LIGHTS, 2, it.u_light_index, &it.ambient, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
-        set_uniform_block_value(UNIFORM_BLOCK_POINT_LIGHTS, 3, it.u_light_index, &it.diffuse, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
-        set_uniform_block_value(UNIFORM_BLOCK_POINT_LIGHTS, 4, it.u_light_index, &it.specular, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
+        r_set_uniform_block_value(&uniform_block_point_lights, 2, it.u_light_index, &it.ambient, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
+        r_set_uniform_block_value(&uniform_block_point_lights, 3, it.u_light_index, &it.diffuse, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
+        r_set_uniform_block_value(&uniform_block_point_lights, 4, it.u_light_index, &it.specular, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
 
-        set_uniform_block_value(UNIFORM_BLOCK_POINT_LIGHTS, 5, it.u_light_index, &it.attenuation.constant, get_uniform_type_size_gpu_aligned(UNIFORM_F32));
-        set_uniform_block_value(UNIFORM_BLOCK_POINT_LIGHTS, 6, it.u_light_index, &it.attenuation.linear, get_uniform_type_size_gpu_aligned(UNIFORM_F32));
-        set_uniform_block_value(UNIFORM_BLOCK_POINT_LIGHTS, 7, it.u_light_index, &it.attenuation.quadratic, get_uniform_type_size_gpu_aligned(UNIFORM_F32));
+        r_set_uniform_block_value(&uniform_block_point_lights, 5, it.u_light_index, &it.attenuation.constant, get_uniform_type_size_gpu_aligned(UNIFORM_F32));
+        r_set_uniform_block_value(&uniform_block_point_lights, 6, it.u_light_index, &it.attenuation.linear, get_uniform_type_size_gpu_aligned(UNIFORM_F32));
+        r_set_uniform_block_value(&uniform_block_point_lights, 7, it.u_light_index, &it.attenuation.quadratic, get_uniform_type_size_gpu_aligned(UNIFORM_F32));
     }
     
 	For (world->static_meshes) {
-        const s32 mti = it.draw_data.material_index;
+        auto &material = asset_table.materials[it.draw_data.sid_material];
+        
         const mat4 model = mat4_transform(it.location, it.rotation, it.scale);
-		set_material_uniform_value(mti, "u_model", &model);
-
-        const auto *material = render_registry.materials.find(mti);
-        if (material) {
-            set_material_uniform_value(mti, "u_material.ambient",   &material->ambient);
-            set_material_uniform_value(mti, "u_material.diffuse",   &material->diffuse);
-            set_material_uniform_value(mti, "u_material.specular",  &material->specular);
-            set_material_uniform_value(mti, "u_material.shininess", &material->shininess);
-        }
+		set_material_uniform_value(&material, "u_model", &model, sizeof(model));
+        
+        set_material_uniform_value(&material, "u_material.ambient",   &material.ambient, sizeof(material.ambient));
+        set_material_uniform_value(&material, "u_material.diffuse",   &material.diffuse, sizeof(material.diffuse));
+        set_material_uniform_value(&material, "u_material.specular",  &material.specular, sizeof(material.specular));
+        set_material_uniform_value(&material, "u_material.shininess", &material.shininess, sizeof(material.shininess));        
         
         auto &aabb = world->aabbs[it.aabb_index];
         const vec3 half_extent = (aabb.max - aabb.min) * 0.5f;
@@ -506,15 +500,14 @@ void tick(World *world, f32 dt) {
             }
         }
 
+        auto &material = asset_table.materials[player.draw_data.sid_material];
         if (player.velocity == vec3_zero) {
-            const auto &asset = asset_table[texture_sids.player_idle[player.move_direction]];
-            render_registry.materials[player.draw_data.material_index].texture_index = asset.registry_index;
+            material.sid_texture = texture_sids.player_idle[player.move_direction];
         } else {
             player.flip_book = &flip_books.player_move[player.move_direction];
             tick(player.flip_book, dt);
 
-            const auto &asset = asset_table[get_current_frame(player.flip_book)];
-            render_registry.materials[player.draw_data.material_index].texture_index = asset.registry_index;
+            material.sid_texture = get_current_frame(player.flip_book);
         }
             
         player.location += player.velocity;
@@ -524,22 +517,18 @@ void tick(World *world, f32 dt) {
         player_aabb.max = player.location + aabb_offset + vec3(0.0f, player.scale.y, 0.0f);
 
         if (player.velocity == vec3_zero) {
-            stop_sound(player.steps_sid);
+            stop_sound(player.sid_sound_steps);
         } else {
-            play_sound_or_continue(player.steps_sid);
+            play_sound_or_continue(player.sid_sound_steps);
         }
 
-        const s32 mti = player.draw_data.material_index;
         const mat4 model = mat4_transform(player.location, player.rotation, player.scale);
-        set_material_uniform_value(mti, "u_model", &model);
+        set_material_uniform_value(&material, "u_model", &model, sizeof(model));
 
-        const auto *material = render_registry.materials.find(mti);
-        if (material) {
-            set_material_uniform_value(mti, "u_material.ambient",   &material->ambient);
-            set_material_uniform_value(mti, "u_material.diffuse",   &material->diffuse);
-            set_material_uniform_value(mti, "u_material.specular",  &material->specular);
-            set_material_uniform_value(mti, "u_material.shininess", &material->shininess);
-        }
+        set_material_uniform_value(&material, "u_material.ambient",   &material.ambient, sizeof(material.ambient));
+        set_material_uniform_value(&material, "u_material.diffuse",   &material.diffuse, sizeof(material.diffuse));
+        set_material_uniform_value(&material, "u_material.specular",  &material.specular, sizeof(material.specular));
+        set_material_uniform_value(&material, "u_material.shininess", &material.shininess, sizeof(material.shininess));
     }
 
     {   // Tick camera.

@@ -1,0 +1,10 @@
+s /data/shaders/frame_buffer.glsl
+
+u u_resolution                  vec2
+u u_pixel_size                  f32
+u u_curve_distortion_factor     f32
+u u_chromatic_aberration_offset f32
+u u_quantize_color_count        u32
+u u_noise_blend_factor          f32
+u u_scanline_count              u32
+u u_scanline_intensity          f32

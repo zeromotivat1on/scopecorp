@@ -20,9 +20,10 @@ enum Entity_FLag : u32 {
 };
 
 struct Entity_Draw_Data {
-    s32 vertex_array_index = INVALID_INDEX;
-    s32 index_buffer_index = INVALID_INDEX;
-    s32 material_index     = INVALID_INDEX;
+    sid sid_mesh     = SID_NONE;
+    sid sid_material = SID_NONE;
+
+    u32 eid_vertex_data_offset = 0;
 };
 
 struct Entity {
@@ -57,7 +58,7 @@ struct Player : Entity {
     Direction move_direction = DIRECTION_BACK;
     
     Flip_Book *flip_book = null;
-    sid steps_sid = 0;
+    sid sid_sound_steps = 0;
     
     s32 collide_aabb_index = INVALID_INDEX;
 };

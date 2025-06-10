@@ -1,5 +1,7 @@
 #pragma once
 
+#include "asset.h"
+
 // Represents max texel count of texture width/height.
 // E.g 4096 -> max texture that can be uploaded to GPU is 4096x4096.
 inline s32 R_MAX_TEXTURE_TEXELS;
@@ -9,13 +11,13 @@ inline constexpr s32 MAX_PLAYER_MOVE_FRAMES = 4;
 
 typedef u64 sid;
 
-enum Texture_Type {
+enum Texture_Type : u8 {
     TEXTURE_TYPE_NONE,
     TEXTURE_TYPE_2D,
     TEXTURE_TYPE_2D_ARRAY,
 };
 
-enum Texture_Format_Type {
+enum Texture_Format_Type : u8 {
     TEXTURE_FORMAT_NONE,
     TEXTURE_FORMAT_RED_INTEGER,
     TEXTURE_FORMAT_RGB_8,
@@ -23,14 +25,14 @@ enum Texture_Format_Type {
     TEXTURE_FORMAT_DEPTH_24_STENCIL_8,
 };
 
-enum Texture_Wrap_Type {
+enum Texture_Wrap_Type : u8 {
     TEXTURE_WRAP_NONE,
     TEXTURE_WRAP_REPEAT,
 	TEXTURE_WRAP_CLAMP,
 	TEXTURE_WRAP_BORDER,
 };
 
-enum Texture_Filter_Type {
+enum Texture_Filter_Type : u8 {
     TEXTURE_FILTER_NONE,
     TEXTURE_FILTER_LINEAR,
 	TEXTURE_FILTER_NEAREST,
@@ -40,22 +42,18 @@ enum Texture_Flags : u32 {
     TEXTURE_FLAG_HAS_MIPMAPS = 0x1,
 };
 
-struct Texture_Memory {
-    void *data = null;
-    s32   width  = 0;
-    s32   height = 0;
-    s32   channel_count = 0;
-};
-
-struct Texture {
-	u32 id;
-    s32 width;
-	s32 height;
-    u32 flags = 0;
-    Texture_Type        type;
-    Texture_Format_Type format;
-    Texture_Wrap_Type   wrap;
-    Texture_Filter_Type filter;
+struct Texture : Asset {
+    Texture() { asset_type = ASSET_TEXTURE; }
+    
+	rid rid = RID_NONE;
+    u32 flags  = 0;
+    s32 width  = 0;
+	s32 height = 0;
+	s32 channel_count = 0;
+    Texture_Type        type   = TEXTURE_TYPE_NONE;
+    Texture_Format_Type format = TEXTURE_FORMAT_NONE;
+    Texture_Wrap_Type   wrap   = TEXTURE_WRAP_NONE;
+    Texture_Filter_Type filter = TEXTURE_FILTER_NONE;
 };
 
 struct Texture_Sid_List {
@@ -69,15 +67,16 @@ struct Texture_Sid_List {
 
 inline Texture_Sid_List texture_sids;
 
+rid  r_create_texture(Texture_Type type, Texture_Format_Type format, s32 width, s32 height, void *data = null);
+void r_delete_texture(rid rid_texture);
+void r_set_texture_wrap(rid rid_texture, Texture_Wrap_Type wrap);
+void r_set_texture_filter(rid rid_texture, Texture_Filter_Type filter, bool has_mipmaps = true);
+
 void cache_texture_sids(Texture_Sid_List *list);
-s32  create_texture(Texture_Type texture_type, Texture_Format_Type format_type, s32 width, s32 height, void *data);
-bool recreate_texture(s32 texture_index, Texture_Type texture_type, Texture_Format_Type format_type, s32 width, s32 height, void *data);
-void set_texture_wrap(s32 texture_index, Texture_Wrap_Type wrap_type);
-void set_texture_filter(s32 texture_index, Texture_Filter_Type filter_type);
-void generate_texture_mipmaps(s32 texture_index);
-void delete_texture(s32 texture_index);
+void init_texture_asset(Texture *texture, void *data);
+void set_texture_wrap(Texture *texture, Texture_Wrap_Type wrap_type);
+void set_texture_filter(Texture *texture, Texture_Filter_Type filter_type);
+void generate_texture_mipmaps(Texture *texture);
+void delete_texture(Texture *texture);
 
-Texture_Memory load_texture_memory(const char *path, bool log_error = true);
-void free_texture_memory(Texture_Memory *memory);
-
-Texture_Format_Type get_desired_texture_format(s32 channel_count);
+Texture_Format_Type get_texture_format_from_channel_count(s32 channel_count);

@@ -14,7 +14,6 @@
 #include "render/ui.h"
 #include "render/viewport.h"
 #include "render/render_stats.h"
-#include "render/render_registry.h"
 
 Scope_Timer::Scope_Timer(const char *info)
     : info(info), start(performance_counter()) {}

@@ -26,14 +26,15 @@ struct UI_Draw_Command {
 };
 
 struct UI_Text_Draw_Buffer {
+    f32  *positions  = null;
     vec4 *colors     = null;
     u32  *charmap    = null;
     mat4 *transforms = null;
 
     s32 char_count = 0;
 
-    s32 vertex_array_index = INVALID_INDEX;
-    s32 material_index     = INVALID_INDEX;
+    rid rid_vertex_array = RID_NONE;
+    sid sid_material = SID_NONE;
 };
 
 struct UI_Quad_Draw_Buffer {
@@ -41,9 +42,9 @@ struct UI_Quad_Draw_Buffer {
     vec4 *colors    = null;
 
     s32 quad_count = 0;
-    
-    s32 vertex_array_index = INVALID_INDEX;
-    s32 material_index     = INVALID_INDEX;
+
+    rid rid_vertex_array = RID_NONE;
+    sid sid_material = SID_NONE;
 };
 
 struct UI {

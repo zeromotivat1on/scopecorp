@@ -188,7 +188,9 @@ void init_sid_table() {
 
 u64 cache_sid(const char *string) {
     const u64 hash = hash_fnv(string);
-    if (sid_table.find(hash) == null) sid_table.add(hash, string);
+    if (sid_table.find(hash) == null) {
+        sid_table.add(hash, string);
+    }
     return hash;
 }
 

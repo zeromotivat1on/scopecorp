@@ -36,7 +36,7 @@ if (WIN32)
    if (GFX_API STREQUAL OPEN_GL)
       target_sources(${GAME_EXE} PRIVATE os/win32_gl.cpp)
       target_link_libraries(${GAME_EXE} PRIVATE opengl32.lib)
-      endif()
+   endif()
 endif()
 
 if (MSVC)
@@ -64,6 +64,8 @@ target_compile_definitions(${GAME_EXE} PRIVATE
                                DIR_DATA="${RUN_TREE_DIR}/data/"
                                DIR_SHADERS="${RUN_TREE_DIR}/data/shaders/"
                                DIR_TEXTURES="${RUN_TREE_DIR}/data/textures/"
+                               DIR_MATERIALS="${RUN_TREE_DIR}/data/materials/"
+                               DIR_MESHES="${RUN_TREE_DIR}/data/meshes/"
                                DIR_SOUNDS="${RUN_TREE_DIR}/data/sounds/"
                                DIR_FONTS="${RUN_TREE_DIR}/data/fonts/"
                                DIR_LEVELS="${RUN_TREE_DIR}/data/levels/"

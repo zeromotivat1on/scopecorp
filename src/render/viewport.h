@@ -1,5 +1,6 @@
 #pragma once
 
+#include "render/frame_buffer.h"
 #include "math/matrix.h"
 
 enum Viewport_Aspect_Type {
@@ -8,18 +9,17 @@ enum Viewport_Aspect_Type {
 };
 
 struct Viewport {
-    // @Todo: fix render for 4x3 aspect ratio.
     Viewport_Aspect_Type aspect_type = VIEWPORT_FILL_WINDOW;
     
     s16 x = 0;
     s16 y = 0;
     s16 width  = 0;
     s16 height = 0;
-    s32 frame_buffer_index = INVALID_INDEX;
+    f32 resolution_scale = 1.0f; // applied for frame buffer
 
     mat4 orthographic_projection;
 
-    f32 resolution_scale = 1.0f; // applied for frame buffer
+    Frame_Buffer frame_buffer;
 };
 
 inline Viewport viewport;

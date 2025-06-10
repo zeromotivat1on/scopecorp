@@ -1,0 +1,5 @@
+s /data/shaders/skybox.glsl
+t /data/textures/skybox.png
+
+u u_scale  vec2
+u u_offset vec3

@@ -7,10 +7,15 @@
 #include "asset.h"
 
 #include "render/viewport.h"
-#include "render/render_registry.h"
 #include "render/render_command.h"
 #include "render/render_stats.h"
-#include "render/geometry_draw.h"
+#include "render/buffer_storage.h"
+#include "render/geometry.h"
+#include "render/texture.h"
+#include "render/material.h"
+#include "render/uniform.h"
+#include "render/frame_buffer.h"
+#include "render/mesh.h"
 #include "render/ui.h"
 
 #include "game/game.h"
@@ -25,33 +30,6 @@
 static s32 MAX_GEOMETRY_VERTEX_BUFFER_SIZE = 0;
 static s32 GEOMETRY_VERTEX_DIMENSION       = 0;
 static s32 GEOMETRY_VERTEX_SIZE            = 0;
-
-void init_render_registry(Render_Registry *registry) {
-	registry->frame_buffers   = Sparse_Array<Frame_Buffer>(MAX_FRAME_BUFFERS);
-	registry->vertex_buffers  = Sparse_Array<Vertex_Buffer>(MAX_VERTEX_BUFFERS);
-	registry->vertex_arrays   = Sparse_Array<Vertex_Array>(MAX_VERTEX_ARRAYS);
-	registry->index_buffers   = Sparse_Array<Index_Buffer>(MAX_INDEX_BUFFERS);
-	registry->shaders         = Sparse_Array<Shader>(MAX_SHADERS);
-	registry->textures        = Sparse_Array<Texture>(MAX_TEXTURES);
-	registry->materials       = Sparse_Array<Material>(MAX_MATERIALS);
-	registry->uniforms        = Sparse_Array<Uniform>(MAX_UNIFORMS);
-	registry->uniform_buffers = Sparse_Array<Uniform_Buffer>(MAX_UNIFORM_BUFFERS);
-	registry->uniform_blocks  = Sparse_Array<Uniform_Block>(MAX_UNIFORM_BLOCKS);
-
-    registry->uniform_value_cache.data     = allocl(MAX_UNIFORM_VALUE_CACHE_SIZE);
-    registry->uniform_value_cache.size     = 0;
-    registry->uniform_value_cache.capacity = MAX_UNIFORM_VALUE_CACHE_SIZE;
-}
-
-void cache_shader_sids(Shader_Sid_List *list) {
-    list->entity       = SID("/data/shaders/entity.glsl");
-    list->skybox       = SID("/data/shaders/skybox.glsl");
-    list->frame_buffer = SID("/data/shaders/frame_buffer.glsl");
-    list->geometry     = SID("/data/shaders/geometry.glsl");
-    list->outline      = SID("/data/shaders/outline.glsl");
-    list->ui_text      = SID("/data/shaders/ui_text.glsl");
-    list->ui_element   = SID("/data/shaders/ui_element.glsl");
-}
 
 void cache_texture_sids(Texture_Sid_List *list) {
     list->skybox = SID("/data/textures/skybox.png");
@@ -84,45 +62,6 @@ void cache_texture_sids(Texture_Sid_List *list) {
     list->player_move[DIRECTION_FORWARD][3] = SID("/data/textures/player_move_forward_4.png");
 }
 
-void create_game_materials(Material_Index_List *list) {        
-    const s32 entity_uniforms[] = {
-        create_uniform("u_model",              UNIFORM_F32_4X4,  1),
-        create_uniform("u_view_proj",          UNIFORM_F32_4X4,  1),
-        create_uniform("u_uv_scale",           UNIFORM_F32_2,    1),
-        create_uniform("u_camera_location",    UNIFORM_F32_3,    1),
-        create_uniform("u_light.location",     UNIFORM_F32_3,    1),
-        create_uniform("u_light.ambient",      UNIFORM_F32_3,    1),
-        create_uniform("u_light.diffuse",      UNIFORM_F32_3,    1),
-        create_uniform("u_light.specular",     UNIFORM_F32_3,    1),
-        create_uniform("u_material.ambient",   UNIFORM_F32_3,    1),
-        create_uniform("u_material.diffuse",   UNIFORM_F32_3,    1),
-        create_uniform("u_material.specular",  UNIFORM_F32_3,    1),
-        create_uniform("u_material.shininess", UNIFORM_F32,      1),
-    };
-
-    const s32 skybox_uniforms[] = {
-		create_uniform("u_scale",  UNIFORM_F32_2, 1),
-		create_uniform("u_offset", UNIFORM_F32_3, 1),
-	};
-
-    const s32 outline_uniforms[] = {
-        create_uniform("u_transform", UNIFORM_F32_4X4, 1),
-        create_uniform("u_color",     UNIFORM_F32_3,   1),
-	};
-
-	list->skybox  = create_material(asset_table[shader_sids.skybox].registry_index, asset_table[texture_sids.skybox].registry_index);
-    list->player  = create_material(asset_table[shader_sids.entity].registry_index, INVALID_INDEX);
-    list->ground  = create_material(asset_table[shader_sids.entity].registry_index, asset_table[texture_sids.grass].registry_index);
-    list->cube    = create_material(asset_table[shader_sids.entity].registry_index, asset_table[texture_sids.stone].registry_index);
-    list->outline = create_material(asset_table[shader_sids.outline].registry_index, INVALID_INDEX);
-    
-    set_material_uniforms(list->skybox,  skybox_uniforms,  COUNT(skybox_uniforms));
-	set_material_uniforms(list->player,  entity_uniforms,  COUNT(entity_uniforms));
-	set_material_uniforms(list->ground,  entity_uniforms,  COUNT(entity_uniforms));
-    set_material_uniforms(list->cube,    entity_uniforms,  COUNT(entity_uniforms));
-    set_material_uniforms(list->outline, outline_uniforms, COUNT(outline_uniforms));
-}
-
 void init_render_queue(Render_Queue *queue, s32 capacity) {
     Assert(capacity <= MAX_RENDER_QUEUE_SIZE);
     
@@ -141,9 +80,10 @@ void enqueue(Render_Queue *queue, const Render_Command *command) {
 void flush(Render_Queue *queue) {
     PROFILE_SCOPE("flush_render_queue");
     
-	for (s32 i = 0; i < queue->size; ++i)
+    for (s32 i = 0; i < queue->size; ++i) {
         submit(queue->commands + i);
-    
+    }
+
 	queue->size = 0;
 }
 
@@ -172,13 +112,11 @@ void resize_viewport(Viewport *viewport, s16 width, s16 height) {
 	}
 
 
-    if (viewport->frame_buffer_index != INVALID_INDEX) {
-        const s16 width  = (s16)((f32)viewport->width  * viewport->resolution_scale);
-        const s16 height = (s16)((f32)viewport->height * viewport->resolution_scale);
+    const s16 fb_width  = (s16)((f32)viewport->width  * viewport->resolution_scale);
+    const s16 fb_height = (s16)((f32)viewport->height * viewport->resolution_scale);
     
-        recreate_frame_buffer(viewport->frame_buffer_index, width, height);
-        log("Recreated viewport frame buffer %dx%d", width, height);
-    }
+    r_recreate_frame_buffer(&viewport->frame_buffer, fb_width, fb_height);
+    log("Recreated viewport frame buffer %dx%d", fb_width, fb_height);
 }
 
 void draw_world(const World *world) {
@@ -194,16 +132,16 @@ void draw_world(const World *world) {
 }
 
 void draw_entity(const Entity *e) {
-    const auto &viewport_frame_buffer = render_registry.frame_buffers[viewport.frame_buffer_index];
+    const auto &frame_buffer = viewport.frame_buffer;
 
     Render_Command command = {};
-    command.flags = RENDER_FLAG_SCISSOR | RENDER_FLAG_CULL_FACE | RENDER_FLAG_BLEND | RENDER_FLAG_DEPTH | RENDER_FLAG_RESET;
+    command.flags = RENDER_FLAG_SCISSOR | RENDER_FLAG_CULL_FACE | RENDER_FLAG_BLEND | RENDER_FLAG_DEPTH | RENDER_FLAG_INDEXED | RENDER_FLAG_RESET;
     command.render_mode  = RENDER_TRIANGLES;
     command.polygon_mode = POLYGON_FILL;
     command.scissor.x      = 0;
     command.scissor.y      = 0;
-    command.scissor.width  = viewport_frame_buffer.width;
-    command.scissor.height = viewport_frame_buffer.height;
+    command.scissor.width  = frame_buffer.width;
+    command.scissor.height = frame_buffer.height;
     command.cull_face.type    = CULL_FACE_BACK;
     command.cull_face.winding = WINDING_COUNTER_CLOCKWISE;
     command.blend.source      = BLEND_SOURCE_ALPHA;
@@ -217,25 +155,23 @@ void draw_entity(const Entity *e) {
     command.stencil.function.comparator = 1;
     command.stencil.function.mask       = 0xFF;
     command.stencil.mask = 0x00;
-    command.vertex_array_index = e->draw_data.vertex_array_index;
-    command.index_buffer_index = e->draw_data.index_buffer_index;
 
-    fill_render_command_with_material_data(e->draw_data.material_index, &command);
-
-    if (command.index_buffer_index != INVALID_INDEX) {
-        const auto &index_buffer = render_registry.index_buffers[command.index_buffer_index];
-        command.buffer_element_count = index_buffer.index_count;
-    } else if (command.vertex_array_index != INVALID_INDEX) {
-        command.buffer_element_count = vertex_array_vertex_count(command.vertex_array_index);
-    }
+    const auto &mesh = asset_table.meshes[e->draw_data.sid_mesh];
+    command.rid_vertex_array = mesh.rid_vertex_array;
+    command.buffer_element_count = mesh.index_count;
+    command.buffer_element_offset = mesh.index_data_offset;
+    
+    command.sid_material = e->draw_data.sid_material;
     
     if (e->flags & ENTITY_FLAG_SELECTED_IN_EDITOR) {
         command.flags &= ~RENDER_FLAG_CULL_FACE;
         command.flags |= RENDER_FLAG_STENCIL;
         command.stencil.mask = 0xFF;
 
-        draw_geo_cross(e->location, 0.5f);
+        geo_draw_cross(e->location, 0.5f);
     }
+
+    command.eid_vertex_data_offset = e->draw_data.eid_vertex_data_offset;
     
 	enqueue(&entity_render_queue, &command);
 
@@ -251,43 +187,43 @@ void draw_entity(const Entity *e) {
         const vec3 color = vec3_yellow;
         const mat4 mvp = mat4_transform(e->location, e->rotation, e->scale * 1.1f) * camera->view_proj;
 
-        set_material_uniform_value(material_index_list.outline, "u_color", &color);
-        set_material_uniform_value(material_index_list.outline, "u_transform", mvp.ptr());
+        auto &material = asset_table.materials[SID_MATERIAL_OUTLINE];
+        set_material_uniform_value(&material, "u_color",     &color, sizeof(color));
+        set_material_uniform_value(&material, "u_transform", &mvp,   sizeof(mvp));
 
-        fill_render_command_with_material_data(material_index_list.outline, &command);
+        command.sid_material = SID_MATERIAL_OUTLINE;
         
         enqueue(&entity_render_queue, &command);
     }
 }
 
-void init_geo_draw() {    
+void geo_init() {    
     Vertex_Array_Binding binding = {};
+    binding.binding_index = 0;
+    binding.data_offset = vertex_buffer_storage.size;
     binding.layout_size = 2;
     binding.layout[0] = { VERTEX_F32_3, 0 };
     binding.layout[1] = { VERTEX_F32_3, 0 };
 
     for (s32 i = 0; i < binding.layout_size; ++i) {
-		GEOMETRY_VERTEX_DIMENSION += vertex_component_dimension(binding.layout[i].type);
-		GEOMETRY_VERTEX_SIZE      += vertex_component_size(binding.layout[i].type);
+		GEOMETRY_VERTEX_DIMENSION += get_vertex_component_dimension(binding.layout[i].type);
+		GEOMETRY_VERTEX_SIZE      += get_vertex_component_size(binding.layout[i].type);
     }
-    
+
     MAX_GEOMETRY_VERTEX_BUFFER_SIZE = GEOMETRY_VERTEX_SIZE * MAX_GEOMETRY_VERTEX_COUNT;
-    geometry_draw_buffer.vertex_data = allocltn(f32, MAX_GEOMETRY_VERTEX_BUFFER_SIZE);
-
-    binding.vertex_buffer_index = create_vertex_buffer(null, MAX_GEOMETRY_VERTEX_BUFFER_SIZE, BUFFER_USAGE_STREAM);
     
-    geometry_draw_buffer.vertex_array_index = create_vertex_array(&binding, 1);
-    geometry_draw_buffer.material_index = create_material(asset_table[shader_sids.geometry].registry_index, INVALID_INDEX);
-
-    const s32 u_transform = create_uniform("u_transform", UNIFORM_F32_4X4, 1);
-    set_material_uniforms(geometry_draw_buffer.material_index, &u_transform, 1);
+    auto &gdb = geo_draw_buffer;
+    gdb.rid_vertex_array = r_create_vertex_array(&binding, 1);
+    gdb.sid_material = SID_MATERIAL_GEOMETRY;
+    gdb.vertex_data = (f32 *)r_alloclv(MAX_GEOMETRY_VERTEX_BUFFER_SIZE);
+    gdb.vertex_count = 0;
 }
 
-void draw_geo_line(vec3 start, vec3 end, vec3 color) {
-    Assert(geometry_draw_buffer.vertex_count + 2 <= MAX_GEOMETRY_VERTEX_COUNT);
+void geo_draw_line(vec3 start, vec3 end, vec3 color) {
+    Assert(geo_draw_buffer.vertex_count + 2 <= MAX_GEOMETRY_VERTEX_COUNT);
     
-    const u32 offset = geometry_draw_buffer.vertex_count * GEOMETRY_VERTEX_DIMENSION;
-    f32 *v = geometry_draw_buffer.vertex_data + offset;
+    const u32 offset = geo_draw_buffer.vertex_count * GEOMETRY_VERTEX_DIMENSION;
+    f32 *v = geo_draw_buffer.vertex_data + offset;
     
     v[0] = start[0];
     v[1] = start[1];
@@ -305,10 +241,10 @@ void draw_geo_line(vec3 start, vec3 end, vec3 color) {
     v[10] = color[1];
     v[11] = color[2];
 
-    geometry_draw_buffer.vertex_count += 2;
+    geo_draw_buffer.vertex_count += 2;
 }
 
-void draw_geo_arrow(vec3 start, vec3 end, vec3 color) {
+void geo_draw_arrow(vec3 start, vec3 end, vec3 color) {
     static const f32 size = 0.04f;
     static const f32 arrow_step = 30.0f; // In degrees
     static const f32 arrow_sin[45] = {
@@ -324,7 +260,7 @@ void draw_geo_arrow(vec3 start, vec3 end, vec3 color) {
         0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f
     };
 
-    draw_geo_line(start, end, color);
+    geo_draw_line(start, end, color);
 
     vec3 forward = normalize(end - start);
 	const vec3 right = absf(forward.y) > 1.0f - F32_EPSILON
@@ -350,26 +286,26 @@ void draw_geo_arrow(vec3 start, vec3 end, vec3 color) {
         scale = 0.5f * size * arrow_sin[i + 1];
         v2 += up * scale;
 
-        draw_geo_line(v1, end, color);
-        draw_geo_line(v1, v2,  color);
+        geo_draw_line(v1, end, color);
+        geo_draw_line(v1, v2,  color);
     }
 }
 
-void draw_geo_cross(vec3 location, f32 size) {
-    draw_geo_arrow(location, location + vec3_up * size,      vec3_blue);
-    draw_geo_arrow(location, location + vec3_right * size,   vec3_green);
-    draw_geo_arrow(location, location + vec3_forward * size, vec3_red);
+void geo_draw_cross(vec3 location, f32 size) {
+    geo_draw_arrow(location, location + vec3_up * size,      vec3_blue);
+    geo_draw_arrow(location, location + vec3_right * size,   vec3_green);
+    geo_draw_arrow(location, location + vec3_forward * size, vec3_red);
 }
 
-void draw_geo_box(const vec3 points[8], vec3 color) {
+void geo_draw_box(const vec3 points[8], vec3 color) {
     for (int i = 0; i < 4; ++i) {
-        draw_geo_line(points[i],     points[(i + 1) % 4],       color);
-        draw_geo_line(points[i + 4], points[((i + 1) % 4) + 4], color);
-        draw_geo_line(points[i],     points[i + 4],             color);
+        geo_draw_line(points[i],     points[(i + 1) % 4],       color);
+        geo_draw_line(points[i + 4], points[((i + 1) % 4) + 4], color);
+        geo_draw_line(points[i],     points[i + 4],             color);
     }
 }
 
-void draw_geo_aabb(const AABB &aabb, vec3 color) {
+void geo_draw_aabb(const AABB &aabb, vec3 color) {
     const vec3 bb[2] = { aabb.min, aabb.max };
     vec3 points[8];
 
@@ -379,15 +315,17 @@ void draw_geo_aabb(const AABB &aabb, vec3 color) {
         points[i].z = bb[(i >> 2) % 2].z;
     }
 
-    draw_geo_box(points, color);
+    geo_draw_box(points, color);
 }
 
-void flush_geo_draw() {
+void geo_flush() {
     PROFILE_SCOPE(__FUNCTION__);
-    
-    if (geometry_draw_buffer.vertex_count == 0) return;
 
-    const auto &viewport_frame_buffer = render_registry.frame_buffers[viewport.frame_buffer_index];
+    auto &gdb = geo_draw_buffer;
+    
+    if (gdb.vertex_count == 0) return;
+
+    const auto &frame_buffer = viewport.frame_buffer;
         
     Render_Command command = {};
     command.flags = RENDER_FLAG_SCISSOR | RENDER_FLAG_CULL_FACE | RENDER_FLAG_RESET;
@@ -395,98 +333,107 @@ void flush_geo_draw() {
     command.polygon_mode = POLYGON_FILL;
     command.scissor.x      = 0;
     command.scissor.y      = 0;
-    command.scissor.width  = viewport_frame_buffer.width;
-    command.scissor.height = viewport_frame_buffer.height;
+    command.scissor.width  = frame_buffer.width;
+    command.scissor.height = frame_buffer.height;
     command.cull_face.type    = CULL_FACE_BACK;
     command.cull_face.winding = WINDING_COUNTER_CLOCKWISE;
     command.depth.function = DEPTH_LESS;
     command.depth.mask     = DEPTH_ENABLE;
-    command.vertex_array_index  = geometry_draw_buffer.vertex_array_index;
-    command.buffer_element_count = geometry_draw_buffer.vertex_count;
 
-    fill_render_command_with_material_data(geometry_draw_buffer.material_index, &command);
-
-    const auto &vertex_array = render_registry.vertex_arrays[command.vertex_array_index]; 
-    set_vertex_buffer_data(vertex_array.bindings[0].vertex_buffer_index,
-                           geometry_draw_buffer.vertex_data,
-                           geometry_draw_buffer.vertex_count * GEOMETRY_VERTEX_SIZE, 0);
-
+    command.rid_vertex_array = gdb.rid_vertex_array;
+    command.sid_material = gdb.sid_material;
+    command.buffer_element_count  = gdb.vertex_count;
+    command.buffer_element_offset = 0;
+    
     const auto *camera = desired_camera(world);
-    set_material_uniform_value(geometry_draw_buffer.material_index, "u_transform", &camera->view_proj);
+    auto &material = asset_table.materials[gdb.sid_material];
+    set_material_uniform_value(&material, "u_transform", &camera->view_proj, sizeof(camera->view_proj));
 
     submit(&command);
     
-    geometry_draw_buffer.vertex_count = 0;
+    gdb.vertex_count = 0;
 }
 
 void ui_init() {
-    Font *consola = create_font(asset_table[SID("/data/fonts/consola.ttf")].as_font.data);
+    Font_Info *consola = create_font_info(asset_table.fonts[SID("/data/fonts/consola.ttf")].data);
     Font_Atlas *consola_atlas = bake_font_atlas(consola, 33, 126, 16);
     
     ui.font_atlases[UI_DEFAULT_FONT_ATLAS_INDEX] = consola_atlas;
     ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX] = consola_atlas;
     
     {   // Text draw buffer.
-        constexpr s32 color_buffer_size     = MAX_UI_TEXT_DRAW_BUFFER_CHARS * sizeof(vec4);
-        constexpr s32 charmap_buffer_size   = MAX_UI_TEXT_DRAW_BUFFER_CHARS * sizeof(u32);
-        constexpr s32 transform_buffer_size = MAX_UI_TEXT_DRAW_BUFFER_CHARS * sizeof(mat4);
+        constexpr f32 vertices[8] = { 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f };
 
-        auto &tdb = ui.text_draw_buffer;    
-        tdb.colors     = (vec4 *)allocl(color_buffer_size);
-        tdb.charmap    = (u32  *)allocl(charmap_buffer_size);
-        tdb.transforms = (mat4 *)allocl(transform_buffer_size);
+        constexpr u32 position_buffer_size  = sizeof(vertices);
+        constexpr u32 color_buffer_size     = MAX_UI_TEXT_DRAW_BUFFER_CHARS * sizeof(vec4);
+        constexpr u32 charmap_buffer_size   = MAX_UI_TEXT_DRAW_BUFFER_CHARS * sizeof(u32);
+        constexpr u32 transform_buffer_size = MAX_UI_TEXT_DRAW_BUFFER_CHARS * sizeof(mat4);
 
-        const f32 vertices[8] = { 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f };
+        const u32 position_buffer_offset  = vertex_buffer_storage.size;
+        const u32 color_buffer_offset     = position_buffer_offset + position_buffer_size;
+        const u32 charmap_buffer_offset   = color_buffer_offset + color_buffer_size;
+        const u32 transform_buffer_offset = charmap_buffer_offset + charmap_buffer_size;
+
+        auto &tdb = ui.text_draw_buffer;
+        tdb.positions  = (f32  *)r_alloclv(position_buffer_size); 
+        tdb.colors     = (vec4 *)r_alloclv(color_buffer_size);
+        tdb.charmap    = (u32  *)r_alloclv(charmap_buffer_size);
+        tdb.transforms = (mat4 *)r_alloclv(transform_buffer_size);
+
+        copy_bytes(tdb.positions, vertices, position_buffer_size);
         
         Vertex_Array_Binding bindings[4] = {};
+        bindings[0].binding_index = 0;
+        bindings[0].data_offset = position_buffer_offset;
         bindings[0].layout_size = 1;
         bindings[0].layout[0] = { VERTEX_F32_2, 0 };
-        bindings[0].vertex_buffer_index = create_vertex_buffer(vertices, sizeof(vertices), BUFFER_USAGE_STATIC);
-        
+
+        bindings[1].binding_index = 1;
+        bindings[1].data_offset = color_buffer_offset;
         bindings[1].layout_size = 1;
         bindings[1].layout[0] = { VERTEX_F32_4, 1 };
-        bindings[1].vertex_buffer_index = create_vertex_buffer(null, color_buffer_size, BUFFER_USAGE_STREAM);
-        
+
+        bindings[2].binding_index = 2;
+        bindings[2].data_offset = charmap_buffer_offset;
         bindings[2].layout_size = 1;
         bindings[2].layout[0] = { VERTEX_U32, 1 };
-        bindings[2].vertex_buffer_index = create_vertex_buffer(null, charmap_buffer_size, BUFFER_USAGE_STREAM);
-        
+
+        bindings[3].binding_index = 3;
+        bindings[3].data_offset = transform_buffer_offset;
         bindings[3].layout_size = 4;
         bindings[3].layout[0] = { VERTEX_F32_4, 1 };
         bindings[3].layout[1] = { VERTEX_F32_4, 1 };
         bindings[3].layout[2] = { VERTEX_F32_4, 1 };
         bindings[3].layout[3] = { VERTEX_F32_4, 1 };
-        bindings[3].vertex_buffer_index = create_vertex_buffer(null, transform_buffer_size, BUFFER_USAGE_STREAM);
 
-        tdb.vertex_array_index = create_vertex_array(bindings, COUNT(bindings));
-        tdb.material_index = create_material(asset_table[shader_sids.ui_text].registry_index, INVALID_INDEX);
-
-        const s32 u_projection = create_uniform("u_projection", UNIFORM_F32_4X4, 1);
-        set_material_uniforms(tdb.material_index, &u_projection, 1);
+        tdb.rid_vertex_array = r_create_vertex_array(bindings, COUNT(bindings));
+        tdb.sid_material = SID_MATERIAL_UI_TEXT;
     }
 
     {   // Quad draw buffer.
-        constexpr s32 pos_buffer_size   = 4 * MAX_UI_QUAD_DRAW_BUFFER_QUADS * sizeof(vec2);
-        constexpr s32 color_buffer_size = 1 * MAX_UI_QUAD_DRAW_BUFFER_QUADS * sizeof(vec4);
+        constexpr u32 pos_buffer_size   = 4 * MAX_UI_QUAD_DRAW_BUFFER_QUADS * sizeof(vec2);
+        constexpr u32 color_buffer_size = 1 * MAX_UI_QUAD_DRAW_BUFFER_QUADS * sizeof(vec4);
 
+        const u32 pos_buffer_offset   = vertex_buffer_storage.size;
+        const u32 color_buffer_offset = pos_buffer_offset + pos_buffer_size;
+        
         auto &qdb = ui.quad_draw_buffer;
-        qdb.positions = (vec2 *)allocl(pos_buffer_size);
-        qdb.colors    = (vec4 *)allocl(color_buffer_size);
+        qdb.positions = (vec2 *)r_alloclv(pos_buffer_size);
+        qdb.colors    = (vec4 *)r_alloclv(color_buffer_size);
         
         Vertex_Array_Binding bindings[2] = {};
+        bindings[0].binding_index = 0;
+        bindings[0].data_offset = pos_buffer_offset;
         bindings[0].layout_size = 1;
         bindings[0].layout[0] = { VERTEX_F32_2, 0 };
-        bindings[0].vertex_buffer_index = create_vertex_buffer(null, pos_buffer_size, BUFFER_USAGE_STREAM);
-        
+
+        bindings[1].binding_index = 1;
+        bindings[1].data_offset = color_buffer_offset;
         bindings[1].layout_size = 1;
         bindings[1].layout[0] = { VERTEX_F32_4, 1 };
-        bindings[1].vertex_buffer_index = create_vertex_buffer(null, color_buffer_size, BUFFER_USAGE_STREAM);
         
-        qdb.vertex_array_index = create_vertex_array(bindings, COUNT(bindings));
-        qdb.material_index = create_material(asset_table[shader_sids.ui_element].registry_index, INVALID_INDEX);
-
-        const s32 u_projection = create_uniform("u_projection", UNIFORM_F32_4X4, 1);
-        set_material_uniforms(qdb.material_index, &u_projection, 1);
+        qdb.rid_vertex_array = r_create_vertex_array(bindings, COUNT(bindings));
+        qdb.sid_material = SID_MATERIAL_UI_ELEMENT;
     }
 }
 
@@ -606,25 +553,12 @@ void ui_flush() {
     auto &tdb = ui.text_draw_buffer;
     auto &qdb = ui.quad_draw_buffer;
 
-    if (tdb.char_count > 0) {
-        const auto &va = render_registry.vertex_arrays[tdb.vertex_array_index];
-        set_vertex_buffer_data(va.bindings[1].vertex_buffer_index, tdb.colors, tdb.char_count * sizeof(vec4), 0);
-        set_vertex_buffer_data(va.bindings[2].vertex_buffer_index, tdb.charmap, tdb.char_count * sizeof(u32), 0);
-        set_vertex_buffer_data(va.bindings[3].vertex_buffer_index, tdb.transforms, tdb.char_count * sizeof(mat4), 0);
-    }
-
-    if (qdb.quad_count > 0) {
-        const auto &va = render_registry.vertex_arrays[qdb.vertex_array_index];
-        set_vertex_buffer_data(va.bindings[0].vertex_buffer_index, qdb.positions, 4 * qdb.quad_count * sizeof(vec2), 0);
-        set_vertex_buffer_data(va.bindings[1].vertex_buffer_index, qdb.colors, qdb.quad_count * sizeof(vec4), 0);
-    }
-    
     s32 char_instance_offset = 0;
     s32 quad_instance_offset = 0;
     
     // @Speed: instead of submitting each ui draw command as separate render command,
     // iterate over all adjacent same type ui draw commands in queue or sort them,
-    // and batch these ui commands with just 1 render command.
+    // and batch these ui commands with just several render commands.
     for (s32 i = 0; i < ui.draw_queue_size; ++i) {
         const auto &ui_cmd = ui.draw_queue[i];
         const auto &atlas = *ui.font_atlases[ui_cmd.atlas_index];
@@ -650,28 +584,26 @@ void ui_flush() {
 
         switch (ui_cmd.type) {
         case UI_DRAW_TEXT: {
-            r_cmd.vertex_array_index = tdb.vertex_array_index;
+            r_cmd.rid_vertex_array = tdb.rid_vertex_array;
             r_cmd.buffer_element_count = 4;
             r_cmd.instance_count = ui_cmd.element_count;
             r_cmd.instance_offset = char_instance_offset;
-            
-            // @Cleanup: change paramater order in this function.
-            fill_render_command_with_material_data(tdb.material_index, &r_cmd);
-            r_cmd.texture_index = atlas.texture_index;
+
+            r_cmd.sid_material = tdb.sid_material;
+            r_cmd.rid_override_texture = atlas.rid_texture;
 
             char_instance_offset += ui_cmd.element_count;
             
             break;
         }
         case UI_DRAW_QUAD: {
-            r_cmd.vertex_array_index = qdb.vertex_array_index;
+            r_cmd.rid_vertex_array = qdb.rid_vertex_array;
             r_cmd.buffer_element_count = 4;
             r_cmd.buffer_element_offset = 4 * quad_instance_offset;
             r_cmd.instance_count = ui_cmd.element_count;
             r_cmd.instance_offset = quad_instance_offset;
-            
-            // @Cleanup: change paramater order in this function.
-            fill_render_command_with_material_data(qdb.material_index, &r_cmd);
+
+            r_cmd.sid_material = qdb.sid_material;
             
             quad_instance_offset += ui_cmd.element_count;
             
@@ -687,55 +619,68 @@ void ui_flush() {
     qdb.quad_count = 0;
 }
 
-s32 vertex_array_vertex_count(s32 vertex_array_index) {
-    const auto &vertex_array = render_registry.vertex_arrays[vertex_array_index];
+void r_init_buffer_storages() {
+    u32 storage_flags = R_FLAG_STORAGE_DYNAMIC | R_FLAG_MAP_WRITE | R_FLAG_MAP_PERSISTENT | R_FLAG_MAP_COHERENT;
+    u32 map_flags = R_FLAG_MAP_WRITE | R_FLAG_MAP_PERSISTENT | R_FLAG_MAP_COHERENT;
 
-    s32 vertex_count = 0;
-    for (s32 i = 0; i < vertex_array.binding_count; ++i) {
-        const auto &binding = vertex_array.bindings[i];
-        const auto &vertex_buffer = render_registry.vertex_buffers[binding.vertex_buffer_index];
-        s32 vertex_size = 0;
-        for (s32 j = 0; j < binding.layout_size; ++j)
-            vertex_size += vertex_component_size(binding.layout[j].type);
+    //#if DEVELOPER
+    storage_flags |= R_FLAG_MAP_READ;
+    map_flags     |= R_FLAG_MAP_READ;
+    //#endif
+    
+    vertex_buffer_storage.rid = r_create_storage(null, MAX_VERTEX_STORAGE_SIZE, storage_flags);
+    vertex_buffer_storage.size = 0;
+    vertex_buffer_storage.capacity = MAX_VERTEX_STORAGE_SIZE;
+    vertex_buffer_storage.mapped_data = r_map_buffer(vertex_buffer_storage.rid, 0, MAX_VERTEX_STORAGE_SIZE, map_flags);
 
-        vertex_count += vertex_buffer.size / vertex_size;
+    index_buffer_storage.rid = r_create_storage(null, MAX_INDEX_STORAGE_SIZE, storage_flags);
+    index_buffer_storage.size = 0;
+    index_buffer_storage.capacity = MAX_INDEX_STORAGE_SIZE;
+    index_buffer_storage.mapped_data = r_map_buffer(index_buffer_storage.rid, 0, MAX_INDEX_STORAGE_SIZE, map_flags);
+
+#if DEVELOPER
+    EID_VERTEX_DATA_OFFSET = vertex_buffer_storage.size;
+    EID_VERTEX_DATA_SIZE   = 0;
+    EID_VERTEX_DATA = r_alloclv(MAX_EID_VERTEX_DATA_SIZE);
+#endif
+}
+
+void *r_alloclv(u32 size) {
+    auto &vbs = vertex_buffer_storage;
+    
+    void *data = (u8 *)vbs.mapped_data + vbs.size;
+    vbs.size += size;
+    Assert(vbs.size <= MAX_VERTEX_STORAGE_SIZE);
+    
+    return data;
+}
+
+void *r_allocli(u32 size) {
+    auto &ibs = index_buffer_storage;
+    
+    void *data = (u8 *)ibs.mapped_data + ibs.size;
+    ibs.size += size;
+    Assert(ibs.size <= MAX_INDEX_STORAGE_SIZE);
+    
+    return data;
+}
+
+void cache_uniform_value_on_cpu(Uniform *uniform, const void *data, u32 data_size, u32 data_offset) {
+    const u32 max_size = uniform->count * get_uniform_type_size(uniform->type);
+    Assert(data_size + data_offset <= max_size);
+
+    auto &cache = uniform_value_cache;
+    Assert(cache.size + data_size + data_offset <= MAX_UNIFORM_VALUE_CACHE_SIZE);
+    
+    if (uniform->value_offset < MAX_UNIFORM_VALUE_CACHE_SIZE) {
+        // Just update specified uniform value part if it was cached before.
+        copy_bytes((u8 *)cache.data + uniform->value_offset + data_offset, data, data_size);
+    } else {
+        // Actually cache uniform value in global uniform value cache.
+        uniform->value_offset = cache.size;
+        copy_bytes((u8 *)cache.data + uniform->value_offset + data_offset, data, data_size);
+        cache.size += data_size + data_offset;
     }
-    
-    return vertex_count;
-}
-
-s32 create_uniform(const char *name, Uniform_Type type, s32 element_count) {
-    Uniform uniform;
-    uniform.type  = type;
-    uniform.count = element_count;
-    str_copy(uniform.name, name);
-    
-    return render_registry.uniforms.add(uniform);
-}
-
-u32 cache_uniform_value_on_cpu(s32 uniform_index, const void *data) {
-    Assert(data);
-    
-    const auto &uniform = render_registry.uniforms[uniform_index];
-    auto &cache         = render_registry.uniform_value_cache;
-    
-    const u32 size = uniform.count * get_uniform_type_size(uniform.type);
-    Assert(cache.size + size <= cache.capacity);
-        
-    const u32 offset = cache.size;
-    copy_bytes((u8 *)cache.data + cache.size, data, size);
-    cache.size += size;
-
-    return offset;
-}
-
-void update_uniform_value_on_cpu(s32 uniform_index, const void *data, u32 offset) {
-    const auto &uniform = render_registry.uniforms[uniform_index];
-    const auto &cache   = render_registry.uniform_value_cache;
-    Assert(offset < cache.size);
-    
-    const u32 size = uniform.count * get_uniform_type_size(uniform.type);
-    copy_bytes((u8 *)cache.data + offset, data, size);
 }
 
 u32 get_uniform_type_size(Uniform_Type type) {
@@ -752,116 +697,500 @@ u32 get_uniform_type_size(Uniform_Type type) {
     }
 }
 
-u32 get_uniform_buffer_used_size(u32 ubi) {
-    const auto &buffer = render_registry.uniform_buffers[ubi];
-    u32 size = 0;
-    
-    for (s32 i = 0; i < buffer.block_count; ++i) {
-        const auto &block = render_registry.uniform_blocks[buffer.block_indices[i]];
-        size += block.cpu_size;
+u32 get_uniform_type_dimension(Uniform_Type type) {
+    switch (type) {
+	case UNIFORM_U32:     return 1;
+	case UNIFORM_F32:     return 1;
+	case UNIFORM_F32_2:   return 2;
+	case UNIFORM_F32_3:   return 3;
+	case UNIFORM_F32_4:   return 4;
+	case UNIFORM_F32_4X4: return 16;
+    default:
+        error("Failed to get uniform size from type %d", type);
+        return 0;
     }
-    
-    return size;
-}
-
-u32 get_uniform_buffer_used_size_gpu_aligned(u32 ubi) {
-    const auto &buffer = render_registry.uniform_buffers[ubi];
-    u32 size = 0;
-    
-    for (s32 i = 0; i < buffer.block_count; ++i) {
-        const auto &block = render_registry.uniform_blocks[buffer.block_indices[i]];
-        size += block.gpu_size;
-    }
-
-    return size;
 }
 
 u32 get_uniform_block_field_size(const Uniform_Block_Field &field) {
     return get_uniform_type_size(field.type) * field.count;
 }
 
-s32 create_material(s32 shader_index, s32 texture_index) {
-    Material material;
-    material.shader_index  = shader_index;
-    material.texture_index = texture_index;
-    
-    for (s32 i = 0; i < MAX_MATERIAL_UNIFORMS; ++i) {
-        material.uniform_indices[i]       = INVALID_INDEX;
-        material.uniform_value_offsets[i] = INVALID_INDEX;
-    }
-    
-    return render_registry.materials.add(material);
-}
+const char *TYPE_NAME_U32  = "u32";
+const char *TYPE_NAME_F32  = "f32";
+const char *TYPE_NAME_VEC2 = "vec2";
+const char *TYPE_NAME_VEC3 = "vec3";
+const char *TYPE_NAME_VEC4 = "vec4";
+const char *TYPE_NAME_MAT4 = "mat4";
 
-s32 find_material_uniform(s32 material_index, const char *name) {
-	const auto &material = render_registry.materials[material_index];
-
-	for (s32 i = 0; i < material.uniform_count; ++i) {
-        const auto &uniform = render_registry.uniforms[material.uniform_indices[i]];
-        if (str_cmp(uniform.name, name)) return i;
-	}
-
-	return INVALID_INDEX;
-}
-
-void set_material_uniforms(s32 material_index, const s32 *uniform_indices, s32 count) {
-    Assert(count <= MAX_MATERIAL_UNIFORMS);
-
-    auto &material = render_registry.materials[material_index];
-    Assert(material.uniform_count == 0);
-
-    material.uniform_count = count;
-    copy_bytes(material.uniform_indices, uniform_indices, count * sizeof(s32));
-
-    auto &cache = render_registry.uniform_value_cache;
-    
-    for (s32 i = 0; i < material.uniform_count; ++i) {
-        const auto &uniform = render_registry.uniforms[material.uniform_indices[i]];
-        const u32 uniform_data_size = uniform.count * get_uniform_type_size(uniform.type);
-
-        const u32 offset = cache.size;
-        cache.size += uniform_data_size;
+void init_material_asset(Material *material, void *data) {
+    // @Todo: parse material data - ideally text for editor and binary for release.
         
-        material.uniform_value_offsets[i] = offset;
-    }
-}
+    enum Declaration_Type {
+        DECL_NONE,
+        DECL_SHADER,
+        DECL_TEXTURE,
+        DECL_AMBIENT,
+        DECL_DIFFUSE,
+        DECL_SPECULAR,
+        DECL_UNIFORM,
+    };
 
-void set_material_uniform_value(s32 material_index, s32 material_uniform_index, const void *data) {
-    auto &material          = render_registry.materials[material_index];
-    const s32 uniform_index = material.uniform_indices[material_uniform_index];
-    s32 value_offset        = material.uniform_value_offsets[material_uniform_index];
+    constexpr u32 MAX_LINE_BUFFER_SIZE = 256;
+
+    const char *DECL_NAME_SHADER   = "s";
+    const char *DECL_NAME_TEXTURE  = "t";
+    const char *DECL_NAME_AMBIENT  = "la";
+    const char *DECL_NAME_DIFFUSE  = "ld";
+    const char *DECL_NAME_SPECULAR = "ls";
+    const char *DECL_NAME_UNIFORM  = "u";
+
+    const char *DELIMITERS = " ";
+
+    material->uniform_count = 0;
     
-    if (value_offset < 0) {
-        value_offset = cache_uniform_value_on_cpu(uniform_index, data);
-        material.uniform_value_offsets[material_uniform_index] = value_offset;
-    } else {
-        update_uniform_value_on_cpu(uniform_index, data, value_offset);
+    char *p = (char *)data;
+    p[material->data_size] = '\0';
+
+    char line_buffer[MAX_LINE_BUFFER_SIZE];
+    char *new_line = str_char(p, ASCII_NEW_LINE);
+    
+    while (new_line) {
+        const s64 line_size = new_line - p;
+        Assert(line_size < MAX_LINE_BUFFER_SIZE);
+        str_copy(line_buffer, p, line_size);
+        line_buffer[line_size] = '\0';
+        
+        char *line = str_trim(line_buffer);
+        if (str_size(line) > 0) {
+            char *token = str_token(line, DELIMITERS);
+            Declaration_Type decl_type = DECL_NONE;
+
+            if (str_cmp(token, DECL_NAME_SHADER)) {
+                decl_type = DECL_SHADER;
+            } else if (str_cmp(token, DECL_NAME_TEXTURE)) {
+                decl_type = DECL_TEXTURE;
+            } else if (str_cmp(token, DECL_NAME_AMBIENT)) {
+                decl_type = DECL_AMBIENT;
+            } else if (str_cmp(token, DECL_NAME_DIFFUSE)) {
+                decl_type = DECL_DIFFUSE;
+            } else if (str_cmp(token, DECL_NAME_SPECULAR)) {
+                decl_type = DECL_SPECULAR;
+            } else if (str_cmp(token, DECL_NAME_UNIFORM)) {
+                decl_type = DECL_UNIFORM;
+            } else {
+                error("Unknown material token declaration '%s'", token);
+                continue;
+            }
+
+            switch (decl_type) {
+            case DECL_SHADER: {
+                char *sv = str_token(null, DELIMITERS);
+                material->sid_shader = cache_sid(sv);
+                break;
+            }
+            case DECL_TEXTURE: {
+                char *sv = str_token(null, DELIMITERS);
+                material->sid_texture = cache_sid(sv);
+                break;
+            }
+            case DECL_AMBIENT: {
+                vec3 v;
+                for (s32 i = 0; i < 3; ++i) {
+                    char *sv = str_token(null, DELIMITERS);
+                    if (!sv) break;
+                    v[i] = str_to_f32(sv);
+                }
+
+                material->ambient = v;
+                break;
+            }
+            case DECL_DIFFUSE: {
+                vec3 v;
+                for (s32 i = 0; i < 3; ++i) {
+                    char *sv = str_token(null, DELIMITERS);
+                    if (!sv) break;
+                    v[i] = str_to_f32(sv);
+                }
+
+                material->diffuse = v;
+                break;
+            }
+            case DECL_SPECULAR: {
+                vec3 v;
+                for (s32 i = 0; i < 3; ++i) {
+                    char *sv = str_token(null, DELIMITERS);
+                    if (!sv) break;
+                    v[i] = str_to_f32(sv);
+                }
+
+                material->specular = v;
+                break;
+            }
+            case DECL_UNIFORM: {
+                Assert(material->uniform_count < MAX_MATERIAL_UNIFORMS);
+
+                auto &uniform = material->uniforms[material->uniform_count];
+                uniform.count = 1;
+
+                char *su_name = str_token(null, DELIMITERS);
+                str_copy(uniform.name, su_name);
+
+                char *su_type = str_token(null, DELIMITERS);
+                if (str_cmp(su_type, TYPE_NAME_U32)) {
+                    uniform.type = UNIFORM_U32;
+
+                    u32 v = 0;
+                    char *sv = str_token(null, DELIMITERS);
+                    if (sv) {
+                        v = str_to_u32(sv);
+                    }
+                    
+                    cache_uniform_value_on_cpu(&uniform, &v, sizeof(v));
+                } else if (str_cmp(su_type, TYPE_NAME_F32)) {
+                    uniform.type = UNIFORM_F32;
+
+                    f32 v = 0.0f;
+                    char *sv = str_token(null, DELIMITERS);
+                    if (sv) {
+                        v = str_to_f32(sv);
+                    }
+                    
+                    cache_uniform_value_on_cpu(&uniform, &v, sizeof(v));
+                } else if (str_cmp(su_type, TYPE_NAME_VEC2)) {
+                    uniform.type = UNIFORM_F32_2;
+
+                    vec2 v;
+                    for (s32 i = 0; i < 2; ++i) {
+                        char *sv = str_token(null, DELIMITERS);
+                        if (!sv) break;
+                        v[i] = str_to_f32(sv);
+                    }
+                     
+                    cache_uniform_value_on_cpu(&uniform, &v, sizeof(v));
+                } else if (str_cmp(su_type, TYPE_NAME_VEC3)) {
+                    uniform.type = UNIFORM_F32_3;
+
+                    vec3 v;
+                    for (s32 i = 0; i < 3; ++i) {
+                        char *sv = str_token(null, DELIMITERS);
+                        if (!sv) break;
+                        v[i] = str_to_f32(sv);
+                    }
+
+                    cache_uniform_value_on_cpu(&uniform, &v, sizeof(v));
+                } else if (str_cmp(su_type, TYPE_NAME_VEC4)) {
+                    uniform.type = UNIFORM_F32_4;
+
+                    vec4 v;
+                    for (s32 i = 0; i < 4; ++i) {
+                        char *sv = str_token(null, DELIMITERS);
+                        if (!sv) break;
+                        v[i] = str_to_f32(sv);
+                    }
+
+                    cache_uniform_value_on_cpu(&uniform, &v, sizeof(v));
+                } else if (str_cmp(su_type, TYPE_NAME_MAT4)) {
+                    uniform.type = UNIFORM_F32_4X4;
+
+                    mat4 v = mat4_identity();
+                    for (s32 i = 0; i < 16; ++i) {
+                        char *sv = str_token(null, DELIMITERS);
+                        if (!sv) break;
+                        v[i % 4][i / 4] = str_to_f32(sv);
+                    }
+
+                    cache_uniform_value_on_cpu(&uniform, &v, sizeof(v));
+                } else {
+                    error("Unknown uniform type declaration '%s'", su_type);
+                    continue;
+                }
+
+                material->uniform_count += 1;
+
+                break;
+            }
+            }
+        }
+        
+        p += line_size + 1;
+        new_line = str_char(p, ASCII_NEW_LINE);
     }
 }
 
-void set_material_uniform_value(s32 material_index, const char *name, const void *data) {
-	const s32 material_uniform_index = find_material_uniform(material_index, name);
-	if (material_uniform_index == INVALID_INDEX) {
-		error("Failed to set material uniform %s value as its not found", name);
-		return;
+void set_material_uniform_value(Material *material, const char *uniform_name, const void *data, u32 size, u32 offset) {
+    Uniform *uniform = null;
+    for (s32 i = 0; i < material->uniform_count; ++i) {
+        auto &u = material->uniforms[i];
+        if (str_cmp(u.name, uniform_name)) {
+            uniform = &u;
+            break;
+        }
 	}
 
-    set_material_uniform_value(material_index, material_uniform_index, data);
+    if (!uniform) return;
+
+    cache_uniform_value_on_cpu(uniform, data, size, offset);
 }
 
-void fill_render_command_with_material_data(s32 material_index, Render_Command* command) {
-    const auto &material = render_registry.materials[material_index];
-    command->shader_index  = material.shader_index;
-    command->texture_index = material.texture_index;
-    command->uniform_count = material.uniform_count;
+void init_mesh_asset(Mesh *mesh, void *data) {
+    // @Todo: parse material data - ideally text for editor and binary for release.
     
-    for (s32 i = 0; i < material.uniform_count; ++i) {
-        command->uniform_indices[i]       = material.uniform_indices[i];
-        command->uniform_value_offsets[i] = material.uniform_value_offsets[i];
+    constexpr u32 MAX_LINE_BUFFER_SIZE = 256;
+    
+    enum Declaration_Type {
+        DECL_NONE,
+        DECL_VERTEX_COUNT,
+        DECL_INDEX_COUNT,
+        DECL_VERTEX_COMPONENT,
+        DECL_DATA_BEGIN,
+        DECL_DATA_END,
+        DECL_POSITION,
+        DECL_NORMAL,
+        DECL_INDEX,
+        DECL_UV,
+        
+        DECL_COUNT
+    };
+
+    const char *DECL_NAME_VERTEX_COUNT      = "vn";
+    const char *DECL_NAME_INDEX_COUNT       = "in";
+    const char *DECL_NAME_VERTEX_COMPONENT  = "vc";
+    const char *DECL_NAME_DATA_BEGIN = "db";
+    const char *DECL_NAME_DATA_END   = "de";
+    const char *DECL_NAME_POSITION = "p";
+    const char *DECL_NAME_NORMAL   = "n";
+    const char *DECL_NAME_UV       = "uv";
+    const char *DECL_NAME_INDEX = "i";
+    
+    const char *DELIMITERS = " ";
+
+    mesh->vertex_layout_size = 0;
+    
+    char *p = (char *)data;
+    p[mesh->data_size] = '\0';
+
+    u8 *r_vertex_data = (u8 *)vertex_buffer_storage.mapped_data;
+    u8 *r_index_data  = (u8 *)index_buffer_storage.mapped_data;
+    
+    u32 vertex_layout_offsets[MAX_MESH_VERTEX_COMPONENTS] = { 0 };
+    u32 vertex_offsets[MAX_MESH_VERTEX_COMPONENTS] = { 0 };
+
+    s32 decl_to_vertex_layout_index[DECL_COUNT] = { 0 };
+    Vertex_Component_Type decl_to_vct[DECL_COUNT] = { 0 };
+
+    u32 index_data_offset = 0;
+
+    char line_buffer[MAX_LINE_BUFFER_SIZE];
+    char *new_line = str_char(p, ASCII_NEW_LINE);
+    
+    while (new_line) {
+        const s64 line_size = new_line - p;
+        Assert(line_size < MAX_LINE_BUFFER_SIZE);
+        str_copy(line_buffer, p, line_size);
+        line_buffer[line_size] = '\0';
+        
+        char *line = str_trim(line_buffer);
+        if (str_size(line) > 0) {
+            char *token = str_token(line, DELIMITERS);
+            Declaration_Type decl_type = DECL_NONE;
+
+            if (str_cmp(token, DECL_NAME_VERTEX_COUNT)) {
+                decl_type = DECL_VERTEX_COUNT;
+            } else if (str_cmp(token, DECL_NAME_INDEX_COUNT)) {
+                decl_type = DECL_INDEX_COUNT;
+            } else if (str_cmp(token, DECL_NAME_VERTEX_COMPONENT)) {
+                decl_type = DECL_VERTEX_COMPONENT;
+            } else if (str_cmp(token, DECL_NAME_DATA_BEGIN)) {
+                decl_type = DECL_DATA_BEGIN;
+            } else if (str_cmp(token, DECL_NAME_DATA_END)) {
+                decl_type = DECL_DATA_END;
+            } else if (str_cmp(token, DECL_NAME_POSITION)) {
+                decl_type = DECL_POSITION;
+            } else if (str_cmp(token, DECL_NAME_NORMAL)) {
+                decl_type = DECL_NORMAL;
+            } else if (str_cmp(token, DECL_NAME_UV)) {
+                decl_type = DECL_UV;
+            } else if (str_cmp(token, DECL_NAME_INDEX)) {
+                decl_type = DECL_INDEX;
+            } else {
+                error("Unknown mesh token declaration '%s'", token);
+                continue;
+            }
+            
+            switch (decl_type) {
+            case DECL_VERTEX_COUNT: {
+                char *sv = str_token(null, DELIMITERS);
+                mesh->vertex_count = str_to_u32(sv);
+                break;
+            }
+            case DECL_INDEX_COUNT: {
+                char *sv = str_token(null, DELIMITERS);
+                mesh->index_count = str_to_u32(sv);
+                break;
+            }
+            case DECL_VERTEX_COMPONENT: {
+                char *sdecl = str_token(null, DELIMITERS);
+                char *stype = str_token(null, DELIMITERS);
+
+                Vertex_Component_Type vct;
+                if (str_cmp(stype, TYPE_NAME_VEC2)) {
+                    vct = VERTEX_F32_2;
+                } else if (str_cmp(stype, TYPE_NAME_VEC3)) {
+                    vct = VERTEX_F32_3;                    
+                } else if (str_cmp(stype, TYPE_NAME_VEC4)) {
+                    vct = VERTEX_F32_4;
+                } else {
+                    error("Unknown mesh token vertex component type declaration '%s'", token);
+                    continue;
+                }
+
+                Declaration_Type decl_vertex_type = DECL_NONE;
+                if (str_cmp(sdecl, DECL_NAME_POSITION)) {
+                    decl_vertex_type = DECL_POSITION;
+                } else if (str_cmp(sdecl, DECL_NAME_NORMAL)) {
+                    decl_vertex_type = DECL_NORMAL;
+                } else if (str_cmp(sdecl, DECL_NAME_UV)) {
+                    decl_vertex_type = DECL_UV;
+                } else {
+                    error("Unknown mesh token vertex component declaration '%s'", token);
+                    continue;
+                }
+
+                decl_to_vct[decl_vertex_type] = vct;
+                decl_to_vertex_layout_index[decl_vertex_type] = mesh->vertex_layout_size;
+
+                Assert(mesh->vertex_layout_size < MAX_MESH_VERTEX_COMPONENTS);
+                mesh->vertex_layout[mesh->vertex_layout_size] = vct;
+                mesh->vertex_layout_size += 1;
+                
+                break;
+            }
+            case DECL_DATA_BEGIN: {
+                mesh->vertex_size = 0;
+                for (s32 i = 0; i < mesh->vertex_layout_size; ++i) {
+                    const s32 vcs = get_vertex_component_size(mesh->vertex_layout[i]); 
+                    mesh->vertex_size += vcs;
+                }
+
+                mesh->vertex_data_size   = mesh->vertex_size * mesh->vertex_count;
+                mesh->vertex_data_offset = vertex_buffer_storage.size;
+
+                vertex_buffer_storage.size += mesh->vertex_data_size;
+                Assert(vertex_buffer_storage.size <= MAX_VERTEX_STORAGE_SIZE);
+                    
+                u32 offset = mesh->vertex_data_offset;
+                for (s32 i = 0; i < mesh->vertex_layout_size; ++i) {
+                    const s32 vcs = get_vertex_component_size(mesh->vertex_layout[i]); 
+                    const u32 size = vcs * mesh->vertex_count;
+                    
+                    vertex_layout_offsets[i] = offset;
+                    
+                    offset += size;
+                }
+
+                copy_bytes(vertex_offsets, vertex_layout_offsets, sizeof(vertex_layout_offsets));
+
+                mesh->index_data_size  = mesh->index_count  * sizeof(u32);
+                mesh->index_data_offset = index_buffer_storage.size;
+
+                index_buffer_storage.size += mesh->index_data_size;
+                Assert(index_buffer_storage.size <= MAX_INDEX_STORAGE_SIZE);
+
+                index_data_offset = mesh->index_data_offset;
+                
+                break;
+            }
+            case DECL_DATA_END: {
+                Assert(mesh->vertex_layout_size <= MAX_VERTEX_ARRAY_BINDINGS);
+                
+                Vertex_Array_Binding bindings[MAX_VERTEX_ARRAY_BINDINGS];
+                s32 binding_count = 0;
+                
+                for (s32 i = 0; i < mesh->vertex_layout_size; ++i) {
+                    auto &binding = bindings[i];
+                    binding.binding_index = i;
+                    binding.data_offset = vertex_layout_offsets[i];
+                    binding.layout_size = 1;
+                    binding.layout[0] = { mesh->vertex_layout[i], 0 };
+
+                    binding_count += 1;
+                }
+                
+                mesh->rid_vertex_array = r_create_vertex_array(bindings, binding_count);
+            }
+            case DECL_POSITION:
+            case DECL_NORMAL:
+            case DECL_UV: {
+                const auto vct = decl_to_vct[decl_type];
+                const s32 vli  = decl_to_vertex_layout_index[decl_type];
+                
+                if (decl_type == DECL_NORMAL) {
+                    volatile int a = 0;
+                }
+
+                switch (vct) {
+                case VERTEX_F32_2: {
+                    vec2 v;
+                    for (s32 i = 0; i < 2; ++i) {
+                        char *sv = str_token(null, DELIMITERS);
+                        v[i] = str_to_f32(sv);
+                    }
+
+                    u32 offset = vertex_offsets[vli];
+                    copy_bytes(r_vertex_data + offset, &v, sizeof(v));
+                    vertex_offsets[vli] += sizeof(v);
+                    
+                    break;
+                }
+                case VERTEX_F32_3: {
+                    vec3 v;
+                    for (s32 i = 0; i < 3; ++i) {
+                        char *sv = str_token(null, DELIMITERS);
+                        v[i] = str_to_f32(sv);
+                    }
+
+                    u32 offset = vertex_offsets[vli];
+                    copy_bytes(r_vertex_data + offset, &v, sizeof(v));
+                    vertex_offsets[vli] += sizeof(v);
+                    
+                    break;
+                }
+                case VERTEX_F32_4: {
+                    vec4 v;
+                    for (s32 i = 0; i < 4; ++i) {
+                        char *sv = str_token(null, DELIMITERS);
+                        v[i] = str_to_f32(sv);
+                    }
+
+                    u32 offset = vertex_offsets[vli];
+                    copy_bytes(r_vertex_data + offset, &v, sizeof(v));
+                    vertex_offsets[vli] += sizeof(v);
+                    
+                    break;
+                }
+                }
+                
+                break;
+            }
+            case DECL_INDEX: {
+                char *sv = str_token(null, DELIMITERS);
+
+                const u32 v = str_to_u32(sv);
+                copy_bytes(r_index_data + index_data_offset, &v, sizeof(v));
+                
+                index_data_offset += sizeof(v);
+                
+                break;
+            }
+            }
+        }
+        
+        p += line_size + 1;
+        new_line = str_char(p, ASCII_NEW_LINE);
     }
 }
 
-s32 vertex_component_dimension(Vertex_Component_Type type) {
+s32 get_vertex_component_dimension(Vertex_Component_Type type) {
 	switch (type) {
 	case VERTEX_S32:   return 1;
 	case VERTEX_U32:   return 1;
@@ -874,7 +1203,7 @@ s32 vertex_component_dimension(Vertex_Component_Type type) {
 	}
 }
 
-s32 vertex_component_size(Vertex_Component_Type type) {
+s32 get_vertex_component_size(Vertex_Component_Type type) {
 	switch (type) {
     case VERTEX_S32:   return 1 * sizeof(s32);
     case VERTEX_U32:   return 1 * sizeof(u32);
@@ -904,7 +1233,7 @@ void update_render_stats() {
     }
 }
 
-Texture_Format_Type get_desired_texture_format(s32 channel_count) {
+Texture_Format_Type get_texture_format_from_channel_count(s32 channel_count) {
     switch (channel_count) {
     case 3: return TEXTURE_FORMAT_RGB_8;
     case 4: return TEXTURE_FORMAT_RGBA_8;
@@ -914,12 +1243,12 @@ Texture_Format_Type get_desired_texture_format(s32 channel_count) {
     }
 }
 
-void draw_geo_debug() {
+void geo_draw_debug() {
     const auto &player = world->player;
 
     if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
         const vec3 center = player.location + vec3(0.0f, player.scale.y * 0.5f, 0.0f);
-        draw_geo_arrow(center, center + normalize(player.velocity) * 0.5f, vec3_red);
+        geo_draw_arrow(center, center + normalize(player.velocity) * 0.5f, vec3_red);
     }
     
     if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
@@ -940,7 +1269,7 @@ void draw_geo_debug() {
                 }
                 }
         
-                draw_geo_aabb(*aabb, aabb_color);
+                geo_draw_aabb(*aabb, aabb_color);
             }
 
             return RESULT_CONTINUE;
@@ -954,30 +1283,30 @@ void draw_geo_debug() {
             switch (world->mouse_picked_entity->type) {
             case ENTITY_PLAYER: {
                 auto *player = (Player *)world->mouse_picked_entity;
-                draw_geo_aabb(world->aabbs[player->aabb_index], mouse_picked_color);
+                geo_draw_aabb(world->aabbs[player->aabb_index], mouse_picked_color);
                 break;
             }
             case ENTITY_STATIC_MESH: {
                 auto *mesh = (Static_Mesh *)world->mouse_picked_entity;
-                draw_geo_aabb(world->aabbs[mesh->aabb_index], mouse_picked_color);
+                geo_draw_aabb(world->aabbs[mesh->aabb_index], mouse_picked_color);
                 break;
             }
             case ENTITY_POINT_LIGHT: {
                 auto *light = (Point_Light *)world->mouse_picked_entity;
-                draw_geo_aabb(world->aabbs[light->aabb_index], mouse_picked_color);
+                geo_draw_aabb(world->aabbs[light->aabb_index], mouse_picked_color);
                 break;
             }
             case ENTITY_DIRECT_LIGHT: {
                 auto *light = (Direct_Light *)world->mouse_picked_entity;
-                draw_geo_aabb(world->aabbs[light->aabb_index], mouse_picked_color);
+                geo_draw_aabb(world->aabbs[light->aabb_index], mouse_picked_color);
                 break;
             }
             }
         }
         
         if (player.collide_aabb_index != INVALID_INDEX) {
-            draw_geo_aabb(world->aabbs[player.aabb_index],         vec3_green);
-            draw_geo_aabb(world->aabbs[player.collide_aabb_index], vec3_green);
+            geo_draw_aabb(world->aabbs[player.aabb_index],         vec3_green);
+            geo_draw_aabb(world->aabbs[player.collide_aabb_index], vec3_green);
         }
     }
 }

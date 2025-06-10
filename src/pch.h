@@ -50,6 +50,17 @@ static_assert(sizeof(f64) == 8);
 
 #define null nullptr
 
+typedef u64 sid; // string id
+
+#if OPEN_GL
+typedef u32 rid; // render id, used by underlying gfx api
+#else
+#error "Unsupported gfx api"
+#endif
+
+inline constexpr sid SID_NONE = 0;
+inline constexpr rid RID_NONE = 0;
+
 #if _MSC_VER
 #define LITTLE_ENDIAN 1
 #endif
@@ -57,6 +68,8 @@ static_assert(sizeof(f64) == 8);
 #define ASCII_BACKSPACE       8
 #define ASCII_TAB             9
 #define ASCII_NEW_LINE        10
+#define ASCII_VERTICAL_TAB    11
+#define ASCII_FORM_FEED       12
 #define ASCII_CARRIAGE_RETURN 13
 #define ASCII_ESCAPE          27
 #define ASCII_SPACE           32

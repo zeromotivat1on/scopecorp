@@ -19,6 +19,17 @@ bool read_file(const char *path, void *buffer, u64 size, u64 *bytes_read, bool l
 	return true;
 }
 
+s64 get_file_size(const char *path) {
+    File file = open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_READ);
+	if (file == INVALID_FILE) {
+		return INVALID_INDEX;
+	}
+
+    defer { close_file(file); };
+
+    return get_file_size(file);
+}
+
 void fix_directory_delimiters(char *path) {
     char *read  = path;
     char *write = path;

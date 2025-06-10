@@ -10,7 +10,10 @@
 #include "render/viewport.h"
 #include "render/render_stats.h"
 #include "render/render_command.h"
-#include "render/render_registry.h"
+#include "render/shader.h"
+#include "render/texture.h"
+#include "render/material.h"
+#include "render/mesh.h"
 
 #include "math/math_core.h"
 #include "math/vector.h"
@@ -21,25 +24,30 @@
 #include "profile.h"
 #include "font.h"
 #include "asset.h"
+#include "stb_image.h"
 
 void register_hot_reload_directory(Hot_Reload_List *list, const char *path) {
 	Assert(list->path_count < MAX_HOT_RELOAD_DIRECTORIES);
-    list->paths[list->path_count] = path;
+    list->directory_paths[list->path_count] = path;
     list->path_count += 1;
 	log("Registered hot reload directory %s", path);
 }
 
-static void hot_reload_file_callback(const File_Callback_Data *callback_data) {
+static void cb_queue_for_hot_reload(const File_Callback_Data *callback_data) {
     char relative_path[MAX_PATH_SIZE];
     convert_to_relative_asset_path(relative_path, callback_data->path);
 
+    auto &ast = asset_source_table;
     const auto sid = cache_sid(relative_path);
-    if (Asset_Source *source = asset_source_table.find(sid)) {
+    
+    if (Asset_Source *source = ast.table.find(sid)) {
         if (source->last_write_time != callback_data->last_write_time) {
             auto list = (Hot_Reload_List *)callback_data->user_data;
 
             Assert(list->reload_count < MAX_HOT_RELOAD_ASSETS);
-            list->reload_sids[list->reload_count] = sid;
+            auto &hot_reload_asset = list->hot_reload_assets[list->reload_count];
+            hot_reload_asset.asset_type = source->asset_type;
+            hot_reload_asset.sid = sid;
             list->reload_count += 1;
             
             source->last_write_time = callback_data->last_write_time;
@@ -51,56 +59,80 @@ void check_for_hot_reload(Hot_Reload_List *list) {
     PROFILE_SCOPE(__FUNCTION__);
     
     for (s32 i = 0; i < list->path_count; ++i) {
-        for_each_file(list->paths[i], &hot_reload_file_callback, list);
+        for_each_file(list->directory_paths[i], &cb_queue_for_hot_reload, list);
     }
-
+    
     for (s32 i = 0; i < list->reload_count; ++i) {
         START_SCOPE_TIMER(asset);
-        Asset &asset = asset_table[list->reload_sids[i]];
 
         char path[MAX_PATH_SIZE];
-        convert_to_full_asset_path(path, asset.relative_path);
-            
-        switch (asset.type) {
+        const auto &hot_reload_asset = list->hot_reload_assets[i];
+        
+        switch (hot_reload_asset.asset_type) {
         case ASSET_SHADER: {
-            char *data = (char *)allocl(MAX_SHADER_SIZE);
+            auto &shader = asset_table.shaders[hot_reload_asset.sid];
+            convert_to_full_asset_path(path, shader.path);
+            
+            void *data = allocl(MAX_SHADER_SIZE);
             defer { freel(MAX_SHADER_SIZE); };
 
             u64 bytes_read = 0;
             if (read_file(path, data, MAX_SHADER_SIZE, &bytes_read)) {
-                data[bytes_read] = '\0';
-    
-                if (recreate_shader(asset.registry_index, data, asset.relative_path)) {
-                    log("Hot reloaded shader %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(asset));
-                } else {
-                    error("Failed to hot reload shader %s, see errors above", path);
-                }
+                init_shader_asset(&shader, data);
+                log("Hot reloaded shader %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(asset));
             }
             
             break;
         }
         case ASSET_TEXTURE: {
-            s32 try_count = 0;
-            Texture_Memory memory;
-            do {
-                try_count += 1;
-                memory = load_texture_memory(path, false);
-            } while (!memory.data);
-            
-            const auto &texture = render_registry.textures[asset.registry_index];
-            const auto format   = get_desired_texture_format(asset.as_texture.channel_count);
-            
-            if (recreate_texture(asset.registry_index, texture.type, texture.format, asset.as_texture.width, asset.as_texture.height, memory.data)) {
-                if (texture.flags & TEXTURE_FLAG_HAS_MIPMAPS) {
-                    generate_texture_mipmaps(asset.registry_index);
-                }
-                
-                log("Hot reloaded texture %s in %.2fms after %d tries", path, CHECK_SCOPE_TIMER_MS(asset), try_count);
-            } else {
-                error("Failed to hot reload texture %s, see errors above", path);
+            auto &texture = asset_table.textures[hot_reload_asset.sid];
+            convert_to_full_asset_path(path, texture.path);
+
+            void *buffer = allocl(MAX_TEXTURE_SIZE);
+            defer { freel(MAX_TEXTURE_SIZE); };
+
+            u64 bytes_read = 0;
+            if (read_file(path, buffer, MAX_TEXTURE_SIZE, &bytes_read)) {
+                void *data = stbi_load_from_memory((u8 *)buffer, (s32)bytes_read, &texture.width, &texture.height, &texture.channel_count, 0);
+                defer { stbi_image_free(data); };
+
+                texture.format = get_texture_format_from_channel_count(texture.channel_count);
+                texture.data_size = texture.width * texture.height * texture.channel_count;
+                init_texture_asset(&texture, data);
+
+                log("Hot reloaded texture %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(asset));
             }
             
-            free_texture_memory(&memory);
+            break;
+        }
+        case ASSET_MATERIAL: {
+            auto &material = asset_table.materials[hot_reload_asset.sid];
+            convert_to_full_asset_path(path, material.path);
+
+            void *buffer = allocl(MAX_MATERIAL_SIZE);
+            defer { freel(MAX_MATERIAL_SIZE); };
+            
+            u64 bytes_read = 0;
+            if (read_file(path, buffer, MAX_MATERIAL_SIZE, &bytes_read)) {
+                init_material_asset(&material, buffer);
+                log("Hot reloaded material %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(asset));
+            }
+            
+            break;
+        }
+        case ASSET_MESH: {
+            auto &mesh = asset_table.meshes[hot_reload_asset.sid];
+            convert_to_full_asset_path(path, mesh.path);
+
+            void *buffer = allocl(MAX_MESH_SIZE);
+            defer { freel(MAX_MESH_SIZE); };
+            
+            u64 bytes_read = 0;
+            if (read_file(path, buffer, MAX_MATERIAL_SIZE, &bytes_read)) {
+                init_mesh_asset(&mesh, buffer);
+                log("Hot reloaded mesh %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(asset));
+            }
+            
             break;
         }
         }

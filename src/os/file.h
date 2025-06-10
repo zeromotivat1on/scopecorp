@@ -18,7 +18,7 @@ struct File_Callback_Data {
 
 File open_file(const char *path, s32 open_type, u32 access_flags, bool log_error = true);
 bool close_file(File handle);
-s64  file_size(File handle);
+s64  get_file_size(File handle);
 bool read_file(File handle, void *buffer, u64 size, u64 *bytes_read = null);
 bool write_file(File handle, void *buffer, u64 size, u64 *bytes_written = null);
 bool set_file_pointer_position(File handle, s64 position);
@@ -31,3 +31,4 @@ void fix_directory_delimiters(char *path);
 void remove_extension(char *path);
 
 bool read_file(const char *path, void *buffer, u64 size, u64 *bytes_read = null, bool log_error = true);
+s64  get_file_size(const char *path);

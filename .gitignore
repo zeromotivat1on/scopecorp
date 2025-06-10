@@ -1,7 +1,5 @@
 *.pak
 
-ideas.txt
-
 run_tree/build
 run_tree/cmake
 run_tree/data/sounds

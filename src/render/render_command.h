@@ -3,19 +3,52 @@
 #include "math/vector.h"
 
 inline constexpr s32 MAX_RENDER_QUEUE_SIZE = 1024;
-inline constexpr s32 MAX_RENDER_COMMAND_UNIFORMS = 16;
 
 struct Entity;
 struct World;
 struct Window;
 
-enum Clear_Flag : u32 {
+// @Note: not sure if its better to use these instead of enums, as render command size
+// will become much higher and harder to debug (harder to detect draw mode, winding etc.)
+
+//extern u32 R_TRIANGLES;
+//extern u32 R_TRIANGLE_STRIP;
+//extern u32 R_LINES;
+//
+//extern u32 R_POLYGON_FILL;
+//extern u32 R_POLYGON_LINE;
+//extern u32 R_POLYGON_POINT;
+//
+//extern u32 R_FLAG_CLEAR_COLOR;
+//extern u32 R_FLAG_CLEAR_DEPTH;
+//extern u32 R_FLAG_CLEAR_STENCIL;
+//
+//extern u32 R_WINDING_CW;
+//extern u32 R_WINDING_CCW;
+//
+//extern u32 R_CULL_BACK;
+//extern u32 R_CULL_FRONT;
+//
+//extern u32 R_BLEND_SOURCE_ALPHA;
+//extern u32 R_BLEND_ONE_MINUS_SOURCE_ALPHA;
+//
+//extern u32 R_DEPTH_ENABLE;
+//extern u32 R_DEPTH_DISABLE;
+//extern u32 R_DEPTH_LESS;
+//
+//extern u32 R_STENCIL_KEEP;
+//extern u32 R_STENCIL_REPLACE;
+//extern u32 R_STENCIL_ALWAYS;
+//extern u32 R_STENCIL_EQUAL;
+//extern u32 R_STENCIL_NOT_EQUAL;
+
+enum Clear_Flag : u8 {
     CLEAR_FLAG_COLOR   = 0x1,
     CLEAR_FLAG_DEPTH   = 0x2,
     CLEAR_FLAG_STENCIL = 0x4,
 };
 
-enum Render_Mode {
+enum Render_Mode : u8 {
 	RENDER_TRIANGLES,
 	RENDER_TRIANGLE_STRIP,
 	RENDER_LINES,
@@ -29,45 +62,46 @@ enum Render_Flag : u32 {
     RENDER_FLAG_BLEND     = 0x10,
     RENDER_FLAG_DEPTH     = 0x20,
     RENDER_FLAG_STENCIL   = 0x40,
+    RENDER_FLAG_INDEXED   = 0x40000000, // render using index buffer
     RENDER_FLAG_RESET     = 0x80000000, // reset render state after draw call
 };
 
-enum Polygon_Mode {
+enum Polygon_Mode : u8 {
     POLYGON_FILL,
     POLYGON_LINE,
     POLYGON_POINT,
 };
 
-enum Winding_Type {
+enum Winding_Type : u8 {
     WINDING_CLOCKWISE,
     WINDING_COUNTER_CLOCKWISE,
 };
 
-enum Cull_Face_Type {
+enum Cull_Face_Type : u8 {
     CULL_FACE_BACK,
     CULL_FACE_FRONT,
 };
 
-enum Blend_Test_Function_Type {
+enum Blend_Test_Function_Type : u8 {
     BLEND_SOURCE_ALPHA,
     BLEND_ONE_MINUS_SOURCE_ALPHA,
 };
 
-enum Depth_Test_Function_Type {
+enum Depth_Test_Function_Type : u8 {
     DEPTH_LESS,
 };
 
-enum Depth_Test_Mask_Type {
+enum Depth_Test_Mask_Type : u8 {
     DEPTH_ENABLE,
     DEPTH_DISABLE,
 };
 
-enum Stencil_Test_Operation_Type {
+enum Stencil_Test_Operation_Type : u8 {
     STENCIL_KEEP,
     STENCIL_REPLACE,
 };
 
-enum Stencil_Test_Function_Type {
+enum Stencil_Test_Function_Type : u8 {
     STENCIL_ALWAYS,
     STENCIL_EQUAL,
     STENCIL_NOT_EQUAL,
@@ -76,15 +110,15 @@ enum Stencil_Test_Function_Type {
 struct Viewport_Test {
     s16 x = 0;
     s16 y = 0;
-    s16 width;
-    s16 height;
+    s16 width  = 0;
+    s16 height = 0;
 };
 
 struct Scissor_Test {
     s16 x = 0;
     s16 y = 0;
-    s16 width;
-    s16 height;
+    s16 width  = 0;
+    s16 height = 0;
 };
 
 struct Clear_Test {
@@ -125,6 +159,8 @@ struct Stencil_Test {
     u8 mask;
 };
 
+struct Uniform;
+
 struct Render_Command {
 	u32 flags = 0;
     
@@ -133,28 +169,37 @@ struct Render_Command {
 
     Viewport_Test  viewport;
     Scissor_Test   scissor;
-    Clear_Test     clear;
     Cull_Face_Test cull_face;
+    Clear_Test     clear;
     Blend_Test     blend;
     Depth_Test     depth;
     Stencil_Test   stencil;
 
-	s32 frame_buffer_index = INVALID_INDEX;
-	s32 vertex_array_index = INVALID_INDEX;
-	s32 index_buffer_index = INVALID_INDEX;
+	//s32 frame_buffer_index = INVALID_INDEX;
+	rid rid_frame_buffer = RID_NONE;
 
-    s32 shader_index  = INVALID_INDEX;
-	s32 texture_index = INVALID_INDEX;
-    
-    s32 uniform_count = 0;
-    s32 uniform_indices      [MAX_RENDER_COMMAND_UNIFORMS];
-    s32 uniform_value_offsets[MAX_RENDER_COMMAND_UNIFORMS];
+    rid rid_vertex_array = RID_NONE;
+    sid sid_material = SID_NONE;
 
-    s32 buffer_element_count  = 0;
-    s32 buffer_element_offset = 0;
+    // @Hack: handle run-time created textures that are not asset and so can't be used
+    // by materials.
+    // @Update: font atlas texture is passed here, as it won't work with materials.
+    // Actual solution would be to prebake font atlas as actual texture and store it
+    // in asset pak.
+    // @Update: this is also used by frame buffer color attachments...
+    rid rid_override_texture = RID_NONE;
     
-	s32 instance_count  = 1;
-	s32 instance_offset = 0;
+    // Offset from local buffer pointer for vertex data if vertex array is provided, so the
+    // final vertex offset will be as follows: vertex_array.offset + buffer_element_offset.
+    // Or offset from global index buffer storage if RENDER_FLAG_INDEXED is set.
+    u32 buffer_element_offset = 0;
+    u32 buffer_element_count  = 0;
+
+	u32 instance_count  = 1;
+	u32 instance_offset = 0;
+
+    // Editor-only.
+    u32 eid_vertex_data_offset = 0;
 };
 
 struct Render_Queue {

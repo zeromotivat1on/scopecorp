@@ -10,6 +10,14 @@ bool str_cmp(const char *a, const char *b, u64 n);
 char *str_sub(char *str, const char *sub);
 char *str_char(char *str, s32 c);
 char *str_char_from_end(char *str, s32 c);
+char *str_token(char *str, const char *delimiters);
+char *str_trim(char *str);
+char *str_last(char *str);
 const char *str_sub(const char *str, const char *sub);
 const char *str_char(const char *str, s32 c);
 const char *str_char_from_end(const char *str, s32 c);
+
+bool is_space(s32 c);
+
+f32 str_to_f32(const char *str);
+u32 str_to_u32(const char *str);

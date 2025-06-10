@@ -140,7 +140,7 @@ struct Hash_Table {
             }
 
             index += 1;
-            if (index > capacity) index = 0;
+            if (index >= capacity) index = 0;
         }
 
         return null;
@@ -154,7 +154,7 @@ struct Hash_Table {
 
         while (hashes[index] != 0) {
             index += 1;
-            if (index > capacity) index = 0;
+            if (index >= capacity) index = 0;
         }
 
         keys  [index] = key;
@@ -178,7 +178,7 @@ struct Hash_Table {
             }
 
             index += 1;
-            if (index > capacity) index = 0;
+            if (index >= capacity) index = 0;
         }
 
         return false;

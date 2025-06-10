@@ -36,5 +36,5 @@ inline constexpr Vertex_Component vertex_entity_layout[4] = {
     { VERTEX_S32,   1 },
 };
 
-s32 vertex_component_dimension(Vertex_Component_Type type);
-s32 vertex_component_size(Vertex_Component_Type type);
+s32 get_vertex_component_dimension(Vertex_Component_Type type);
+s32 get_vertex_component_size(Vertex_Component_Type type);
