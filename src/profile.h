@@ -12,7 +12,7 @@
 #else
 #define PROFILE_START(ctx, name) 
 #define PROFILE_END(ctx)
-#define PROFILE_SCOPE(name)
+#define PROFILE_SCOPE(name) Profile_Scope (profile_scope##__LINE__)(name, __FILE__, __LINE__)
 #define PROFILE_FRAME(name)
 #endif
 
@@ -29,5 +29,35 @@ struct Scope_Timer {
 	Scope_Timer(const char *info);
 	~Scope_Timer();
 };
+
+struct Profile_Scope {
+    s64 start = 0;
+    s64 end = 0;
+    s64 diff = 0;
+    const char *name = null;
+    const char *filepath = null;
+    u32 line = 0;
+    
+    Profile_Scope(const char *scope_name, const char *scope_filepath, u32 scope_line);
+    ~Profile_Scope();
+};
+
+inline constexpr u32 MAX_PROFILER_SCOPES = 1024;
+
+struct Profiler {
+    Profile_Scope *scopes = null;
+    f32 *scope_times = null;
+    u32 scope_count = 0;
+    
+    f32 scope_time_update_interval = 0.5f;
+    f32 scope_time_update_time = 0.0f;
+    
+    bool is_open = false;
+};
+
+inline Profiler profiler;
+
+void init_profiler();
+void draw_profiler();
 
 void draw_dev_stats();

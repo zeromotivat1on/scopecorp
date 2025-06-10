@@ -3,6 +3,7 @@
 enum Game_Mode {
 	MODE_GAME,
 	MODE_EDITOR,
+    MODE_COUNT
 };
 
 enum View_Mode_Flag : u32 {

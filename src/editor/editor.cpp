@@ -171,94 +171,102 @@ void close_debug_console() {
 void draw_debug_console() {
     PROFILE_SCOPE(__FUNCTION__);
     
-    if (debug_console.is_open) {
-        auto &history = debug_console.history;
-        auto &history_size = debug_console.history_size;
-        auto &history_height = debug_console.history_height;
-        auto &history_y = debug_console.history_y;
-        auto &history_min_y = debug_console.history_min_y;
-        auto &history_max_width = debug_console.history_max_width;
-        auto &input = debug_console.input;
-        auto &input_size = debug_console.input_size;
-        auto &cursor_blink_dt = debug_console.cursor_blink_dt;
+    if (!debug_console.is_open) return;
     
-        const auto &atlas = *ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
+    auto &history = debug_console.history;
+    auto &history_size = debug_console.history_size;
+    auto &history_height = debug_console.history_height;
+    auto &history_y = debug_console.history_y;
+    auto &history_min_y = debug_console.history_min_y;
+    auto &history_max_width = debug_console.history_max_width;
+    auto &input = debug_console.input;
+    auto &input_size = debug_console.input_size;
+    auto &cursor_blink_dt = debug_console.cursor_blink_dt;
+    
+    const auto &atlas = *ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
 
-        cursor_blink_dt += delta_time;
+    cursor_blink_dt += delta_time;
         
-        const f32 ascent  = atlas.font->ascent  * atlas.px_h_scale;
-        const f32 descent = atlas.font->descent * atlas.px_h_scale;
-        // @Cleanup: probably not ideal solution to get lower-case glyph height.
-        const f32 lower_case_height = (atlas.font->ascent + atlas.font->descent) * atlas.px_h_scale;
-            
-        const vec2 it_pos = vec2(DEBUG_CONSOLE_MARGIN);
-        const vec4 it_color = vec4_white;
-        const vec2 its_offset = vec2(atlas.font_size * 0.1f, -atlas.font_size * 0.1f);
-        const vec4 its_color = vec4_black;
+    const f32 ascent  = atlas.font->ascent  * atlas.px_h_scale;
+    const f32 descent = atlas.font->descent * atlas.px_h_scale;
+    // @Cleanup: probably not ideal solution to get lower-case glyph height.
+    const f32 lower_case_height = (atlas.font->ascent + atlas.font->descent) * atlas.px_h_scale;
+
+    {   // Input quad.
+        const vec2 q0 = vec2(DEBUG_CONSOLE_MARGIN);
+        const vec2 q1 = vec2(viewport.width - DEBUG_CONSOLE_MARGIN, viewport.height - DEBUG_CONSOLE_MARGIN);
+        const vec4 color = vec4(0.0f, 0.0f, 0.0f, 0.8f);
+        ui_draw_quad(q0, q1, color);
+    }
+
+    {   // History quad.
+        const vec2 q0 = vec2(DEBUG_CONSOLE_MARGIN);
+        const vec2 q1 = vec2(viewport.width - DEBUG_CONSOLE_MARGIN, DEBUG_CONSOLE_MARGIN + lower_case_height + 2 * DEBUG_CONSOLE_PADDING);
+        const vec4 color = vec4(0.0f, 0.0f, 0.0f, 0.8f);
+        ui_draw_quad(q0, q1, color);
+    }
+
+    {   // Input text.
+        const vec2 pos = vec2(DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING);
+        const vec4 color = vec4_white;
+        ui_draw_text(input, input_size, pos, color, UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX);
+    }
+
+    {   // History text.
+        const vec2 pos = vec2(DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING,
+                              viewport.height - DEBUG_CONSOLE_MARGIN - DEBUG_CONSOLE_PADDING - ascent);
+        const vec4 color = vec4_white;
         
-        const vec2 iq_p0 = it_pos - vec2(DEBUG_CONSOLE_PADDING);
-        const vec2 iq_p1 = vec2(viewport.width - DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING, iq_p0.y + lower_case_height + 2 * DEBUG_CONSOLE_PADDING);
-        const vec4 iq_color = vec4(0.0f, 0.0f, 0.0f, 0.8f);
-
-        const s32 input_width_px = get_line_width_px(&atlas, input, input_size);
-        const vec2 cursor_p0 = vec2(it_pos.x + input_width_px + 1, it_pos.y + descent);
-        const vec2 cursor_p1 = vec2(cursor_p0.x + atlas.space_advance_width, it_pos.y + ascent);
-        vec4 cursor_color = it_color;
-
-        if (cursor_blink_dt > DEBUG_CONSOLE_CURSOR_BLINK_INTERVAL) {
-            if (cursor_blink_dt > 2 * DEBUG_CONSOLE_CURSOR_BLINK_INTERVAL) {
-                cursor_blink_dt = 0.0f;
-            } else {
-                cursor_color.w = 0.0f;
-            }
-        }
-        
-        const vec2 ht_pos = vec2(DEBUG_CONSOLE_MARGIN, history_min_y);
-        const vec4 ht_color = vec4(0.8f, 0.8f, 0.8f, 1.0f);
-        const vec2 hts_offset = vec2(atlas.font_size * 0.1f, -atlas.font_size * 0.1f);
-        const vec4 hts_color = vec4_black;
-
-        const vec2 hq_p0 = vec2(iq_p0.x, iq_p1.y + DEBUG_CONSOLE_PADDING);
-        const vec2 hq_p1 = vec2(viewport.width - DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING, ht_pos.y + ascent + DEBUG_CONSOLE_PADDING);
-        const vec4 hq_color = vec4(0.0f, 0.0f, 0.0f, 0.8f);
-        const f32 hq_height = absf(hq_p0.y - hq_p1.y);
-
-        const f32 max_history_height = hq_height - DEBUG_CONSOLE_PADDING;
+        const f32 max_height = viewport.height - 2 * DEBUG_CONSOLE_MARGIN - DEBUG_CONSOLE_PADDING;
 
         history_height = 0.0f;
-        char *history_start = history;
-        f32 history_visible_height = history_size > 0 ? atlas.line_height : 0.0f;
-        f32 history_pointer_y = history_y;
-        s32 history_draw_count = 0;
+        char *start = history;
+        f32 visible_height = history_size > 0 ? atlas.line_height : 0.0f;
+        f32 current_y = history_y;
+        s32 draw_count = 0;
         
         for (s32 i = 0; i < history_size; ++i) {
-            if (history_pointer_y > history_min_y) {
-                history_start += 1;
-                history_visible_height = 0.0f;
+            if (current_y > history_min_y) {
+                start += 1;
+                visible_height = 0.0f;
             } else {
-                history_draw_count += 1;
+                draw_count += 1;
+                if (draw_count >= MAX_DEBUG_CONSOLE_HISTORY_SIZE) {
+                    draw_count = MAX_DEBUG_CONSOLE_HISTORY_SIZE;
+                    break;
+                }
             }
             
             if (history[i] == ASCII_NEW_LINE) {
                 history_height += atlas.line_height;
-                history_visible_height += atlas.line_height;
-                history_pointer_y -= atlas.line_height;
+                visible_height += atlas.line_height;
+                current_y -= atlas.line_height;
                 
-                if (history_visible_height > max_history_height) {
+                if (visible_height > max_height) {
                     break;
                 }
             }
         }
 
-        history_draw_count = Min(history_draw_count, MAX_DEBUG_CONSOLE_HISTORY_SIZE);
-        
-        ui_draw_quad(iq_p0, iq_p1, iq_color);
-        ui_draw_quad(hq_p0, hq_p1, hq_color);
-        
-        ui_draw_text(input, input_size, it_pos, it_color, UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX);
-        ui_draw_text(history_start, history_draw_count, ht_pos, ht_color, UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX);
+        ui_draw_text(start, draw_count, pos, color, UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX);
+    }
+    
+    {   // Cursor quad.
+        const s32 width_px = get_line_width_px(&atlas, input, input_size);
+        const vec2 q0 = vec2(DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING + width_px + 1,
+                             DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING + descent);
+        const vec2 q1 = vec2(q0.x + atlas.space_advance_width, q0.y + ascent - descent);
+        vec4 color = vec4_white;
 
-        ui_draw_quad(cursor_p0, cursor_p1, cursor_color);
+        if (cursor_blink_dt > DEBUG_CONSOLE_CURSOR_BLINK_INTERVAL) {
+            if (cursor_blink_dt > 2 * DEBUG_CONSOLE_CURSOR_BLINK_INTERVAL) {
+                cursor_blink_dt = 0.0f;
+            } else {
+                color.w = 0.0f;
+            }
+        }
+
+        ui_draw_quad(q0, q1, color);
     }
 }
 

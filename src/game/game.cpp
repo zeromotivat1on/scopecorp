@@ -57,7 +57,11 @@ void on_window_event(Window *window, Window_Event *event) {
 
         break;
 	}
-	case WINDOW_EVENT_KEYBOARD: {        
+	case WINDOW_EVENT_KEYBOARD: {
+        if (event->key_press && event->key_code == KEY_ESCAPE) {
+            close(window);
+        }
+        
         if (event->key_press && event->key_code == KEY_GRAVE_ACCENT) {
             if (debug_console.is_open) {
                 close_debug_console();
@@ -65,30 +69,29 @@ void on_window_event(Window *window, Window_Event *event) {
                 open_debug_console();
             }
         }
-        
-        if (event->key_press && event->key_code == KEY_ESCAPE) {
-            close(window);
-        }
 
+        if (event->key_press && event->key_code == KEY_F9) {
+            profiler.is_open = !profiler.is_open;
+        }
+        
         // Skip other input process.
         // @Cleanup: create sort of input stack to determine where to pass events.
-        if (debug_console.is_open) {
+        if (debug_console.is_open || profiler.is_open) {
             break;
         }
-        
-        if (event->key_press && event->with_alt && event->key_code == KEY_G) {
-            game_state.mode = MODE_GAME;
 
+        if (event->key_press && event->key_code == KEY_F11) {
+            game_state.mode = (Game_Mode)((game_state.mode + 1) % MODE_COUNT);
+            
+            lock_cursor(window, game_state.mode != MODE_EDITOR);
+            
             if (world->mouse_picked_entity) {
                 world->mouse_picked_entity->flags &= ~ENTITY_FLAG_SELECTED_IN_EDITOR;
                 world->mouse_picked_entity = null;
             }
+        }
         
-            lock_cursor(window, true);
-        } else if (event->key_press && event->with_alt && event->key_code == KEY_E) {
-            game_state.mode = MODE_EDITOR;
-            lock_cursor(window, false);
-        } else if (event->key_press && event->with_alt && event->key_code == KEY_C) {
+        if (event->key_press && event->with_alt && event->key_code == KEY_C) {
             if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
                 game_state.view_mode_flags &= ~VIEW_MODE_FLAG_COLLISION;
             } else {

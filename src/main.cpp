@@ -116,7 +116,8 @@ s32 main() {
 
     ui_init();
     init_debug_console();
-
+    init_profiler();
+    
     init_render_queue(&entity_render_queue, MAX_RENDER_QUEUE_SIZE);
     geo_init();
 
@@ -411,6 +412,7 @@ s32 main() {
         geo_draw_debug();
         draw_dev_stats();
         draw_debug_console();
+        draw_profiler();
 #endif
         
         update_render_stats();

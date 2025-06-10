@@ -1,7 +1,9 @@
 #include "pch.h"
 #include "profile.h"
+#include "str.h"
 #include "log.h"
 #include "font.h"
+#include "hash.h"
 #include "stb_sprintf.h"
 
 #include "os/time.h"
@@ -21,6 +23,94 @@ Scope_Timer::Scope_Timer(const char *info)
 Scope_Timer::~Scope_Timer() {
     const f32 ms = (performance_counter() - start) / (f32)performance_frequency_ms();
     log("%s %.2fms", info, ms);
+}
+
+Profile_Scope::Profile_Scope(const char *scope_name, const char *scope_filepath, u32 scope_line) {
+    name     = scope_name;
+    filepath = scope_filepath;
+    line     = scope_line;
+
+    start = performance_counter();
+}
+
+Profile_Scope::~Profile_Scope() {
+    end = performance_counter();
+    diff = end - start;
+
+    Profile_Scope *scope = null;
+    for (u32 i = 0; i < profiler.scope_count; ++i) {
+        auto &ps = profiler.scopes[i];
+        if (str_cmp(name, ps.name)) {
+            scope = &ps;
+        }
+    }
+
+    if (!scope) {
+        Assert(profiler.scope_count < MAX_PROFILER_SCOPES);
+        scope = profiler.scopes + profiler.scope_count;
+        profiler.scope_count += 1;
+    }
+
+    *scope = *this;
+}
+
+void init_profiler() {
+    profiler.scopes      = allocltn(Profile_Scope, MAX_PROFILER_SCOPES);
+    profiler.scope_times = allocltn(f32,           MAX_PROFILER_SCOPES);
+    profiler.scope_count = 0;
+    profiler.is_open = false;
+}
+
+void draw_profiler() {
+    profiler.scope_time_update_time += delta_time;
+
+    if (profiler.scope_time_update_time > profiler.scope_time_update_interval) {
+        for (u32 i = 0; i < profiler.scope_count; ++i) {
+            const auto &scope = profiler.scopes[i];
+            profiler.scope_times[i] = scope.diff / (f32)performance_frequency_ms();
+        }
+
+        profiler.scope_time_update_time = 0.0f;
+    }
+
+    if (!profiler.is_open) return;
+    
+    constexpr f32 PROFILER_MARGIN  = 100.0f;
+    constexpr f32 PROFILER_PADDING = 16.0f;
+
+    const auto &atlas = *ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
+    const f32 ascent  = atlas.font->ascent  * atlas.px_h_scale;
+    const f32 descent = atlas.font->descent * atlas.px_h_scale;
+
+    {   // Profiler quad.
+        const vec2 q0 = vec2(PROFILER_MARGIN);
+        const vec2 q1 = vec2(viewport.width - PROFILER_MARGIN, viewport.height - PROFILER_MARGIN);
+        const vec4 color = vec4(0.0f, 0.0f, 0.0f, 0.8f);
+        ui_draw_quad(q0, q1, color);
+    }
+
+    {   // Profiler scopes.
+        vec2 pos = vec2(PROFILER_MARGIN + PROFILER_PADDING, viewport.height - PROFILER_MARGIN - PROFILER_PADDING - ascent);
+        const vec4 color = vec4_white;
+    
+        char buffer[256];
+        s32 count = 0;
+
+        const auto &atlas = *ui.font_atlases[UI_PROFILER_FONT_ATLAS_INDEX];
+
+        // @Todo: sort by time, name etc.
+        for (u32 i = 0; i < profiler.scope_count; ++i) {
+            const auto &scope = profiler.scopes[i];
+            const f32 time = profiler.scope_times[i];
+        
+            count = stbsp_snprintf(buffer, sizeof(buffer), "%s %s:%u %.2fms",
+                                   scope.name, scope.filepath, scope.line, time);
+            ui_draw_text(buffer, count, pos, color, UI_PROFILER_FONT_ATLAS_INDEX);
+            pos.y -= atlas.line_height;
+        }
+    }
+
+    profiler.scope_count = 0;
 }
 
 void draw_dev_stats() {
