@@ -5,6 +5,7 @@
 #include "str.h"
 #include "log.h"
 #include "profile.h"
+#include "input_stack.h"
 #include "flip_book.h"
 #include "asset.h"
 
@@ -14,6 +15,7 @@
 #include "os/input.h"
 #include "os/window.h"
 
+#include "editor/editor.h"
 #include "editor/debug_console.h"
 
 #include "render/ui.h"
@@ -24,104 +26,54 @@
 
 #include "audio/sound.h"
 
-static void mouse_pick_entity(World *world, Entity *e) {
-    if (world->mouse_picked_entity) {
-        world->mouse_picked_entity->flags &= ~ENTITY_FLAG_SELECTED_IN_EDITOR;
-    }
-                
-    e->flags |= ENTITY_FLAG_SELECTED_IN_EDITOR;
-    world->mouse_picked_entity = e;
+void on_window_resize(s16 width, s16 height) {
+    resize_viewport(&viewport, width, height);
+    viewport.orthographic_projection = mat4_orthographic(0, viewport.width, 0, viewport.height, -1, 1);
 
-    game_state.selected_entity_property_to_change = PROPERTY_LOCATION;
+    const vec2 viewport_resolution = vec2(viewport.width, viewport.height);
+    r_set_uniform_block_value(&uniform_block_viewport, 0, 0, &viewport_resolution, get_uniform_type_size_gpu_aligned(UNIFORM_F32_2));        
+    r_set_uniform_block_value(&uniform_block_viewport, 1, 0, &viewport.orthographic_projection, get_uniform_type_size_gpu_aligned(UNIFORM_F32_4X4));        
+        
+    on_viewport_resize(&world->camera, &viewport);
+    world->ed_camera = world->camera;
+
+    on_viewport_resize_debug_console(viewport.width, viewport.height);
+
+    auto &frame_buffer = viewport.frame_buffer;
+    auto &material = asset_table.materials[frame_buffer.sid_material];
+    const vec2 frame_buffer_resolution = vec2(frame_buffer.width, frame_buffer.height);
+    set_material_uniform_value(&material, "u_resolution", &frame_buffer_resolution, sizeof(frame_buffer_resolution));
 }
 
-void on_window_event(Window *window, Window_Event *event) {
+void on_input_game(Window_Event *event) {
+    const bool press = event->key_press;
+    const bool ctrl = event->with_ctrl;
+    const bool alt  = event->with_alt;
+    const auto key = event->key_code;
+        
     switch (event->type) {
-	case WINDOW_EVENT_RESIZE: {
-        resize_viewport(&viewport, window->width, window->height);
-        viewport.orthographic_projection = mat4_orthographic(0, viewport.width, 0, viewport.height, -1, 1);
-
-        const vec2 viewport_resolution = vec2(viewport.width, viewport.height);
-        r_set_uniform_block_value(&uniform_block_viewport, 0, 0, &viewport_resolution, get_uniform_type_size_gpu_aligned(UNIFORM_F32_2));        
-        r_set_uniform_block_value(&uniform_block_viewport, 1, 0, &viewport.orthographic_projection, get_uniform_type_size_gpu_aligned(UNIFORM_F32_4X4));        
-        
-        on_viewport_resize(&world->camera, &viewport);
-        world->ed_camera = world->camera;
-
-        on_debug_console_resize(viewport.width, viewport.height);
-
-        auto &frame_buffer = viewport.frame_buffer;
-        auto &material = asset_table.materials[frame_buffer.sid_material];
-        const vec2 frame_buffer_resolution = vec2(frame_buffer.width, frame_buffer.height);
-        set_material_uniform_value(&material, "u_resolution", &frame_buffer_resolution, sizeof(frame_buffer_resolution));
-
-        break;
-	}
 	case WINDOW_EVENT_KEYBOARD: {
-        if (event->key_press && event->key_code == KEY_ESCAPE) {
+        if (press && key == KEY_CLOSE_WINDOW) {
             close(window);
-        }
-        
-        if (event->key_press && event->key_code == KEY_GRAVE_ACCENT) {
-            if (debug_console.is_open) {
-                close_debug_console();
-            } else {
-                open_debug_console();
-            }
-        }
-
-        if (event->key_press && event->key_code == KEY_F9) {
-            profiler.is_open = !profiler.is_open;
-        }
-        
-        // Skip other input process.
-        // @Cleanup: create sort of input stack to determine where to pass events.
-        if (debug_console.is_open || profiler.is_open) {
-            break;
-        }
-
-        if (event->key_press && event->key_code == KEY_F11) {
-            game_state.mode = (Game_Mode)((game_state.mode + 1) % MODE_COUNT);
-            
-            lock_cursor(window, game_state.mode != MODE_EDITOR);
-            
-            if (world->mouse_picked_entity) {
-                world->mouse_picked_entity->flags &= ~ENTITY_FLAG_SELECTED_IN_EDITOR;
-                world->mouse_picked_entity = null;
-            }
-        }
-        
-        if (event->key_press && event->with_alt && event->key_code == KEY_C) {
+        } else if (press && key == KEY_SWITCH_DEBUG_CONSOLE) {
+            open_debug_console();
+        } else if (press && key == KEY_SWITCH_PROFILER) {
+            open_profiler();
+        } else if (press && key == KEY_SWITCH_EDITOR_MODE) {
+            game_state.mode = MODE_EDITOR;
+            lock_cursor(window, false);
+            push_input_layer(&input_layer_editor);
+        } else if (press && alt && key == KEY_C) {
             if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
                 game_state.view_mode_flags &= ~VIEW_MODE_FLAG_COLLISION;
             } else {
                 game_state.view_mode_flags |= VIEW_MODE_FLAG_COLLISION;
             }
-        }
-
-        if (game_state.mode == MODE_EDITOR) {
-            if (event->key_press && event->key_code == KEY_F1) {
-                lock_cursor(window, !window->cursor_locked);
-            }
-
-            if (world->mouse_picked_entity) {
-                if (event->key_press && event->key_code == KEY_Z) {
-                    game_state.selected_entity_property_to_change = PROPERTY_LOCATION;
-                } else if (event->key_press && event->key_code == KEY_X) {
-                    game_state.selected_entity_property_to_change = PROPERTY_ROTATION;
-                } else if (event->key_press && event->key_code == KEY_C) {
-                    game_state.selected_entity_property_to_change = PROPERTY_SCALE;
-                }
-            }
-        } else if (game_state.mode == MODE_GAME) {
-            if (event->key_press && event->key_code == KEY_F1) {
-                game_state.camera_behavior = (Camera_Behavior)(((s32)game_state.camera_behavior + 1) % 3);
-            } else if (event->key_press && event->key_code == KEY_F2) {
-                game_state.player_movement_behavior = (Player_Movement_Behavior)(((s32)game_state.player_movement_behavior + 1) % 2);
-            }
-        }
-    
-        if (event->key_press && event->with_ctrl && event->key_code == KEY_R) {
+        } else if (press && key == KEY_F1) {
+            game_state.camera_behavior = (Camera_Behavior)(((s32)game_state.camera_behavior + 1) % 3);
+        } else if (press && key == KEY_F2) {
+            game_state.player_movement_behavior = (Player_Movement_Behavior)(((s32)game_state.player_movement_behavior + 1) % 2);
+        } else if (press && ctrl && key == KEY_R) {
             world->player.location = vec3(0.0f, F32_MIN, 0.0f);
             world->camera.eye = world->player.location + world->player.camera_offset;
             world->camera.at = world->camera.eye + forward(world->camera.yaw, world->camera.pitch);
@@ -129,114 +81,6 @@ void on_window_event(Window *window, Window_Event *event) {
 
         break;
 	}
-	case WINDOW_EVENT_TEXT_INPUT: {
-        if (debug_console.is_open) {
-            on_debug_console_input(event->character);
-        }
-        
-        break;
-	}
-	case WINDOW_EVENT_MOUSE: {
-        if (debug_console.is_open) {
-            on_debug_console_scroll(Sign(event->scroll_delta));
-        }
-        else {
-            if (game_state.mode == MODE_EDITOR) {
-                if (event->key_code == MOUSE_MIDDLE) {
-                    lock_cursor(window, !window->cursor_locked);
-                }
-
-                if (event->key_press && event->key_code == MOUSE_RIGHT) {
-                    if (world->mouse_picked_entity) {
-                        world->mouse_picked_entity->flags &= ~ENTITY_FLAG_SELECTED_IN_EDITOR;
-                        world->mouse_picked_entity = null;
-                    }
-                } else if (event->key_press && event->key_code == MOUSE_LEFT) {
-                    if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
-                        const Ray ray = world_ray_from_viewport_location(desired_camera(world), &viewport, input_table.mouse_x, input_table.mouse_y);
-                        const s32 aabb_index = find_closest_overlapped_aabb(ray, world->aabbs.items, world->aabbs.count);
-                        if (aabb_index != INVALID_INDEX) {
-                            struct Find_Entity_By_AABB_Data {
-                                Entity *e = null;
-                                s32 aabb_index = INVALID_INDEX;
-                            };
-
-                            static const auto cb_find_entity_by_aabb = [] (Entity *e, void *user_data) -> For_Each_Result {
-                                auto *data = (Find_Entity_By_AABB_Data *)user_data;
-
-                                switch (e->type) {
-                                case ENTITY_PLAYER: {
-                                    auto *player = (Player *)e;
-                                    if (player->aabb_index == data->aabb_index) {
-                                        data->e = e;
-                                        return RESULT_BREAK;
-                                    }
-                                
-                                    break;
-                                }
-                                case ENTITY_STATIC_MESH: {
-                                    auto *mesh = (Static_Mesh *)e;
-                                    if (mesh->aabb_index == data->aabb_index) {
-                                        data->e = e;
-                                        return RESULT_BREAK;
-                                    }
-                                
-                                    break;
-                                }
-                                case ENTITY_POINT_LIGHT: {
-                                    auto *light = (Point_Light *)e;
-                                    if (light->aabb_index == data->aabb_index) {
-                                        data->e = e;
-                                        return RESULT_BREAK;
-                                    }
-                                
-                                    break;
-                                }
-                                case ENTITY_DIRECT_LIGHT: {
-                                    auto *light = (Direct_Light *)e;
-                                    if (light->aabb_index == data->aabb_index) {
-                                        data->e = e;
-                                        return RESULT_BREAK;
-                                    }
-                                
-                                    break;
-                                }
-                                }
-
-                                return RESULT_CONTINUE;
-                            };
-                        
-                            Find_Entity_By_AABB_Data find_data;
-                            find_data.e = null;
-                            find_data.aabb_index = aabb_index;
-
-                            for_each_entity(world, cb_find_entity_by_aabb, &find_data);
-
-                            if (find_data.e) {
-                                mouse_pick_entity(world, find_data.e);
-                            }
-                        }
-                    } else {
-                        const s32 id = r_read_frame_buffer_pixel(viewport.frame_buffer.rid, 1, input_table.mouse_x, input_table.mouse_y);
-                        auto *e = find_entity_by_id(world, id);
-                        if (e) {
-                            mouse_pick_entity(world, e);
-                        }
-                    }
-                }
-            }
-        }
-        
-        break;
-    }
-	case WINDOW_EVENT_QUIT: {
-		log("WINDOW_EVENT_QUIT");
-        break;
-	}
-    default: {
-        error("Unhandled window event %d", event->type);
-        break;
-    }
     }
 }
 

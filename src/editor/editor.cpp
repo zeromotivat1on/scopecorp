@@ -2,9 +2,14 @@
 #include "editor/hot_reload.h"
 #include "editor/debug_console.h"
 
+#include "game/game.h"
+#include "game/world.h"
+#include "game/entity.h"
+
 #include "os/time.h"
 #include "os/file.h"
 #include "os/input.h"
+#include "os/window.h"
 
 #include "render/ui.h"
 #include "render/viewport.h"
@@ -24,7 +29,144 @@
 #include "profile.h"
 #include "font.h"
 #include "asset.h"
+#include "input_stack.h"
+
 #include "stb_image.h"
+
+s16 KEY_CLOSE_WINDOW         = KEY_ESCAPE;
+s16 KEY_SWITCH_EDITOR_MODE   = KEY_F11;
+s16 KEY_SWITCH_DEBUG_CONSOLE = KEY_GRAVE_ACCENT;
+
+struct Find_Entity_By_AABB_Data {
+    Entity *e = null;
+    s32 aabb_index = INVALID_INDEX;
+};
+
+static void mouse_pick_entity(World *world, Entity *e) {
+    if (world->mouse_picked_entity) {
+        world->mouse_picked_entity->flags &= ~ENTITY_FLAG_SELECTED_IN_EDITOR;
+    }
+                
+    e->flags |= ENTITY_FLAG_SELECTED_IN_EDITOR;
+    world->mouse_picked_entity = e;
+
+    game_state.selected_entity_property_to_change = PROPERTY_LOCATION;
+}
+
+static For_Each_Result cb_find_entity_by_aabb(Entity *e, void *user_data) {
+    auto *data = (Find_Entity_By_AABB_Data *)user_data;
+
+    switch (e->type) {
+    case ENTITY_PLAYER: {
+        auto *player = (Player *)e;
+        if (player->aabb_index == data->aabb_index) {
+            data->e = e;
+            return RESULT_BREAK;
+        }
+                                
+        break;
+    }
+    case ENTITY_STATIC_MESH: {
+        auto *mesh = (Static_Mesh *)e;
+        if (mesh->aabb_index == data->aabb_index) {
+            data->e = e;
+            return RESULT_BREAK;
+        }
+                                
+        break;
+    }
+    case ENTITY_POINT_LIGHT: {
+        auto *light = (Point_Light *)e;
+        if (light->aabb_index == data->aabb_index) {
+            data->e = e;
+            return RESULT_BREAK;
+        }
+                                
+        break;
+    }
+    case ENTITY_DIRECT_LIGHT: {
+        auto *light = (Direct_Light *)e;
+        if (light->aabb_index == data->aabb_index) {
+            data->e = e;
+            return RESULT_BREAK;
+        }
+                                
+        break;
+    }
+    }
+
+    return RESULT_CONTINUE;
+};
+
+void on_input_editor(Window_Event *event) {
+    const bool press = event->key_press;
+    const auto key = event->key_code;
+        
+    switch (event->type) {
+    case WINDOW_EVENT_KEYBOARD: {
+        if (press && key == KEY_CLOSE_WINDOW) {
+            close(window);
+        } else if (press && key == KEY_SWITCH_EDITOR_MODE) {
+            game_state.mode = MODE_GAME;
+            lock_cursor(window, true);
+            pop_input_layer();
+            
+            if (world->mouse_picked_entity) {
+                world->mouse_picked_entity->flags &= ~ENTITY_FLAG_SELECTED_IN_EDITOR;
+                world->mouse_picked_entity = null;
+            }
+        } else if (press && key == KEY_F1) {
+            lock_cursor(window, !window->cursor_locked);
+        }
+
+        if (world->mouse_picked_entity) {
+            if (press && key == KEY_Z) {
+                game_state.selected_entity_property_to_change = PROPERTY_LOCATION;
+            } else if (press && key == KEY_X) {
+                game_state.selected_entity_property_to_change = PROPERTY_ROTATION;
+            } else if (press && key == KEY_C) {
+                game_state.selected_entity_property_to_change = PROPERTY_SCALE;
+            }
+        }
+            
+        break;
+    }
+    case WINDOW_EVENT_MOUSE: {
+        if (key == MOUSE_MIDDLE) {
+            lock_cursor(window, !window->cursor_locked);
+        } else if (press && key == MOUSE_RIGHT) {
+            if (world->mouse_picked_entity) {
+                world->mouse_picked_entity->flags &= ~ENTITY_FLAG_SELECTED_IN_EDITOR;
+                world->mouse_picked_entity = null;
+            }
+        } else if (press && key == MOUSE_LEFT) {
+            if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
+                const Ray ray = world_ray_from_viewport_location(desired_camera(world), &viewport, input_table.mouse_x, input_table.mouse_y);
+                const s32 aabb_index = find_closest_overlapped_aabb(ray, world->aabbs.items, world->aabbs.count);
+                if (aabb_index != INVALID_INDEX) {
+                    Find_Entity_By_AABB_Data find_data;
+                    find_data.e = null;
+                    find_data.aabb_index = aabb_index;
+
+                    for_each_entity(world, cb_find_entity_by_aabb, &find_data);
+
+                    if (find_data.e) {
+                        mouse_pick_entity(world, find_data.e);
+                    }
+                }
+            } else {
+                const s32 id = r_read_frame_buffer_pixel(viewport.frame_buffer.rid, 1, input_table.mouse_x, input_table.mouse_y);
+                auto *e = find_entity_by_id(world, id);
+                if (e) {
+                    mouse_pick_entity(world, e);
+                }
+            }
+        }
+        
+        break;
+    }
+    }
+}
 
 void register_hot_reload_directory(Hot_Reload_List *list, const char *path) {
 	Assert(list->path_count < MAX_HOT_RELOAD_DIRECTORIES);
@@ -152,20 +294,24 @@ void init_debug_console() {
     history = (char *)allocl(MAX_DEBUG_CONSOLE_HISTORY_SIZE);
     history[0] = '\0';
 
-    on_debug_console_resize(viewport.width, viewport.height);
+    on_viewport_resize_debug_console(viewport.width, viewport.height);
 }
 
 void open_debug_console() {
-    if (debug_console.is_open) return;
+    Assert(!debug_console.is_open);
 
     debug_console.is_open = true;
+
+    push_input_layer(&input_layer_debug_console);
 }
 
 void close_debug_console() {
-    if (!debug_console.is_open) return;
-
+    Assert(debug_console.is_open);
+    
     debug_console.cursor_blink_dt = 0.0f;
     debug_console.is_open = false;
+    
+    pop_input_layer();
 }
 
 void draw_debug_console() {
@@ -310,85 +456,105 @@ void add_to_debug_console_history(const char *text, u32 count) {
     history[history_size] = '\0';
 }
 
-void on_debug_console_input(u32 character) {
-    if (!debug_console.is_open) return;
-    
-    if (character == ASCII_GRAVE_ACCENT) {
-        return;
-    }
+void on_input_debug_console(Window_Event *event) {
+    const bool press = event->key_press;
+    const auto key = event->key_code;
+    const u32 character = event->character;
 
-    auto &history = debug_console.history;
-    auto &history_size = debug_console.history_size;
-    auto &history_y = debug_console.history_y;
-    auto &history_min_y = debug_console.history_min_y;
-    auto &input = debug_console.input;
-    auto &input_size = debug_console.input_size;
-    auto &cursor_blink_dt = debug_console.cursor_blink_dt;
-
-    const auto &atlas = *ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
-
-    cursor_blink_dt = 0.0f;
-    
-    if (character == ASCII_NEW_LINE || character == ASCII_CARRIAGE_RETURN) {
-        if (input_size > 0) {
-            static char add_text[MAX_DEBUG_CONSOLE_INPUT_SIZE + 128] = { '\0' };
-            
-            // @Cleanup: make better history overflow handling.
-            if (history_size + input_size > MAX_DEBUG_CONSOLE_HISTORY_SIZE) {
-                history[0] = '\0';
-                history_size = 0;
-            }
-
-            const bool clear = str_cmp(input, DEBUG_CONSOLE_COMMAND_CLEAR, input_size);
-            if (clear) {
-                history[0] = '\0';
-                history_size = 0;
-                history_y = history_min_y;
-            } else {
-                static const u32 warning_size = (u32)str_size(DEBUG_CONSOLE_UNKNOWN_COMMAND_WARNING);
-                str_glue(add_text, DEBUG_CONSOLE_UNKNOWN_COMMAND_WARNING, warning_size);
-            }
-
-            if (!clear) {
-                str_glue(add_text, input, input_size);
-                str_glue(add_text, "\n",  1);
-                add_to_debug_console_history(add_text, (u32)str_size(add_text));
-            }
-            
-            input_size = 0;
-            add_text[0] = '\0';
+    switch (event->type) {
+    case WINDOW_EVENT_KEYBOARD: {        
+        if (press && key == KEY_SWITCH_DEBUG_CONSOLE) {
+            close_debug_console();
         }
         
-        return;
+        break;
     }
+    case WINDOW_EVENT_TEXT_INPUT: {
+        if (!debug_console.is_open) break;
 
-    if (character == ASCII_BACKSPACE) {
-        input_size -= 1;
-        input_size = Max(0, input_size);
-    }
+        if (character == ASCII_GRAVE_ACCENT) {
+            break;
+        }
 
-    if (is_ascii_printable(character)) {
-        if (input_size >= MAX_DEBUG_CONSOLE_INPUT_SIZE) {
-            return;
+        auto &history = debug_console.history;
+        auto &history_size = debug_console.history_size;
+        auto &history_y = debug_console.history_y;
+        auto &history_min_y = debug_console.history_min_y;
+        auto &input = debug_console.input;
+        auto &input_size = debug_console.input_size;
+        auto &cursor_blink_dt = debug_console.cursor_blink_dt;
+
+        const auto &atlas = *ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
+
+        cursor_blink_dt = 0.0f;
+    
+        if (character == ASCII_NEW_LINE || character == ASCII_CARRIAGE_RETURN) {
+            if (input_size > 0) {
+                static char add_text[MAX_DEBUG_CONSOLE_INPUT_SIZE + 128] = { '\0' };
+            
+                // @Cleanup: make better history overflow handling.
+                if (history_size + input_size > MAX_DEBUG_CONSOLE_HISTORY_SIZE) {
+                    history[0] = '\0';
+                    history_size = 0;
+                }
+
+                const bool clear = str_cmp(input, DEBUG_CONSOLE_COMMAND_CLEAR, input_size);
+                if (clear) {
+                    history[0] = '\0';
+                    history_size = 0;
+                    history_y = history_min_y;
+                } else {
+                    static const u32 warning_size = (u32)str_size(DEBUG_CONSOLE_UNKNOWN_COMMAND_WARNING);
+                    str_glue(add_text, DEBUG_CONSOLE_UNKNOWN_COMMAND_WARNING, warning_size);
+                }
+
+                if (!clear) {
+                    str_glue(add_text, input, input_size);
+                    str_glue(add_text, "\n",  1);
+                    add_to_debug_console_history(add_text, (u32)str_size(add_text));
+                }
+            
+                input_size = 0;
+                add_text[0] = '\0';
+            }
+        
+            break;
+        }
+
+        if (character == ASCII_BACKSPACE) {
+            input_size -= 1;
+            input_size = Max(0, input_size);
+        }
+
+        if (is_ascii_printable(character)) {
+            if (input_size >= MAX_DEBUG_CONSOLE_INPUT_SIZE) {
+                break;
+            }
+        
+            input[input_size] = (char)character;
+            input_size += 1;
         }
         
-        input[input_size] = (char)character;
-        input_size += 1;
+        break;
+    }
+    case WINDOW_EVENT_MOUSE: {
+        const s32 delta = Sign(event->scroll_delta);
+        
+        auto &history_height = debug_console.history_height;
+        auto &history_y = debug_console.history_y;
+        auto &history_min_y = debug_console.history_min_y;
+
+        const auto &atlas = *ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
+
+        history_y -= delta * atlas.line_height;
+        history_y = Clamp(history_y, history_min_y, history_min_y + history_height);
+        
+        break;
+    }
     }
 }
 
-void on_debug_console_scroll(s32 delta) {
-    auto &history_height = debug_console.history_height;
-    auto &history_y = debug_console.history_y;
-    auto &history_min_y = debug_console.history_min_y;
-
-    const auto &atlas = *ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
-
-    history_y -= delta * atlas.line_height;
-    history_y = Clamp(history_y, history_min_y, history_min_y + history_height);
-}
-
-void on_debug_console_resize(s16 width, s16 height) {
+void on_viewport_resize_debug_console(s16 width, s16 height) {
     auto &history_y = debug_console.history_y;
     auto &history_min_y = debug_console.history_min_y;
     auto &history_max_width = debug_console.history_max_width;

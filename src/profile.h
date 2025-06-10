@@ -2,6 +2,8 @@
 
 #include "os/time.h"
 
+extern s16 KEY_SWITCH_PROFILER;
+
 #ifdef TRACY_ENABLE
 #include "tracy/tracy/Tracy.hpp"
 #include "tracy/tracy/TracyC.h"
@@ -55,9 +57,14 @@ struct Profiler {
     bool is_open = false;
 };
 
+struct Window_Event;
+
 inline Profiler profiler;
 
 void init_profiler();
+void open_profiler();
+void close_profiler();
 void draw_profiler();
+void on_input_profiler(Window_Event *event);
 
 void draw_dev_stats();

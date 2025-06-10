@@ -6,6 +6,8 @@
 #include "flip_book.h"
 #include "profile.h"
 #include "asset.h"
+#include "input_stack.h"
+
 #include "stb_sprintf.h"
 #include "stb_image.h"
 
@@ -35,8 +37,35 @@
 #include "game/world.h"
 #include "game/game.h"
 
+#include "editor/editor.h"
 #include "editor/hot_reload.h"
 #include "editor/debug_console.h"
+
+void on_window_event(Window *window, Window_Event *event) {
+    switch (event->type) {
+	case WINDOW_EVENT_RESIZE: {
+        on_window_resize(window->width, window->height);
+        break;
+	}
+    case WINDOW_EVENT_KEYBOARD:
+	case WINDOW_EVENT_TEXT_INPUT:
+	case WINDOW_EVENT_MOUSE: {
+        auto *layer = get_current_input_layer();
+        if (layer) {
+            layer->on_input(event);
+        }
+        break;
+    }
+	case WINDOW_EVENT_QUIT: {
+		log("WINDOW_EVENT_QUIT");
+        break;
+	}
+    default: {
+        error("Unhandled window event %d", event->type);
+        break;
+    }
+    }
+}
 
 s32 main() {
     PROFILE_START(startup, "Startup");
@@ -49,6 +78,22 @@ s32 main() {
 
     init_sid_table();
 	init_input_table();
+
+    {
+        input_layer_game.type = INPUT_LAYER_GAME;
+        input_layer_game.on_input = on_input_game;
+
+        input_layer_editor.type = INPUT_LAYER_EDITOR;
+        input_layer_editor.on_input = on_input_editor;
+
+        input_layer_debug_console.type = INPUT_LAYER_DEBUG_CONSOLE;
+        input_layer_debug_console.on_input = on_input_debug_console;
+
+        input_layer_profiler.type = INPUT_LAYER_PROFILER;
+        input_layer_profiler.on_input = on_input_profiler;
+    
+        push_input_layer(&input_layer_game);
+    }
     
 	window = create_window(1920, 1080, GAME_NAME, 0, 0);
 	if (!window) {

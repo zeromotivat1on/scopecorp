@@ -4,6 +4,7 @@
 #include "log.h"
 #include "font.h"
 #include "hash.h"
+#include "input_stack.h"
 #include "stb_sprintf.h"
 
 #include "os/time.h"
@@ -17,6 +18,8 @@
 #include "render/viewport.h"
 #include "render/render_stats.h"
 
+s16 KEY_SWITCH_PROFILER = KEY_F9;
+ 
 Scope_Timer::Scope_Timer(const char *info)
     : info(info), start(performance_counter()) {}
 
@@ -59,6 +62,37 @@ void init_profiler() {
     profiler.scope_times = allocltn(f32,           MAX_PROFILER_SCOPES);
     profiler.scope_count = 0;
     profiler.is_open = false;
+}
+
+void open_profiler() {
+    Assert(!profiler.is_open);
+    
+    profiler.is_open = true;
+
+    push_input_layer(&input_layer_profiler);
+}
+
+void close_profiler() {
+    Assert(profiler.is_open);
+
+    profiler.is_open = false;
+
+    pop_input_layer();
+}
+
+void on_input_profiler(Window_Event *event) {
+    switch (event->type) {
+    case WINDOW_EVENT_KEYBOARD: {
+        const bool press = event->key_press;
+        const auto key = event->key_code;
+
+        if (press && key == KEY_SWITCH_PROFILER) {
+            close_profiler();
+        }
+        
+        break;
+    }
+    }
 }
 
 void draw_profiler() {

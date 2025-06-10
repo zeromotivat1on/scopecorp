@@ -12,6 +12,10 @@ inline constexpr f32 DEBUG_CONSOLE_PADDING = 16.0f;
 
 inline constexpr f32 DEBUG_CONSOLE_CURSOR_BLINK_INTERVAL = 0.5f;
 
+extern s16 KEY_SWITCH_DEBUG_CONSOLE;
+
+struct Window_Event;
+
 struct Debug_Console {
     char *history = null;
     s32 history_size = 0;
@@ -35,6 +39,5 @@ void open_debug_console();
 void close_debug_console();
 void draw_debug_console();
 void add_to_debug_console_history(const char *text, u32 count);
-void on_debug_console_input(u32 character);
-void on_debug_console_scroll(s32 delta);
-void on_debug_console_resize(s16 width, s16 height);
+void on_input_debug_console(Window_Event *event);
+void on_viewport_resize_debug_console(s16 width, s16 height);

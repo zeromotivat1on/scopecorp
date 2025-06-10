@@ -35,9 +35,12 @@ struct Game_State {
     Property_Change_Type selected_entity_property_to_change = PROPERTY_LOCATION;
 };
 
+struct Window_Event;
+
 inline Game_State game_state;
 
-void on_window_event(struct Window *window, struct Window_Event *event);
+void on_window_resize(s16 width, s16 height);
+void on_input_game(Window_Event *event);
 
 const char *to_string(Game_Mode mode);
 const char *to_string(Camera_Behavior behavior);
