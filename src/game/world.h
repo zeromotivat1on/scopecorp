@@ -5,8 +5,6 @@
 #include "collision.h"
 #include "game/entity.h"
 
-#define WORLD_LEVEL_EXTENSION_NAME ".wl"
-
 inline constexpr s32 MAX_WORLD_NAME_SIZE = 64;
 
 inline constexpr s32 MAX_STATIC_MESHES = 1024;
@@ -51,7 +49,7 @@ Camera *desired_camera(World *world);
 
 s32 create_static_mesh(World *world);
 
-Entity *find_entity_by_id(World* world, s32 id);
+Entity *find_entity_by_eid(World* world, eid eid);
 
 void draw_world(const World *world);
 void draw_entity(const Entity *e);

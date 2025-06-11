@@ -51,6 +51,7 @@ static_assert(sizeof(f64) == 8);
 #define null nullptr
 
 typedef u64 sid; // string id
+typedef u32 eid; // entity id
 
 #if OPEN_GL
 typedef u32 rid; // render id, used by underlying gfx api
@@ -59,6 +60,8 @@ typedef u32 rid; // render id, used by underlying gfx api
 #endif
 
 inline constexpr sid SID_NONE = 0;
+inline constexpr eid EID_NONE = 0;
+inline constexpr eid EID_MAX  = U32_MAX;
 inline constexpr rid RID_NONE = 0;
 
 #if _MSC_VER

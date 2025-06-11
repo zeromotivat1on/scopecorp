@@ -106,6 +106,10 @@ void on_input_editor(Window_Event *event) {
     case WINDOW_EVENT_KEYBOARD: {
         if (press && key == KEY_CLOSE_WINDOW) {
             close(window);
+        } else if (press && key == KEY_SWITCH_DEBUG_CONSOLE) {
+            open_debug_console();
+        } else if (press && key == KEY_SWITCH_PROFILER) {
+            open_profiler();
         } else if (press && key == KEY_SWITCH_EDITOR_MODE) {
             game_state.mode = MODE_GAME;
             lock_cursor(window, true);
@@ -155,8 +159,8 @@ void on_input_editor(Window_Event *event) {
                     }
                 }
             } else {
-                const s32 id = r_read_frame_buffer_pixel(viewport.frame_buffer.rid, 1, input_table.mouse_x, input_table.mouse_y);
-                auto *e = find_entity_by_id(world, id);
+                const u32 pixel = r_read_frame_buffer_pixel(viewport.frame_buffer.rid, 1, input_table.mouse_x, input_table.mouse_y);
+                auto *e = find_entity_by_eid(world, (eid)pixel);
                 if (e) {
                     mouse_pick_entity(world, e);
                 }

@@ -3,10 +3,6 @@
 #include "math/vector.h"
 #include "math/quat.h"
 
-typedef u64 sid;
-
-inline constexpr s32 INVALID_ENTITY_ID = -1;
-
 enum Entity_Type {
     ENTITY_PLAYER,
     ENTITY_SKYBOX,
@@ -29,7 +25,7 @@ struct Entity_Draw_Data {
 struct Entity {
     u32 flags = 0;
     Entity_Type type;
-    s32 id = INVALID_ENTITY_ID;
+    eid eid = EID_NONE;
     
     vec3 location;
     quat rotation;

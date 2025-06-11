@@ -43,11 +43,6 @@ if (MSVC)
    target_compile_options(${GAME_EXE} PUBLIC /Zc:__cplusplus /W3)
 endif()
 
-if (INCLUDE_TRACY)
-   target_sources(${GAME_EXE} PRIVATE tracy/TracyClient.cpp)
-   target_compile_definitions(${GAME_EXE} PRIVATE TRACY_ENABLE)
-endif()
-
 if (DEVELOPER)
    target_compile_definitions(${GAME_EXE} PRIVATE DEVELOPER)
 endif()

@@ -177,8 +177,8 @@ void draw_dev_stats() {
             const auto *e = world->mouse_picked_entity;
             const auto property_to_change = game_state.selected_entity_property_to_change;
             
-            text_size = (s32)stbsp_snprintf(text, sizeof(text), "%s %d\n%slocation %s\n%srotation %s\n%sscale %s",
-                                            to_string(e->type), e->id,
+            text_size = (s32)stbsp_snprintf(text, sizeof(text), "%s %u\n%slocation %s\n%srotation %s\n%sscale %s",
+                                            to_string(e->type), e->eid,
                                             property_to_change == PROPERTY_LOCATION ? " -> " : "\t", to_string(e->location),
                                             property_to_change == PROPERTY_ROTATION ? " -> " : "\t", to_string(e->rotation),
                                             property_to_change == PROPERTY_SCALE ? " -> " : "\t", to_string(e->scale));

@@ -8,40 +8,6 @@ struct Entity;
 struct World;
 struct Window;
 
-// @Note: not sure if its better to use these instead of enums, as render command size
-// will become much higher and harder to debug (harder to detect draw mode, winding etc.)
-
-//extern u32 R_TRIANGLES;
-//extern u32 R_TRIANGLE_STRIP;
-//extern u32 R_LINES;
-//
-//extern u32 R_POLYGON_FILL;
-//extern u32 R_POLYGON_LINE;
-//extern u32 R_POLYGON_POINT;
-//
-//extern u32 R_FLAG_CLEAR_COLOR;
-//extern u32 R_FLAG_CLEAR_DEPTH;
-//extern u32 R_FLAG_CLEAR_STENCIL;
-//
-//extern u32 R_WINDING_CW;
-//extern u32 R_WINDING_CCW;
-//
-//extern u32 R_CULL_BACK;
-//extern u32 R_CULL_FRONT;
-//
-//extern u32 R_BLEND_SOURCE_ALPHA;
-//extern u32 R_BLEND_ONE_MINUS_SOURCE_ALPHA;
-//
-//extern u32 R_DEPTH_ENABLE;
-//extern u32 R_DEPTH_DISABLE;
-//extern u32 R_DEPTH_LESS;
-//
-//extern u32 R_STENCIL_KEEP;
-//extern u32 R_STENCIL_REPLACE;
-//extern u32 R_STENCIL_ALWAYS;
-//extern u32 R_STENCIL_EQUAL;
-//extern u32 R_STENCIL_NOT_EQUAL;
-
 enum Clear_Flag : u8 {
     CLEAR_FLAG_COLOR   = 0x1,
     CLEAR_FLAG_DEPTH   = 0x2,
@@ -175,9 +141,7 @@ struct Render_Command {
     Depth_Test     depth;
     Stencil_Test   stencil;
 
-	//s32 frame_buffer_index = INVALID_INDEX;
 	rid rid_frame_buffer = RID_NONE;
-
     rid rid_vertex_array = RID_NONE;
     sid sid_material = SID_NONE;
 

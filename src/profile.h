@@ -4,19 +4,7 @@
 
 extern s16 KEY_SWITCH_PROFILER;
 
-#ifdef TRACY_ENABLE
-#include "tracy/tracy/Tracy.hpp"
-#include "tracy/tracy/TracyC.h"
-#define PROFILE_START(ctx, name) TracyCZoneN(ctx, name, true)
-#define PROFILE_END(ctx)         TracyCZoneEnd(ctx)
-#define PROFILE_SCOPE(name) ZoneScopedN(name)
-#define PROFILE_FRAME(name) FrameMarkNamed(name)
-#else
-#define PROFILE_START(ctx, name) 
-#define PROFILE_END(ctx)
 #define PROFILE_SCOPE(name) Profile_Scope (profile_scope##__LINE__)(name, __FILE__, __LINE__)
-#define PROFILE_FRAME(name)
-#endif
 
 #define SCOPE_TIMER_NAME(name) CONCAT(scope_timer_, name)
 #define START_SCOPE_TIMER(name) const auto SCOPE_TIMER_NAME(name) = performance_counter()

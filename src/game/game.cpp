@@ -124,7 +124,6 @@ void save_world_level(World *world) {
     char path[MAX_PATH_SIZE];
     str_copy(path, DIR_LEVELS);
     str_glue(path, world->name);
-    str_glue(path, WORLD_LEVEL_EXTENSION_NAME);
     
     File file = open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_WRITE);
     defer { close_file(file); };
@@ -545,31 +544,31 @@ s32 create_static_mesh(World *world) {
     return index;
 }
 
-Entity *find_entity_by_id(World* world, s32 id) {
-    struct Find_Entity_By_Id_Data {
-        Entity *e = null;
-        s32 id = INVALID_INDEX;
-    };
+struct Find_Entity_By_Id_Data {
+    Entity *e = null;
+    eid eid = EID_NONE;
+};
 
-    static const auto cb_find_entity_by_id = [] (Entity *e, void *user_data) -> For_Each_Result {
-        auto *data = (Find_Entity_By_Id_Data *)user_data;
+static For_Each_Result cb_find_entity_by_eid(Entity *e, void *user_data) {
+    auto *data = (Find_Entity_By_Id_Data *)user_data;
     
-        if (e->id == data->id) {
-            data->e = e;
-            return RESULT_BREAK;
-        }
+    if (e->eid == data->eid) {
+        data->e = e;
+        return RESULT_BREAK;
+    }
 
-        return RESULT_CONTINUE;
-    };
+    return RESULT_CONTINUE;
+ };
 
+Entity *find_entity_by_eid(World* world, eid eid) {
     Find_Entity_By_Id_Data find_data;
     find_data.e  = null;
-    find_data.id = id;
+    find_data.eid = eid;
     
-    for_each_entity(world, cb_find_entity_by_id, &find_data);
+    for_each_entity(world, cb_find_entity_by_eid, &find_data);
 
     if (!find_data.e) {
-        warn("Haven't found entity in world by id %d", id);
+        warn("Haven't found entity in world by eid %u", eid);
     }
     
     return find_data.e;

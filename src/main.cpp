@@ -68,7 +68,6 @@ void on_window_event(Window *window, Window_Event *event) {
 }
 
 s32 main() {
-    PROFILE_START(startup, "Startup");
     START_SCOPE_TIMER(startup);
 
     if (!alloc_init()) {
@@ -181,11 +180,11 @@ s32 main() {
 	init_world(world);
 
 #if 1
-    str_copy(world->name, "main");
+    str_copy(world->name, "main.wl");
 
 	auto &player = world->player;
 	{
-        player.id = 1;
+        player.eid = 1;
 
         const auto &texture = asset_table.textures[texture_sids.player_idle[DIRECTION_BACK]];
         
@@ -202,7 +201,7 @@ s32 main() {
 		player.draw_data.sid_material = SID_MATERIAL_PLAYER;
         player.draw_data.eid_vertex_data_offset = EID_VERTEX_DATA_SIZE;
         
-        *(u32 *)((u8 *)EID_VERTEX_DATA + EID_VERTEX_DATA_SIZE) = player.id;
+        *(eid *)((u8 *)EID_VERTEX_DATA + EID_VERTEX_DATA_SIZE) = player.eid;
         EID_VERTEX_DATA_SIZE += sizeof(u32);
             
         const vec2 uv_scale = vec2(1.0f);
@@ -214,7 +213,7 @@ s32 main() {
 
 	auto &ground = world->static_meshes[create_static_mesh(world)];
 	{
-        ground.id = 10;
+        ground.eid = 10;
         
 		ground.scale = vec3(16.0f, 16.0f, 0.0f);
         ground.rotation = quat_from_axis_angle(vec3_right, 90.0f);
@@ -228,7 +227,7 @@ s32 main() {
         ground.draw_data.sid_material = SID_MATERIAL_GROUND;
         ground.draw_data.eid_vertex_data_offset = EID_VERTEX_DATA_SIZE;
         
-        *(u32 *)((u8 *)EID_VERTEX_DATA + EID_VERTEX_DATA_SIZE) = ground.id;
+        *(eid *)((u8 *)EID_VERTEX_DATA + EID_VERTEX_DATA_SIZE) = ground.eid;
         EID_VERTEX_DATA_SIZE += sizeof(u32);
 
         auto &material = asset_table.materials[ground.draw_data.sid_material];
@@ -238,7 +237,7 @@ s32 main() {
 
 	auto &cube = world->static_meshes[create_static_mesh(world)];
 	{
-        cube.id = 20;
+        cube.eid = 20;
                 
 		cube.location = vec3(3.0f, 0.5f, 4.0f);
 
@@ -250,7 +249,7 @@ s32 main() {
 		cube.draw_data.sid_material = SID_MATERIAL_CUBE;
         cube.draw_data.eid_vertex_data_offset = EID_VERTEX_DATA_SIZE;
         
-        *(u32 *)((u8 *)EID_VERTEX_DATA + EID_VERTEX_DATA_SIZE) = cube.id;
+        *(eid *)((u8 *)EID_VERTEX_DATA + EID_VERTEX_DATA_SIZE) = cube.eid;
         EID_VERTEX_DATA_SIZE += sizeof(u32);
         
         const vec2 uv_scale = vec2(1.0f);
@@ -260,14 +259,14 @@ s32 main() {
 
 	auto &skybox = world->skybox;
 	{
-        skybox.id = S32_MAX;
+        skybox.eid = EID_MAX;
         skybox.uv_scale = vec2(8.0f, 4.0f);
         
 		skybox.draw_data.sid_mesh     = SID_MESH_SKYBOX;
 		skybox.draw_data.sid_material = SID_MATERIAL_SKYBOX;
         skybox.draw_data.eid_vertex_data_offset = EID_VERTEX_DATA_SIZE;
         
-        *(u32 *)((u8 *)EID_VERTEX_DATA + EID_VERTEX_DATA_SIZE) = skybox.id;
+        *(eid *)((u8 *)EID_VERTEX_DATA + EID_VERTEX_DATA_SIZE) = skybox.eid;
         EID_VERTEX_DATA_SIZE += sizeof(u32);
 	}
     
@@ -276,7 +275,7 @@ s32 main() {
         const s32 index = world->direct_lights.add_default();
         
         auto &direct_light = world->direct_lights[index];
-        direct_light.id = 20000;
+        direct_light.eid = 20000;
 
         direct_light.location = vec3(0.0f, 5.0f, 0.0f);
         direct_light.rotation = quat_from_axis_angle(vec3_right, 0.0f);
@@ -298,7 +297,7 @@ s32 main() {
         const s32 index = world->point_lights.add_default();
         
         auto &point_light = world->point_lights[index];
-        point_light.id = 10000;
+        point_light.eid = 10000;
         
         point_light.location = vec3(0.0f, 2.0f, 0.0f);
         point_light.scale = vec3(0.1f);
@@ -336,11 +335,11 @@ s32 main() {
 
 	world->ed_camera = camera;
 
-    //save_world_level(world);
+    save_world_level(world);
 #else
     char main_level_path[MAX_PATH_SIZE];
     convert_to_full_asset_path(main_level_path, "/data/levels/main.wl");
-    //load_world_level(world, main_level_path);    
+    load_world_level(world, main_level_path);    
 #endif
       
     {
@@ -409,7 +408,6 @@ s32 main() {
 	s64 begin_counter = performance_counter();
 
     log("Startup took %.2fms", CHECK_SCOPE_TIMER_MS(startup));
-    PROFILE_END(startup);
     
 	while (alive(window)) {
         PROFILE_SCOPE("game_frame");
@@ -480,7 +478,6 @@ s32 main() {
         ui_flush();
 
 		swap_buffers(window);
-        PROFILE_FRAME("Game Frame");
         
         freef(); // clear frame allocation
  
