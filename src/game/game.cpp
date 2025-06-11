@@ -178,7 +178,7 @@ void load_world_level(World *world, const char *path) {
     log("Loaded world level %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(load));
 }
 
-void tick(World *world, f32 dt) {
+void tick_game(f32 dt) {
     PROFILE_SCOPE("tick_world");
     
 	world->dt = dt;
@@ -267,68 +267,65 @@ void tick(World *world, f32 dt) {
         // @Todo: take into account rotation and scale.
 	}
 
+    const auto *input_layer = get_current_input_layer();
+
     auto &player = world->player;
     
     {   // Tick player.
-        const auto last_move_direction = player.move_direction;
-    
-        if (game_state.mode == MODE_GAME) {
-            // @Cleanup: create sort of input stack to determine where to pass events.
-            if (debug_console.is_open) {
-                player.velocity = vec3_zero;
-            } else {
-                const f32 speed = player.move_speed * dt;
-                vec3 velocity;
+        if (input_layer->type != INPUT_LAYER_GAME) {
+            player.velocity = vec3_zero;
+        } else {
+            const f32 speed = player.move_speed * dt;
+            vec3 velocity;
 
-                // @Todo: use input action instead of direct key state.
-                if (game_state.player_movement_behavior == MOVE_INDEPENDENT) {
-                    if (input_table.key_states[KEY_D]) {
-                        velocity.x = speed;
-                        player.move_direction = DIRECTION_RIGHT;
-                    }
-
-                    if (input_table.key_states[KEY_A]) {
-                        velocity.x = -speed;
-                        player.move_direction = DIRECTION_LEFT;
-                    }
-
-                    if (input_table.key_states[KEY_W]) {
-                        velocity.z = speed;
-                        player.move_direction = DIRECTION_FORWARD;
-                    }
-
-                    if (input_table.key_states[KEY_S]) {
-                        velocity.z = -speed;
-                        player.move_direction = DIRECTION_BACK;
-                    }
-                } else if (game_state.player_movement_behavior == MOVE_RELATIVE_TO_CAMERA) {
-                    auto &camera = world->camera;
-                    const vec3 camera_forward = forward(camera.yaw, camera.pitch);
-                    const vec3 camera_right = camera.up.cross(camera_forward).normalize();
-
-                    if (input_table.key_states[KEY_D]) {
-                        velocity += speed * camera_right;
-                        player.move_direction = DIRECTION_RIGHT;
-                    }
-
-                    if (input_table.key_states[KEY_A]) {
-                        velocity -= speed * camera_right;
-                        player.move_direction = DIRECTION_LEFT;
-                    }
-
-                    if (input_table.key_states[KEY_W]) {
-                        velocity += speed * camera_forward;
-                        player.move_direction = DIRECTION_FORWARD;
-                    }
-
-                    if (input_table.key_states[KEY_S]) {
-                        velocity -= speed * camera_forward;
-                        player.move_direction = DIRECTION_BACK;
-                    }
+            // @Todo: use input action instead of direct key state.
+            if (game_state.player_movement_behavior == MOVE_INDEPENDENT) {
+                if (input_table.key_states[KEY_D]) {
+                    velocity.x = speed;
+                    player.move_direction = DIRECTION_RIGHT;
                 }
 
-                player.velocity = velocity.truncate(speed);
+                if (input_table.key_states[KEY_A]) {
+                    velocity.x = -speed;
+                    player.move_direction = DIRECTION_LEFT;
+                }
+
+                if (input_table.key_states[KEY_W]) {
+                    velocity.z = speed;
+                    player.move_direction = DIRECTION_FORWARD;
+                }
+
+                if (input_table.key_states[KEY_S]) {
+                    velocity.z = -speed;
+                    player.move_direction = DIRECTION_BACK;
+                }
+            } else if (game_state.player_movement_behavior == MOVE_RELATIVE_TO_CAMERA) {
+                auto &camera = world->camera;
+                const vec3 camera_forward = forward(camera.yaw, camera.pitch);
+                const vec3 camera_right = camera.up.cross(camera_forward).normalize();
+
+                if (input_table.key_states[KEY_D]) {
+                    velocity += speed * camera_right;
+                    player.move_direction = DIRECTION_RIGHT;
+                }
+
+                if (input_table.key_states[KEY_A]) {
+                    velocity -= speed * camera_right;
+                    player.move_direction = DIRECTION_LEFT;
+                }
+
+                if (input_table.key_states[KEY_W]) {
+                    velocity += speed * camera_forward;
+                    player.move_direction = DIRECTION_FORWARD;
+                }
+
+                if (input_table.key_states[KEY_S]) {
+                    velocity -= speed * camera_forward;
+                    player.move_direction = DIRECTION_BACK;
+                }
             }
+
+            player.velocity = velocity.truncate(speed);
         }
 
         player.collide_aabb_index = INVALID_INDEX;
@@ -414,117 +411,6 @@ void tick(World *world, f32 dt) {
 
                 camera.eye = lerp(camera.eye, target_eye, player.camera_follow_speed * dt);
                 camera.at = camera.eye + forward(camera.yaw, camera.pitch);
-            }
-        } else if (game_state.mode == MODE_EDITOR) {
-            if (!debug_console.is_open) {
-                const f32 mouse_sensitivity = player.mouse_sensitivity;
-                auto &camera = world->ed_camera;
-
-                if (window->cursor_locked) {   
-                    camera.yaw += input_table.mouse_offset_x * mouse_sensitivity * dt;
-                    camera.pitch += input_table.mouse_offset_y * mouse_sensitivity * dt;
-                    camera.pitch = Clamp(camera.pitch, -89.0f, 89.0f);
-                }
-                    
-                const f32 speed = player.ed_camera_speed * dt;
-                const vec3 camera_forward = forward(camera.yaw, camera.pitch);
-                const vec3 camera_right = camera.up.cross(camera_forward).normalize();
-
-                vec3 velocity;
-
-                if (input_table.key_states[KEY_D])
-                    velocity += speed * camera_right;
-
-                if (input_table.key_states[KEY_A])
-                    velocity -= speed * camera_right;
-
-                if (input_table.key_states[KEY_W])
-                    velocity += speed * camera_forward;
-
-                if (input_table.key_states[KEY_S])
-                    velocity -= speed * camera_forward;
-
-                if (input_table.key_states[KEY_E])
-                    velocity += speed * camera.up;
-
-                if (input_table.key_states[KEY_Q])
-                    velocity -= speed * camera.up;
-
-                camera.eye += velocity.truncate(speed);
-                camera.at = camera.eye + camera_forward;
-            }
-        }
-    }
-    
-	if (game_state.mode == MODE_GAME) {
-		world->ed_camera = world->camera;
-	} else 	if (game_state.mode == MODE_EDITOR) {
-        const bool ctrl_down  = input_table.key_states[KEY_CTRL];
-        const bool shift_down = input_table.key_states[KEY_SHIFT];
-        
-        if (world->mouse_picked_entity) {
-            auto *e = world->mouse_picked_entity;
-
-            if (game_state.selected_entity_property_to_change == PROPERTY_ROTATION) {
-                const f32 rotate_speed = shift_down ? 0.04f : 0.01f;
-
-                if (input_table.key_states[KEY_LEFT]) {
-                    e->rotation *= quat_from_axis_angle(vec3_left, rotate_speed);
-                }
-
-                if (input_table.key_states[KEY_RIGHT]) {
-                    e->rotation *= quat_from_axis_angle(vec3_right, rotate_speed);
-                }
-
-                if (input_table.key_states[KEY_UP]) {
-                    const vec3 direction = ctrl_down ? vec3_up : vec3_forward;
-                    e->rotation *= quat_from_axis_angle(direction, rotate_speed);
-                }
-
-                if (input_table.key_states[KEY_DOWN]) {
-                    const vec3 direction = ctrl_down ? vec3_down : vec3_back;
-                    e->rotation *= quat_from_axis_angle(direction, rotate_speed);
-                }
-            } else if (game_state.selected_entity_property_to_change == PROPERTY_SCALE) {
-                const f32 scale_speed = shift_down ? 4.0f : 1.0f;
-                
-                if (input_table.key_states[KEY_LEFT]) {
-                    e->scale += scale_speed * dt * vec3_left;
-                }
-
-                if (input_table.key_states[KEY_RIGHT]) {
-                    e->scale += scale_speed * dt * vec3_right;
-                }
-
-                if (input_table.key_states[KEY_UP]) {
-                    const vec3 direction = ctrl_down ? vec3_up : vec3_forward;
-                    e->scale += scale_speed * dt * direction;
-                }
-
-                if (input_table.key_states[KEY_DOWN]) {
-                    const vec3 direction = ctrl_down ? vec3_down : vec3_back;
-                    e->scale += scale_speed * dt * direction;
-                }
-            } else if (game_state.selected_entity_property_to_change == PROPERTY_LOCATION) {
-                const f32 move_speed = shift_down ? 4.0f : 1.0f;
-
-                if (input_table.key_states[KEY_LEFT]) {
-                    e->location += move_speed * dt * vec3_left;
-                }
-
-                if (input_table.key_states[KEY_RIGHT]) {
-                    e->location += move_speed * dt * vec3_right;
-                }
-
-                if (input_table.key_states[KEY_UP]) {
-                    const vec3 direction = ctrl_down ? vec3_up : vec3_forward;
-                    e->location += move_speed * dt * direction;
-                }
-
-                if (input_table.key_states[KEY_DOWN]) {
-                    const vec3 direction = ctrl_down ? vec3_down : vec3_back;
-                    e->location += move_speed * dt * direction;
-                }
             }
         }
     }

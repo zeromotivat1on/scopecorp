@@ -172,6 +172,126 @@ void on_input_editor(Window_Event *event) {
     }
 }
 
+void tick_editor(f32 dt) {    
+    const auto *input_layer = get_current_input_layer();
+    const auto &player = world->player;
+
+    // Tick camera.
+    if (game_state.mode == MODE_GAME) {
+        world->ed_camera = world->camera;
+    } else if (game_state.mode == MODE_EDITOR) {
+        if (input_layer->type == INPUT_LAYER_EDITOR) {
+            const f32 mouse_sensitivity = player.mouse_sensitivity;
+            auto &camera = world->ed_camera;
+
+            if (window->cursor_locked) {   
+                camera.yaw += input_table.mouse_offset_x * mouse_sensitivity * dt;
+                camera.pitch += input_table.mouse_offset_y * mouse_sensitivity * dt;
+                camera.pitch = Clamp(camera.pitch, -89.0f, 89.0f);
+            }
+                    
+            const f32 speed = player.ed_camera_speed * dt;
+            const vec3 camera_forward = forward(camera.yaw, camera.pitch);
+            const vec3 camera_right = camera.up.cross(camera_forward).normalize();
+
+            vec3 velocity;
+
+            if (input_table.key_states[KEY_D])
+                velocity += speed * camera_right;
+
+            if (input_table.key_states[KEY_A])
+                velocity -= speed * camera_right;
+
+            if (input_table.key_states[KEY_W])
+                velocity += speed * camera_forward;
+
+            if (input_table.key_states[KEY_S])
+                velocity -= speed * camera_forward;
+
+            if (input_table.key_states[KEY_E])
+                velocity += speed * camera.up;
+
+            if (input_table.key_states[KEY_Q])
+                velocity -= speed * camera.up;
+
+            camera.eye += velocity.truncate(speed);
+            camera.at = camera.eye + camera_forward;
+        }
+    }
+    
+    // Tick selected entity modify.
+    if (input_layer->type == INPUT_LAYER_EDITOR) {
+        const bool ctrl  = input_table.key_states[KEY_CTRL];
+        const bool shift = input_table.key_states[KEY_SHIFT];
+        
+        if (world->mouse_picked_entity) {
+            auto *e = world->mouse_picked_entity;
+
+            if (game_state.selected_entity_property_to_change == PROPERTY_ROTATION) {
+                const f32 rotate_speed = shift ? 0.04f : 0.01f;
+
+                if (input_table.key_states[KEY_LEFT]) {
+                    e->rotation *= quat_from_axis_angle(vec3_left, rotate_speed);
+                }
+
+                if (input_table.key_states[KEY_RIGHT]) {
+                    e->rotation *= quat_from_axis_angle(vec3_right, rotate_speed);
+                }
+
+                if (input_table.key_states[KEY_UP]) {
+                    const vec3 direction = ctrl ? vec3_up : vec3_forward;
+                    e->rotation *= quat_from_axis_angle(direction, rotate_speed);
+                }
+
+                if (input_table.key_states[KEY_DOWN]) {
+                    const vec3 direction = ctrl ? vec3_down : vec3_back;
+                    e->rotation *= quat_from_axis_angle(direction, rotate_speed);
+                }
+            } else if (game_state.selected_entity_property_to_change == PROPERTY_SCALE) {
+                const f32 scale_speed = shift ? 4.0f : 1.0f;
+                
+                if (input_table.key_states[KEY_LEFT]) {
+                    e->scale += scale_speed * dt * vec3_left;
+                }
+
+                if (input_table.key_states[KEY_RIGHT]) {
+                    e->scale += scale_speed * dt * vec3_right;
+                }
+
+                if (input_table.key_states[KEY_UP]) {
+                    const vec3 direction = ctrl ? vec3_up : vec3_forward;
+                    e->scale += scale_speed * dt * direction;
+                }
+
+                if (input_table.key_states[KEY_DOWN]) {
+                    const vec3 direction = ctrl ? vec3_down : vec3_back;
+                    e->scale += scale_speed * dt * direction;
+                }
+            } else if (game_state.selected_entity_property_to_change == PROPERTY_LOCATION) {
+                const f32 move_speed = shift ? 4.0f : 1.0f;
+
+                if (input_table.key_states[KEY_LEFT]) {
+                    e->location += move_speed * dt * vec3_left;
+                }
+
+                if (input_table.key_states[KEY_RIGHT]) {
+                    e->location += move_speed * dt * vec3_right;
+                }
+
+                if (input_table.key_states[KEY_UP]) {
+                    const vec3 direction = ctrl ? vec3_up : vec3_forward;
+                    e->location += move_speed * dt * direction;
+                }
+
+                if (input_table.key_states[KEY_DOWN]) {
+                    const vec3 direction = ctrl ? vec3_down : vec3_back;
+                    e->location += move_speed * dt * direction;
+                }
+            }
+        }
+    }
+}
+
 void register_hot_reload_directory(Hot_Reload_List *list, const char *path) {
 	Assert(list->path_count < MAX_HOT_RELOAD_DIRECTORIES);
     list->directory_paths[list->path_count] = path;
@@ -466,8 +586,10 @@ void on_input_debug_console(Window_Event *event) {
     const u32 character = event->character;
 
     switch (event->type) {
-    case WINDOW_EVENT_KEYBOARD: {        
-        if (press && key == KEY_SWITCH_DEBUG_CONSOLE) {
+    case WINDOW_EVENT_KEYBOARD: {
+        if (press && key == KEY_CLOSE_WINDOW) {
+            close(window);
+        } else if (press && key == KEY_SWITCH_DEBUG_CONSOLE) {
             close_debug_console();
         }
         

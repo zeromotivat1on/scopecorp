@@ -418,7 +418,8 @@ s32 main() {
         // Move to other thread later if it becomes a big deal.
         check_for_hot_reload(&hot_reload_list);
 
-        tick(world, delta_time);        
+        tick_game(delta_time);
+        tick_editor(delta_time);
 		//set_listener_pos(player.location);
 
 #if 0

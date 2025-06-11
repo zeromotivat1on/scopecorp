@@ -41,6 +41,7 @@ inline Game_State game_state;
 
 void on_window_resize(s16 width, s16 height);
 void on_input_game(Window_Event *event);
+void tick_game(f32 dt);
 
 const char *to_string(Game_Mode mode);
 const char *to_string(Camera_Behavior behavior);

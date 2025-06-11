@@ -11,6 +11,8 @@
 #include "os/input.h"
 #include "os/window.h"
 
+#include "editor/editor.h"
+
 #include "game/game.h"
 #include "game/world.h"
 
@@ -60,8 +62,6 @@ Profile_Scope::~Profile_Scope() {
 void init_profiler() {
     profiler.scopes      = allocltn(Profile_Scope, MAX_PROFILER_SCOPES);
     profiler.scope_times = allocltn(f32,           MAX_PROFILER_SCOPES);
-    profiler.scope_count = 0;
-    profiler.is_open = false;
 }
 
 void open_profiler() {
@@ -81,12 +81,14 @@ void close_profiler() {
 }
 
 void on_input_profiler(Window_Event *event) {
+    const bool press = event->key_press;
+    const auto key = event->key_code;
+        
     switch (event->type) {
     case WINDOW_EVENT_KEYBOARD: {
-        const bool press = event->key_press;
-        const auto key = event->key_code;
-
-        if (press && key == KEY_SWITCH_PROFILER) {
+        if (press && key == KEY_CLOSE_WINDOW) {
+            close(window);
+        } else if (press && key == KEY_SWITCH_PROFILER) {
             close_profiler();
         }
         
@@ -117,8 +119,10 @@ void draw_profiler() {
     const f32 descent = atlas.font->descent * atlas.px_h_scale;
 
     {   // Profiler quad.
-        const vec2 q0 = vec2(PROFILER_MARGIN);
-        const vec2 q1 = vec2(viewport.width - PROFILER_MARGIN, viewport.height - PROFILER_MARGIN);
+        const vec2 q0 = vec2(PROFILER_MARGIN,
+                             viewport.height - PROFILER_MARGIN - 2 * PROFILER_PADDING - profiler.scope_count * atlas.line_height);
+        const vec2 q1 = vec2(viewport.width - PROFILER_MARGIN,
+                             viewport.height - PROFILER_MARGIN);
         const vec4 color = vec4(0.0f, 0.0f, 0.0f, 0.8f);
         ui_draw_quad(q0, q1, color);
     }

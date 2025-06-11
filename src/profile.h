@@ -39,7 +39,7 @@ struct Profiler {
     f32 *scope_times = null;
     u32 scope_count = 0;
     
-    f32 scope_time_update_interval = 0.5f;
+    f32 scope_time_update_interval = 0.1f;
     f32 scope_time_update_time = 0.0f;
     
     bool is_open = false;
