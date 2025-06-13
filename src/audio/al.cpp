@@ -84,6 +84,13 @@ void play_sound_or_continue(sid sid) {
     al_check_error();
 }
 
+void play_sound_or_continue(sid sid, vec3 location) {
+    const auto &sound = asset_table.sounds[sid];
+    alSource3f(sound.source, AL_POSITION, location.x, location.y, location.z);
+
+    play_sound_or_continue(sid);
+}
+
 void stop_sound(sid sid) {
     const auto &sound = asset_table.sounds[sid];
     alSourceStop(sound.source);

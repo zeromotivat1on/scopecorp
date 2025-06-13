@@ -119,8 +119,6 @@ void on_input_editor(Window_Event *event) {
                 world->mouse_picked_entity->flags &= ~ENTITY_FLAG_SELECTED_IN_EDITOR;
                 world->mouse_picked_entity = null;
             }
-        } else if (press && key == KEY_F1) {
-            lock_cursor(window, !window->cursor_locked);
         }
 
         if (world->mouse_picked_entity) {
@@ -136,7 +134,7 @@ void on_input_editor(Window_Event *event) {
         break;
     }
     case WINDOW_EVENT_MOUSE: {
-        if (key == MOUSE_MIDDLE) {
+        if (press && key == MOUSE_MIDDLE) {
             lock_cursor(window, !window->cursor_locked);
         } else if (press && key == MOUSE_RIGHT) {
             if (world->mouse_picked_entity) {
@@ -172,7 +170,9 @@ void on_input_editor(Window_Event *event) {
     }
 }
 
-void tick_editor(f32 dt) {    
+void tick_editor(f32 dt) {
+    PROFILE_SCOPE(__FUNCTION__);
+    
     const auto *input_layer = get_current_input_layer();
     const auto &player = world->player;
 

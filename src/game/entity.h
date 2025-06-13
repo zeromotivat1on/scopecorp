@@ -9,6 +9,7 @@ enum Entity_Type {
     ENTITY_STATIC_MESH,
     ENTITY_DIRECT_LIGHT,
     ENTITY_POINT_LIGHT,
+    ENTITY_SOUND_EMITTER,
 };
 
 enum Entity_FLag : u32 {
@@ -96,4 +97,10 @@ struct Point_Light : Entity {
     Light_Attenuation attenuation;
     
     s32 u_light_index = INVALID_INDEX; // index in Point_Lights uniform block
+};
+
+struct Sound_Emitter : Entity {
+    Sound_Emitter() { type = ENTITY_SOUND_EMITTER; }
+
+    sid sid_sound = SID_NONE;
 };

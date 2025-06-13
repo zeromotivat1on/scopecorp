@@ -61,7 +61,6 @@ void on_input_game(Window_Event *event) {
             open_profiler();
         } else if (press && key == KEY_SWITCH_EDITOR_MODE) {
             game_state.mode = MODE_EDITOR;
-            lock_cursor(window, false);
             push_input_layer(&input_layer_editor);
         } else if (press && alt && key == KEY_C) {
             if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
@@ -87,9 +86,10 @@ void on_input_game(Window_Event *event) {
 void init_world(World *world) {
 	*world = World();
 
-	world->static_meshes = Sparse_Array<Static_Mesh>(MAX_STATIC_MESHES);
-    world->point_lights  = Sparse_Array<Point_Light>(MAX_POINT_LIGHTS);
-    world->direct_lights = Sparse_Array<Direct_Light>(MAX_DIRECT_LIGHTS);
+	world->static_meshes  = Sparse_Array<Static_Mesh>(MAX_STATIC_MESHES);
+    world->point_lights   = Sparse_Array<Point_Light>(MAX_POINT_LIGHTS);
+    world->direct_lights  = Sparse_Array<Direct_Light>(MAX_DIRECT_LIGHTS);
+    world->sound_emitters = Sparse_Array<Sound_Emitter>(MAX_SOUND_EMITTERS);
 
     world->aabbs = Sparse_Array<AABB>(MAX_AABBS);
 }
@@ -179,23 +179,26 @@ void load_world_level(World *world, const char *path) {
 }
 
 void tick_game(f32 dt) {
-    PROFILE_SCOPE("tick_world");
+    PROFILE_SCOPE(__FUNCTION__);
+    
+    const auto *input_layer = get_current_input_layer();
+    auto *camera = desired_camera(world);
+    auto &player = world->player;
+    auto &skybox = world->skybox;
     
 	world->dt = dt;
 
-    play_sound_or_continue(SID_SOUND_WIND_AMBIENCE);
-    
-	auto *camera = desired_camera(world);
+    set_listener_pos(player.location);
+    play_sound_or_continue(SID_SOUND_WIND_AMBIENCE, player.location);
+
     update_matrices(camera);
 
     r_set_uniform_block_value(&uniform_block_camera, 0, 0, &camera->eye,       get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
     r_set_uniform_block_value(&uniform_block_camera, 1, 0, &camera->view,      get_uniform_type_size_gpu_aligned(UNIFORM_F32_4X4));
     r_set_uniform_block_value(&uniform_block_camera, 2, 0, &camera->proj,      get_uniform_type_size_gpu_aligned(UNIFORM_F32_4X4));
     r_set_uniform_block_value(&uniform_block_camera, 3, 0, &camera->view_proj, get_uniform_type_size_gpu_aligned(UNIFORM_F32_4X4));
-    
-	auto &skybox = world->skybox;
 
-    {
+    {   // Update skybox.
         auto &material = asset_table.materials[skybox.draw_data.sid_material];
             
         skybox.uv_offset = camera->eye;
@@ -266,10 +269,11 @@ void tick_game(f32 dt) {
 
         // @Todo: take into account rotation and scale.
 	}
-
-    const auto *input_layer = get_current_input_layer();
-
-    auto &player = world->player;
+    
+    For (world->sound_emitters) {
+        // @Todo: fine-tuned sound usage.
+        play_sound_or_continue(it.sid_sound, it.location);
+    }
     
     {   // Tick player.
         if (input_layer->type != INPUT_LAYER_GAME) {

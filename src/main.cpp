@@ -50,7 +50,7 @@ void on_window_event(Window *window, Window_Event *event) {
     case WINDOW_EVENT_KEYBOARD:
 	case WINDOW_EVENT_TEXT_INPUT:
 	case WINDOW_EVENT_MOUSE: {
-        auto *layer = get_current_input_layer();
+        const auto *layer = get_current_input_layer();
         if (layer) {
             layer->on_input(event);
         }
@@ -269,7 +269,13 @@ s32 main() {
         *(eid *)((u8 *)EID_VERTEX_DATA + EID_VERTEX_DATA_SIZE) = skybox.eid;
         EID_VERTEX_DATA_SIZE += sizeof(u32);
 	}
-    
+
+    auto &sound_emitter = world->sound_emitters[world->sound_emitters.add_default()];
+    {
+        sound_emitter.eid = 100000;
+        sound_emitter.location = vec3(0.0f, 0.0f, 0.0f);
+        sound_emitter.sid_sound = SID_SOUND_WIND_AMBIENCE;
+    }
     
     if (1) {
         const s32 index = world->direct_lights.add_default();
@@ -408,7 +414,7 @@ s32 main() {
 	s64 begin_counter = performance_counter();
 
     log("Startup took %.2fms", CHECK_SCOPE_TIMER_MS(startup));
-    
+            
 	while (alive(window)) {
         PROFILE_SCOPE("game_frame");
 
@@ -420,7 +426,6 @@ s32 main() {
 
         tick_game(delta_time);
         tick_editor(delta_time);
-		//set_listener_pos(player.location);
 
 #if 0
         static f32 pixel_size_time = -1.0f;
