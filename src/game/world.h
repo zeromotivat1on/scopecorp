@@ -11,6 +11,7 @@ inline constexpr u32 MAX_STATIC_MESHES  = 1024;
 inline constexpr u32 MAX_DIRECT_LIGHTS  = 4;
 inline constexpr u32 MAX_POINT_LIGHTS   = 32;
 inline constexpr u32 MAX_SOUND_EMITTERS = 128;
+inline constexpr u32 MAX_PORTALS        = 128;
 inline constexpr u32 MAX_AABBS = 2048;
 
 enum For_Each_Result {
@@ -35,6 +36,7 @@ struct World {
 	Sparse_Array<Point_Light>   point_lights;
 	Sparse_Array<Direct_Light>  direct_lights;
 	Sparse_Array<Sound_Emitter> sound_emitters;
+	Sparse_Array<Portal>        portals;
     
 	Sparse_Array<AABB> aabbs;
 

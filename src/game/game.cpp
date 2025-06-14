@@ -90,6 +90,7 @@ void init_world(World *world) {
     world->point_lights   = Sparse_Array<Point_Light>(MAX_POINT_LIGHTS);
     world->direct_lights  = Sparse_Array<Direct_Light>(MAX_DIRECT_LIGHTS);
     world->sound_emitters = Sparse_Array<Sound_Emitter>(MAX_SOUND_EMITTERS);
+    world->portals        = Sparse_Array<Portal>(MAX_PORTALS);
 
     world->aabbs = Sparse_Array<AABB>(MAX_AABBS);
 }
@@ -334,10 +335,20 @@ void tick_game(f32 dt) {
 
         player.collide_aabb_index = INVALID_INDEX;
         auto &player_aabb = world->aabbs[player.aabb_index];
-    
+
+        // @Temp
+        For (world->portals) {
+            if (overlap(world->aabbs[it.aabb_index], player_aabb)) {
+                player.location = it.destination_location;
+            }
+        }
+        
         for (s32 i = 0; i < world->aabbs.count; ++i) {
             if (i == player.aabb_index) continue;
-        
+
+            // @Temp
+            if (i == world->portals[0].aabb_index) continue;
+                
             const auto &aabb = world->aabbs[i];
             const vec3 resolved_velocity = resolve_moving_static(player_aabb, aabb, player.velocity);
             if (resolved_velocity != player.velocity) {
@@ -346,7 +357,7 @@ void tick_game(f32 dt) {
                 break;
             }
         }
-
+        
         auto &material = asset_table.materials[player.draw_data.sid_material];
         if (player.velocity == vec3_zero) {
             material.sid_texture = texture_sids.player_idle[player.move_direction];
@@ -477,6 +488,14 @@ void for_each_entity(World *world, For_Each_Entity_Callback callback, void *user
     }
     
     For (world->point_lights) {
+        if (callback(&it, user_data) == RESULT_BREAK) return;
+    }
+
+    For (world->sound_emitters) {
+        if (callback(&it, user_data) == RESULT_BREAK) return;
+    }
+
+    For (world->portals) {
         if (callback(&it, user_data) == RESULT_BREAK) return;
     }
 }

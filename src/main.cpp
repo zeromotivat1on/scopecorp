@@ -211,6 +211,20 @@ s32 main() {
         player.sid_sound_steps = SID_SOUND_PLAYER_STEPS;
 	}
 
+    auto &portal = world->portals[world->portals.add_default()];
+    {
+        portal.aabb_index = world->aabbs.add_default();
+        portal.destination_location = vec3(0.0f, F32_MIN, 0.0f);
+        
+        portal.scale = vec3(1.0f);
+        portal.location = vec3(-3.0f, 0.0f, 3.0f);
+
+        auto &aabb = world->aabbs[portal.aabb_index];
+        const vec3 aabb_offset = portal.scale * 2;
+        aabb.min = portal.location - aabb_offset * 0.5f;
+		aabb.max = aabb.min + aabb_offset;
+    }
+    
 	auto &ground = world->static_meshes[create_static_mesh(world)];
 	{
         ground.eid = 10;

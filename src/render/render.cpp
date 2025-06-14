@@ -1243,6 +1243,37 @@ Texture_Format_Type get_texture_format_from_channel_count(s32 channel_count) {
     }
 }
 
+static For_Each_Result cb_draw_aabb(Entity *e, void *user_data) {
+    auto *aabb = world->aabbs.find(e->aabb_index);
+    if (aabb) {
+        vec3 aabb_color = vec3_black;
+        switch (e->type) {
+        case ENTITY_PLAYER:
+        case ENTITY_STATIC_MESH: {
+            aabb_color = vec3_red;
+            break;
+        }
+        case ENTITY_SOUND_EMITTER: {
+            aabb_color = vec3_blue;
+            break;
+        }
+        case ENTITY_PORTAL: {
+            aabb_color = vec3_purple;
+            break;
+        }
+        case ENTITY_DIRECT_LIGHT:
+        case ENTITY_POINT_LIGHT: {
+            aabb_color = vec3_white;
+            break;
+        }
+        }
+        
+        geo_draw_aabb(*aabb, aabb_color);
+    }
+
+    return RESULT_CONTINUE;
+};
+
 void geo_draw_debug() {
     const auto &player = world->player;
 
@@ -1252,29 +1283,6 @@ void geo_draw_debug() {
     }
     
     if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
-        static const auto cb_draw_aabb = [](Entity *e, void *user_data) -> For_Each_Result {
-            auto *aabb = world->aabbs.find(e->aabb_index);
-            if (aabb) {
-                vec3 aabb_color = vec3_black;
-                switch (e->type) {
-                case ENTITY_PLAYER:
-                case ENTITY_STATIC_MESH: {
-                    aabb_color = vec3_red;
-                    break;
-                }
-                case ENTITY_DIRECT_LIGHT:
-                case ENTITY_POINT_LIGHT: {
-                    aabb_color = vec3_white;
-                    break;
-                }
-                }
-        
-                geo_draw_aabb(*aabb, aabb_color);
-            }
-
-            return RESULT_CONTINUE;
-        };
-        
         for_each_entity(world, cb_draw_aabb);
 
         if (world->mouse_picked_entity) {

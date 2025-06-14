@@ -10,6 +10,7 @@ enum Entity_Type {
     ENTITY_DIRECT_LIGHT,
     ENTITY_POINT_LIGHT,
     ENTITY_SOUND_EMITTER,
+    ENTITY_PORTAL,
 };
 
 enum Entity_FLag : u32 {
@@ -103,4 +104,10 @@ struct Sound_Emitter : Entity {
     Sound_Emitter() { type = ENTITY_SOUND_EMITTER; }
 
     sid sid_sound = SID_NONE;
+};
+
+struct Portal : Entity {
+    Portal() { type = ENTITY_PORTAL; }
+
+    vec3 destination_location = vec3_zero;
 };
