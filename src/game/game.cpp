@@ -89,7 +89,8 @@ void init_world(World *world) {
 	world->static_meshes  = Sparse_Array<Static_Mesh>(MAX_STATIC_MESHES);
     world->point_lights   = Sparse_Array<Point_Light>(MAX_POINT_LIGHTS);
     world->direct_lights  = Sparse_Array<Direct_Light>(MAX_DIRECT_LIGHTS);
-    world->sound_emitters = Sparse_Array<Sound_Emitter>(MAX_SOUND_EMITTERS);
+    world->sound_emitters_2d = Sparse_Array<Sound_Emitter_2D>(MAX_SOUND_EMITTERS_2D);
+    world->sound_emitters_3d = Sparse_Array<Sound_Emitter_3D>(MAX_SOUND_EMITTERS_3D);
     world->portals        = Sparse_Array<Portal>(MAX_PORTALS);
 
     world->aabbs = Sparse_Array<AABB>(MAX_AABBS);
@@ -270,9 +271,14 @@ void tick_game(f32 dt) {
 
         // @Todo: take into account rotation and scale.
 	}
+
+    // @Todo: fine-tuned sound play.
     
-    For (world->sound_emitters) {
-        // @Todo: fine-tuned sound usage.
+    For (world->sound_emitters_2d) {
+        play_sound_or_continue(it.sid_sound, get_listener_pos());
+    }
+
+    For (world->sound_emitters_3d) {
         play_sound_or_continue(it.sid_sound, it.location);
     }
     
@@ -491,7 +497,11 @@ void for_each_entity(World *world, For_Each_Entity_Callback callback, void *user
         if (callback(&it, user_data) == RESULT_BREAK) return;
     }
 
-    For (world->sound_emitters) {
+    For (world->sound_emitters_2d) {
+        if (callback(&it, user_data) == RESULT_BREAK) return;
+    }
+
+    For (world->sound_emitters_3d) {
         if (callback(&it, user_data) == RESULT_BREAK) return;
     }
 

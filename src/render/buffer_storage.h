@@ -76,8 +76,8 @@ void *r_map_buffer(rid rid, u32 offset, u32 size, u32 flags);
 bool r_unmap_buffer(rid rid);
 void r_flush_buffer(rid rid, u32 offset, u32 size);
 
-void *r_alloclv(u32 size);
-void *r_allocli(u32 size);
+void *r_allocv(u32 size); // allocate from vertex storage
+void *r_alloci(u32 size); // allocate from index storage
 
 void r_init_buffer_storages();
 

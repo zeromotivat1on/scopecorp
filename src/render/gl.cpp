@@ -483,7 +483,7 @@ void r_init_frame_buffer_draw() {
     binding.layout[0] = { VERTEX_F32_2, 0 };
     binding.layout[1] = { VERTEX_F32_2, 0 };
 
-    void *vertex_data = r_alloclv(sizeof(vertices));
+    void *vertex_data = r_allocv(sizeof(vertices));
     copy_bytes(vertex_data, vertices, sizeof(vertices));
     
     rid_fb_va = r_create_vertex_array(&binding, 1);
@@ -492,7 +492,7 @@ void r_init_frame_buffer_draw() {
     fb_index_count = COUNT(indices);
     fb_index_data_offset = index_buffer_storage.size;
 
-    void *index_data = r_allocli(sizeof(indices));
+    void *index_data = r_alloci(sizeof(indices));
     copy_bytes(index_data, indices, sizeof(indices));
 }
 

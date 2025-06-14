@@ -213,6 +213,8 @@ s32 main() {
 
     auto &portal = world->portals[world->portals.add_default()];
     {
+        portal.eid = 2;
+        
         portal.aabb_index = world->aabbs.add_default();
         portal.destination_location = vec3(0.0f, F32_MIN, 0.0f);
         
@@ -251,7 +253,7 @@ s32 main() {
 
 	auto &cube = world->static_meshes[create_static_mesh(world)];
 	{
-        cube.eid = 20;
+        cube.eid = 11;
                 
 		cube.location = vec3(3.0f, 0.5f, 4.0f);
 
@@ -284,11 +286,10 @@ s32 main() {
         EID_VERTEX_DATA_SIZE += sizeof(u32);
 	}
 
-    auto &sound_emitter = world->sound_emitters[world->sound_emitters.add_default()];
+    auto &sound_emitter_2d = world->sound_emitters_2d[world->sound_emitters_2d.add_default()];
     {
-        sound_emitter.eid = 100000;
-        sound_emitter.location = vec3(0.0f, 0.0f, 0.0f);
-        sound_emitter.sid_sound = SID_SOUND_WIND_AMBIENCE;
+        sound_emitter_2d.eid = 100;
+        sound_emitter_2d.sid_sound = SID_SOUND_WIND_AMBIENCE;
     }
     
     if (1) {

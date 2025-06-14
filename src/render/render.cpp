@@ -201,8 +201,8 @@ void geo_init() {
     const u32 color_buffer_offset     = location_buffer_offset + location_buffer_size;
 
     auto &gdb = geo_draw_buffer;
-    gdb.locations  = (vec3 *)r_alloclv(location_buffer_size); 
-    gdb.colors     = (u32  *)r_alloclv(color_buffer_size);
+    gdb.locations  = (vec3 *)r_allocv(location_buffer_size); 
+    gdb.colors     = (u32  *)r_allocv(color_buffer_size);
     gdb.vertex_count = 0;
     
     Vertex_Array_Binding bindings[2] = {};
@@ -369,10 +369,10 @@ void ui_init() {
         const u32 transform_buffer_offset = charmap_buffer_offset + charmap_buffer_size;
 
         auto &tdb = ui.text_draw_buffer;
-        tdb.positions  = (f32  *)r_alloclv(position_buffer_size); 
-        tdb.colors     = (u32  *)r_alloclv(color_buffer_size);
-        tdb.charmap    = (u32  *)r_alloclv(charmap_buffer_size);
-        tdb.transforms = (mat4 *)r_alloclv(transform_buffer_size);
+        tdb.positions  = (f32  *)r_allocv(position_buffer_size); 
+        tdb.colors     = (u32  *)r_allocv(color_buffer_size);
+        tdb.charmap    = (u32  *)r_allocv(charmap_buffer_size);
+        tdb.transforms = (mat4 *)r_allocv(transform_buffer_size);
 
         copy_bytes(tdb.positions, vertices, position_buffer_size);
         
@@ -412,8 +412,8 @@ void ui_init() {
         const u32 color_buffer_offset = pos_buffer_offset + pos_buffer_size;
         
         auto &qdb = ui.quad_draw_buffer;
-        qdb.positions = (vec2 *)r_alloclv(pos_buffer_size);
-        qdb.colors    = (u32  *)r_alloclv(color_buffer_size);
+        qdb.positions = (vec2 *)r_allocv(pos_buffer_size);
+        qdb.colors    = (u32  *)r_allocv(color_buffer_size);
         
         Vertex_Array_Binding bindings[2] = {};
         bindings[0].binding_index = 0;
@@ -635,11 +635,11 @@ void r_init_buffer_storages() {
 #if DEVELOPER
     EID_VERTEX_DATA_OFFSET = vertex_buffer_storage.size;
     EID_VERTEX_DATA_SIZE   = 0;
-    EID_VERTEX_DATA = r_alloclv(MAX_EID_VERTEX_DATA_SIZE);
+    EID_VERTEX_DATA = r_allocv(MAX_EID_VERTEX_DATA_SIZE);
 #endif
 }
 
-void *r_alloclv(u32 size) {
+void *r_allocv(u32 size) {
     auto &vbs = vertex_buffer_storage;
     
     void *data = (u8 *)vbs.mapped_data + vbs.size;
@@ -649,7 +649,7 @@ void *r_alloclv(u32 size) {
     return data;
 }
 
-void *r_allocli(u32 size) {
+void *r_alloci(u32 size) {
     auto &ibs = index_buffer_storage;
     
     void *data = (u8 *)ibs.mapped_data + ibs.size;
@@ -1247,7 +1247,8 @@ static For_Each_Result cb_draw_aabb(Entity *e, void *user_data) {
             aabb_color = rgba_red;
             break;
         }
-        case ENTITY_SOUND_EMITTER: {
+        case ENTITY_SOUND_EMITTER_2D:
+        case ENTITY_SOUND_EMITTER_3D: {
             aabb_color = rgba_blue;
             break;
         }

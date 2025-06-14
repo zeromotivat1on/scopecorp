@@ -9,7 +9,8 @@ enum Entity_Type {
     ENTITY_STATIC_MESH,
     ENTITY_DIRECT_LIGHT,
     ENTITY_POINT_LIGHT,
-    ENTITY_SOUND_EMITTER,
+    ENTITY_SOUND_EMITTER_2D,
+    ENTITY_SOUND_EMITTER_3D,
     ENTITY_PORTAL,
 };
 
@@ -100,8 +101,14 @@ struct Point_Light : Entity {
     s32 u_light_index = INVALID_INDEX; // index in Point_Lights uniform block
 };
 
-struct Sound_Emitter : Entity {
-    Sound_Emitter() { type = ENTITY_SOUND_EMITTER; }
+struct Sound_Emitter_2D : Entity {
+    Sound_Emitter_2D() { type = ENTITY_SOUND_EMITTER_2D; }
+
+    sid sid_sound = SID_NONE;
+};
+
+struct Sound_Emitter_3D : Entity {
+    Sound_Emitter_3D() { type = ENTITY_SOUND_EMITTER_3D; }
 
     sid sid_sound = SID_NONE;
 };

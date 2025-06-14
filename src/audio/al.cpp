@@ -66,6 +66,12 @@ void set_listener_pos(vec3 pos) {
 	alListener3f(AL_POSITION, pos.x, pos.y, pos.z);
 }
 
+vec3 get_listener_pos() {
+    vec3 pos = {};
+    alGetListener3f(AL_POSITION, &pos.x, &pos.y, &pos.z);
+    return pos;
+}
+
 void play_sound(sid sid) {
     const auto &sound = asset_table.sounds[sid];
     alSourcePlay(sound.source);
