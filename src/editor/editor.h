@@ -2,6 +2,7 @@
 
 extern s16 KEY_CLOSE_WINDOW;
 extern s16 KEY_SWITCH_EDITOR_MODE;
+extern s16 KEY_SWITCH_COLLISION_VIEW;
 
 struct Window_Event;
 

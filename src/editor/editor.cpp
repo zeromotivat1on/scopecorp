@@ -33,9 +33,10 @@
 
 #include "stb_image.h"
 
-s16 KEY_CLOSE_WINDOW         = KEY_ESCAPE;
-s16 KEY_SWITCH_EDITOR_MODE   = KEY_F11;
-s16 KEY_SWITCH_DEBUG_CONSOLE = KEY_GRAVE_ACCENT;
+s16 KEY_CLOSE_WINDOW          = KEY_ESCAPE;
+s16 KEY_SWITCH_EDITOR_MODE    = KEY_F11;
+s16 KEY_SWITCH_DEBUG_CONSOLE  = KEY_GRAVE_ACCENT;
+s16 KEY_SWITCH_COLLISION_VIEW = KEY_F1;
 
 struct Find_Entity_By_AABB_Data {
     Entity *e = null;
@@ -56,45 +57,11 @@ static void mouse_pick_entity(World *world, Entity *e) {
 static For_Each_Result cb_find_entity_by_aabb(Entity *e, void *user_data) {
     auto *data = (Find_Entity_By_AABB_Data *)user_data;
 
-    switch (e->type) {
-    case ENTITY_PLAYER: {
-        auto *player = (Player *)e;
-        if (player->aabb_index == data->aabb_index) {
-            data->e = e;
-            return RESULT_BREAK;
-        }
-                                
-        break;
+    if (e->aabb_index == data->aabb_index) {
+        data->e = e;
+        return RESULT_BREAK;
     }
-    case ENTITY_STATIC_MESH: {
-        auto *mesh = (Static_Mesh *)e;
-        if (mesh->aabb_index == data->aabb_index) {
-            data->e = e;
-            return RESULT_BREAK;
-        }
-                                
-        break;
-    }
-    case ENTITY_POINT_LIGHT: {
-        auto *light = (Point_Light *)e;
-        if (light->aabb_index == data->aabb_index) {
-            data->e = e;
-            return RESULT_BREAK;
-        }
-                                
-        break;
-    }
-    case ENTITY_DIRECT_LIGHT: {
-        auto *light = (Direct_Light *)e;
-        if (light->aabb_index == data->aabb_index) {
-            data->e = e;
-            return RESULT_BREAK;
-        }
-                                
-        break;
-    }
-    }
-
+    
     return RESULT_CONTINUE;
 };
 
@@ -118,6 +85,12 @@ void on_input_editor(Window_Event *event) {
             if (world->mouse_picked_entity) {
                 world->mouse_picked_entity->flags &= ~ENTITY_FLAG_SELECTED_IN_EDITOR;
                 world->mouse_picked_entity = null;
+            }
+        } else if (press && key == KEY_SWITCH_COLLISION_VIEW) {
+            if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
+                game_state.view_mode_flags &= ~VIEW_MODE_FLAG_COLLISION;
+            } else {
+                game_state.view_mode_flags |= VIEW_MODE_FLAG_COLLISION;
             }
         }
 

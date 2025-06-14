@@ -1281,30 +1281,9 @@ void geo_draw_debug() {
         for_each_entity(world, cb_draw_aabb);
 
         if (world->mouse_picked_entity) {
+            const auto *e = world->mouse_picked_entity;
             const u32 mouse_picked_color = rgba_yellow;
-            
-            switch (world->mouse_picked_entity->type) {
-            case ENTITY_PLAYER: {
-                auto *player = (Player *)world->mouse_picked_entity;
-                geo_draw_aabb(world->aabbs[player->aabb_index], mouse_picked_color);
-                break;
-            }
-            case ENTITY_STATIC_MESH: {
-                auto *mesh = (Static_Mesh *)world->mouse_picked_entity;
-                geo_draw_aabb(world->aabbs[mesh->aabb_index], mouse_picked_color);
-                break;
-            }
-            case ENTITY_POINT_LIGHT: {
-                auto *light = (Point_Light *)world->mouse_picked_entity;
-                geo_draw_aabb(world->aabbs[light->aabb_index], mouse_picked_color);
-                break;
-            }
-            case ENTITY_DIRECT_LIGHT: {
-                auto *light = (Direct_Light *)world->mouse_picked_entity;
-                geo_draw_aabb(world->aabbs[light->aabb_index], mouse_picked_color);
-                break;
-            }
-            }
+            geo_draw_aabb(world->aabbs[e->aabb_index], mouse_picked_color);
         }
         
         if (player.collide_aabb_index != INVALID_INDEX) {

@@ -62,15 +62,15 @@ void on_input_game(Window_Event *event) {
         } else if (press && key == KEY_SWITCH_EDITOR_MODE) {
             game_state.mode = MODE_EDITOR;
             push_input_layer(&input_layer_editor);
-        } else if (press && alt && key == KEY_C) {
+        } else if (press && key == KEY_SWITCH_COLLISION_VIEW) {
             if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
                 game_state.view_mode_flags &= ~VIEW_MODE_FLAG_COLLISION;
             } else {
                 game_state.view_mode_flags |= VIEW_MODE_FLAG_COLLISION;
             }
-        } else if (press && key == KEY_F1) {
+        } else if (press && key == KEY_1) {
             game_state.camera_behavior = (Camera_Behavior)(((s32)game_state.camera_behavior + 1) % 3);
-        } else if (press && key == KEY_F2) {
+        } else if (press && key == KEY_2) {
             game_state.player_movement_behavior = (Player_Movement_Behavior)(((s32)game_state.player_movement_behavior + 1) % 2);
         } else if (press && ctrl && key == KEY_R) {
             world->player.location = vec3(0.0f, F32_MIN, 0.0f);
@@ -201,8 +201,13 @@ void tick_game(f32 dt) {
     r_set_uniform_block_value(&uniform_block_camera, 3, 0, &camera->view_proj, get_uniform_type_size_gpu_aligned(UNIFORM_F32_4X4));
 
     {   // Update skybox.
+        auto &aabb = world->aabbs[skybox.aabb_index];
+        const vec3 half_extent = (aabb.max - aabb.min) * 0.5f;
+        aabb.min = skybox.location - half_extent;
+        aabb.max = skybox.location + half_extent;
+        
         auto &material = asset_table.materials[skybox.draw_data.sid_material];
-            
+        
         skybox.uv_offset = camera->eye;
         set_material_uniform_value(&material, "u_scale", &skybox.uv_scale, sizeof(skybox.uv_scale));
         set_material_uniform_value(&material, "u_offset", &skybox.uv_offset, sizeof(skybox.uv_offset));
@@ -214,7 +219,6 @@ void tick_game(f32 dt) {
     For (world->direct_lights) {
         auto &aabb = world->aabbs[it.aabb_index];
         const vec3 half_extent = (aabb.max - aabb.min) * 0.5f;
-        
         aabb.min = it.location - half_extent;
         aabb.max = it.location + half_extent;
 
@@ -232,7 +236,6 @@ void tick_game(f32 dt) {
     For (world->point_lights) {
         auto &aabb = world->aabbs[it.aabb_index];
         const vec3 half_extent = (aabb.max - aabb.min) * 0.5f;
-        
         aabb.min = it.location - half_extent;
         aabb.max = it.location + half_extent;
 
@@ -253,6 +256,12 @@ void tick_game(f32 dt) {
     }
     
 	For (world->static_meshes) {
+        // @Todo: take into account rotation and scale.
+        auto &aabb = world->aabbs[it.aabb_index];
+        const vec3 half_extent = (aabb.max - aabb.min) * 0.5f;
+        aabb.min = it.location - half_extent;
+        aabb.max = it.location + half_extent;
+
         auto &material = asset_table.materials[it.draw_data.sid_material];
         
         const mat4 model = mat4_transform(it.location, it.rotation, it.scale);
@@ -261,24 +270,26 @@ void tick_game(f32 dt) {
         set_material_uniform_value(&material, "u_material.ambient",   &material.ambient, sizeof(material.ambient));
         set_material_uniform_value(&material, "u_material.diffuse",   &material.diffuse, sizeof(material.diffuse));
         set_material_uniform_value(&material, "u_material.specular",  &material.specular, sizeof(material.specular));
-        set_material_uniform_value(&material, "u_material.shininess", &material.shininess, sizeof(material.shininess));        
-        
-        auto &aabb = world->aabbs[it.aabb_index];
-        const vec3 half_extent = (aabb.max - aabb.min) * 0.5f;
-
-        aabb.min = it.location - half_extent;
-        aabb.max = it.location + half_extent;
-
-        // @Todo: take into account rotation and scale.
+        set_material_uniform_value(&material, "u_material.shininess", &material.shininess, sizeof(material.shininess));
 	}
 
     // @Todo: fine-tuned sound play.
     
     For (world->sound_emitters_2d) {
+        auto &aabb = world->aabbs[it.aabb_index];
+        const vec3 half_extent = (aabb.max - aabb.min) * 0.5f;
+        aabb.min = it.location - half_extent;
+        aabb.max = it.location + half_extent;
+        
         play_sound_or_continue(it.sid_sound, get_listener_pos());
     }
 
     For (world->sound_emitters_3d) {
+        auto &aabb = world->aabbs[it.aabb_index];
+        const vec3 half_extent = (aabb.max - aabb.min) * 0.5f;
+        aabb.min = it.location - half_extent;
+        aabb.max = it.location + half_extent;
+        
         play_sound_or_continue(it.sid_sound, it.location);
     }
     
@@ -445,10 +456,58 @@ Camera *desired_camera(World *world) {
 	return null;
 }
 
-s32 create_static_mesh(World *world) {
-    const s32 index = world->static_meshes.add_default();
-    world->static_meshes[index].aabb_index = world->aabbs.add_default();
-    return index;
+Entity *create_entity(World *world, Entity_Type e_type) {
+    Entity *e = null;
+    switch (e_type) {
+    case ENTITY_PLAYER: {
+        e = &world->player;
+        break;
+    }
+    case ENTITY_SKYBOX: {
+        e = &world->skybox;
+        break;
+    }
+    case ENTITY_STATIC_MESH: {
+        e = world->static_meshes.find(world->static_meshes.add_default());
+        break;
+    }
+    case ENTITY_DIRECT_LIGHT: {
+        e = world->direct_lights.find(world->direct_lights.add_default());
+        break;
+    }
+    case ENTITY_POINT_LIGHT: {
+        e = world->point_lights.find(world->point_lights.add_default());
+        break;
+    }
+    case ENTITY_SOUND_EMITTER_2D: {
+        e = world->sound_emitters_2d.find(world->sound_emitters_2d.add_default());
+        break;
+    }
+    case ENTITY_SOUND_EMITTER_3D: {
+        e = world->sound_emitters_3d.find(world->sound_emitters_3d.add_default());
+        break;
+    }
+    case ENTITY_PORTAL: {
+        e = world->portals.find(world->portals.add_default());
+        break;
+    }
+    }
+
+    if (e) {
+        static eid eid = 1;
+
+        e->eid = eid;
+        e->aabb_index = world->aabbs.add_default();
+
+        auto &aabb = world->aabbs[e->aabb_index];
+        const vec3 half_extent = e->scale * 0.5f;
+        aabb.min = e->location - half_extent;
+        aabb.max = e->location + half_extent;
+        
+        eid += 1;
+    }
+    
+    return e;
 }
 
 struct Find_Entity_By_Id_Data {

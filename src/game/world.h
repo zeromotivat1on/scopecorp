@@ -53,8 +53,7 @@ void load_world_level(World *world, const char *path);
 void tick(World *world, f32 dt);
 Camera *desired_camera(World *world);
 
-s32 create_static_mesh(World *world);
-
+Entity *create_entity(World *world, Entity_Type e_type);
 Entity *find_entity_by_eid(World* world, eid eid);
 
 void draw_world(const World *world);

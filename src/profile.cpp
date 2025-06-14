@@ -98,6 +98,8 @@ void on_input_profiler(Window_Event *event) {
 }
 
 void draw_profiler() {
+    PROFILE_SCOPE(__FUNCTION__);
+    
     profiler.scope_time_update_time += delta_time;
 
     if (profiler.scope_time_update_time > profiler.scope_time_update_interval) {

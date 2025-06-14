@@ -182,17 +182,13 @@ s32 main() {
 #if 1
     str_copy(world->name, "main.wl");
 
-	auto &player = world->player;
+	auto &player = *(Player *)create_entity(world, ENTITY_PLAYER);
 	{
-        player.eid = 1;
-
         const auto &texture = asset_table.textures[texture_sids.player_idle[DIRECTION_BACK]];
         
         const f32 scale_aspect = (f32)texture.width / texture.height;
         const f32 y_scale = 1.0f * scale_aspect;
         const f32 x_scale = y_scale * scale_aspect;
-
-        player.aabb_index = world->aabbs.add_default();
         
 		player.scale = vec3(x_scale, y_scale, 1.0f);
         player.location = vec3(0.0f, F32_MIN, 0.0f);
@@ -211,11 +207,8 @@ s32 main() {
         player.sid_sound_steps = SID_SOUND_PLAYER_STEPS;
 	}
 
-    auto &portal = world->portals[world->portals.add_default()];
-    {
-        portal.eid = 2;
-        
-        portal.aabb_index = world->aabbs.add_default();
+    auto &portal = *(Portal *)create_entity(world, ENTITY_PORTAL);
+    {        
         portal.destination_location = vec3(0.0f, F32_MIN, 0.0f);
         
         portal.scale = vec3(1.0f);
@@ -227,10 +220,8 @@ s32 main() {
 		aabb.max = aabb.min + aabb_offset;
     }
     
-	auto &ground = world->static_meshes[create_static_mesh(world)];
-	{
-        ground.eid = 10;
-        
+	auto &ground = *(Static_Mesh *)create_entity(world, ENTITY_STATIC_MESH);
+	{        
 		ground.scale = vec3(16.0f, 16.0f, 0.0f);
         ground.rotation = quat_from_axis_angle(vec3_right, 90.0f);
 
@@ -251,10 +242,8 @@ s32 main() {
 		set_material_uniform_value(&material, "u_uv_scale", &uv_scale, sizeof(uv_scale));
 	}
 
-	auto &cube = world->static_meshes[create_static_mesh(world)];
-	{
-        cube.eid = 11;
-                
+	auto &cube = *(Static_Mesh *)create_entity(world, ENTITY_STATIC_MESH);
+	{                
 		cube.location = vec3(3.0f, 0.5f, 4.0f);
 
         auto &aabb = world->aabbs[cube.aabb_index];
@@ -273,9 +262,9 @@ s32 main() {
 		set_material_uniform_value(&material, "u_uv_scale", &uv_scale, sizeof(uv_scale));
 	}
 
-	auto &skybox = world->skybox;
+	auto &skybox = *(Skybox *)create_entity(world, ENTITY_SKYBOX);
 	{
-        skybox.eid = EID_MAX;
+        skybox.location = vec3(0.0f, -2.0f, 0.0f);
         skybox.uv_scale = vec2(8.0f, 4.0f);
         
 		skybox.draw_data.sid_mesh     = SID_MESH_SKYBOX;
@@ -286,17 +275,14 @@ s32 main() {
         EID_VERTEX_DATA_SIZE += sizeof(u32);
 	}
 
-    auto &sound_emitter_2d = world->sound_emitters_2d[world->sound_emitters_2d.add_default()];
+    auto &sound_emitter_2d = *(Sound_Emitter_2D *)create_entity(world, ENTITY_SOUND_EMITTER_2D);
     {
-        sound_emitter_2d.eid = 100;
+        sound_emitter_2d.location = vec3(0.0f, 2.0f, 0.0f);
         sound_emitter_2d.sid_sound = SID_SOUND_WIND_AMBIENCE;
     }
     
     if (1) {
-        const s32 index = world->direct_lights.add_default();
-        
-        auto &direct_light = world->direct_lights[index];
-        direct_light.eid = 20000;
+        auto &direct_light = *(Direct_Light *)create_entity(world, ENTITY_DIRECT_LIGHT);
 
         direct_light.location = vec3(0.0f, 5.0f, 0.0f);
         direct_light.rotation = quat_from_axis_angle(vec3_right, 0.0f);
@@ -306,8 +292,7 @@ s32 main() {
         direct_light.diffuse  = vec3_black;
         direct_light.specular = vec3_black;
 
-        direct_light.u_light_index = index;
-        direct_light.aabb_index = world->aabbs.add_default();
+        direct_light.u_light_index = 0;
         
         auto &aabb = world->aabbs[direct_light.aabb_index];
 		aabb.min = direct_light.location - direct_light.scale * 0.5f;
@@ -315,10 +300,7 @@ s32 main() {
     }
     
     if (1) {
-        const s32 index = world->point_lights.add_default();
-        
-        auto &point_light = world->point_lights[index];
-        point_light.eid = 10000;
+        auto &point_light = *(Point_Light *)create_entity(world, ENTITY_POINT_LIGHT);
         
         point_light.location = vec3(0.0f, 2.0f, 0.0f);
         point_light.scale = vec3(0.1f);
@@ -331,8 +313,7 @@ s32 main() {
         point_light.attenuation.linear    = 0.09f;
         point_light.attenuation.quadratic = 0.032f;
         
-        point_light.u_light_index = index;
-        point_light.aabb_index = world->aabbs.add_default();
+        point_light.u_light_index = 0;
         
         auto &aabb = world->aabbs[point_light.aabb_index];
 		aabb.min = point_light.location - point_light.scale * 0.5f;
