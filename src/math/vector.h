@@ -166,7 +166,7 @@ struct vec4 {
 #define vec4_black  vec4(0, 0, 0, 1)
 #define vec4_white  vec4(1, 1, 1, 1)
 #define vec4_yellow vec4(1, 1, 0, 1)
-#define vec4_purple vec4(1, 0, 1, 0)
+#define vec4_purple vec4(1, 0, 1, 1)
 
 // Uses static 2d buffer internally, for debug purposes only.
 const char *to_string(const vec3 &v);

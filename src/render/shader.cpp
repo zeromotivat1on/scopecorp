@@ -67,7 +67,7 @@ static bool parse_shader_region(const char *in, char *out, Shader_Region_Type ty
     begin = cin;
     
     const char *include = str_sub(cin, DECL_INCLUDE);
-    if (include) { // copy shader source before first include
+    if (include && include < end) { // copy shader source before first include
         str_glue(out, cin, include - cin);
     }
 

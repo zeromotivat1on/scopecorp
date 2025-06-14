@@ -27,10 +27,6 @@
 
 #include "math/math_core.h"
 
-static s32 MAX_GEOMETRY_VERTEX_BUFFER_SIZE = 0;
-static s32 GEOMETRY_VERTEX_DIMENSION       = 0;
-static s32 GEOMETRY_VERTEX_SIZE            = 0;
-
 void cache_texture_sids(Texture_Sid_List *list) {
     list->skybox = SID("/data/textures/skybox.png");
     list->stone  = SID("/data/textures/stone.png");
@@ -184,7 +180,7 @@ void draw_entity(const Entity *e) {
         command.stencil.mask                = 0x00;
 
         const auto *camera = desired_camera(world);
-        const vec3 color = vec3_yellow;
+        const u32 color = rgba_yellow;
         const mat4 mvp = mat4_transform(e->location, e->rotation, e->scale * 1.1f) * camera->view_proj;
 
         auto &material = asset_table.materials[SID_MATERIAL_OUTLINE];
@@ -198,53 +194,49 @@ void draw_entity(const Entity *e) {
 }
 
 void geo_init() {    
-    Vertex_Array_Binding binding = {};
-    binding.binding_index = 0;
-    binding.data_offset = vertex_buffer_storage.size;
-    binding.layout_size = 2;
-    binding.layout[0] = { VERTEX_F32_3, 0 };
-    binding.layout[1] = { VERTEX_F32_3, 0 };
+    constexpr u32 location_buffer_size = MAX_GEOMETRY_VERTEX_COUNT * sizeof(vec3);
+    constexpr u32 color_buffer_size    = MAX_GEOMETRY_VERTEX_COUNT * sizeof(u32);
 
-    for (s32 i = 0; i < binding.layout_size; ++i) {
-		GEOMETRY_VERTEX_DIMENSION += get_vertex_component_dimension(binding.layout[i].type);
-		GEOMETRY_VERTEX_SIZE      += get_vertex_component_size(binding.layout[i].type);
-    }
+    const u32 location_buffer_offset  = vertex_buffer_storage.size;
+    const u32 color_buffer_offset     = location_buffer_offset + location_buffer_size;
 
-    MAX_GEOMETRY_VERTEX_BUFFER_SIZE = GEOMETRY_VERTEX_SIZE * MAX_GEOMETRY_VERTEX_COUNT;
-    
     auto &gdb = geo_draw_buffer;
-    gdb.rid_vertex_array = r_create_vertex_array(&binding, 1);
-    gdb.sid_material = SID_MATERIAL_GEOMETRY;
-    gdb.vertex_data = (f32 *)r_alloclv(MAX_GEOMETRY_VERTEX_BUFFER_SIZE);
+    gdb.locations  = (vec3 *)r_alloclv(location_buffer_size); 
+    gdb.colors     = (u32  *)r_alloclv(color_buffer_size);
     gdb.vertex_count = 0;
+    
+    Vertex_Array_Binding bindings[2] = {};
+    bindings[0].binding_index = 0;
+    bindings[0].data_offset = location_buffer_offset;
+    bindings[0].layout_size = 1;
+    bindings[0].layout[0] = { VERTEX_F32_3, 0 };
+
+    bindings[1].binding_index = 1;
+    bindings[1].data_offset = color_buffer_offset;
+    bindings[1].layout_size = 1;
+    bindings[1].layout[0] = { VERTEX_U32, 0 };
+    
+    gdb.rid_vertex_array = r_create_vertex_array(bindings, COUNT(bindings));
+    gdb.sid_material = SID_MATERIAL_GEOMETRY;
 }
 
-void geo_draw_line(vec3 start, vec3 end, vec3 color) {
+void geo_draw_line(vec3 start, vec3 end, u32 color) {
     Assert(geo_draw_buffer.vertex_count + 2 <= MAX_GEOMETRY_VERTEX_COUNT);
-    
-    const u32 offset = geo_draw_buffer.vertex_count * GEOMETRY_VERTEX_DIMENSION;
-    f32 *v = geo_draw_buffer.vertex_data + offset;
-    
-    v[0] = start[0];
-    v[1] = start[1];
-    v[2] = start[2];
 
-    v[3] = color[0];
-    v[4] = color[1];
-    v[5] = color[2];
-    
-    v[6] = end[0];
-    v[7] = end[1];
-    v[8] = end[2];
+    auto &gdb = geo_draw_buffer;
 
-    v[9]  = color[0];
-    v[10] = color[1];
-    v[11] = color[2];
+    vec3 *vl = gdb.locations + gdb.vertex_count;
+    u32  *vc = gdb.colors    + gdb.vertex_count;
+        
+    vl[0] = start;
+    vl[1] = end;
+    vc[0] = color;
+    vc[1] = color;
 
-    geo_draw_buffer.vertex_count += 2;
+    gdb.vertex_count += 2;
 }
 
-void geo_draw_arrow(vec3 start, vec3 end, vec3 color) {
+void geo_draw_arrow(vec3 start, vec3 end, u32 color) {
     static const f32 size = 0.04f;
     static const f32 arrow_step = 30.0f; // In degrees
     static const f32 arrow_sin[45] = {
@@ -292,12 +284,12 @@ void geo_draw_arrow(vec3 start, vec3 end, vec3 color) {
 }
 
 void geo_draw_cross(vec3 location, f32 size) {
-    geo_draw_arrow(location, location + vec3_up * size,      vec3_blue);
-    geo_draw_arrow(location, location + vec3_right * size,   vec3_green);
-    geo_draw_arrow(location, location + vec3_forward * size, vec3_red);
+    geo_draw_arrow(location, location + vec3_up * size,      rgba_blue);
+    geo_draw_arrow(location, location + vec3_right * size,   rgba_green);
+    geo_draw_arrow(location, location + vec3_forward * size, rgba_red);
 }
 
-void geo_draw_box(const vec3 points[8], vec3 color) {
+void geo_draw_box(const vec3 points[8], u32 color) {
     for (int i = 0; i < 4; ++i) {
         geo_draw_line(points[i],     points[(i + 1) % 4],       color);
         geo_draw_line(points[i + 4], points[((i + 1) % 4) + 4], color);
@@ -305,7 +297,7 @@ void geo_draw_box(const vec3 points[8], vec3 color) {
     }
 }
 
-void geo_draw_aabb(const AABB &aabb, vec3 color) {
+void geo_draw_aabb(const AABB &aabb, u32 color) {
     const vec3 bb[2] = { aabb.min, aabb.max };
     vec3 points[8];
 
@@ -344,6 +336,8 @@ void geo_flush() {
     command.sid_material = gdb.sid_material;
     command.buffer_element_count  = gdb.vertex_count;
     command.buffer_element_offset = 0;
+    command.instance_count  = 1;
+    command.instance_offset = 0;
     
     const auto *camera = desired_camera(world);
     auto &material = asset_table.materials[gdb.sid_material];
@@ -365,7 +359,7 @@ void ui_init() {
         constexpr f32 vertices[8] = { 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f };
 
         constexpr u32 position_buffer_size  = sizeof(vertices);
-        constexpr u32 color_buffer_size     = MAX_UI_TEXT_DRAW_BUFFER_CHARS * sizeof(vec4);
+        constexpr u32 color_buffer_size     = MAX_UI_TEXT_DRAW_BUFFER_CHARS * sizeof(u32);
         constexpr u32 charmap_buffer_size   = MAX_UI_TEXT_DRAW_BUFFER_CHARS * sizeof(u32);
         constexpr u32 transform_buffer_size = MAX_UI_TEXT_DRAW_BUFFER_CHARS * sizeof(mat4);
 
@@ -376,7 +370,7 @@ void ui_init() {
 
         auto &tdb = ui.text_draw_buffer;
         tdb.positions  = (f32  *)r_alloclv(position_buffer_size); 
-        tdb.colors     = (vec4 *)r_alloclv(color_buffer_size);
+        tdb.colors     = (u32  *)r_alloclv(color_buffer_size);
         tdb.charmap    = (u32  *)r_alloclv(charmap_buffer_size);
         tdb.transforms = (mat4 *)r_alloclv(transform_buffer_size);
 
@@ -391,7 +385,7 @@ void ui_init() {
         bindings[1].binding_index = 1;
         bindings[1].data_offset = color_buffer_offset;
         bindings[1].layout_size = 1;
-        bindings[1].layout[0] = { VERTEX_F32_4, 1 };
+        bindings[1].layout[0] = { VERTEX_U32, 1 };
 
         bindings[2].binding_index = 2;
         bindings[2].data_offset = charmap_buffer_offset;
@@ -412,14 +406,14 @@ void ui_init() {
 
     {   // Quad draw buffer.
         constexpr u32 pos_buffer_size   = 4 * MAX_UI_QUAD_DRAW_BUFFER_QUADS * sizeof(vec2);
-        constexpr u32 color_buffer_size = 1 * MAX_UI_QUAD_DRAW_BUFFER_QUADS * sizeof(vec4);
+        constexpr u32 color_buffer_size = 1 * MAX_UI_QUAD_DRAW_BUFFER_QUADS * sizeof(u32);
 
         const u32 pos_buffer_offset   = vertex_buffer_storage.size;
         const u32 color_buffer_offset = pos_buffer_offset + pos_buffer_size;
         
         auto &qdb = ui.quad_draw_buffer;
         qdb.positions = (vec2 *)r_alloclv(pos_buffer_size);
-        qdb.colors    = (vec4 *)r_alloclv(color_buffer_size);
+        qdb.colors    = (u32  *)r_alloclv(color_buffer_size);
         
         Vertex_Array_Binding bindings[2] = {};
         bindings[0].binding_index = 0;
@@ -430,18 +424,18 @@ void ui_init() {
         bindings[1].binding_index = 1;
         bindings[1].data_offset = color_buffer_offset;
         bindings[1].layout_size = 1;
-        bindings[1].layout[0] = { VERTEX_F32_4, 1 };
+        bindings[1].layout[0] = { VERTEX_U32, 1 };
         
         qdb.rid_vertex_array = r_create_vertex_array(bindings, COUNT(bindings));
         qdb.sid_material = SID_MATERIAL_UI_ELEMENT;
     }
 }
 
-void ui_draw_text(const char *text, vec2 pos, vec4 color, s32 atlas_index) {
+void ui_draw_text(const char *text, vec2 pos, u32 color, s32 atlas_index) {
     ui_draw_text(text, (u32)str_size(text), pos, color, atlas_index);
 }
 
-void ui_draw_text(const char *text, u32 count, vec2 pos, vec4 color, s32 atlas_index) {
+void ui_draw_text(const char *text, u32 count, vec2 pos, u32 color, s32 atlas_index) {
     Assert(atlas_index < MAX_UI_FONT_ATLASES);
     Assert(ui.draw_queue_size < MAX_UI_DRAW_QUEUE_SIZE);
 
@@ -508,16 +502,16 @@ void ui_draw_text(const char *text, u32 count, vec2 pos, vec4 color, s32 atlas_i
 	}
 }
 
-void ui_draw_text_with_shadow(const char *text, vec2 pos, vec4 color, vec2 shadow_offset, vec4 shadow_color, s32 atlas_index) {
+void ui_draw_text_with_shadow(const char *text, vec2 pos, u32 color, vec2 shadow_offset, u32 shadow_color, s32 atlas_index) {
     ui_draw_text_with_shadow(text, (u32)str_size(text), pos, color, shadow_offset, shadow_color, atlas_index);
 }
 
-void ui_draw_text_with_shadow(const char *text, u32 count, vec2 pos, vec4 color, vec2 shadow_offset, vec4 shadow_color, s32 atlas_index) {
+void ui_draw_text_with_shadow(const char *text, u32 count, vec2 pos, u32 color, vec2 shadow_offset, u32 shadow_color, s32 atlas_index) {
 	ui_draw_text(text, count, pos + shadow_offset, shadow_color, atlas_index);
 	ui_draw_text(text, count, pos, color, atlas_index);
 }
 
-void ui_draw_quad(vec2 p0, vec2 p1, vec4 color) {
+void ui_draw_quad(vec2 p0, vec2 p1, u32 color) {
     Assert(ui.draw_queue_size < MAX_UI_DRAW_QUEUE_SIZE);
 
     auto &qdb = ui.quad_draw_buffer;
@@ -535,7 +529,7 @@ void ui_draw_quad(vec2 p0, vec2 p1, vec4 color) {
     const f32 y1 = Max(p0.y, p1.y);
     
     vec2 *vp = qdb.positions + 4 * qdb.quad_count;
-    vec4 *vc = qdb.colors    + 1 * qdb.quad_count;
+    u32  *vc = qdb.colors    + 1 * qdb.quad_count;
 
     vp[0] = vec2(x0, y0);
     vp[1] = vec2(x1, y0);
@@ -1246,24 +1240,24 @@ Texture_Format_Type get_texture_format_from_channel_count(s32 channel_count) {
 static For_Each_Result cb_draw_aabb(Entity *e, void *user_data) {
     auto *aabb = world->aabbs.find(e->aabb_index);
     if (aabb) {
-        vec3 aabb_color = vec3_black;
+        u32 aabb_color = rgba_black;
         switch (e->type) {
         case ENTITY_PLAYER:
         case ENTITY_STATIC_MESH: {
-            aabb_color = vec3_red;
+            aabb_color = rgba_red;
             break;
         }
         case ENTITY_SOUND_EMITTER: {
-            aabb_color = vec3_blue;
+            aabb_color = rgba_blue;
             break;
         }
         case ENTITY_PORTAL: {
-            aabb_color = vec3_purple;
+            aabb_color = rgba_purple;
             break;
         }
         case ENTITY_DIRECT_LIGHT:
         case ENTITY_POINT_LIGHT: {
-            aabb_color = vec3_white;
+            aabb_color = rgba_white;
             break;
         }
         }
@@ -1279,14 +1273,14 @@ void geo_draw_debug() {
 
     if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
         const vec3 center = player.location + vec3(0.0f, player.scale.y * 0.5f, 0.0f);
-        geo_draw_arrow(center, center + normalize(player.velocity) * 0.5f, vec3_red);
+        geo_draw_arrow(center, center + normalize(player.velocity) * 0.5f, rgba_red);
     }
     
     if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
         for_each_entity(world, cb_draw_aabb);
 
         if (world->mouse_picked_entity) {
-            const vec3 mouse_picked_color = vec3_yellow;
+            const u32 mouse_picked_color = rgba_yellow;
             
             switch (world->mouse_picked_entity->type) {
             case ENTITY_PLAYER: {
@@ -1313,8 +1307,8 @@ void geo_draw_debug() {
         }
         
         if (player.collide_aabb_index != INVALID_INDEX) {
-            geo_draw_aabb(world->aabbs[player.aabb_index],         vec3_green);
-            geo_draw_aabb(world->aabbs[player.collide_aabb_index], vec3_green);
+            geo_draw_aabb(world->aabbs[player.aabb_index],         rgba_green);
+            geo_draw_aabb(world->aabbs[player.collide_aabb_index], rgba_green);
         }
     }
 }

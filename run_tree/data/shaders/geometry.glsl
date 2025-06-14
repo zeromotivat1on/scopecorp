@@ -2,9 +2,9 @@
 #version 460 core
 
 layout (location = 0) in vec3 v_location;
-layout (location = 1) in vec3 v_color;
+layout (location = 1) in uint v_color;
 
-layout (location = 0) out vec3 f_color;
+layout (location = 0) out uint f_color;
 
 uniform mat4 u_transform;
 
@@ -17,11 +17,13 @@ void main() {
 #begin fragment
 #version 460 core
 
-layout (location = 0) in vec3 f_color;
+#include "color.glsl.h"
+
+layout (location = 0) in flat uint f_color;
 
 layout (location = 0) out vec4 out_color;
 
 void main() {
-    out_color = vec4(f_color, 1.0f);
+    out_color = rgba_unpack(f_color);
 }
 #end fragment

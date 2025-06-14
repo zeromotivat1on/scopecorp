@@ -1,4 +1,4 @@
 s /data/shaders/outline.glsl
 
-u u_color     vec3
+u u_color     u32
 u u_transform mat4

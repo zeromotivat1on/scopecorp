@@ -46,9 +46,13 @@ static_assert(sizeof(f64) == 8);
 #define F64_MIN   2.2250738585072014e-308
 #define F64_MAX   1.7976931348623158e+308
 
-#define U32_PACK(a, b, c, d) ((u32)(a) << 0  | (u32)(b) << 8  | (u32)(c) << 16 | (u32)(d) << 24)
+#define U32_PACK(a, b, c, d) (u32)((a) << 0  | (b) << 8  | (c) << 16 | (d) << 24)
 
 #define null nullptr
+
+#if _MSC_VER
+#define LITTLE_ENDIAN 1
+#endif
 
 typedef u64 sid; // string id
 typedef u32 eid; // entity id
@@ -64,9 +68,17 @@ inline constexpr eid EID_NONE = 0;
 inline constexpr eid EID_MAX  = U32_MAX;
 inline constexpr rid RID_NONE = 0;
 
-#if _MSC_VER
-#define LITTLE_ENDIAN 1
-#endif
+#define rgba_pack(r, g, b, a) (u32)((r) << 24  | (g) << 16  | (b) << 8 | (a) << 0)
+
+#define rgba_zero   rgba_pack(  0,   0,   0,   0)
+#define rgba_black  rgba_pack(  0,   0,   0, 255)
+#define rgba_white  rgba_pack(255, 255, 255, 255)
+#define rgba_red    rgba_pack(255,   0,   0, 255)
+#define rgba_green  rgba_pack(  0, 255,   0, 255)
+#define rgba_blue   rgba_pack(  0,   0, 255, 255)
+#define rgba_yellow rgba_pack(255, 255,   0, 255)
+#define rgba_purple rgba_pack(255,   0, 255, 255)
+#define rgba_cyan   rgba_pack(  0, 255, 255, 255)
 
 #define ASCII_BACKSPACE       8
 #define ASCII_TAB             9

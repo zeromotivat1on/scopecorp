@@ -465,27 +465,27 @@ void draw_debug_console() {
     {   // Input quad.
         const vec2 q0 = vec2(DEBUG_CONSOLE_MARGIN);
         const vec2 q1 = vec2(viewport.width - DEBUG_CONSOLE_MARGIN, viewport.height - DEBUG_CONSOLE_MARGIN);
-        const vec4 color = vec4(0.0f, 0.0f, 0.0f, 0.8f);
+        const u32 color = rgba_pack(0, 0, 0, 200);
         ui_draw_quad(q0, q1, color);
     }
 
     {   // History quad.
         const vec2 q0 = vec2(DEBUG_CONSOLE_MARGIN);
         const vec2 q1 = vec2(viewport.width - DEBUG_CONSOLE_MARGIN, DEBUG_CONSOLE_MARGIN + lower_case_height + 2 * DEBUG_CONSOLE_PADDING);
-        const vec4 color = vec4(0.0f, 0.0f, 0.0f, 0.8f);
+        const u32 color = rgba_pack(0, 0, 0, 200);
         ui_draw_quad(q0, q1, color);
     }
 
     {   // Input text.
         const vec2 pos = vec2(DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING);
-        const vec4 color = vec4_white;
+        const u32 color = rgba_white;
         ui_draw_text(input, input_size, pos, color, UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX);
     }
 
     {   // History text.
         const vec2 pos = vec2(DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING,
                               viewport.height - DEBUG_CONSOLE_MARGIN - DEBUG_CONSOLE_PADDING - ascent);
-        const vec4 color = vec4_white;
+        const u32 color = rgba_white;
         
         const f32 max_height = viewport.height - 2 * DEBUG_CONSOLE_MARGIN - DEBUG_CONSOLE_PADDING;
 
@@ -526,13 +526,13 @@ void draw_debug_console() {
         const vec2 q0 = vec2(DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING + width_px + 1,
                              DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING + descent);
         const vec2 q1 = vec2(q0.x + atlas.space_advance_width, q0.y + ascent - descent);
-        vec4 color = vec4_white;
+        u32 color = rgba_white;
 
         if (cursor_blink_dt > DEBUG_CONSOLE_CURSOR_BLINK_INTERVAL) {
             if (cursor_blink_dt > 2 * DEBUG_CONSOLE_CURSOR_BLINK_INTERVAL) {
                 cursor_blink_dt = 0.0f;
             } else {
-                color.w = 0.0f;
+                color = rgba_zero;
             }
         }
 

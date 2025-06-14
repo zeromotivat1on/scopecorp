@@ -69,7 +69,7 @@ void on_window_event(Window *window, Window_Event *event) {
 
 s32 main() {
     START_SCOPE_TIMER(startup);
-
+    
     if (!alloc_init()) {
         error("Failed to initialize allocation");
         return 1;

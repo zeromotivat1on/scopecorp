@@ -13,11 +13,13 @@ void main() {
 #begin fragment
 #version 460 core
 
+#include "color.glsl.h"
+
 layout (location = 0) out vec4 out_color;
 
-uniform vec3 u_color;
+uniform uint u_color;
 
 void main() {
-    out_color = vec4(u_color, 1);
+    out_color = rgba_unpack(u_color);
 }
 #end fragment
