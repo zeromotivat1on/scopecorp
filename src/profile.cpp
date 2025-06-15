@@ -19,6 +19,7 @@
 #include "render/ui.h"
 #include "render/viewport.h"
 #include "render/render_stats.h"
+#include "render/buffer_storage.h"
 
 s16 KEY_SWITCH_PROFILER = KEY_F9;
  
@@ -231,6 +232,20 @@ void draw_dev_stats() {
 
         const f32 allocf_percent = (f32)allocf_size / MAX_ALLOCF_SIZE * 100.0f;
 		text_size = (s32)stbsp_snprintf(text, sizeof(text), "Frame %.2fmb/%.2fmb (%.2f%%)", (f32)allocf_size / 1024 / 1024, (f32)MAX_ALLOCF_SIZE / 1024 / 1024, allocf_percent);
+        pos.x = viewport.width - get_line_width_px(&atlas, text, text_size) - padding;
+		ui_draw_text_with_shadow(text, text_size, pos, rgba_white, shadow_offset, rgba_black);
+        pos.y -= atlas.line_height;
+
+        const auto &vbs = vertex_buffer_storage;
+        const f32 rallocv_percent = (f32)vbs.size / vbs.capacity * 100.0f;
+		text_size = (s32)stbsp_snprintf(text, sizeof(text), "Vertex %.2fmb/%.2fmb (%.2f%%)", (f32)vbs.size / 1024 / 1024, (f32)vbs.capacity / 1024 / 1024, rallocv_percent);
+        pos.x = viewport.width - get_line_width_px(&atlas, text, text_size) - padding;
+		ui_draw_text_with_shadow(text, text_size, pos, rgba_white, shadow_offset, rgba_black);
+        pos.y -= atlas.line_height;
+
+        const auto &ibs = index_buffer_storage;
+        const f32 ralloci_percent = (f32)ibs.size / ibs.capacity * 100.0f;
+		text_size = (s32)stbsp_snprintf(text, sizeof(text), "Index %.2fmb/%.2fmb (%.2f%%)", (f32)ibs.size / 1024 / 1024, (f32)ibs.capacity / 1024 / 1024, ralloci_percent);
         pos.x = viewport.width - get_line_width_px(&atlas, text, text_size) - padding;
 		ui_draw_text_with_shadow(text, text_size, pos, rgba_white, shadow_offset, rgba_black);
         pos.y -= atlas.line_height;

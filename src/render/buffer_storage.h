@@ -20,7 +20,7 @@ inline constexpr s32 MAX_VERTEX_LAYOUT_SIZE    = 8;
 inline constexpr s32 MAX_VERTEX_ARRAY_BINDINGS = 8;
 
 inline constexpr u32 MAX_VERTEX_STORAGE_SIZE = MB(16);
-inline constexpr u32 MAX_INDEX_STORAGE_SIZE  = MB(4);
+inline constexpr u32 MAX_INDEX_STORAGE_SIZE  = MB(1);
 
 inline constexpr u32 MAX_EID_VERTEX_DATA_SIZE = MB(1);
 inline constexpr s32 EID_VERTEX_BINDING_INDEX = MAX_VERTEX_ARRAY_BINDINGS;
