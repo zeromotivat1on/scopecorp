@@ -476,7 +476,7 @@ void draw_debug_console() {
     const f32 descent = atlas.font->descent * atlas.px_h_scale;
     // @Cleanup: probably not ideal solution to get lower-case glyph height.
     const f32 lower_case_height = (atlas.font->ascent + atlas.font->descent) * atlas.px_h_scale;
-
+    
     {   // History quad.
         const vec2 q0 = vec2(DEBUG_CONSOLE_MARGIN);
         const vec2 q1 = vec2(viewport.width - DEBUG_CONSOLE_MARGIN, viewport.height - DEBUG_CONSOLE_MARGIN);
@@ -595,8 +595,20 @@ void add_to_debug_console_history(const char *text, u32 count) {
     history[history_size] = '\0';
 }
 
+static void scroll_debug_console(s32 delta) {
+    auto &history_height = debug_console.history_height;
+    auto &history_y = debug_console.history_y;
+    auto &history_min_y = debug_console.history_min_y;
+
+    const auto &atlas = *ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
+    
+    history_y -= delta * atlas.line_height;
+    history_y = Clamp(history_y, history_min_y, history_min_y + history_height);
+}
+
 void on_input_debug_console(Window_Event *event) {
     const bool press = event->key_press;
+    const bool repeat = event->key_repeat;
     const auto key = event->key_code;
     const u32 character = event->character;
 
@@ -606,6 +618,10 @@ void on_input_debug_console(Window_Event *event) {
             os_window_close(window);
         } else if (press && key == KEY_SWITCH_DEBUG_CONSOLE) {
             close_debug_console();
+        } else if ((press || repeat) && key == KEY_UP) {
+            scroll_debug_console(1);
+        } else if ((press || repeat) && key == KEY_DOWN) {
+            scroll_debug_console(-1);            
         }
         
         break;
@@ -680,16 +696,7 @@ void on_input_debug_console(Window_Event *event) {
     }
     case WINDOW_EVENT_MOUSE: {
         const s32 delta = Sign(event->scroll_delta);
-        
-        auto &history_height = debug_console.history_height;
-        auto &history_y = debug_console.history_y;
-        auto &history_min_y = debug_console.history_min_y;
-
-        const auto &atlas = *ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
-
-        history_y -= delta * atlas.line_height;
-        history_y = Clamp(history_y, history_min_y, history_min_y + history_height);
-        
+        scroll_debug_console(delta);
         break;
     }
     }
