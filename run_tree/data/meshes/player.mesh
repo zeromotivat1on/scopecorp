@@ -5,7 +5,7 @@ vc p  vec3
 vc n  vec3
 vc uv vec2
 
-db
+go
 
 p   0.5  1.0  0.0
 p   0.5  0.0  0.0
@@ -28,5 +28,3 @@ i   1
 i   2
 i   0
 i   3
-
-de

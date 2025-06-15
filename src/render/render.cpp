@@ -962,8 +962,7 @@ void init_mesh_asset(Mesh *mesh, void *data) {
         DECL_VERTEX_COUNT,
         DECL_INDEX_COUNT,
         DECL_VERTEX_COMPONENT,
-        DECL_DATA_BEGIN,
-        DECL_DATA_END,
+        DECL_DATA_GO,
         DECL_POSITION,
         DECL_NORMAL,
         DECL_INDEX,
@@ -975,8 +974,7 @@ void init_mesh_asset(Mesh *mesh, void *data) {
     const char *DECL_NAME_VERTEX_COUNT      = "vn";
     const char *DECL_NAME_INDEX_COUNT       = "in";
     const char *DECL_NAME_VERTEX_COMPONENT  = "vc";
-    const char *DECL_NAME_DATA_BEGIN = "db";
-    const char *DECL_NAME_DATA_END   = "de";
+    const char *DECL_NAME_DATA_GO = "go";
     const char *DECL_NAME_POSITION = "p";
     const char *DECL_NAME_NORMAL   = "n";
     const char *DECL_NAME_UV       = "uv";
@@ -992,11 +990,10 @@ void init_mesh_asset(Mesh *mesh, void *data) {
     u8 *r_vertex_data = (u8 *)vertex_buffer_storage.mapped_data;
     u8 *r_index_data  = (u8 *)index_buffer_storage.mapped_data;
     
-    u32 vertex_layout_offsets[MAX_MESH_VERTEX_COMPONENTS] = { 0 };
-    u32 vertex_offsets[MAX_MESH_VERTEX_COMPONENTS] = { 0 };
+    u32 vertex_offsets[MAX_MESH_VERTEX_COMPONENTS];
 
-    s32 decl_to_vertex_layout_index[DECL_COUNT] = { 0 };
-    Vertex_Component_Type decl_to_vct[DECL_COUNT] = { 0 };
+    s32 decl_to_vertex_layout_index[DECL_COUNT];
+    Vertex_Component_Type decl_to_vct[DECL_COUNT];
 
     u32 index_data_offset = 0;
 
@@ -1020,10 +1017,8 @@ void init_mesh_asset(Mesh *mesh, void *data) {
                 decl_type = DECL_INDEX_COUNT;
             } else if (str_cmp(token, DECL_NAME_VERTEX_COMPONENT)) {
                 decl_type = DECL_VERTEX_COMPONENT;
-            } else if (str_cmp(token, DECL_NAME_DATA_BEGIN)) {
-                decl_type = DECL_DATA_BEGIN;
-            } else if (str_cmp(token, DECL_NAME_DATA_END)) {
-                decl_type = DECL_DATA_END;
+            } else if (str_cmp(token, DECL_NAME_DATA_GO)) {
+                decl_type = DECL_DATA_GO;
             } else if (str_cmp(token, DECL_NAME_POSITION)) {
                 decl_type = DECL_POSITION;
             } else if (str_cmp(token, DECL_NAME_NORMAL)) {
@@ -1085,30 +1080,39 @@ void init_mesh_asset(Mesh *mesh, void *data) {
                 
                 break;
             }
-            case DECL_DATA_BEGIN: {
+            case DECL_DATA_GO: {
+                Assert(mesh->vertex_layout_size <= MAX_VERTEX_ARRAY_BINDINGS);
+
                 mesh->vertex_size = 0;
+
+                u32 offset = vertex_buffer_storage.size;
+                Vertex_Array_Binding bindings[MAX_VERTEX_ARRAY_BINDINGS];
+                s32 binding_count = 0;
+
                 for (s32 i = 0; i < mesh->vertex_layout_size; ++i) {
                     const s32 vcs = get_vertex_component_size(mesh->vertex_layout[i]); 
                     mesh->vertex_size += vcs;
+
+                    auto &binding = bindings[i];
+                    binding.binding_index = i;
+                    binding.data_offset = offset;
+                    binding.layout_size = 1;
+                    binding.layout[0] = { mesh->vertex_layout[i], 0 };
+                    binding_count += 1;
+                    
+                    vertex_offsets[i] = offset;
+
+                    const u32 size = vcs * mesh->vertex_count;
+                    offset += size;
                 }
 
+                mesh->rid_vertex_array = r_create_vertex_array(bindings, binding_count);
+                
                 mesh->vertex_data_size   = mesh->vertex_size * mesh->vertex_count;
                 mesh->vertex_data_offset = vertex_buffer_storage.size;
 
                 vertex_buffer_storage.size += mesh->vertex_data_size;
                 Assert(vertex_buffer_storage.size <= MAX_VERTEX_STORAGE_SIZE);
-                    
-                u32 offset = mesh->vertex_data_offset;
-                for (s32 i = 0; i < mesh->vertex_layout_size; ++i) {
-                    const s32 vcs = get_vertex_component_size(mesh->vertex_layout[i]); 
-                    const u32 size = vcs * mesh->vertex_count;
-                    
-                    vertex_layout_offsets[i] = offset;
-                    
-                    offset += size;
-                }
-
-                copy_bytes(vertex_offsets, vertex_layout_offsets, sizeof(vertex_layout_offsets));
 
                 mesh->index_data_size  = mesh->index_count  * sizeof(u32);
                 mesh->index_data_offset = index_buffer_storage.size;
@@ -1119,24 +1123,6 @@ void init_mesh_asset(Mesh *mesh, void *data) {
                 index_data_offset = mesh->index_data_offset;
                 
                 break;
-            }
-            case DECL_DATA_END: {
-                Assert(mesh->vertex_layout_size <= MAX_VERTEX_ARRAY_BINDINGS);
-                
-                Vertex_Array_Binding bindings[MAX_VERTEX_ARRAY_BINDINGS];
-                s32 binding_count = 0;
-                
-                for (s32 i = 0; i < mesh->vertex_layout_size; ++i) {
-                    auto &binding = bindings[i];
-                    binding.binding_index = i;
-                    binding.data_offset = vertex_layout_offsets[i];
-                    binding.layout_size = 1;
-                    binding.layout[0] = { mesh->vertex_layout[i], 0 };
-
-                    binding_count += 1;
-                }
-                
-                mesh->rid_vertex_array = r_create_vertex_array(bindings, binding_count);
             }
             case DECL_POSITION:
             case DECL_NORMAL:
