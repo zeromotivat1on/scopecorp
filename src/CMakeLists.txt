@@ -66,4 +66,5 @@ target_compile_definitions(${GAME_EXE} PRIVATE
                                DIR_FLIP_BOOKS="${RUN_TREE_DIR}/data/flip_books/"
                                DIR_LEVELS="${RUN_TREE_DIR}/data/levels/"
                                # Other
-                               GAME_NAME="${GAME_EXE}")
+                               GAME_NAME="${GAME_EXE}"
+                               GAME_VERSION="${CMAKE_PROJECT_VERSION}")

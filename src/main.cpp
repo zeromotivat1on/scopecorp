@@ -90,7 +90,10 @@ s32 main() {
 
         input_layer_runtime_profiler.type = INPUT_LAYER_RUNTIME_PROFILER;
         input_layer_runtime_profiler.on_input = on_input_runtime_profiler;
-    
+
+        input_layer_memory_profiler.type = INPUT_LAYER_MEMORY_PROFILER;
+        input_layer_memory_profiler.on_input = on_input_memory_profiler;
+
         push_input_layer(&input_layer_game);
     }
     
@@ -174,7 +177,7 @@ s32 main() {
 	register_hot_reload_directory(&hot_reload_list, DIR_MESHES);
 	register_hot_reload_directory(&hot_reload_list, DIR_FLIP_BOOKS);
 
-    start_hot_reload_thread(&hot_reload_list);
+    const Thread hot_reload_thread = start_hot_reload_thread(&hot_reload_list);
     
     world = alloclt(World);
 	init_world(world);
@@ -458,6 +461,7 @@ s32 main() {
         draw_dev_stats();
         draw_debug_console();
         draw_runtime_profiler();
+        draw_memory_profiler();
 #endif
         
         update_render_stats();
@@ -495,6 +499,7 @@ s32 main() {
 #endif
 	}
 
+    os_thread_terminate(hot_reload_thread);
 	os_window_destroy(window);
     alloc_shutdown();
     

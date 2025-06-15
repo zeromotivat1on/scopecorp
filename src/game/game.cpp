@@ -59,6 +59,8 @@ void on_input_game(Window_Event *event) {
             open_debug_console();
         } else if (press && key == KEY_SWITCH_RUNTIME_PROFILER) {
             open_runtime_profiler();
+        } else if (press && key == KEY_SWITCH_MEMORY_PROFILER) {
+            open_memory_profiler();
         } else if (press && key == KEY_SWITCH_EDITOR_MODE) {
             game_state.mode = MODE_EDITOR;
             push_input_layer(&input_layer_editor);

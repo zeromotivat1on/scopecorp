@@ -3,6 +3,7 @@
 #include "os/time.h"
 
 extern s16 KEY_SWITCH_RUNTIME_PROFILER;
+extern s16 KEY_SWITCH_MEMORY_PROFILER;
 
 #define PROFILE_SCOPE(name) Profile_Scope (profile_scope##__LINE__)(name, __FILE__, __LINE__)
 
@@ -39,20 +40,31 @@ struct Runtime_Profiler {
     f32 *scope_times = null;
     u32 scope_count = 0;
     
-    f32 scope_time_update_interval = 0.1f;
+    f32 scope_time_update_interval = 0.2f;
     f32 scope_time_update_time = 0.0f;
     
+    bool is_open = false;
+};
+
+struct Memory_Profiler {
     bool is_open = false;
 };
 
 struct Window_Event;
 
 inline Runtime_Profiler runtime_profiler;
+inline Memory_Profiler  memory_profiler;
 
 void init_runtime_profiler();
 void open_runtime_profiler();
 void close_runtime_profiler();
 void draw_runtime_profiler();
 void on_input_runtime_profiler(Window_Event *event);
+
+void init_memory_profiler();
+void open_memory_profiler();
+void close_memory_profiler();
+void draw_memory_profiler();
+void on_input_memory_profiler(Window_Event *event);
 
 void draw_dev_stats();

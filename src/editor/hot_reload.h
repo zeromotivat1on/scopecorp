@@ -20,6 +20,6 @@ struct Hot_Reload_List {
     Semaphore semaphore = SEMAPHORE_NONE;
 };
 
+Thread start_hot_reload_thread(Hot_Reload_List *list);
 void register_hot_reload_directory(Hot_Reload_List *list, const char *path);
-void start_hot_reload_thread(Hot_Reload_List *list);
 void check_for_hot_reload(Hot_Reload_List *list);

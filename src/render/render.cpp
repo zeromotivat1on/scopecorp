@@ -1223,16 +1223,24 @@ s32 get_vertex_component_size(Vertex_Component_Type type) {
 }
 
 void update_render_stats() {
+    static f32 update_time = 0.0f;
+    constexpr f32 update_interval = 0.2f;
+
+    update_time += delta_time;
+    
     constexpr s32 dt_frame_count = 512;
     static f32 previous_dt_table[dt_frame_count];
     
     frame_index++;
     previous_dt_table[frame_index % dt_frame_count] = delta_time;
 
-    if (frame_index % dt_frame_count == 0) {
-        f32 dt_sum  = 0.0f;
-        for (s32 i = 0; i < dt_frame_count; ++i)
-            dt_sum  += previous_dt_table[i];
+    if (update_time > update_interval) {
+        update_time = 0.0f;
+        
+        f32 dt_sum = 0.0f;
+        for (s32 i = 0; i < dt_frame_count; ++i) {
+            dt_sum += previous_dt_table[i];
+        }
         
         average_dt  = dt_sum / dt_frame_count;
         average_fps = 1.0f / average_dt;

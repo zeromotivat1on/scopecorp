@@ -35,8 +35,6 @@
 
 #include "stb_image.h"
 
-inline Thread hot_reload_thread = THREAD_NONE;
-
 s16 KEY_CLOSE_WINDOW          = KEY_ESCAPE;
 s16 KEY_SWITCH_EDITOR_MODE    = KEY_F11;
 s16 KEY_SWITCH_DEBUG_CONSOLE  = KEY_GRAVE_ACCENT;
@@ -81,7 +79,9 @@ void on_input_editor(Window_Event *event) {
             open_debug_console();
         } else if (press && key == KEY_SWITCH_RUNTIME_PROFILER) {
             open_runtime_profiler();
-        } else if (press && key == KEY_SWITCH_EDITOR_MODE) {
+        } else if (press && key == KEY_SWITCH_MEMORY_PROFILER) {
+            open_memory_profiler();
+        }else if (press && key == KEY_SWITCH_EDITOR_MODE) {
             game_state.mode = MODE_GAME;
             os_window_lock_cursor(window, true);
             pop_input_layer();
@@ -314,10 +314,9 @@ static u32 proc_hot_reload(void *data) {
     }
 }
 
-void start_hot_reload_thread(Hot_Reload_List *list) {
+Thread start_hot_reload_thread(Hot_Reload_List *list) {
     list->semaphore = os_semaphore_create(0, 1);
-    
-    hot_reload_thread = os_thread_create(proc_hot_reload, THREAD_CREATE_IMMEDIATE, list);
+    return os_thread_create(proc_hot_reload, THREAD_CREATE_IMMEDIATE, list);
 }
 
 void check_for_hot_reload(Hot_Reload_List *list) {
