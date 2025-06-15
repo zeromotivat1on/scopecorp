@@ -170,9 +170,7 @@ static s32 gl_texture_type(Texture_Type type) {
     }
 }
 
-void r_submit(const Render_Command *command) {
-    draw_call_count += 1;
-    
+void r_submit(const Render_Command *command) {    
     {
         const s32 mode = gl_polygon_mode(command->polygon_mode);
         glPolygonMode(GL_FRONT_AND_BACK, mode);
@@ -273,6 +271,8 @@ void r_submit(const Render_Command *command) {
     }
     
     if (command->rid_vertex_array != SID_NONE) {
+        draw_call_count += 1;
+
         glBindVertexArray(command->rid_vertex_array);
 
 #if DEVELOPER
