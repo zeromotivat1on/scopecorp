@@ -129,13 +129,16 @@ template <class F> My_Defer<F> operator+(My_Defer_Ref, F f) { return {f}; }
 #define Max(a, b)      ((a) > (b) ? (a) : (b))
 #define Clamp(x, a, b) (Min((b), Max((a), (x))))
 
-#define PATH_DATA(x)    DIR_DATA x
-#define PATH_PACK(x)    DIR_DATA x
-#define PATH_SHADER(x)  DIR_SHADERS x
-#define PATH_TEXTURE(x) DIR_TEXTURES x
-#define PATH_SOUND(x)   DIR_SOUNDS x
-#define PATH_FONT(x)    DIR_FONTS x
-#define PATH_LEVEL(x)   DIR_LEVELS x
+#define PATH_DATA(x)      DIR_DATA x
+#define PATH_PACK(x)      DIR_DATA x
+#define PATH_SHADER(x)    DIR_SHADERS x
+#define PATH_TEXTURE(x)   DIR_TEXTURES x
+#define PATH_MATERIAL(x)  DIR_MATERIALS x
+#define PATH_MESH(x)      DIR_MESHES x
+#define PATH_SOUND(x)     DIR_SOUNDS x
+#define PATH_FONT(x)      DIR_FONTS x
+#define PATH_FLIP_BOOK(x) DIR_FLIP_BOOKS x
+#define PATH_LEVEL(x)     DIR_LEVELS x
 
 #if DEVELOPER
 #define Assert(x) if (x) {} else { report_assert(#x, __FILE__, __LINE__); }

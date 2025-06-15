@@ -3,11 +3,6 @@
 #include "asset.h"
 #include "render/vertex.h"
 
-#define SID_MESH_PLAYER SID("/data/meshes/player.mesh")
-#define SID_MESH_SKYBOX SID("/data/meshes/skybox.mesh")
-#define SID_MESH_CUBE   SID("/data/meshes/cube.mesh")
-#define SID_MESH_QUAD   SID("/data/meshes/quad.mesh")
-
 inline constexpr u32 MAX_MESH_SIZE = MB(2);
 inline constexpr s32 MAX_MESH_VERTEX_COMPONENTS = 8;
 

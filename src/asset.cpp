@@ -5,6 +5,7 @@
 #include "str.h"
 #include "profile.h"
 #include "font.h"
+#include "flip_book.h"
 #include "stb_image.h"
 
 #include "os/file.h"
@@ -70,13 +71,14 @@ void init_asset_source_table() {
     set_bytes(ast.count_by_type, 0, sizeof(ast.count_by_type));
     
     // @Fix: we can't control order of values in hash table like this.
-    init_asset_sources(DIR_SHADERS,   ASSET_SHADER_INCLUDE, ".h");
-    init_asset_sources(DIR_SHADERS,   ASSET_SHADER, get_desired_shader_file_extension());
-    init_asset_sources(DIR_TEXTURES,  ASSET_TEXTURE);
-    init_asset_sources(DIR_MATERIALS, ASSET_MATERIAL);
-    init_asset_sources(DIR_MESHES,    ASSET_MESH);
-    init_asset_sources(DIR_SOUNDS,    ASSET_SOUND);
-    init_asset_sources(DIR_FONTS,     ASSET_FONT);
+    init_asset_sources(DIR_SHADERS,    ASSET_SHADER_INCLUDE, ".h");
+    init_asset_sources(DIR_SHADERS,    ASSET_SHADER, get_desired_shader_file_extension());
+    init_asset_sources(DIR_TEXTURES,   ASSET_TEXTURE);
+    init_asset_sources(DIR_MATERIALS,  ASSET_MATERIAL);
+    init_asset_sources(DIR_MESHES,     ASSET_MESH);
+    init_asset_sources(DIR_SOUNDS,     ASSET_SOUND);
+    init_asset_sources(DIR_FONTS,      ASSET_FONT);
+    init_asset_sources(DIR_FLIP_BOOKS, ASSET_FLIP_BOOK);
 
     log("Initialized asset source table in %.2fms", CHECK_SCOPE_TIMER_MS(init));
 }
@@ -110,6 +112,9 @@ void init_asset_table() {
 
     table.fonts = Hash_Table<sid, Font>((s32)(MAX_FONTS * scale));
     table.fonts.hash_function = &asset_table_hash;
+
+    table.flip_books = Hash_Table<sid, Flip_Book>((s32)(MAX_FLIP_BOOKS * scale));
+    table.flip_books.hash_function = &asset_table_hash;
 }
 
 void save_asset_pack(const char *path) {
@@ -309,6 +314,26 @@ void save_asset_pack(const char *path) {
             
             break;
         }
+        case ASSET_FLIP_BOOK: {
+            Flip_Book flip_book = {};
+            convert_to_relative_asset_path(flip_book.path, it.value.path);
+
+            void *buffer = allocl(MAX_FLIP_BOOK_SIZE);
+            defer { freel(MAX_FLIP_BOOK_SIZE); };
+
+            u64 bytes_read = 0;
+            read_file(it.value.path, buffer, MAX_FONT_SIZE, &bytes_read);
+
+            flip_book.data_offset = offset;
+            flip_book.data_size = bytes_read;
+            write_file(file, &flip_book, asset_size);
+
+            set_file_pointer_position(file, flip_book.data_offset);
+            write_file(file, buffer, flip_book.data_size);
+            offset += flip_book.data_size;
+            
+            break;
+        }
         }
     }
 
@@ -481,6 +506,22 @@ void load_asset_pack(const char *path) {
 
                 break;
             }
+            case ASSET_FLIP_BOOK: {
+                Flip_Book flip_book = {};
+                read_file(file, &flip_book, asset_size);
+
+                void *data = allocl(flip_book.data_size);
+                defer { freel(flip_book.data_size); };
+
+                set_file_pointer_position(file, flip_book.data_offset);
+                read_file(file, data, flip_book.data_size);
+
+                init_flip_book_asset(&flip_book, data);
+                
+                asset_table.flip_books.add(cache_sid(flip_book.path), flip_book);
+
+                break;
+            }
             }
         }
     }
@@ -512,6 +553,7 @@ u32 get_asset_type_size(Asset_Type type) {
     case ASSET_MESH:           return sizeof(Mesh);
     case ASSET_SOUND:          return sizeof(Sound);
     case ASSET_FONT:           return sizeof(Font);
+    case ASSET_FLIP_BOOK:      return sizeof(Flip_Book);
     default:
         error("Failed to get asset size from type %d", type);
         return 0;

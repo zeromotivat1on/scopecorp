@@ -55,8 +55,8 @@ struct Player : Entity {
     
     vec3 velocity            = vec3_zero;
     Direction move_direction = DIRECTION_BACK;
-    
-    Flip_Book *flip_book = null;
+
+    sid sid_flip_book_move = SID_NONE;
     sid sid_sound_steps = 0;
     
     s32 collide_aabb_index = INVALID_INDEX;

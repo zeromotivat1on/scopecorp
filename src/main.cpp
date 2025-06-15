@@ -129,12 +129,8 @@ s32 main() {
 #if DEVELOPER
     save_asset_pack(GAME_ASSET_PACK_PATH);
 #endif
-    
     load_asset_pack(GAME_ASSET_PACK_PATH);
-    
-    // @Cleanup: move these to asset pak?
-	create_game_flip_books(&flip_books);
-    
+        
     viewport.aspect_type = VIEWPORT_4X3;
     viewport.resolution_scale = 1.0f;
     
@@ -175,6 +171,7 @@ s32 main() {
 	register_hot_reload_directory(&hot_reload_list, DIR_TEXTURES);
 	register_hot_reload_directory(&hot_reload_list, DIR_MATERIALS);
 	register_hot_reload_directory(&hot_reload_list, DIR_MESHES);
+	register_hot_reload_directory(&hot_reload_list, DIR_FLIP_BOOKS);
     
     world = alloclt(World);
 	init_world(world);

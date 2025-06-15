@@ -63,6 +63,7 @@ target_compile_definitions(${GAME_EXE} PRIVATE
                                DIR_MESHES="${RUN_TREE_DIR}/data/meshes/"
                                DIR_SOUNDS="${RUN_TREE_DIR}/data/sounds/"
                                DIR_FONTS="${RUN_TREE_DIR}/data/fonts/"
+                               DIR_FLIP_BOOKS="${RUN_TREE_DIR}/data/flip_books/"
                                DIR_LEVELS="${RUN_TREE_DIR}/data/levels/"
                                # Other
                                GAME_NAME="${GAME_EXE}")

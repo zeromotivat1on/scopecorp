@@ -1,10 +1,15 @@
 #pragma once
 
-inline constexpr s32 MAX_FLIP_BOOK_FRAMES = 8;
+#include "asset.h"
+
+inline constexpr u32 MAX_FLIP_BOOK_SIZE   = KB(2);
+inline constexpr u16 MAX_FLIP_BOOK_FRAMES = 8;
 
 typedef u64 sid;
 
-struct Flip_Book {
+struct Flip_Book : Asset {
+    Flip_Book() { asset_type = ASSET_FLIP_BOOK; }
+        
 	sid frames[MAX_FLIP_BOOK_FRAMES];
 	s32 frame_count = 0;
     s32 current_frame_index = 0;
@@ -12,14 +17,7 @@ struct Flip_Book {
 	f32 frame_time = 0.0f;
 };
 
-struct Flip_Book_List {
-	Flip_Book player_move[DIRECTION_COUNT];
-};
-
-inline Flip_Book_List flip_books;
-
-void create_game_flip_books(Flip_Book_List *list);
-Flip_Book create_flip_book(sid *texture_sids, s32 count, f32 frame_time);
+void init_flip_book_asset(Flip_Book *flip_book, void *data);
 
 sid get_current_frame(Flip_Book *book);
 sid advance_frame(Flip_Book *book);

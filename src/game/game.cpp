@@ -379,10 +379,29 @@ void tick_game(f32 dt) {
         if (player.velocity == vec3_zero) {
             material.sid_texture = texture_sids.player_idle[player.move_direction];
         } else {
-            player.flip_book = &flip_books.player_move[player.move_direction];
-            tick(player.flip_book, dt);
+            switch (player.move_direction) {
+            case DIRECTION_LEFT: {
+                player.sid_flip_book_move = SID_FLIP_BOOK_PLAYER_MOVE_LEFT;
+                break;
+            }
+            case DIRECTION_RIGHT: {
+                player.sid_flip_book_move = SID_FLIP_BOOK_PLAYER_MOVE_RIGHT;
+                break;
+            }
+            case DIRECTION_BACK: {
+                player.sid_flip_book_move = SID_FLIP_BOOK_PLAYER_MOVE_BACK;
+                break;
+            }
+            case DIRECTION_FORWARD: {
+                player.sid_flip_book_move = SID_FLIP_BOOK_PLAYER_MOVE_FORWARD;
+                break;
+            }
+            }
 
-            material.sid_texture = get_current_frame(player.flip_book);
+            auto &flip_book = asset_table.flip_books[player.sid_flip_book_move];
+            tick(&flip_book, dt);
+
+            material.sid_texture = get_current_frame(&flip_book);
         }
             
         player.location += player.velocity;

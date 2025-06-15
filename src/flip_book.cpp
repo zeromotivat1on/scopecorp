@@ -1,30 +1,75 @@
 #include "pch.h"
 #include "flip_book.h"
+#include "str.h"
+#include "log.h"
 
 #include "render/texture.h"
 
-void create_game_flip_books(Flip_Book_List *list) {
-	// @Cleanup: looks like we should automate this.
+void init_flip_book_asset(Flip_Book *flip_book, void *data) {
+      enum Declaration_Type {
+        DECL_NONE,
+        DECL_TEXTURE,
+        DECL_FRAME_TIME,
+    };
 
-	constexpr f32 frame_time = 0.15f;
+    constexpr u32 MAX_LINE_BUFFER_SIZE = 256;
 
-    for (s32 d = 0; d < DIRECTION_COUNT; ++d) {
-        sid move_sids[MAX_PLAYER_MOVE_FRAMES];
-        const s32 move_sid_count = COUNT(texture_sids.player_move[d]);
+    const char *DECL_NAME_TEXTURE = "t";
+    const char *DECL_NAME_FRAME_TIME = "ft";
+
+    const char *DELIMITERS = " ";
+    
+    flip_book->frame_count = 0;
+    
+    char *p = (char *)data;
+    p[flip_book->data_size] = '\0';
+
+    char line_buffer[MAX_LINE_BUFFER_SIZE];
+    char *new_line = str_char(p, ASCII_NEW_LINE);
+    
+    while (new_line) {
+        const s64 line_size = new_line - p;
+        Assert(line_size < MAX_LINE_BUFFER_SIZE);
+        str_copy(line_buffer, p, line_size);
+        line_buffer[line_size] = '\0';
         
-        for (s32 i = 0; i < move_sid_count; ++i)
-            move_sids[i] = texture_sids.player_move[d][i];
+        char *line = str_trim(line_buffer);
+        if (str_size(line) > 0) {
+            char *token = str_token(line, DELIMITERS);
+            Declaration_Type decl_type = DECL_NONE;
+
+            if (str_cmp(token, DECL_NAME_TEXTURE)) {
+                decl_type = DECL_TEXTURE;
+            } else if (str_cmp(token, DECL_NAME_FRAME_TIME)) {
+                decl_type = DECL_FRAME_TIME;
+            } else {
+                error("Unknown flip book token declaration '%s'", token);
+                continue;
+            }
+
+            switch (decl_type) {
+            case DECL_TEXTURE: {
+                const char *sv = str_token(null, DELIMITERS);
+
+                Assert(flip_book->frame_count < MAX_FLIP_BOOK_FRAMES);
+                flip_book->frames[flip_book->frame_count] = cache_sid(sv);
+                flip_book->frame_count += 1;
+                
+                break;
+            }
+            case DECL_FRAME_TIME: {
+                const char *sv = str_token(null, DELIMITERS);
+                const f32 v = str_to_f32(sv);
+                flip_book->switch_frame_time = v;
+                
+                break;
+            }
+            }
+        }
         
-        list->player_move[d] = create_flip_book(move_sids, move_sid_count, frame_time);
+        p += line_size + 1;
+        new_line = str_char(p, ASCII_NEW_LINE);
     }
-}
-
-Flip_Book create_flip_book(sid *texture_sids, s32 count, f32 frame_time) {
-	Flip_Book book = {};
-	book.frame_count = count;
-	book.switch_frame_time = frame_time;
-	copy_bytes(book.frames, texture_sids, count * sizeof(sid));
-	return book;
 }
 
 sid get_current_frame(Flip_Book *book) {

@@ -29,6 +29,7 @@
 #include "profile.h"
 #include "font.h"
 #include "asset.h"
+#include "flip_book.h"
 #include "input_stack.h"
 
 #include "stb_image.h"
@@ -370,6 +371,21 @@ void check_for_hot_reload(Hot_Reload_List *list) {
             if (read_file(path, buffer, MAX_MATERIAL_SIZE, &bytes_read)) {
                 init_mesh_asset(&mesh, buffer);
                 log("Hot reloaded mesh %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(asset));
+            }
+            
+            break;
+        }
+        case ASSET_FLIP_BOOK: {
+            auto &flip_book = asset_table.flip_books[hot_reload_asset.sid];
+            convert_to_full_asset_path(path, flip_book.path);
+
+            void *buffer = allocl(MAX_MESH_SIZE);
+            defer { freel(MAX_MESH_SIZE); };
+            
+            u64 bytes_read = 0;
+            if (read_file(path, buffer, MAX_MATERIAL_SIZE, &bytes_read)) {
+                init_flip_book_asset(&flip_book, buffer);
+                log("Hot reloaded flip book %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(asset));
             }
             
             break;

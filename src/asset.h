@@ -13,8 +13,18 @@
 #define SID_MATERIAL_UI_TEXT    SID("/data/materials/ui_text.mat")
 #define SID_MATERIAL_UI_ELEMENT SID("/data/materials/ui_element.mat")
 
+#define SID_MESH_PLAYER SID("/data/meshes/player.mesh")
+#define SID_MESH_SKYBOX SID("/data/meshes/skybox.mesh")
+#define SID_MESH_CUBE   SID("/data/meshes/cube.mesh")
+#define SID_MESH_QUAD   SID("/data/meshes/quad.mesh")
+
 #define SID_SOUND_WIND_AMBIENCE SID("/data/sounds/wind_ambience.wav")
 #define SID_SOUND_PLAYER_STEPS  SID("/data/sounds/player_steps.wav")
+
+#define SID_FLIP_BOOK_PLAYER_MOVE_LEFT    SID("/data/flip_books/player_move_left.fb")
+#define SID_FLIP_BOOK_PLAYER_MOVE_RIGHT   SID("/data/flip_books/player_move_right.fb")
+#define SID_FLIP_BOOK_PLAYER_MOVE_BACK    SID("/data/flip_books/player_move_back.fb")
+#define SID_FLIP_BOOK_PLAYER_MOVE_FORWARD SID("/data/flip_books/player_move_forward.fb")
 
 #define ASSET_PACK_EXTENSION_NAME ".pak"
 #define GAME_ASSET_PACK_PATH   PATH_PACK(GAME_NAME ASSET_PACK_EXTENSION_NAME)
@@ -28,8 +38,9 @@ inline constexpr s32 MAX_SHADERS         = 64;
 inline constexpr s32 MAX_TEXTURES        = 64;
 inline constexpr s32 MAX_MATERIALS       = 64;
 inline constexpr s32 MAX_MESHES          = 64;
-inline constexpr s32 MAX_FONTS           = 8;
 inline constexpr s32 MAX_SOUNDS          = 64;
+inline constexpr s32 MAX_FONTS           = 8;
+inline constexpr s32 MAX_FLIP_BOOKS      = 64;
 
 enum Asset_Type : u8 {
     ASSET_SHADER_INCLUDE,    
@@ -39,6 +50,7 @@ enum Asset_Type : u8 {
     ASSET_MESH,
     ASSET_SOUND,
     ASSET_FONT,
+    ASSET_FLIP_BOOK,
 
     ASSET_TYPE_COUNT,
     
@@ -86,6 +98,7 @@ struct Asset_Table {
     Hash_Table<sid, struct Mesh>           meshes;
     Hash_Table<sid, struct Sound>          sounds;
     Hash_Table<sid, struct Font>           fonts;
+    Hash_Table<sid, struct Flip_Book>      flip_books;
 };
 
 inline Asset_Table asset_table;
