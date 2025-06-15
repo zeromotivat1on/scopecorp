@@ -34,6 +34,8 @@
 
 #include "stb_image.h"
 
+inline Thread hot_reload_thread = THREAD_NONE;
+
 s16 KEY_CLOSE_WINDOW          = KEY_ESCAPE;
 s16 KEY_SWITCH_EDITOR_MODE    = KEY_F11;
 s16 KEY_SWITCH_DEBUG_CONSOLE  = KEY_GRAVE_ACCENT;
@@ -73,14 +75,14 @@ void on_input_editor(Window_Event *event) {
     switch (event->type) {
     case WINDOW_EVENT_KEYBOARD: {
         if (press && key == KEY_CLOSE_WINDOW) {
-            close(window);
+            os_window_close(window);
         } else if (press && key == KEY_SWITCH_DEBUG_CONSOLE) {
             open_debug_console();
         } else if (press && key == KEY_SWITCH_PROFILER) {
             open_profiler();
         } else if (press && key == KEY_SWITCH_EDITOR_MODE) {
             game_state.mode = MODE_GAME;
-            lock_cursor(window, true);
+            os_window_lock_cursor(window, true);
             pop_input_layer();
             
             if (world->mouse_picked_entity) {
@@ -109,7 +111,7 @@ void on_input_editor(Window_Event *event) {
     }
     case WINDOW_EVENT_MOUSE: {
         if (press && key == MOUSE_MIDDLE) {
-            lock_cursor(window, !window->cursor_locked);
+            os_window_lock_cursor(window, !window->cursor_locked);
         } else if (press && key == MOUSE_RIGHT) {
             if (world->mouse_picked_entity) {
                 world->mouse_picked_entity->flags &= ~ENTITY_FLAG_SELECTED_IN_EDITOR;
@@ -278,12 +280,12 @@ static void cb_queue_for_hot_reload(const File_Callback_Data *callback_data) {
     convert_to_relative_asset_path(relative_path, callback_data->path);
 
     auto &ast = asset_source_table;
-    const auto sid = cache_sid(relative_path);
+    const auto sid = sid_cache(relative_path);
     
     if (Asset_Source *source = ast.table.find(sid)) {
         if (source->last_write_time != callback_data->last_write_time) {
-            auto list = (Hot_Reload_List *)callback_data->user_data;
-
+            auto *list = (Hot_Reload_List *)callback_data->user_data;
+            
             Assert(list->reload_count < MAX_HOT_RELOAD_ASSETS);
             auto &hot_reload_asset = list->hot_reload_assets[list->reload_count];
             hot_reload_asset.asset_type = source->asset_type;
@@ -295,13 +297,37 @@ static void cb_queue_for_hot_reload(const File_Callback_Data *callback_data) {
     }
 }
 
+static u32 proc_hot_reload(void *data) {
+    auto *list = (Hot_Reload_List *)data;
+
+    while (1) {
+        if (list->reload_count == 0) {
+            for (s32 i = 0; i < list->path_count; ++i) {
+                for_each_file(list->directory_paths[i], &cb_queue_for_hot_reload, list);
+            }
+        }
+        
+        if (list->reload_count > 0) {
+            os_semaphore_release(list->semaphore, 1);
+        }
+    }
+}
+
+void start_hot_reload_thread(Hot_Reload_List *list) {
+    list->semaphore = os_semaphore_create(0, 1);
+    
+    hot_reload_thread = os_thread_create(proc_hot_reload, THREAD_CREATE_IMMEDIATE, list);
+}
+
 void check_for_hot_reload(Hot_Reload_List *list) {
     PROFILE_SCOPE(__FUNCTION__);
-    
-    for (s32 i = 0; i < list->path_count; ++i) {
-        for_each_file(list->directory_paths[i], &cb_queue_for_hot_reload, list);
+
+    if (list->reload_count == 0) {
+        return;
     }
-    
+
+    os_semaphore_wait(list->semaphore, WAIT_INFINITE);
+
     for (s32 i = 0; i < list->reload_count; ++i) {
         START_SCOPE_TIMER(asset);
 
@@ -317,7 +343,7 @@ void check_for_hot_reload(Hot_Reload_List *list) {
             defer { freel(MAX_SHADER_SIZE); };
 
             u64 bytes_read = 0;
-            if (read_file(path, data, MAX_SHADER_SIZE, &bytes_read)) {
+            if (os_file_read(path, data, MAX_SHADER_SIZE, &bytes_read)) {
                 init_shader_asset(&shader, data);
                 log("Hot reloaded shader %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(asset));
             }
@@ -332,7 +358,7 @@ void check_for_hot_reload(Hot_Reload_List *list) {
             defer { freel(MAX_TEXTURE_SIZE); };
 
             u64 bytes_read = 0;
-            if (read_file(path, buffer, MAX_TEXTURE_SIZE, &bytes_read)) {
+            if (os_file_read(path, buffer, MAX_TEXTURE_SIZE, &bytes_read)) {
                 void *data = stbi_load_from_memory((u8 *)buffer, (s32)bytes_read, &texture.width, &texture.height, &texture.channel_count, 0);
                 defer { stbi_image_free(data); };
 
@@ -353,7 +379,7 @@ void check_for_hot_reload(Hot_Reload_List *list) {
             defer { freel(MAX_MATERIAL_SIZE); };
             
             u64 bytes_read = 0;
-            if (read_file(path, buffer, MAX_MATERIAL_SIZE, &bytes_read)) {
+            if (os_file_read(path, buffer, MAX_MATERIAL_SIZE, &bytes_read)) {
                 init_material_asset(&material, buffer);
                 log("Hot reloaded material %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(asset));
             }
@@ -368,7 +394,7 @@ void check_for_hot_reload(Hot_Reload_List *list) {
             defer { freel(MAX_MESH_SIZE); };
             
             u64 bytes_read = 0;
-            if (read_file(path, buffer, MAX_MATERIAL_SIZE, &bytes_read)) {
+            if (os_file_read(path, buffer, MAX_MATERIAL_SIZE, &bytes_read)) {
                 init_mesh_asset(&mesh, buffer);
                 log("Hot reloaded mesh %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(asset));
             }
@@ -383,7 +409,7 @@ void check_for_hot_reload(Hot_Reload_List *list) {
             defer { freel(MAX_MESH_SIZE); };
             
             u64 bytes_read = 0;
-            if (read_file(path, buffer, MAX_MATERIAL_SIZE, &bytes_read)) {
+            if (os_file_read(path, buffer, MAX_MATERIAL_SIZE, &bytes_read)) {
                 init_flip_book_asset(&flip_book, buffer);
                 log("Hot reloaded flip book %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(asset));
             }
@@ -577,7 +603,7 @@ void on_input_debug_console(Window_Event *event) {
     switch (event->type) {
     case WINDOW_EVENT_KEYBOARD: {
         if (press && key == KEY_CLOSE_WINDOW) {
-            close(window);
+            os_window_close(window);
         } else if (press && key == KEY_SWITCH_DEBUG_CONSOLE) {
             close_debug_console();
         }

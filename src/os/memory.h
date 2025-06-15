@@ -1,6 +1,6 @@
 #pragma once
 
-void *vm_reserve(void *addr, u64 size);
-void *vm_commit(void *vm, u64 size);
-bool  vm_decommit(void *vm, u64 size);
-bool  vm_release(void *vm);
+void *os_vm_reserve(void *addr, u64 size);
+void *os_vm_commit(void *vm, u64 size);
+bool  os_vm_decommit(void *vm, u64 size);
+bool  os_vm_release(void *vm);

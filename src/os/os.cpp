@@ -3,31 +3,31 @@
 #include "str.h"
 #include "os/file.h"
 
-bool read_file(const char *path, void *buffer, u64 size, u64 *bytes_read, bool log_error) {
-	File file = open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_READ, log_error);
+bool os_file_read(const char *path, void *buffer, u64 size, u64 *bytes_read, bool log_error) {
+	File file = os_file_open(path, FILE_OPEN_EXISTING, FILE_FLAG_READ, log_error);
 	if (file == INVALID_FILE) {
 		return false;
 	}
 
-	defer { close_file(file); };
+	defer { os_file_close(file); };
 
 	if (bytes_read) *bytes_read = 0;
-	if (!read_file(file, buffer, size, bytes_read)) {
+	if (!os_file_read(file, buffer, size, bytes_read)) {
 		return false;
 	}
 
 	return true;
 }
 
-s64 get_file_size(const char *path) {
-    File file = open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_READ);
+s64 os_file_get_size(const char *path) {
+    File file = os_file_open(path, FILE_OPEN_EXISTING, FILE_FLAG_READ);
 	if (file == INVALID_FILE) {
 		return INVALID_INDEX;
 	}
 
-    defer { close_file(file); };
+    defer { os_file_close(file); };
 
-    return get_file_size(file);
+    return os_file_get_size(file);
 }
 
 void fix_directory_delimiters(char *path) {

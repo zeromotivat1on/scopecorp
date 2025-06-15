@@ -23,10 +23,10 @@
 s16 KEY_SWITCH_PROFILER = KEY_F9;
  
 Scope_Timer::Scope_Timer(const char *info)
-    : info(info), start(performance_counter()) {}
+    : info(info), start(os_perf_counter()) {}
 
 Scope_Timer::~Scope_Timer() {
-    const f32 ms = (performance_counter() - start) / (f32)performance_frequency_ms();
+    const f32 ms = (os_perf_counter() - start) / (f32)os_perf_frequency_ms();
     log("%s %.2fms", info, ms);
 }
 
@@ -35,11 +35,11 @@ Profile_Scope::Profile_Scope(const char *scope_name, const char *scope_filepath,
     filepath = scope_filepath;
     line     = scope_line;
 
-    start = performance_counter();
+    start = os_perf_counter();
 }
 
 Profile_Scope::~Profile_Scope() {
-    end = performance_counter();
+    end = os_perf_counter();
     diff = end - start;
 
     Profile_Scope *scope = null;
@@ -87,7 +87,7 @@ void on_input_profiler(Window_Event *event) {
     switch (event->type) {
     case WINDOW_EVENT_KEYBOARD: {
         if (press && key == KEY_CLOSE_WINDOW) {
-            close(window);
+            os_window_close(window);
         } else if (press && key == KEY_SWITCH_PROFILER) {
             close_profiler();
         }
@@ -105,7 +105,7 @@ void draw_profiler() {
     if (profiler.scope_time_update_time > profiler.scope_time_update_interval) {
         for (u32 i = 0; i < profiler.scope_count; ++i) {
             const auto &scope = profiler.scopes[i];
-            profiler.scope_times[i] = scope.diff / (f32)performance_frequency_ms();
+            profiler.scope_times[i] = scope.diff / (f32)os_perf_frequency_ms();
         }
 
         profiler.scope_time_update_time = 0.0f;

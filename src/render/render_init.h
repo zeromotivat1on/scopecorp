@@ -2,5 +2,5 @@
 
 struct Window;
 
-bool init_render_context(Window *window);
-void detect_render_capabilities();
+bool r_init_context(Window *window);
+void r_detect_capabilities();

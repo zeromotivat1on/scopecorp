@@ -52,7 +52,7 @@ void init_flip_book_asset(Flip_Book *flip_book, void *data) {
                 const char *sv = str_token(null, DELIMITERS);
 
                 Assert(flip_book->frame_count < MAX_FLIP_BOOK_FRAMES);
-                flip_book->frames[flip_book->frame_count] = cache_sid(sv);
+                flip_book->frames[flip_book->frame_count] = sid_cache(sv);
                 flip_book->frame_count += 1;
                 
                 break;

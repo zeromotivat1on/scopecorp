@@ -94,27 +94,28 @@ s32 main() {
         push_input_layer(&input_layer_game);
     }
     
-	window = create_window(1920, 1080, GAME_NAME, 0, 0);
+	window = os_window_create(1920, 1080, GAME_NAME, 0, 0);
 	if (!window) {
 		error("Failed to create window");
 		return 1;
 	}
 
-	register_event_callback(window, on_window_event);
+	os_window_register_event_callback(window, on_window_event);
 
-    if (!init_render_context(window)) {
+    if (!r_init_context(window)) {
         error("Failed to initialize render context");
         return 1;
     }
 
-    detect_render_capabilities();
+    r_detect_capabilities();
 
     r_init_buffer_storages();
     
-    init_audio_context();
+    au_init_context();
 
-    lock_cursor(window, true);
-    set_vsync(false);
+    os_window_lock_cursor(window, true);
+    os_set_vsync(false);
+
     stbi_set_flip_vertically_on_load(true);
 
     uniform_value_cache.data = allocl(MAX_UNIFORM_VALUE_CACHE_SIZE);
@@ -172,6 +173,8 @@ s32 main() {
 	register_hot_reload_directory(&hot_reload_list, DIR_MATERIALS);
 	register_hot_reload_directory(&hot_reload_list, DIR_MESHES);
 	register_hot_reload_directory(&hot_reload_list, DIR_FLIP_BOOKS);
+
+    start_hot_reload_thread(&hot_reload_list);
     
     world = alloclt(World);
 	init_world(world);
@@ -404,14 +407,14 @@ s32 main() {
     }
 
 	delta_time = 0.0f;
-	s64 begin_counter = performance_counter();
+	s64 begin_counter = os_perf_counter();
 
     log("Startup took %.2fms", CHECK_SCOPE_TIMER_MS(startup));
             
-	while (alive(window)) {
+	while (os_window_is_alive(window)) {
         PROFILE_SCOPE("game_frame");
 
-		poll_events(window);
+		os_window_poll_events(window);
 
         // @Cleanup: this one is pretty slow, but bearable for now.
         // Move to other thread later if it becomes a big deal.
@@ -438,14 +441,14 @@ s32 main() {
         frame_buffer_command.scissor.width  = viewport.frame_buffer.width;
         frame_buffer_command.scissor.height = viewport.frame_buffer.height;
         frame_buffer_command.rid_frame_buffer = viewport.frame_buffer.rid;
-        submit(&frame_buffer_command);
+        r_submit(&frame_buffer_command);
 
         {
             Render_Command command = {};
             command.flags = RENDER_FLAG_CLEAR;
             command.clear.color = vec3_white;
             command.clear.flags = CLEAR_FLAG_COLOR | CLEAR_FLAG_DEPTH | CLEAR_FLAG_STENCIL;
-            submit(&command);
+            r_submit(&command);
         }
         
         draw_world(world);
@@ -459,29 +462,29 @@ s32 main() {
         
         update_render_stats();
         
-		flush(&entity_render_queue);
+		r_flush(&entity_render_queue);
         geo_flush();
          
         frame_buffer_command.flags = RENDER_FLAG_RESET;
-        submit(&frame_buffer_command);
+        r_submit(&frame_buffer_command);
 
         {
             Render_Command command = {};
             command.flags = RENDER_FLAG_CLEAR;
             command.clear.color = vec3_black;
             command.clear.flags = CLEAR_FLAG_COLOR;
-            submit(&command);
+            r_submit(&command);
         }
         
         draw_frame_buffer(&viewport.frame_buffer, 0);
         ui_flush();
 
-		swap_buffers(window);
+		os_window_swap_buffers(window);
         
         freef(); // clear frame allocation
  
-		const s64 end_counter = performance_counter();
-		delta_time = (end_counter - begin_counter) / (f32)performance_frequency_s();
+		const s64 end_counter = os_perf_counter();
+		delta_time = (end_counter - begin_counter) / (f32)os_perf_frequency_s();
 		begin_counter = end_counter;
         
 #if DEVELOPER
@@ -492,7 +495,7 @@ s32 main() {
 #endif
 	}
 
-	destroy(window);
+	os_window_destroy(window);
     alloc_shutdown();
     
 	return 0;

@@ -66,18 +66,18 @@ void init_render_queue(Render_Queue *queue, s32 capacity) {
 	queue->capacity = capacity;
 }
 
-void enqueue(Render_Queue *queue, const Render_Command *command) {
+void r_enqueue(Render_Queue *queue, const Render_Command *command) {
 	Assert(queue->size < MAX_RENDER_QUEUE_SIZE);
     
 	const s32 index = queue->size++;
 	copy_bytes(queue->commands + index, command, sizeof(Render_Command));
 }
 
-void flush(Render_Queue *queue) {
+void r_flush(Render_Queue *queue) {
     PROFILE_SCOPE("flush_render_queue");
     
     for (s32 i = 0; i < queue->size; ++i) {
-        submit(queue->commands + i);
+        r_submit(queue->commands + i);
     }
 
 	queue->size = 0;
@@ -169,7 +169,7 @@ void draw_entity(const Entity *e) {
 
     command.eid_vertex_data_offset = e->draw_data.eid_vertex_data_offset;
     
-	enqueue(&entity_render_queue, &command);
+	r_enqueue(&entity_render_queue, &command);
 
     if (e->flags & ENTITY_FLAG_SELECTED_IN_EDITOR) { // draw outline
         command.flags &= ~RENDER_FLAG_DEPTH;
@@ -189,7 +189,7 @@ void draw_entity(const Entity *e) {
 
         command.sid_material = SID_MATERIAL_OUTLINE;
         
-        enqueue(&entity_render_queue, &command);
+        r_enqueue(&entity_render_queue, &command);
     }
 }
 
@@ -343,7 +343,7 @@ void geo_flush() {
     auto &material = asset_table.materials[gdb.sid_material];
     set_material_uniform_value(&material, "u_transform", &camera->view_proj, sizeof(camera->view_proj));
 
-    submit(&command);
+    r_submit(&command);
     
     gdb.vertex_count = 0;
 }
@@ -605,7 +605,7 @@ void ui_flush() {
         }
         }
 
-        submit(&r_cmd);
+        r_submit(&r_cmd);
     }
 
     ui.draw_queue_size = 0;
@@ -779,12 +779,12 @@ void init_material_asset(Material *material, void *data) {
             switch (decl_type) {
             case DECL_SHADER: {
                 char *sv = str_token(null, DELIMITERS);
-                material->sid_shader = cache_sid(sv);
+                material->sid_shader = sid_cache(sv);
                 break;
             }
             case DECL_TEXTURE: {
                 char *sv = str_token(null, DELIMITERS);
-                material->sid_texture = cache_sid(sv);
+                material->sid_texture = sid_cache(sv);
                 break;
             }
             case DECL_AMBIENT: {
@@ -1235,6 +1235,36 @@ Texture_Format_Type get_texture_format_from_channel_count(s32 channel_count) {
         error("Not really handled case for texture channel count %d, using %d texture format", channel_count, TEXTURE_FORMAT_RGBA_8);
         return TEXTURE_FORMAT_RGBA_8;
     }
+}
+
+void init_texture_asset(Texture *texture, void *data) {
+    if (texture->rid == RID_NONE) {
+        texture->rid = r_create_texture(texture->type, texture->format, texture->width, texture->height, data);
+    } else {
+        r_set_texture_data(texture->rid, texture->type, texture->format, texture->width, texture->height, data);
+    }
+}
+
+void set_texture_wrap(Texture *texture, Texture_Wrap_Type wrap) {
+    texture->wrap = wrap;
+    r_set_texture_wrap(texture->rid, wrap);
+}
+
+void set_texture_filter(Texture *texture, Texture_Filter_Type filter) {
+    texture->filter = filter;
+
+    const bool has_mipmaps = texture->flags & TEXTURE_FLAG_HAS_MIPMAPS;
+    r_set_texture_filter(texture->rid, filter, has_mipmaps);
+}
+
+void generate_texture_mipmaps(Texture *texture) {
+    texture->flags |= TEXTURE_FLAG_HAS_MIPMAPS;
+    r_generate_texture_mipmaps(texture->rid);
+}
+
+void delete_texture(Texture *texture) {
+    r_delete_texture(texture->rid);
+    texture->rid = RID_NONE;
 }
 
 static For_Each_Result cb_draw_aabb(Entity *e, void *user_data) {

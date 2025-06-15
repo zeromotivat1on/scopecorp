@@ -7,9 +7,9 @@ extern s16 KEY_SWITCH_PROFILER;
 #define PROFILE_SCOPE(name) Profile_Scope (profile_scope##__LINE__)(name, __FILE__, __LINE__)
 
 #define SCOPE_TIMER_NAME(name) CONCAT(scope_timer_, name)
-#define START_SCOPE_TIMER(name) const auto SCOPE_TIMER_NAME(name) = performance_counter()
-#define CHECK_SCOPE_TIMER_S(name)  (performance_counter() - SCOPE_TIMER_NAME(name)) / (f32)performance_frequency_s()
-#define CHECK_SCOPE_TIMER_MS(name) (performance_counter() - SCOPE_TIMER_NAME(name)) / (f32)performance_frequency_ms()
+#define START_SCOPE_TIMER(name) const auto SCOPE_TIMER_NAME(name) = os_perf_counter()
+#define CHECK_SCOPE_TIMER_S(name)  (os_perf_counter() - SCOPE_TIMER_NAME(name)) / (f32)os_perf_frequency_s()
+#define CHECK_SCOPE_TIMER_MS(name) (os_perf_counter() - SCOPE_TIMER_NAME(name)) / (f32)os_perf_frequency_ms()
 
 #define SCOPE_TIMER(name) Scope_Timer (scope_timer##__LINE__)(name)
 struct Scope_Timer {

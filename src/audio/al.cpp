@@ -17,7 +17,7 @@
         }                                           \
     }
 
-void init_audio_context() {
+void au_init_context() {
 	ALCdevice *audio_device = alcOpenDevice(null);
 	if (!audio_device) {
 		error("Failed to open default audio device");
@@ -62,23 +62,23 @@ void init_sound_asset(Sound *sound, void *data) {
     al_check_error();
 }
 
-void set_listener_pos(vec3 pos) {
+void au_set_listener_pos(vec3 pos) {
 	alListener3f(AL_POSITION, pos.x, pos.y, pos.z);
 }
 
-vec3 get_listener_pos() {
+vec3 au_get_listener_pos() {
     vec3 pos = {};
     alGetListener3f(AL_POSITION, &pos.x, &pos.y, &pos.z);
     return pos;
 }
 
-void play_sound(sid sid) {
+void au_play_sound(sid sid) {
     const auto &sound = asset_table.sounds[sid];
     alSourcePlay(sound.source);
     al_check_error();
 }
 
-void play_sound_or_continue(sid sid) {
+void au_play_sound_or_continue(sid sid) {
     const auto &sound = asset_table.sounds[sid];
 
     s32 state;
@@ -90,14 +90,14 @@ void play_sound_or_continue(sid sid) {
     al_check_error();
 }
 
-void play_sound_or_continue(sid sid, vec3 location) {
+void au_play_sound_or_continue(sid sid, vec3 location) {
     const auto &sound = asset_table.sounds[sid];
     alSource3f(sound.source, AL_POSITION, location.x, location.y, location.z);
 
-    play_sound_or_continue(sid);
+    au_play_sound_or_continue(sid);
 }
 
-void stop_sound(sid sid) {
+void au_stop_sound(sid sid) {
     const auto &sound = asset_table.sounds[sid];
     alSourceStop(sound.source);
 

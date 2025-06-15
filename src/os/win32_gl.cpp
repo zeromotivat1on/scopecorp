@@ -178,7 +178,7 @@ static void gl_debug_message_callback(GLenum source, GLenum type, GLuint id, GLe
     print(log_level, "GL debug message %d | %s | %s | %s\n  %.*s", id, source_string, type_string, severity_string, length, message);    
 }
 
-bool init_render_context(Window *window) {
+bool r_init_context(Window *window) {
     log("Platform: Windows | OpenGL");
     
 	Win32_Window dummy_window = wgl_create_dummy_window(window);
@@ -241,11 +241,11 @@ bool init_render_context(Window *window) {
     return true;
 }
 
-void set_vsync(bool enable) {
+void os_set_vsync(bool enable) {
 	wglSwapIntervalEXT(enable);
 }
 
-void swap_buffers(Window *window) {
+void os_window_swap_buffers(Window *window) {
     PROFILE_SCOPE(__FUNCTION__);
 	SwapBuffers(window->win32->hdc);
 }

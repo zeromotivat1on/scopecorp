@@ -39,8 +39,6 @@ struct Entity {
     Entity_Draw_Data draw_data;
 };
 
-struct Flip_Book;
-
 struct Player : Entity {
     Player() { type = ENTITY_PLAYER; }
     

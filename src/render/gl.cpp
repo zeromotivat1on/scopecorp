@@ -36,7 +36,7 @@ u32 R_FLAG_MAP_COHERENT   = GL_MAP_COHERENT_BIT;
 u32 R_FLAG_STORAGE_DYNAMIC = GL_DYNAMIC_STORAGE_BIT;
 u32 R_FLAG_STORAGE_CLIENT  = GL_CLIENT_STORAGE_BIT;
 
-void detect_render_capabilities() {
+void r_detect_capabilities() {
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &R_MAX_TEXTURE_TEXELS);
     
     R_UNIFORM_BUFFER_BASE_ALIGNMENT = 16;    
@@ -170,7 +170,7 @@ static s32 gl_texture_type(Texture_Type type) {
     }
 }
 
-void submit(const Render_Command *command) {
+void r_submit(const Render_Command *command) {
     draw_call_count += 1;
     
     {
@@ -529,7 +529,7 @@ void draw_frame_buffer(Frame_Buffer *frame_buffer, s32 color_attachment_index) {
     command.buffer_element_count = fb_index_count;
     command.buffer_element_offset = fb_index_data_offset;
     
-    submit(&command);
+    r_submit(&command);
 }
 
 static s32 gl_vertex_data_type(Vertex_Component_Type type) {
@@ -913,34 +913,21 @@ rid r_create_texture(Texture_Type type, Texture_Format_Type format, s32 width, s
     
     rid rid;
     glCreateTextures(gl_type, 1, &rid);
-    glBindTexture(gl_type, rid);
-    glTexImage2D(gl_type, 0, gl_internal_format, width, height, 0, gl_format, gl_data_type, data);
-    glBindTexture(gl_type, 0);
+    r_set_texture_data(rid, type, format, width, height, data);
+
     return rid;
 }
 
-void init_texture_asset(Texture *texture, void *data) {
-    const s32 gl_type            = gl_texture_type(texture->type);
-    const s32 gl_format          = gl_texture_format(texture->format);
-    const s32 gl_internal_format = gl_texture_internal_format(texture->format);
-    const s32 gl_data_type       = gl_texture_data_type(texture->format);
+void r_set_texture_data(rid rid_texture, Texture_Type type, Texture_Format_Type format, s32 width, s32 height, void *data) {
+    const s32 gl_type = gl_texture_type(type);
+    const s32 gl_format = gl_texture_format(format);
+    const s32 gl_internal_format = gl_texture_internal_format(format);
+    const s32 gl_data_type = gl_texture_data_type(format);
 
-    if (texture->rid == RID_NONE) {
-        glCreateTextures(gl_type, 1, &texture->rid);
-    }
-    
-    if (gl_type < 0 || gl_format < 0 || gl_internal_format < 0 || gl_data_type < 0) {
-        error("Failed to create texture, see errors above");
-        return;
-    }
-    
-	glBindTexture(gl_type, texture->rid);
-
+    glBindTexture(gl_type, rid_texture);
     // @Todo: properly set data based on texture type.
-    glTexImage2D(gl_type, 0, gl_internal_format, texture->width, texture->height, 0, gl_format, gl_data_type, data);
-    //glTextureStorage2D(texture.id, 1, internal_format, width, height);
-    
-	glBindTexture(gl_type, 0);
+    glTexImage2D(gl_type, 0, gl_internal_format, width, height, 0, gl_format, gl_data_type, data);
+    glBindTexture(gl_type, 0);
 }
 
 static s32 gl_texture_wrap(Texture_Wrap_Type wrap) {
@@ -956,14 +943,6 @@ void r_set_texture_wrap(rid rid_texture, Texture_Wrap_Type wrap) {
     const s32 gl_wrap = gl_texture_wrap(wrap);
     glTextureParameteri(rid_texture, GL_TEXTURE_WRAP_S, gl_wrap);
     glTextureParameteri(rid_texture, GL_TEXTURE_WRAP_T, gl_wrap);
-}
-
-void set_texture_wrap(Texture *texture, Texture_Wrap_Type wrap) {
-    texture->wrap = wrap;
-    
-    const s32 gl_wrap = gl_texture_wrap(wrap);
-    glTextureParameteri(texture->rid, GL_TEXTURE_WRAP_S, gl_wrap);
-    glTextureParameteri(texture->rid, GL_TEXTURE_WRAP_T, gl_wrap);
 }
 
 static s32 gl_texture_min_filter(Texture_Filter_Type filter, bool has_mipmaps) {
@@ -995,30 +974,12 @@ void r_set_texture_filter(rid rid_texture, Texture_Filter_Type filter, bool has_
     glTextureParameteri(rid_texture, GL_TEXTURE_MAG_FILTER, gl_mag_filter);
 }
 
-void set_texture_filter(Texture *texture, Texture_Filter_Type filter) {
-    texture->filter = filter;
-
-    const bool has_mipmaps = texture->flags & TEXTURE_FLAG_HAS_MIPMAPS;
-    
-    const s32 gl_min_filter = gl_texture_min_filter(filter, has_mipmaps);
-    const s32 gl_mag_filter = gl_texture_mag_filter(filter);
-
-    glTextureParameteri(texture->rid, GL_TEXTURE_MIN_FILTER, gl_min_filter);
-    glTextureParameteri(texture->rid, GL_TEXTURE_MAG_FILTER, gl_mag_filter);
-}
-
-void generate_texture_mipmaps(Texture *texture) {
-    texture->flags |= TEXTURE_FLAG_HAS_MIPMAPS;
-    glGenerateTextureMipmap(texture->rid);
+void r_generate_texture_mipmaps(rid rid_texture) {
+    glGenerateTextureMipmap(rid_texture);
 }
 
 void r_delete_texture(rid rid_texture) {
     glDeleteTextures(1, &rid_texture);
-}
-
-void delete_texture(Texture *texture) {
-    glDeleteTextures(1, &texture->rid);
-    texture->rid = RID_NONE;
 }
 
 void rescale_font_atlas(Font_Atlas *atlas, s16 font_size) {

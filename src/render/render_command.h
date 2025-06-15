@@ -175,6 +175,6 @@ struct Render_Queue {
 inline Render_Queue entity_render_queue;
 
 void init_render_queue(Render_Queue *queue, s32 capacity);
-void enqueue(Render_Queue *queue, const Render_Command *command);
-void flush(Render_Queue *queue);
-void submit(const Render_Command *command);
+void r_enqueue(Render_Queue *queue, const Render_Command *command);
+void r_flush(Render_Queue *queue);
+void r_submit(const Render_Command *command);

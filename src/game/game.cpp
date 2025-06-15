@@ -54,7 +54,7 @@ void on_input_game(Window_Event *event) {
     switch (event->type) {
 	case WINDOW_EVENT_KEYBOARD: {
         if (press && key == KEY_CLOSE_WINDOW) {
-            close(window);
+            os_window_close(window);
         } else if (press && key == KEY_SWITCH_DEBUG_CONSOLE) {
             open_debug_console();
         } else if (press && key == KEY_SWITCH_PROFILER) {
@@ -100,24 +100,24 @@ template <typename T>
 static void read_sparse_array(File file, Sparse_Array<T> *array) {
     // @Cleanup: read sparse array directly with replace or add read data to existing one?
 
-    read_file(file, &array->count, sizeof(array->count));
+    os_file_read(file, &array->count, sizeof(array->count));
 
     s32 capacity = 0;
-    read_file(file, &capacity, sizeof(capacity));
+    os_file_read(file, &capacity, sizeof(capacity));
     Assert(capacity <= array->capacity);
 
-    read_file(file, array->items,  capacity * sizeof(T));
-    read_file(file, array->dense,  capacity * sizeof(s32));
-    read_file(file, array->sparse, capacity * sizeof(s32));
+    os_file_read(file, array->items,  capacity * sizeof(T));
+    os_file_read(file, array->dense,  capacity * sizeof(s32));
+    os_file_read(file, array->sparse, capacity * sizeof(s32));
 }
 
 template <typename T>
 static void write_sparse_array(File file, Sparse_Array<T> *array) {
-    write_file(file, &array->count,    sizeof(array->count));
-    write_file(file, &array->capacity, sizeof(array->capacity));
-    write_file(file, array->items,    array->capacity * sizeof(T));
-    write_file(file, array->dense,    array->capacity * sizeof(s32));
-    write_file(file, array->sparse,   array->capacity * sizeof(s32));
+    os_file_write(file, &array->count,    sizeof(array->count));
+    os_file_write(file, &array->capacity, sizeof(array->capacity));
+    os_file_write(file, array->items,    array->capacity * sizeof(T));
+    os_file_write(file, array->dense,    array->capacity * sizeof(s32));
+    os_file_write(file, array->sparse,   array->capacity * sizeof(s32));
 }
 
 void save_world_level(World *world) {
@@ -127,24 +127,24 @@ void save_world_level(World *world) {
     str_copy(path, DIR_LEVELS);
     str_glue(path, world->name);
     
-    File file = open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_WRITE);
-    defer { close_file(file); };
+    File file = os_file_open(path, FILE_OPEN_EXISTING, FILE_FLAG_WRITE);
+    defer { os_file_close(file); };
     
     if (file == INVALID_FILE) {
         log("World level %s does not exist, creating new one", path);
-        file = open_file(path, FILE_OPEN_NEW, FILE_FLAG_WRITE);
+        file = os_file_open(path, FILE_OPEN_NEW, FILE_FLAG_WRITE);
         if (file == INVALID_FILE) {
             error("Failed to create new world level %s", path);
             return;
         }
     }
 
-    write_file(file, &world->name, MAX_WORLD_NAME_SIZE);
+    os_file_write(file, &world->name, MAX_WORLD_NAME_SIZE);
     
-    write_file(file, &world->player,    sizeof(world->player));
-    write_file(file, &world->camera,    sizeof(world->camera));
-    write_file(file, &world->ed_camera, sizeof(world->ed_camera));
-    write_file(file, &world->skybox,    sizeof(world->skybox));
+    os_file_write(file, &world->player,    sizeof(world->player));
+    os_file_write(file, &world->camera,    sizeof(world->camera));
+    os_file_write(file, &world->ed_camera, sizeof(world->ed_camera));
+    os_file_write(file, &world->skybox,    sizeof(world->skybox));
 
     write_sparse_array(file, &world->static_meshes);
     write_sparse_array(file, &world->point_lights);
@@ -157,20 +157,20 @@ void save_world_level(World *world) {
 void load_world_level(World *world, const char *path) {
     START_SCOPE_TIMER(load);
 
-    File file = open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_READ);
-    defer { close_file(file); };
+    File file = os_file_open(path, FILE_OPEN_EXISTING, FILE_FLAG_READ);
+    defer { os_file_close(file); };
     
     if (file == INVALID_FILE) {
         error("Failed to open asset pack for load %s", path);
         return;
     }
 
-    read_file(file, &world->name, MAX_WORLD_NAME_SIZE);
+    os_file_read(file, &world->name, MAX_WORLD_NAME_SIZE);
     
-    read_file(file, &world->player,    sizeof(world->player));
-    read_file(file, &world->camera,    sizeof(world->camera));
-    read_file(file, &world->ed_camera, sizeof(world->ed_camera));
-    read_file(file, &world->skybox,    sizeof(world->skybox));
+    os_file_read(file, &world->player,    sizeof(world->player));
+    os_file_read(file, &world->camera,    sizeof(world->camera));
+    os_file_read(file, &world->ed_camera, sizeof(world->ed_camera));
+    os_file_read(file, &world->skybox,    sizeof(world->skybox));
 
     read_sparse_array(file, &world->static_meshes);
     read_sparse_array(file, &world->point_lights);
@@ -190,8 +190,8 @@ void tick_game(f32 dt) {
     
 	world->dt = dt;
 
-    set_listener_pos(player.location);
-    play_sound_or_continue(SID_SOUND_WIND_AMBIENCE, player.location);
+    au_set_listener_pos(player.location);
+    au_play_sound_or_continue(SID_SOUND_WIND_AMBIENCE, player.location);
 
     update_matrices(camera);
 
@@ -281,7 +281,7 @@ void tick_game(f32 dt) {
         aabb.min = it.location - half_extent;
         aabb.max = it.location + half_extent;
         
-        play_sound_or_continue(it.sid_sound, get_listener_pos());
+        au_play_sound_or_continue(it.sid_sound, au_get_listener_pos());
     }
 
     For (world->sound_emitters_3d) {
@@ -290,7 +290,7 @@ void tick_game(f32 dt) {
         aabb.min = it.location - half_extent;
         aabb.max = it.location + half_extent;
         
-        play_sound_or_continue(it.sid_sound, it.location);
+        au_play_sound_or_continue(it.sid_sound, it.location);
     }
     
     {   // Tick player.
@@ -411,9 +411,9 @@ void tick_game(f32 dt) {
         player_aabb.max = player.location + aabb_offset + vec3(0.0f, player.scale.y, 0.0f);
 
         if (player.velocity == vec3_zero) {
-            stop_sound(player.sid_sound_steps);
+            au_stop_sound(player.sid_sound_steps);
         } else {
-            play_sound_or_continue(player.sid_sound_steps);
+            au_play_sound_or_continue(player.sid_sound_steps);
         }
 
         const mat4 model = mat4_transform(player.location, player.rotation, player.scale);

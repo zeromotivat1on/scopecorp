@@ -29,20 +29,55 @@ static void *allocf_base = null;
 u64 allocl_size = 0;
 u64 allocf_size = 0;
 
-bool alloc_init() {
 #if DEBUG
+void report_assert(const char *condition, const char *file, s32 line) {
+    error("Assertion %s failed at %s:%d", condition, file, line);
+    debug_break();
+}
+
+void debug_break() {
+    __debugbreak();
+}
+#endif DEBUG
+
+void read_barrier() {
+    _ReadBarrier();
+}
+
+void write_barrier() {
+    _WriteBarrier();
+}
+
+void memory_barrier() {
+    _ReadWriteBarrier();
+}
+
+void read_fence() {
+    _mm_lfence();
+}
+
+void write_fence() {
+    _mm_sfence();
+}
+
+void memory_fence() {
+    _mm_mfence();
+}
+
+bool alloc_init() {
+#if DEBUG || DEVELOPER
 	void *vm_address = (void *)TB(2);
 #else
 	void *vm_address = null;
 #endif
     
-	vm_base = vm_reserve(vm_address, GB(1));
+	vm_base = os_vm_reserve(vm_address, GB(1));
     if (!vm_base) {
         error("Failed to reserve virtual address space");
         return false;
     }
 
-    u8 *commited = (u8 *)vm_commit(vm_base, MAX_ALLOCL_SIZE + MAX_ALLOCF_SIZE);
+    u8 *commited = (u8 *)os_vm_commit(vm_base, MAX_ALLOCL_SIZE + MAX_ALLOCF_SIZE);
     if (!commited) {
         error("Failed to commit memory for Linear and Frame allocations");
         return false;
@@ -57,7 +92,7 @@ bool alloc_init() {
 }
 
 void alloc_shutdown() {
-	vm_release(vm_base);
+	os_vm_release(vm_base);
 }
 
 void *allocs(u64 size) {
@@ -121,17 +156,6 @@ void move_bytes(void *dst, const void *src, u64 size) {
     memmove(dst, src, size);
 }
 
-#if DEBUG
-void report_assert(const char *condition, const char *file, s32 line) {
-	error("Assertion %s failed at %s:%d", condition, file, line);
-	debug_break();
-}
-
-void debug_break() {
-	__debugbreak();
-}
-#endif DEBUG
-
 static void log_output_va(Log_Level log_level, const char *format, va_list args) {
     if (log_level == LOG_NONE) return;
     
@@ -186,7 +210,7 @@ void init_sid_table() {
     sid_table.hash_function = &sid_table_hash;
 }
 
-u64 cache_sid(const char *string) {
+u64 sid_cache(const char *string) {
     const u64 hash = hash_fnv(string);
     if (sid_table.find(hash) == null) {
         sid_table.add(hash, string);

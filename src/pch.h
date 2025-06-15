@@ -148,6 +148,17 @@ void debug_break();
 #define Assert(x)
 #endif
 
+// Hint compiler to not reorder memory operations, happened before barrier.
+// Basically disable memory read/write concerned optimizations.
+void read_barrier();
+void write_barrier();
+void memory_barrier();
+
+// Ensure the order of read/write CPU instructions.
+void read_fence();
+void write_fence();
+void memory_fence();
+
 enum Direction {
     DIRECTION_BACK,
     DIRECTION_RIGHT,

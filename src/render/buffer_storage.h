@@ -80,11 +80,3 @@ void *r_allocv(u32 size); // allocate from vertex storage
 void *r_alloci(u32 size); // allocate from index storage
 
 void r_init_buffer_storages();
-
-s32 create_vertex_buffer(const void *data, u32 size, u32 usage);
-void set_vertex_buffer_data(s32 vertex_buffer_index, const void *data, u32 size, u32 offset);
-
-s32 create_vertex_array(const Vertex_Array_Binding *bindings, s32 binding_count);
-s32 get_vertex_array_vertex_count(s32 vertex_array_index);
-
-s32 create_index_buffer(const u32 *indices, u32 count, u32 usage);

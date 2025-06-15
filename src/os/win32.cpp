@@ -33,13 +33,13 @@ static constexpr u32 INVALID_THREAD_RESULT = ((DWORD)-1);
 
 const u32 WAIT_INFINITE = INFINITE;
 
-const Thread INVALID_THREAD       = NULL;
+const Thread THREAD_NONE          = NULL;
 const s32 THREAD_CREATE_IMMEDIATE = 0;
 const s32 THREAD_CREATE_SUSPENDED = CREATE_SUSPENDED;
 
-const Mutex     INVALID_MUTEX     = NULL;
-const Semaphore INVALID_SEMAPHORE = NULL;
-const u32 CRITICAL_SECTION_SIZE   = sizeof(CRITICAL_SECTION);
+const Mutex     MUTEX_NONE      = NULL;
+const Semaphore SEMAPHORE_NONE  = NULL;
+const u32 CRITICAL_SECTION_SIZE = sizeof(CRITICAL_SECTION);
 
 const File INVALID_FILE           = INVALID_HANDLE_VALUE;
 const u32  FILE_FLAG_READ         = GENERIC_READ;
@@ -51,7 +51,7 @@ const u32  FILE_TRUNCATE_EXISTING = TRUNCATE_EXISTING;
 EXTERN_C IMAGE_DOS_HEADER __ImageBase;
 static const char *window_prop_name = "win32_window";
 
-File open_file(const char *path, s32 open_type, u32 access_flags, bool log_error) {
+File os_file_open(const char *path, s32 open_type, u32 access_flags, bool log_error) {
 	HANDLE handle = CreateFile(path, access_flags, FILE_SHARE_READ | FILE_SHARE_WRITE,
                                NULL, open_type, FILE_ATTRIBUTE_NORMAL, NULL);
 
@@ -61,28 +61,28 @@ File open_file(const char *path, s32 open_type, u32 access_flags, bool log_error
     return handle;
 }
 
-bool close_file(File handle) {
+bool os_file_close(File handle) {
 	return CloseHandle(handle);
 }
 
-s64 get_file_size(File handle) {
+s64 os_file_get_size(File handle) {
 	LARGE_INTEGER size;
 	if (!GetFileSizeEx(handle, &size)) return -1;
 	return size.QuadPart;
 }
 
-bool read_file(File handle, void *buffer, u64 size, u64 *bytes_read) {
+bool os_file_read(File handle, void *buffer, u64 size, u64 *bytes_read) {
 	return ReadFile(handle, buffer, (DWORD)size, (LPDWORD)bytes_read, NULL);
 }
 
-bool write_file(File handle, void *buffer, u64 size, u64 *bytes_written) {
+bool os_file_write(File handle, void *buffer, u64 size, u64 *bytes_written) {
     DWORD size_written;
 	BOOL result = WriteFile(handle, buffer, (DWORD)size, &size_written, NULL);
     if (bytes_written) *bytes_written = size_written;
     return result;
 }
 
-bool set_file_pointer_position(File handle, s64 position) {
+bool os_file_set_pointer_position(File handle, s64 position) {
     LARGE_INTEGER move_distance;
     move_distance.QuadPart = position;
     return SetFilePointerEx(handle, move_distance, NULL, FILE_BEGIN);
@@ -131,7 +131,7 @@ void extract_file_from_path(char *path) {
     PathStripPath(path);
 }
 
-s64 get_file_pointer_position(File handle) {
+s64 os_file_get_pointer_position(File handle) {
     LARGE_INTEGER position      = {0};
     LARGE_INTEGER move_distance = {0};
     if (SetFilePointerEx(handle, move_distance, &position, FILE_CURRENT))
@@ -139,24 +139,24 @@ s64 get_file_pointer_position(File handle) {
     return INVALID_INDEX;
 }
 
-void *vm_reserve(void *addr, u64 size) {
+void *os_vm_reserve(void *addr, u64 size) {
 	Assert(size > 0);
 	return VirtualAlloc(addr, size, MEM_RESERVE, PAGE_READWRITE);
 }
 
-void *vm_commit(void *vm, u64 size) {
+void *os_vm_commit(void *vm, u64 size) {
 	Assert(vm);
 	Assert(size > 0);
 	return VirtualAlloc(vm, size, MEM_COMMIT, PAGE_READWRITE);
 }
 
-bool vm_decommit(void *vm, u64 size) {
+bool os_vm_decommit(void *vm, u64 size) {
 	Assert(vm);
 	Assert(size > 0);
 	return VirtualFree(vm, size, MEM_DECOMMIT);
 }
 
-bool vm_release(void *vm) {
+bool os_vm_release(void *vm) {
 	Assert(vm);
 	return VirtualFree(vm, 0, MEM_RELEASE);
 }
@@ -180,112 +180,88 @@ static BOOL win32_wait_res_check(void *handle, DWORD res) {
 	}
 }
 
-u64 current_thread_id() {
+u64 os_thread_get_current_id() {
 	return GetCurrentThreadId();
 }
 
-void sleep_thread(u32 ms) {
+void os_thread_sleep(u32 ms) {
 	Sleep(ms);
 }
 
-bool thread_active(Thread handle) {
+bool os_thread_is_active(Thread handle) {
 	DWORD exit_code;
 	GetExitCodeThread(handle, &exit_code);
 	return exit_code == STILL_ACTIVE;
 }
 
-Thread create_thread(Thread_Entry entry, s32 create_type, void *user_data) {
+Thread os_thread_create(Thread_Entry entry, s32 create_type, void *user_data) {
 	return CreateThread(0, 0, (LPTHREAD_START_ROUTINE)entry, user_data, create_type, NULL);
 }
 
-void resume_thread(Thread handle) {
+void os_thread_resume(Thread handle) {
 	const DWORD res = ResumeThread(handle);
 	Assert(res != INVALID_THREAD_RESULT);
 }
 
-void suspend_thread(Thread handle) {
+void os_thread_suspend(Thread handle) {
 	const DWORD res = SuspendThread(handle);
 	Assert(res != INVALID_THREAD_RESULT);
 }
 
-void terminate_thread(Thread handle) {
+void os_thread_terminate(Thread handle) {
 	DWORD exit_code;
 	GetExitCodeThread(handle, &exit_code);
 	const BOOL res = TerminateThread(handle, exit_code);
 	Assert(res);
 }
 
-Semaphore create_semaphore(s32 init_count, s32 max_count) {
+Semaphore os_semaphore_create(s32 init_count, s32 max_count) {
 	return CreateSemaphore(NULL, (LONG)init_count, (LONG)max_count, NULL);
 }
 
-bool release_semaphore(Semaphore handle, s32 count, s32 *prev_count) {
+bool os_semaphore_release(Semaphore handle, s32 count, s32 *prev_count) {
 	return ReleaseSemaphore(handle, count, (LPLONG)prev_count);
 }
 
-bool wait_semaphore(Semaphore handle, u32 ms) {
+bool os_semaphore_wait(Semaphore handle, u32 ms) {
 	const DWORD res = WaitForSingleObjectEx(handle, ms, FALSE);
 	return win32_wait_res_check(handle, res);
 }
 
-Mutex create_mutex(bool signaled) {
+Mutex os_mutex_create(bool signaled) {
 	return CreateMutex(NULL, (LONG)signaled, NULL);
 }
 
-bool release_mutex(Mutex handle) {
+bool os_mutex_release(Mutex handle) {
 	return ReleaseMutex(handle);
 }
 
-bool wait_mutex(Mutex handle, u32 ms) {
+bool os_mutex_wait(Mutex handle, u32 ms) {
 	const DWORD res = WaitForSingleObjectEx(handle, ms, FALSE);
 	return win32_wait_res_check(handle, res);
 }
 
-void init_critical_section(Critical_Section handle, u32 spin_count) {
+void os_cs_init(Critical_Section handle, u32 spin_count) {
 	if (spin_count > 0)
 		InitializeCriticalSectionAndSpinCount((LPCRITICAL_SECTION)handle, spin_count);
 	else
 		InitializeCriticalSection((LPCRITICAL_SECTION)handle);
 }
 
-void enter_critical_section(Critical_Section handle) {
+void os_cs_enter(Critical_Section handle) {
 	EnterCriticalSection((LPCRITICAL_SECTION)handle);
 }
 
-bool try_enter_critical_section(Critical_Section handle) {
+bool os_cs_try_enter(Critical_Section handle) {
 	return TryEnterCriticalSection((LPCRITICAL_SECTION)handle);
 }
 
-void leave_critical_section(Critical_Section handle) {
+void os_cs_leave(Critical_Section handle) {
 	LeaveCriticalSection((LPCRITICAL_SECTION)handle);
 }
 
-void delete_critical_section(Critical_Section handle) {
+void os_cs_delete(Critical_Section handle) {
 	DeleteCriticalSection((LPCRITICAL_SECTION)handle);
-}
-
-void read_barrier() {
-	_ReadBarrier();
-}
-
-void write_barrier() {
-	_WriteBarrier();
-}
-
-void memory_barrier() {
-	_ReadWriteBarrier();
-}
-
-void read_fence() {
-	_mm_lfence();
-}
-
-void write_fence() {
-	_mm_sfence();
-}
-
-void memory_fence() {
-	_mm_mfence();
 }
 
 s32 atomic_swap(s32 *dst, s32 val) {
@@ -316,18 +292,18 @@ s32 atomic_decrement(s32 *dst) {
 	return InterlockedDecrement((LONG *)dst);
 }
 
-s64 time_since_sys_boot_ms() {
+s64 os_time_since_boot_ms() {
 	return GetTickCount64();
 }
 
-s64 performance_counter() {
+s64 os_perf_counter() {
 	LARGE_INTEGER counter;
 	const BOOL res = QueryPerformanceCounter(&counter);
 	Assert(res); // @Robustness: handle win32 failure
 	return counter.QuadPart;
 }
 
-s64 performance_frequency_s() {
+s64 os_perf_frequency_s() {
 	static u64 frequency64 = 0;
 
 	if (frequency64 == 0) {
@@ -340,7 +316,7 @@ s64 performance_frequency_s() {
 	return frequency64;
 }
 
-s64 performance_frequency_ms() {
+s64 os_perf_frequency_ms() {
 	static u64 frequency64 = 0;
 
 	if (frequency64 == 0) {
@@ -549,7 +525,7 @@ static RECT get_window_border_rect() {
 	return rect;
 }
 
-Window *create_window(s32 w, s32 h, const char *name, s32 x, s32 y, void *user_data) {
+Window *os_window_create(s32 w, s32 h, const char *name, s32 x, s32 y, void *user_data) {
 	Window *window = alloclt(Window);
     window->user_data = user_data;
 	window->win32 = alloclt(Win32_Window);
@@ -594,17 +570,17 @@ Window *create_window(s32 w, s32 h, const char *name, s32 x, s32 y, void *user_d
 	return window;
 }
 
-void register_event_callback(Window *window, Window_Event_Callback callback) {
+void os_window_register_event_callback(Window *window, Window_Event_Callback callback) {
 	window->event_callback = callback;
 }
 
-void destroy(Window *window) {
+void os_window_destroy(Window *window) {
 	ReleaseDC(window->win32->hwnd, window->win32->hdc);
 	DestroyWindow(window->win32->hwnd);
 	UnregisterClass(window->win32->class_name, window->win32->hinstance);
 }
 
-void poll_events(Window *window) {
+void os_window_poll_events(Window *window) {
 	input_table.mouse_offset_x = 0;
 	input_table.mouse_offset_y = 0;
 
@@ -638,19 +614,19 @@ void poll_events(Window *window) {
 	window_event_queue_size = 0;
 }
 
-void close(Window *window) {
+void os_window_close(Window *window) {
 	PostMessage(window->win32->hwnd, WM_CLOSE, 0, 0);
 }
 
-bool alive(Window *window) {
+bool os_window_is_alive(Window *window) {
 	return IsWindow(window->win32->hwnd);
 }
 
-bool set_title(Window *window, const char *title) {
+bool os_window_set_title(Window *window, const char *title) {
     return SetWindowText(window->win32->hwnd, title);
 }
 
-void lock_cursor(Window *window, bool lock) {
+void os_window_lock_cursor(Window *window, bool lock) {
     if (window->cursor_locked == lock) return;
     
 	window->cursor_locked = lock;
