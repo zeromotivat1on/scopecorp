@@ -7,7 +7,7 @@ enum Input_Layer_Type : u8 {
     INPUT_LAYER_GAME,
     INPUT_LAYER_EDITOR,
     INPUT_LAYER_DEBUG_CONSOLE,
-    INPUT_LAYER_PROFILER,
+    INPUT_LAYER_RUNTIME_PROFILER,
 };
 
 typedef void(*On_Input)(struct Window_Event *event);
@@ -27,7 +27,7 @@ inline Input_Stack input_stack;
 inline Input_Layer input_layer_game;
 inline Input_Layer input_layer_editor;
 inline Input_Layer input_layer_debug_console;
-inline Input_Layer input_layer_profiler;
+inline Input_Layer input_layer_runtime_profiler;
 
 inline Input_Layer *get_current_input_layer() {
     if (input_stack.layer_count > 0) {

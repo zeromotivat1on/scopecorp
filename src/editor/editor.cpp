@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "editor/editor.h"
 #include "editor/hot_reload.h"
 #include "editor/debug_console.h"
 
@@ -78,8 +79,8 @@ void on_input_editor(Window_Event *event) {
             os_window_close(window);
         } else if (press && key == KEY_SWITCH_DEBUG_CONSOLE) {
             open_debug_console();
-        } else if (press && key == KEY_SWITCH_PROFILER) {
-            open_profiler();
+        } else if (press && key == KEY_SWITCH_RUNTIME_PROFILER) {
+            open_runtime_profiler();
         } else if (press && key == KEY_SWITCH_EDITOR_MODE) {
             game_state.mode = MODE_GAME;
             os_window_lock_cursor(window, true);

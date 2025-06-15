@@ -88,8 +88,8 @@ s32 main() {
         input_layer_debug_console.type = INPUT_LAYER_DEBUG_CONSOLE;
         input_layer_debug_console.on_input = on_input_debug_console;
 
-        input_layer_profiler.type = INPUT_LAYER_PROFILER;
-        input_layer_profiler.on_input = on_input_profiler;
+        input_layer_runtime_profiler.type = INPUT_LAYER_RUNTIME_PROFILER;
+        input_layer_runtime_profiler.on_input = on_input_runtime_profiler;
     
         push_input_layer(&input_layer_game);
     }
@@ -157,7 +157,7 @@ s32 main() {
 
     ui_init();
     init_debug_console();
-    init_profiler();
+    init_runtime_profiler();
     
     init_render_queue(&entity_render_queue, MAX_RENDER_QUEUE_SIZE);
     geo_init();
@@ -457,7 +457,7 @@ s32 main() {
         geo_draw_debug();
         draw_dev_stats();
         draw_debug_console();
-        draw_profiler();
+        draw_runtime_profiler();
 #endif
         
         update_render_stats();

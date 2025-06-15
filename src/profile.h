@@ -2,7 +2,7 @@
 
 #include "os/time.h"
 
-extern s16 KEY_SWITCH_PROFILER;
+extern s16 KEY_SWITCH_RUNTIME_PROFILER;
 
 #define PROFILE_SCOPE(name) Profile_Scope (profile_scope##__LINE__)(name, __FILE__, __LINE__)
 
@@ -34,7 +34,7 @@ struct Profile_Scope {
 
 inline constexpr u32 MAX_PROFILER_SCOPES = 1024;
 
-struct Profiler {
+struct Runtime_Profiler {
     Profile_Scope *scopes = null;
     f32 *scope_times = null;
     u32 scope_count = 0;
@@ -47,12 +47,12 @@ struct Profiler {
 
 struct Window_Event;
 
-inline Profiler profiler;
+inline Runtime_Profiler runtime_profiler;
 
-void init_profiler();
-void open_profiler();
-void close_profiler();
-void draw_profiler();
-void on_input_profiler(Window_Event *event);
+void init_runtime_profiler();
+void open_runtime_profiler();
+void close_runtime_profiler();
+void draw_runtime_profiler();
+void on_input_runtime_profiler(Window_Event *event);
 
 void draw_dev_stats();

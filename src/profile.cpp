@@ -21,7 +21,7 @@
 #include "render/render_stats.h"
 #include "render/buffer_storage.h"
 
-s16 KEY_SWITCH_PROFILER = KEY_F9;
+s16 KEY_SWITCH_RUNTIME_PROFILER = KEY_F9;
  
 Scope_Timer::Scope_Timer(const char *info)
     : info(info), start(os_perf_counter()) {}
@@ -43,45 +43,50 @@ Profile_Scope::~Profile_Scope() {
     end = os_perf_counter();
     diff = end - start;
 
+    auto &rp = runtime_profiler;
+    
     Profile_Scope *scope = null;
-    for (u32 i = 0; i < profiler.scope_count; ++i) {
-        auto &ps = profiler.scopes[i];
+    for (u32 i = 0; i < rp.scope_count; ++i) {
+        auto &ps = rp.scopes[i];
         if (str_cmp(name, ps.name)) {
             scope = &ps;
         }
     }
 
     if (!scope) {
-        Assert(profiler.scope_count < MAX_PROFILER_SCOPES);
-        scope = profiler.scopes + profiler.scope_count;
-        profiler.scope_count += 1;
+        Assert(rp.scope_count < MAX_PROFILER_SCOPES);
+        scope = rp.scopes + rp.scope_count;
+        rp.scope_count += 1;
     }
 
     *scope = *this;
 }
 
-void init_profiler() {
-    profiler.scopes      = allocltn(Profile_Scope, MAX_PROFILER_SCOPES);
-    profiler.scope_times = allocltn(f32,           MAX_PROFILER_SCOPES);
+void init_runtime_profiler() {
+    auto &rp = runtime_profiler;
+    rp.scopes      = allocltn(Profile_Scope, MAX_PROFILER_SCOPES);
+    rp.scope_times = allocltn(f32,           MAX_PROFILER_SCOPES);
 }
 
-void open_profiler() {
-    Assert(!profiler.is_open);
+void open_runtime_profiler() {
+    auto &rp = runtime_profiler;
+    Assert(!rp.is_open);
     
-    profiler.is_open = true;
+    rp.is_open = true;
 
-    push_input_layer(&input_layer_profiler);
+    push_input_layer(&input_layer_runtime_profiler);
 }
 
-void close_profiler() {
-    Assert(profiler.is_open);
+void close_runtime_profiler() {
+    auto &rp = runtime_profiler;
+    Assert(rp.is_open);
 
-    profiler.is_open = false;
+    rp.is_open = false;
 
     pop_input_layer();
 }
 
-void on_input_profiler(Window_Event *event) {
+void on_input_runtime_profiler(Window_Event *event) {
     const bool press = event->key_press;
     const auto key = event->key_code;
         
@@ -89,8 +94,8 @@ void on_input_profiler(Window_Event *event) {
     case WINDOW_EVENT_KEYBOARD: {
         if (press && key == KEY_CLOSE_WINDOW) {
             os_window_close(window);
-        } else if (press && key == KEY_SWITCH_PROFILER) {
-            close_profiler();
+        } else if (press && key == KEY_SWITCH_RUNTIME_PROFILER) {
+            close_runtime_profiler();
         }
         
         break;
@@ -98,21 +103,22 @@ void on_input_profiler(Window_Event *event) {
     }
 }
 
-void draw_profiler() {
+void draw_runtime_profiler() {
     PROFILE_SCOPE(__FUNCTION__);
-    
-    profiler.scope_time_update_time += delta_time;
 
-    if (profiler.scope_time_update_time > profiler.scope_time_update_interval) {
-        for (u32 i = 0; i < profiler.scope_count; ++i) {
-            const auto &scope = profiler.scopes[i];
-            profiler.scope_times[i] = scope.diff / (f32)os_perf_frequency_ms();
+    auto &rp = runtime_profiler;
+    rp.scope_time_update_time += delta_time;
+
+    if (rp.scope_time_update_time > rp.scope_time_update_interval) {
+        for (u32 i = 0; i < rp.scope_count; ++i) {
+            const auto &scope = rp.scopes[i];
+            rp.scope_times[i] = scope.diff / (f32)os_perf_frequency_ms();
         }
 
-        profiler.scope_time_update_time = 0.0f;
+        rp.scope_time_update_time = 0.0f;
     }
 
-    if (!profiler.is_open) return;
+    if (!rp.is_open) return;
     
     constexpr f32 PROFILER_MARGIN  = 100.0f;
     constexpr f32 PROFILER_PADDING = 16.0f;
@@ -123,7 +129,7 @@ void draw_profiler() {
 
     {   // Profiler quad.
         const vec2 q0 = vec2(PROFILER_MARGIN,
-                             viewport.height - PROFILER_MARGIN - 2 * PROFILER_PADDING - profiler.scope_count * atlas.line_height);
+                             viewport.height - PROFILER_MARGIN - 2 * PROFILER_PADDING - rp.scope_count * atlas.line_height);
         const vec2 q1 = vec2(viewport.width - PROFILER_MARGIN,
                              viewport.height - PROFILER_MARGIN);
         const u32 color = rgba_pack(0, 0, 0, 200);
@@ -140,9 +146,9 @@ void draw_profiler() {
         const auto &atlas = *ui.font_atlases[UI_PROFILER_FONT_ATLAS_INDEX];
 
         // @Todo: sort by time, name etc.
-        for (u32 i = 0; i < profiler.scope_count; ++i) {
-            const auto &scope = profiler.scopes[i];
-            const f32 time = profiler.scope_times[i];
+        for (u32 i = 0; i < rp.scope_count; ++i) {
+            const auto &scope = rp.scopes[i];
+            const f32 time = rp.scope_times[i];
         
             count = stbsp_snprintf(buffer, sizeof(buffer), "%s %s:%u %.2fms",
                                    scope.name, scope.filepath, scope.line, time);
@@ -151,7 +157,7 @@ void draw_profiler() {
         }
     }
 
-    profiler.scope_count = 0;
+    rp.scope_count = 0;
 }
 
 void draw_dev_stats() {
