@@ -477,14 +477,14 @@ void draw_debug_console() {
     // @Cleanup: probably not ideal solution to get lower-case glyph height.
     const f32 lower_case_height = (atlas.font->ascent + atlas.font->descent) * atlas.px_h_scale;
 
-    {   // Input quad.
+    {   // History quad.
         const vec2 q0 = vec2(DEBUG_CONSOLE_MARGIN);
         const vec2 q1 = vec2(viewport.width - DEBUG_CONSOLE_MARGIN, viewport.height - DEBUG_CONSOLE_MARGIN);
         const u32 color = rgba_pack(0, 0, 0, 200);
         ui_draw_quad(q0, q1, color);
     }
 
-    {   // History quad.
+    {   // Input quad.
         const vec2 q0 = vec2(DEBUG_CONSOLE_MARGIN);
         const vec2 q1 = vec2(viewport.width - DEBUG_CONSOLE_MARGIN, DEBUG_CONSOLE_MARGIN + lower_case_height + 2 * DEBUG_CONSOLE_PADDING);
         const u32 color = rgba_pack(0, 0, 0, 200);

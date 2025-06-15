@@ -424,7 +424,7 @@ void ui_init() {
         bindings[1].binding_index = 1;
         bindings[1].data_offset = color_buffer_offset;
         bindings[1].layout_size = 1;
-        bindings[1].layout[0] = { VERTEX_U32, 1 };
+        bindings[1].layout[0] = { VERTEX_U32, 0 };
         
         qdb.rid_vertex_array = r_create_vertex_array(bindings, COUNT(bindings));
         qdb.sid_material = SID_MATERIAL_UI_ELEMENT;
@@ -514,13 +514,13 @@ void ui_draw_text_with_shadow(const char *text, u32 count, vec2 pos, u32 color, 
 void ui_draw_quad(vec2 p0, vec2 p1, u32 color) {
     Assert(ui.draw_queue_size < MAX_UI_DRAW_QUEUE_SIZE);
 
-    auto &qdb = ui.quad_draw_buffer;
-
     auto &ui_cmd = ui.draw_queue[ui.draw_queue_size];
     ui_cmd.type = UI_DRAW_QUAD;
     ui_cmd.element_count = 1;
 
     ui.draw_queue_size += 1;
+
+    auto &qdb = ui.quad_draw_buffer;
 
     const f32 x0 = Min(p0.x, p1.x);
     const f32 y0 = Min(p0.y, p1.y);
@@ -529,14 +529,19 @@ void ui_draw_quad(vec2 p0, vec2 p1, u32 color) {
     const f32 y1 = Max(p0.y, p1.y);
     
     vec2 *vp = qdb.positions + 4 * qdb.quad_count;
-    u32  *vc = qdb.colors    + 1 * qdb.quad_count;
+    u32  *vc = qdb.colors    + 4 * qdb.quad_count;
 
     vp[0] = vec2(x0, y0);
     vp[1] = vec2(x1, y0);
     vp[2] = vec2(x0, y1);    
     vp[3] = vec2(x1, y1);
 
+    // @Cleanup: thats a bit unfortunate that we can't use instanced vertex advance rate
+    // for color, maybe there is a clever solution somewhere.
     vc[0] = color;
+    vc[1] = color;
+    vc[2] = color;
+    vc[3] = color;
     
     qdb.quad_count += 1;
 }
@@ -547,18 +552,10 @@ void ui_flush() {
     auto &tdb = ui.text_draw_buffer;
     auto &qdb = ui.quad_draw_buffer;
 
-    s32 char_instance_offset = 0;
-    s32 quad_instance_offset = 0;
+    s32 total_char_instance_offset = 0;
+    s32 total_quad_instance_offset = 0;
     
-    // @Speed: instead of submitting each ui draw command as separate render command,
-    // iterate over all adjacent same type ui draw commands in queue or sort them,
-    // and batch these ui commands with just several render commands.
     for (s32 i = 0; i < ui.draw_queue_size; ++i) {
-        const auto &ui_cmd = ui.draw_queue[i];
-        const auto &atlas = *ui.font_atlases[ui_cmd.atlas_index];
-
-        if (ui_cmd.element_count == 0) continue;
-        
         Render_Command r_cmd = {};
         r_cmd.flags = RENDER_FLAG_VIEWPORT | RENDER_FLAG_SCISSOR | RENDER_FLAG_CULL_FACE | RENDER_FLAG_BLEND | RENDER_FLAG_RESET;
         r_cmd.render_mode  = RENDER_TRIANGLE_STRIP;
@@ -575,35 +572,64 @@ void ui_flush() {
         r_cmd.cull_face.winding = WINDING_COUNTER_CLOCKWISE;
         r_cmd.blend.source      = BLEND_SOURCE_ALPHA;
         r_cmd.blend.destination = BLEND_ONE_MINUS_SOURCE_ALPHA;
+        r_cmd.instance_count = 0;
+        r_cmd.buffer_element_count = 0;
+    
+        const s32 char_instance_offset = total_char_instance_offset;
+        const s32 quad_instance_offset = total_quad_instance_offset;
+        
+        const auto &ui_draw_type = ui.draw_queue[i].type;
+        const auto &atlas_index  = ui.draw_queue[i].atlas_index;
+        
+        // Detect similar adjacent ui commands and stack them in one render command.
+        s32 last_adjacent_index = i;
+        for (s32 j = i; j < ui.draw_queue_size; ++j) {
+            const auto &ui_cmd = ui.draw_queue[j];
+            const auto &atlas  = *ui.font_atlases[ui_cmd.atlas_index];
 
-        switch (ui_cmd.type) {
-        case UI_DRAW_TEXT: {
-            r_cmd.rid_vertex_array = tdb.rid_vertex_array;
-            r_cmd.buffer_element_count = 4;
-            r_cmd.instance_count = ui_cmd.element_count;
-            r_cmd.instance_offset = char_instance_offset;
-
-            r_cmd.sid_material = tdb.sid_material;
-            r_cmd.rid_override_texture = atlas.rid_texture;
-
-            char_instance_offset += ui_cmd.element_count;
+            // UI commands should have the same type and use the same atlas.
+            if (ui_cmd.type != ui_draw_type || ui_cmd.atlas_index != atlas_index) {
+                break;
+            }
             
-            break;
-        }
-        case UI_DRAW_QUAD: {
-            r_cmd.rid_vertex_array = qdb.rid_vertex_array;
-            r_cmd.buffer_element_count = 4;
-            r_cmd.buffer_element_offset = 4 * quad_instance_offset;
-            r_cmd.instance_count = ui_cmd.element_count;
-            r_cmd.instance_offset = quad_instance_offset;
+            last_adjacent_index = j;
 
-            r_cmd.sid_material = qdb.sid_material;
+            switch (ui_cmd.type) {
+            case UI_DRAW_TEXT: {
+                r_cmd.rid_vertex_array = tdb.rid_vertex_array;
+                r_cmd.buffer_element_count = 4;
+                r_cmd.instance_count += ui_cmd.element_count;
+                r_cmd.instance_offset = char_instance_offset;
+
+                r_cmd.sid_material = tdb.sid_material;
+                r_cmd.rid_override_texture = atlas.rid_texture;
+
+                total_char_instance_offset += ui_cmd.element_count;
             
-            quad_instance_offset += ui_cmd.element_count;
+                break;
+            }
+            case UI_DRAW_QUAD: {
+                r_cmd.rid_vertex_array = qdb.rid_vertex_array;
+                r_cmd.buffer_element_count += 4;
+                r_cmd.buffer_element_offset = 4 * quad_instance_offset;
+
+                // Instance count for quad should be 1 as for now vertex data for ui 
+                // elements takes raw positions from vertex buffer unlike text that
+                // takes transform matrix as vertex data and apply it to static quad
+                // vertices.
+                r_cmd.instance_count  = ui_cmd.element_count;
+                r_cmd.instance_offset = quad_instance_offset;
+
+                r_cmd.sid_material = qdb.sid_material;
             
-            break;
+                total_quad_instance_offset += ui_cmd.element_count;
+            
+                break;
+            }
+            }
         }
-        }
+        
+        i = last_adjacent_index;
 
         r_submit(&r_cmd);
     }
