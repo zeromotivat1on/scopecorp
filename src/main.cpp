@@ -75,7 +75,7 @@ s32 main() {
         return 1;
     }
 
-    init_sid_table();
+    sid_init();
 	init_input_table();
 
     {
@@ -342,8 +342,7 @@ s32 main() {
 
     save_world_level(world);
 #else
-    char main_level_path[MAX_PATH_SIZE];
-    convert_to_full_asset_path(main_level_path, "/data/levels/main.wl");
+    const char *main_level_path = PATH_LEVEL("main.wl");
     load_world_level(world, main_level_path);    
 #endif
       

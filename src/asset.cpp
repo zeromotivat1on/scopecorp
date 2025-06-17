@@ -33,19 +33,24 @@ static void init_asset_source_callback(const File_Callback_Data *data) {
         //log("File path from callback %s is not accepted due to extension filter fail %s", data->path, ascd->filter_ext);
         return;
     }
+
+    char full_path[MAX_PATH_SIZE];
+    str_copy(full_path, data->path);
+    fix_directory_delimiters(full_path);
+
+    char relative_path[MAX_PATH_SIZE];
+    convert_to_relative_asset_path(relative_path, full_path);
+
+    const sid sid_relative_path = sid_intern(relative_path);
     
     Asset_Source source;
     source.asset_type = ascd->asset_type;
     source.last_write_time = data->last_write_time;
+    source.sid_full_path = sid_intern(full_path);
+    source.sid_relative_path = sid_relative_path;
     
-    str_copy(source.path, data->path);
-    fix_directory_delimiters(source.path);
-    
-    char relative_path[MAX_PATH_SIZE];
-    convert_to_relative_asset_path(relative_path, data->path);
-
     auto &ast = asset_source_table;
-    ast.table.add(sid_cache(relative_path), source);
+    ast.table.add(sid_relative_path, source);
     ast.count_by_type[source.asset_type] += 1;
 }
 
@@ -153,6 +158,9 @@ void save_asset_pack(const char *path) {
     os_file_write(file, &header, sizeof(Asset_Pack_Header));
 
     For (ast.table) {
+        const char *path      = sid_str(it.value.sid_relative_path);
+        const char *full_path = sid_str(it.value.sid_full_path);
+        
         const auto asset_type = it.value.asset_type;
         Assert(asset_type >= 0 && asset_type < ASSET_TYPE_COUNT);
 
@@ -165,118 +173,153 @@ void save_asset_pack(const char *path) {
         switch (asset_type) {
         case ASSET_SHADER_INCLUDE: {
             Shader_Include include = {};
-            convert_to_relative_asset_path(include.path, it.value.path);
 
             void *buffer = allocl(MAX_SHADER_SIZE);
             defer { freel(MAX_SHADER_SIZE); };
 
             u64 bytes_read = 0;
-            os_file_read(it.value.path, buffer, MAX_SHADER_SIZE, &bytes_read);
+            os_file_read(full_path, buffer, MAX_SHADER_SIZE, &bytes_read);
 
             include.data_offset = offset;
             include.data_size = bytes_read;
+            offset += include.data_size;
+
+            include.path_offset = offset;
+            include.path_size = str_size(path) + 1;
+            offset += include.path_size;
+
             os_file_write(file, &include, asset_size);
 
             os_file_set_pointer_position(file, include.data_offset);
             os_file_write(file, buffer, include.data_size);
-            offset += include.data_size;
-            
+
+            os_file_set_pointer_position(file, include.path_offset);
+            os_file_write(file, path, include.path_size);
+
             break;
         }
         case ASSET_SHADER: {
             Shader shader = {};
-            convert_to_relative_asset_path(shader.path, it.value.path);
 
             void *buffer = allocl(MAX_SHADER_SIZE);
             defer { freel(MAX_SHADER_SIZE); };
 
             u64 bytes_read = 0;
-            os_file_read(it.value.path, buffer, MAX_SHADER_SIZE, &bytes_read);
+            os_file_read(full_path, buffer, MAX_SHADER_SIZE, &bytes_read);
 
             shader.data_offset = offset;
             shader.data_size = bytes_read;
+            offset += shader.data_size;
+
+            shader.path_offset = offset;
+            shader.path_size = str_size(path) + 1;
+            offset += shader.path_size;
+
             os_file_write(file, &shader, asset_size);
 
             os_file_set_pointer_position(file, shader.data_offset);
             os_file_write(file, buffer, shader.data_size);
-            offset += shader.data_size;
+
+            os_file_set_pointer_position(file, shader.path_offset);
+            os_file_write(file, path, shader.path_size);
             
             break;
         }
         case ASSET_TEXTURE: {
             Texture texture = {};
-            convert_to_relative_asset_path(texture.path, it.value.path);
 
             void *buffer = allocl(MAX_TEXTURE_SIZE);
             defer { freel(MAX_TEXTURE_SIZE); };
 
             u64 bytes_read = 0;
-            os_file_read(it.value.path, buffer, MAX_TEXTURE_SIZE, &bytes_read);
+            os_file_read(full_path, buffer, MAX_TEXTURE_SIZE, &bytes_read);
 
             void *data = stbi_load_from_memory((u8 *)buffer, (s32)bytes_read, &texture.width, &texture.height, &texture.channel_count, 0);
             defer { stbi_image_free(data); };
 
             texture.type = TEXTURE_TYPE_2D; // @Cleanup: detect texture type.
             texture.format = get_texture_format_from_channel_count(texture.channel_count);
+
             texture.data_offset = offset;
             texture.data_size = texture.width * texture.height * texture.channel_count;
+            offset += texture.data_size;
+
+            texture.path_offset = offset;
+            texture.path_size = str_size(path) + 1;
+            offset += texture.path_size;
+
             os_file_write(file, &texture, asset_size);
 
             os_file_set_pointer_position(file, texture.data_offset);
             os_file_write(file, data, texture.data_size);
-            offset += texture.data_size;
+            
+            os_file_set_pointer_position(file, texture.path_offset);
+            os_file_write(file, path, texture.path_size);
             
             break;
         }
         case ASSET_MATERIAL: {
             Material material = {};
-            convert_to_relative_asset_path(material.path, it.value.path);
 
             void *buffer = allocl(MAX_MATERIAL_SIZE);
             defer { freel(MAX_MATERIAL_SIZE); };
 
             u64 bytes_read = 0;
-            os_file_read(it.value.path, buffer, MAX_MATERIAL_SIZE, &bytes_read);
+            os_file_read(full_path, buffer, MAX_MATERIAL_SIZE, &bytes_read);
 
             material.data_offset = offset;
             material.data_size = bytes_read;
+            offset += material.data_size;
+
+            material.path_offset = offset;
+            material.path_size = str_size(path) + 1;
+            offset += material.path_size;
+
             os_file_write(file, &material, asset_size);
 
             os_file_set_pointer_position(file, material.data_offset);
             os_file_write(file, buffer, material.data_size);
-            offset += material.data_size;
+
+            os_file_set_pointer_position(file, material.path_offset);
+            os_file_write(file, path, material.path_size);
             
             break;
         }
         case ASSET_MESH: {
             Mesh mesh = {};
-            convert_to_relative_asset_path(mesh.path, it.value.path);
 
             void *buffer = allocl(MAX_MESH_SIZE);
             defer { freel(MAX_MESH_SIZE); };
 
             u64 bytes_read = 0;
-            os_file_read(it.value.path, buffer, MAX_MESH_SIZE, &bytes_read);
+            os_file_read(full_path, buffer, MAX_MESH_SIZE, &bytes_read);
 
             mesh.data_offset = offset;
             mesh.data_size = bytes_read;
+            offset += mesh.data_size;
+
+            mesh.path_offset = offset;
+            mesh.path_size = str_size(path) + 1;
+            offset += mesh.path_size;
+            
             os_file_write(file, &mesh, asset_size);
 
             os_file_set_pointer_position(file, mesh.data_offset);
             os_file_write(file, buffer, mesh.data_size);
-            offset += mesh.data_size;
+            
+            os_file_set_pointer_position(file, mesh.path_offset);
+            os_file_write(file, path, mesh.path_size);
             
             break;
         }
         case ASSET_SOUND: {
             Sound sound = {};
-            convert_to_relative_asset_path(sound.path, it.value.path);
 
             void *buffer = allocl(MAX_SOUND_SIZE);
             defer { freel(MAX_SOUND_SIZE); };
 
             u64 bytes_read = 0;
-            os_file_read(it.value.path, buffer, MAX_SOUND_SIZE, &bytes_read);
+            os_file_read(full_path, buffer, MAX_SOUND_SIZE, &bytes_read);
 
             Wav_Header wav;
             void *sampled_data = parse_wav(buffer, &wav);
@@ -284,53 +327,76 @@ void save_asset_pack(const char *path) {
             sound.channel_count = wav.channel_count;
             sound.sample_rate = wav.samples_per_second;
             sound.bit_rate = wav.bits_per_sample;
+
             sound.data_offset = offset;
             sound.data_size = wav.sampled_data_size;
+            offset += sound.data_size;
+
+            sound.path_offset = offset;
+            sound.path_size = str_size(path) + 1;
+            offset += sound.path_size;
+            
             os_file_write(file, &sound, asset_size);
 
             os_file_set_pointer_position(file, sound.data_offset);
             os_file_write(file, buffer, sound.data_size);
-            offset += sound.data_size;
-            
+                        
+            os_file_set_pointer_position(file, sound.path_offset);
+            os_file_write(file, path, sound.path_size);
+                        
             break;
         }
         case ASSET_FONT: {
             Font font = {};
-            convert_to_relative_asset_path(font.path, it.value.path);
 
             void *buffer = allocl(MAX_FONT_SIZE);
             defer { freel(MAX_FONT_SIZE); };
 
             u64 bytes_read = 0;
-            os_file_read(it.value.path, buffer, MAX_FONT_SIZE, &bytes_read);
+            os_file_read(full_path, buffer, MAX_FONT_SIZE, &bytes_read);
 
             font.data_offset = offset;
             font.data_size = bytes_read;
+            offset += font.data_size;
+
+            font.path_offset = offset;
+            font.path_size = str_size(path) + 1;
+            offset += font.path_size;
+                        
             os_file_write(file, &font, asset_size);
 
             os_file_set_pointer_position(file, font.data_offset);
             os_file_write(file, buffer, font.data_size);
-            offset += font.data_size;
+
+            os_file_set_pointer_position(file, font.path_offset);
+            os_file_write(file, path, font.path_size);
             
             break;
         }
         case ASSET_FLIP_BOOK: {
             Flip_Book flip_book = {};
-            convert_to_relative_asset_path(flip_book.path, it.value.path);
 
             void *buffer = allocl(MAX_FLIP_BOOK_SIZE);
             defer { freel(MAX_FLIP_BOOK_SIZE); };
 
             u64 bytes_read = 0;
-            os_file_read(it.value.path, buffer, MAX_FONT_SIZE, &bytes_read);
+            os_file_read(full_path, buffer, MAX_FONT_SIZE, &bytes_read);
 
             flip_book.data_offset = offset;
             flip_book.data_size = bytes_read;
+            offset += flip_book.data_size;
+
+            flip_book.path_offset = offset;
+            flip_book.path_size = str_size(path) + 1;
+            offset += flip_book.path_size;
+            
             os_file_write(file, &flip_book, asset_size);
 
             os_file_set_pointer_position(file, flip_book.data_offset);
             os_file_write(file, buffer, flip_book.data_size);
-            offset += flip_book.data_size;
+            
+            os_file_set_pointer_position(file, flip_book.path_offset);
+            os_file_write(file, path, flip_book.path_size);
             
             break;
         }
@@ -378,8 +444,10 @@ void load_asset_pack(const char *path) {
     // Clear buffer only in game build without hot reload feature.
     defer { freel(MAX_SHADER_INCLUDE_BUFFER_SIZE); };
 #endif
-    
+
     for (u8 i = 0; i < ASSET_TYPE_COUNT; ++i) {
+        char path[MAX_PATH_SIZE];
+            
         const auto asset_type  = (Asset_Type)i;
         const s32 asset_count  = header.count_by_type[i];
         const u64 asset_offset = header.offset_by_type[i];
@@ -393,6 +461,10 @@ void load_asset_pack(const char *path) {
                 Shader_Include include = {};
                 os_file_read(file, &include, asset_size);
 
+                os_file_set_pointer_position(file, include.path_offset);
+                os_file_read(file, path, include.path_size);
+                include.sid_path = sid_intern(path);
+                
                 void *data = alloclp(&shader_include_buffer, include.data_size);
                 shader_include_buffer_size += include.data_size;
                 Assert(shader_include_buffer_size <= MAX_SHADER_INCLUDE_BUFFER_SIZE);
@@ -402,7 +474,7 @@ void load_asset_pack(const char *path) {
 
                 include.data = data;
 
-                asset_table.shader_includes.add(sid_cache(include.path), include);
+                asset_table.shader_includes.add(include.sid_path, include);
                 
                 break;
             }
@@ -410,6 +482,10 @@ void load_asset_pack(const char *path) {
                 Shader shader = {};
                 os_file_read(file, &shader, asset_size);
 
+                os_file_set_pointer_position(file, shader.path_offset);
+                os_file_read(file, path, shader.path_size);
+                shader.sid_path = sid_intern(path);
+                
                 void *data = allocl(shader.data_size);
                 defer { freel(shader.data_size); };
 
@@ -418,7 +494,7 @@ void load_asset_pack(const char *path) {
 
                 init_shader_asset(&shader, data);
 
-                asset_table.shaders.add(sid_cache(shader.path), shader);
+                asset_table.shaders.add(shader.sid_path, shader);
                 
                 break;
             }
@@ -426,6 +502,10 @@ void load_asset_pack(const char *path) {
                 Texture texture = {};
                 os_file_read(file, &texture, asset_size);
 
+                os_file_set_pointer_position(file, texture.path_offset);
+                os_file_read(file, path, texture.path_size);
+                texture.sid_path = sid_intern(path);
+                
                 void *data = allocl(texture.data_size);
                 defer { freel(texture.data_size); };
                 
@@ -439,7 +519,7 @@ void load_asset_pack(const char *path) {
                 set_texture_wrap(&texture, TEXTURE_WRAP_REPEAT);
                 set_texture_filter(&texture, TEXTURE_FILTER_NEAREST);
 
-                asset_table.textures.add(sid_cache(texture.path), texture);
+                asset_table.textures.add(texture.sid_path, texture);
 
                 break;
             }
@@ -447,6 +527,10 @@ void load_asset_pack(const char *path) {
                 Material material = {};
                 os_file_read(file, &material, asset_size);
 
+                os_file_set_pointer_position(file, material.path_offset);
+                os_file_read(file, path, material.path_size);
+                material.sid_path = sid_intern(path);
+                
                 void *data = allocl(material.data_size);
                 defer { freel(material.data_size); };
 
@@ -455,7 +539,7 @@ void load_asset_pack(const char *path) {
 
                 init_material_asset(&material, data);
                 
-                asset_table.materials.add(sid_cache(material.path), material);
+                asset_table.materials.add(material.sid_path, material);
 
                 break;
             }
@@ -463,6 +547,10 @@ void load_asset_pack(const char *path) {
                 Mesh mesh = {};
                 os_file_read(file, &mesh, asset_size);
 
+                os_file_set_pointer_position(file, mesh.path_offset);
+                os_file_read(file, path, mesh.path_size);
+                mesh.sid_path = sid_intern(path);
+                
                 void *data = allocl(mesh.data_size);
                 defer { freel(mesh.data_size); };
 
@@ -471,7 +559,7 @@ void load_asset_pack(const char *path) {
 
                 init_mesh_asset(&mesh, data);
                 
-                asset_table.meshes.add(sid_cache(mesh.path), mesh);
+                asset_table.meshes.add(mesh.sid_path, mesh);
 
                 break;
             }
@@ -479,6 +567,10 @@ void load_asset_pack(const char *path) {
                 Sound sound = {};
                 os_file_read(file, &sound, asset_size);
 
+                os_file_set_pointer_position(file, sound.path_offset);
+                os_file_read(file, path, sound.path_size);
+                sound.sid_path = sid_intern(path);
+                
                 void *data = allocl(sound.data_size);
                 defer { freel(sound.data_size); };
 
@@ -487,7 +579,7 @@ void load_asset_pack(const char *path) {
 
                 init_sound_asset(&sound, data);
                 
-                asset_table.sounds.add(sid_cache(sound.path), sound);
+                asset_table.sounds.add(sound.sid_path, sound);
 
                 break;
             }
@@ -495,6 +587,10 @@ void load_asset_pack(const char *path) {
                 Font font = {};
                 os_file_read(file, &font, asset_size);
 
+                os_file_set_pointer_position(file, font.path_offset);
+                os_file_read(file, path, font.path_size);
+                font.sid_path = sid_intern(path);
+                
                 void *data = allocl(font.data_size);
 
                 os_file_set_pointer_position(file, font.data_offset);
@@ -502,7 +598,7 @@ void load_asset_pack(const char *path) {
 
                 font.data = data;
 
-                asset_table.fonts.add(sid_cache(font.path), font);
+                asset_table.fonts.add(font.sid_path, font);
 
                 break;
             }
@@ -510,6 +606,10 @@ void load_asset_pack(const char *path) {
                 Flip_Book flip_book = {};
                 os_file_read(file, &flip_book, asset_size);
 
+                os_file_set_pointer_position(file, flip_book.path_offset);
+                os_file_read(file, path, flip_book.path_size);
+                flip_book.sid_path = sid_intern(path);
+                
                 void *data = allocl(flip_book.data_size);
                 defer { freel(flip_book.data_size); };
 
@@ -518,7 +618,7 @@ void load_asset_pack(const char *path) {
 
                 init_flip_book_asset(&flip_book, data);
                 
-                asset_table.flip_books.add(sid_cache(flip_book.path), flip_book);
+                asset_table.flip_books.add(flip_book.sid_path, flip_book);
 
                 break;
             }

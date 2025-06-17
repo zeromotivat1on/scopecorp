@@ -151,6 +151,9 @@ void save_world_level(World *world) {
     write_sparse_array(file, &world->static_meshes);
     write_sparse_array(file, &world->point_lights);
     write_sparse_array(file, &world->direct_lights);
+    write_sparse_array(file, &world->sound_emitters_2d);
+    write_sparse_array(file, &world->sound_emitters_3d);
+    write_sparse_array(file, &world->portals);
     write_sparse_array(file, &world->aabbs);
     
     log("Saved world level %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(save));
@@ -177,6 +180,9 @@ void load_world_level(World *world, const char *path) {
     read_sparse_array(file, &world->static_meshes);
     read_sparse_array(file, &world->point_lights);
     read_sparse_array(file, &world->direct_lights);
+    read_sparse_array(file, &world->sound_emitters_2d);
+    read_sparse_array(file, &world->sound_emitters_3d);
+    read_sparse_array(file, &world->portals);
     read_sparse_array(file, &world->aabbs);
 
     log("Loaded world level %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(load));

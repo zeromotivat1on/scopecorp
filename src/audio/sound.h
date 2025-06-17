@@ -2,7 +2,7 @@
 
 #include "asset.h"
 
-inline constexpr s32 MAX_SOUND_SIZE = MB(64);
+inline constexpr s32 MAX_SOUND_SIZE = MB(32);
 
 typedef u64 sid;
 struct vec3;

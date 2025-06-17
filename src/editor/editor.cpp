@@ -281,7 +281,7 @@ static void cb_queue_for_hot_reload(const File_Callback_Data *callback_data) {
     convert_to_relative_asset_path(relative_path, callback_data->path);
 
     auto &ast = asset_source_table;
-    const auto sid = sid_cache(relative_path);
+    const auto sid = sid_intern(relative_path);
     
     if (Asset_Source *source = ast.table.find(sid)) {
         if (source->last_write_time != callback_data->last_write_time) {
@@ -337,8 +337,9 @@ void check_for_hot_reload(Hot_Reload_List *list) {
         switch (hot_reload_asset.asset_type) {
         case ASSET_SHADER: {
             auto &shader = asset_table.shaders[hot_reload_asset.sid];
-            convert_to_full_asset_path(path, shader.path);
-            
+            const char *relative_path = sid_str(shader.sid_path);
+            convert_to_full_asset_path(path, relative_path);
+                
             void *data = allocl(MAX_SHADER_SIZE);
             defer { freel(MAX_SHADER_SIZE); };
 
@@ -352,8 +353,9 @@ void check_for_hot_reload(Hot_Reload_List *list) {
         }
         case ASSET_TEXTURE: {
             auto &texture = asset_table.textures[hot_reload_asset.sid];
-            convert_to_full_asset_path(path, texture.path);
-
+            const char *relative_path = sid_str(texture.sid_path);
+            convert_to_full_asset_path(path, relative_path);
+            
             void *buffer = allocl(MAX_TEXTURE_SIZE);
             defer { freel(MAX_TEXTURE_SIZE); };
 
@@ -373,8 +375,9 @@ void check_for_hot_reload(Hot_Reload_List *list) {
         }
         case ASSET_MATERIAL: {
             auto &material = asset_table.materials[hot_reload_asset.sid];
-            convert_to_full_asset_path(path, material.path);
-
+            const char *relative_path = sid_str(material.sid_path);
+            convert_to_full_asset_path(path, relative_path);
+            
             void *buffer = allocl(MAX_MATERIAL_SIZE);
             defer { freel(MAX_MATERIAL_SIZE); };
             
@@ -388,8 +391,9 @@ void check_for_hot_reload(Hot_Reload_List *list) {
         }
         case ASSET_MESH: {
             auto &mesh = asset_table.meshes[hot_reload_asset.sid];
-            convert_to_full_asset_path(path, mesh.path);
-
+            const char *relative_path = sid_str(mesh.sid_path);
+            convert_to_full_asset_path(path, relative_path);
+            
             void *buffer = allocl(MAX_MESH_SIZE);
             defer { freel(MAX_MESH_SIZE); };
             
@@ -403,8 +407,9 @@ void check_for_hot_reload(Hot_Reload_List *list) {
         }
         case ASSET_FLIP_BOOK: {
             auto &flip_book = asset_table.flip_books[hot_reload_asset.sid];
-            convert_to_full_asset_path(path, flip_book.path);
-
+            const char *relative_path = sid_str(flip_book.sid_path);
+            convert_to_full_asset_path(path, relative_path);
+            
             void *buffer = allocl(MAX_MESH_SIZE);
             defer { freel(MAX_MESH_SIZE); };
             

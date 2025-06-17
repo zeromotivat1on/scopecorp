@@ -75,7 +75,7 @@ bool os_file_read(File handle, void *buffer, u64 size, u64 *bytes_read) {
 	return ReadFile(handle, buffer, (DWORD)size, (LPDWORD)bytes_read, NULL);
 }
 
-bool os_file_write(File handle, void *buffer, u64 size, u64 *bytes_written) {
+bool os_file_write(File handle, const void *buffer, u64 size, u64 *bytes_written) {
     DWORD size_written;
 	BOOL result = WriteFile(handle, buffer, (DWORD)size, &size_written, NULL);
     if (bytes_written) *bytes_written = size_written;

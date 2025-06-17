@@ -167,7 +167,7 @@ enum Direction {
     DIRECTION_COUNT
 };
 
-inline constexpr u64 MAX_ALLOCL_SIZE = MB(65);
+inline constexpr u64 MAX_ALLOCL_SIZE = MB(64);
 inline constexpr u64 MAX_ALLOCF_SIZE = MB(1);
 
 // s  - stack allocation, default implementation

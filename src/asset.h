@@ -31,7 +31,7 @@
 #define ASSET_PACK_MAGIC_VALUE U32_PACK('c', 'o', 'r', 'p')
 #define ASSET_PACK_VERSION     0
 
-inline constexpr s32 MAX_ASSET_SOURCES   = 256;
+inline constexpr s32 MAX_ASSET_SOURCES = 256;
 
 inline constexpr s32 MAX_SHADER_INCLUDES = 16;
 inline constexpr s32 MAX_SHADERS         = 64;
@@ -59,17 +59,19 @@ enum Asset_Type : u8 {
 
 struct Asset {
     Asset_Type asset_type = ASSET_NONE;
+    sid sid_path = SID_NONE; // sid to relative path ofc
+    
     u64 data_offset = 0;
     u64 data_size   = 0;
-    
-    // @Cleanup: do we really need this?
-    char path[MAX_PATH_SIZE] = {0}; // relative
+    u64 path_offset = 0;
+    u64 path_size   = 0; // includes null termination character
 };
 
 struct Asset_Source {
     Asset_Type asset_type = ASSET_NONE;
     u64 last_write_time = 0;
-    char path[MAX_PATH_SIZE] = {0}; // full
+    sid sid_full_path = SID_NONE;     // e.g: "c:/game/run_tree/data/shaders/main.glsl"
+    sid sid_relative_path = SID_NONE; // e.g: "/data/shaders/main.glsl"
 };
 
 // Structure of asset pack file is the following:
@@ -84,6 +86,8 @@ struct Asset_Pack_Header {
     u64 offset_by_type[ASSET_TYPE_COUNT];
     u64 data_offset;
 };
+
+// Relative asset path sids are used to get either Asset_Source or specific Asset.
 
 struct Asset_Source_Table {
     Hash_Table<sid, Asset_Source> table;

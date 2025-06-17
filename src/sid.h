@@ -2,14 +2,9 @@
 
 #include "hash_table.h"
 
-#define SID(s) sid_cache(s)
+// @Speed: this will intern sid on every call which may be not so optimal.
+#define SID(s) sid_intern(s)
 
-inline constexpr s32 MAX_SID_TABLE_SIZE = 512;
-
-typedef u64 sid;
-typedef Hash_Table<sid, const char *> Sid_Table;
-
-inline Sid_Table sid_table;
-
-void init_sid_table();
-sid  sid_cache(const char *string);
+void sid_init();
+sid  sid_intern(const char *string);
+const char *sid_str(sid sid);

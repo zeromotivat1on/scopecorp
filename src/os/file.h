@@ -20,7 +20,7 @@ File os_file_open(const char *path, s32 open_type, u32 access_flags, bool log_er
 bool os_file_close(File handle);
 s64  os_file_get_size(File handle);
 bool os_file_read(File handle, void *buffer, u64 size, u64 *bytes_read = null);
-bool os_file_write(File handle, void *buffer, u64 size, u64 *bytes_written = null);
+bool os_file_write(File handle, const void *buffer, u64 size, u64 *bytes_written = null);
 bool os_file_set_pointer_position(File handle, s64 position);
 s64  os_file_get_pointer_position(File handle);
 

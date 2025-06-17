@@ -21,15 +21,13 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
 
-#include <string.h>
-
 static void *vm_base     = null;
 static void *allocl_base = null;
 static void *allocf_base = null;
 u64 allocl_size = 0;
 u64 allocf_size = 0;
 
-#if DEBUG
+#if DEVELOPER
 void report_assert(const char *condition, const char *file, s32 line) {
     error("Assertion %s failed at %s:%d", condition, file, line);
     debug_break();
@@ -71,7 +69,7 @@ bool alloc_init() {
 	void *vm_address = null;
 #endif
     
-	vm_base = os_vm_reserve(vm_address, GB(1));
+	vm_base = os_vm_reserve(vm_address, MB(128));
     if (!vm_base) {
         error("Failed to reserve virtual address space");
         return false;
@@ -199,23 +197,6 @@ void error(const char *format, ...) {
 	va_start(args, format);
 	log_output_va(LOG_ERROR, format, args);
 	va_end(args);
-}
-
-static u64 sid_table_hash(const u64 &a) {
-    return a;
-}
-
-void init_sid_table() {
-    sid_table = Sid_Table(MAX_SID_TABLE_SIZE);
-    sid_table.hash_function = &sid_table_hash;
-}
-
-u64 sid_cache(const char *string) {
-    const u64 hash = hash_fnv(string);
-    if (sid_table.find(hash) == null) {
-        sid_table.add(hash, string);
-    }
-    return hash;
 }
 
 u32 hash_pcg32(u32 input) {

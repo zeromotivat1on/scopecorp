@@ -1,3 +1,5 @@
+- Asset save/load/hot-reload code has a lot of duplications, cleanup
+
 - Get rid of runtime font atlas baking, do it offline and save to asset pak instead of fonts.
 
 - Custom .mat files require new line at eof to be parsed correctly, avoid it?

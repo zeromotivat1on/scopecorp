@@ -805,12 +805,12 @@ void init_material_asset(Material *material, void *data) {
             switch (decl_type) {
             case DECL_SHADER: {
                 char *sv = str_token(null, DELIMITERS);
-                material->sid_shader = sid_cache(sv);
+                material->sid_shader = sid_intern(sv);
                 break;
             }
             case DECL_TEXTURE: {
                 char *sv = str_token(null, DELIMITERS);
-                material->sid_texture = sid_cache(sv);
+                material->sid_texture = sid_intern(sv);
                 break;
             }
             case DECL_AMBIENT: {

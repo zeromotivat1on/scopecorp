@@ -661,26 +661,27 @@ static u32 gl_link_program(u32 vertex_shader, u32 fragment_shader) {
 }
 
 void init_shader_asset(Shader *shader, void *data) {
+    const char *path = sid_str(shader->sid_path);
     auto source = (const char *)data;
-        
+    
 	char *vertex_src   = (char *)allocl(MAX_SHADER_SIZE);
 	char *fragment_src = (char *)allocl(MAX_SHADER_SIZE);
     defer { freel(2 * MAX_SHADER_SIZE); };
-
+    
 	if (!parse_shader(source, vertex_src, fragment_src)) {
-        error("Failed to parse shader %s", shader->path);
+        error("Failed to parse shader %s", path);
         return;
     }
 
 	const u32 vertex_shader = gl_create_shader(GL_VERTEX_SHADER, vertex_src);
     if (vertex_shader == GL_INVALID_INDEX) {
-        error("Failed to create vertex shader %s", shader->path);
+        error("Failed to create vertex shader %s", path);
         return;
     }
     
 	const u32 fragment_shader = gl_create_shader(GL_FRAGMENT_SHADER, fragment_src);
     if (fragment_shader == GL_INVALID_INDEX) {
-        error("Failed to create fragment shader %s", shader->path);
+        error("Failed to create fragment shader %s", path);
         return;
     }
 
@@ -701,7 +702,7 @@ void init_shader_asset(Shader *shader, void *data) {
             }   
         }
     } else {
-        error("Failed to link shader %s", shader->path);
+        error("Failed to link shader %s", path);
     }
 }
 
