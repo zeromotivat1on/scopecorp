@@ -349,11 +349,11 @@ void geo_flush() {
 }
 
 void ui_init() {
-    Font_Info *consola = create_font_info(asset_table.fonts[SID("/data/fonts/consola.ttf")].data);
-    Font_Atlas *consola_atlas = bake_font_atlas(consola, 33, 126, 16);
+    Font_Info *font_info = create_font_info(asset_table.fonts[SID_FONT_BETTER_VCR].data);
+    Font_Atlas *font_atlas = bake_font_atlas(font_info, 33, 126, 16);
     
-    ui.font_atlases[UI_DEFAULT_FONT_ATLAS_INDEX] = consola_atlas;
-    ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX] = consola_atlas;
+    ui.font_atlases[UI_DEFAULT_FONT_ATLAS_INDEX] = font_atlas;
+    ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX] = font_atlas;
     
     {   // Text draw buffer.
         constexpr f32 vertices[8] = { 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f };

@@ -21,6 +21,9 @@
 #define SID_SOUND_WIND_AMBIENCE SID("/data/sounds/wind_ambience.wav")
 #define SID_SOUND_PLAYER_STEPS  SID("/data/sounds/player_steps.wav")
 
+#define SID_FONT_CONSOLA    SID("/data/fonts/consola.ttf")
+#define SID_FONT_BETTER_VCR SID("/data/fonts/better_vcr.ttf")
+
 #define SID_FLIP_BOOK_PLAYER_MOVE_LEFT    SID("/data/flip_books/player_move_left.fb")
 #define SID_FLIP_BOOK_PLAYER_MOVE_RIGHT   SID("/data/flip_books/player_move_right.fb")
 #define SID_FLIP_BOOK_PLAYER_MOVE_BACK    SID("/data/flip_books/player_move_back.fb")
