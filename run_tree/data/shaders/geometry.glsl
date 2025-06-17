@@ -1,15 +1,15 @@
 #begin vertex
 #version 460 core
 
+#include "uniform_blocks.glsl.h"
+
 layout (location = 0) in vec3 v_location;
 layout (location = 1) in uint v_color;
 
 layout (location = 0) out uint f_color;
 
-uniform mat4 u_transform;
-
 void main() {
-    gl_Position = u_transform * vec4(v_location, 1.0f);
+    gl_Position = u_view_proj * vec4(v_location, 1.0f);
     f_color = v_color;
 }
 #end vertex

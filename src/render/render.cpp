@@ -339,10 +339,6 @@ void geo_flush() {
     command.instance_count  = 1;
     command.instance_offset = 0;
     
-    const auto *camera = desired_camera(world);
-    auto &material = asset_table.materials[gdb.sid_material];
-    set_material_uniform_value(&material, "u_transform", &camera->view_proj, sizeof(camera->view_proj));
-
     r_submit(&command);
     
     gdb.vertex_count = 0;
