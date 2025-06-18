@@ -666,7 +666,10 @@ void init_shader_asset(Shader *shader, void *data) {
     
 	char *vertex_src   = (char *)allocl(MAX_SHADER_SIZE);
 	char *fragment_src = (char *)allocl(MAX_SHADER_SIZE);
-    defer { freel(2 * MAX_SHADER_SIZE); };
+    defer {
+        freel(MAX_SHADER_SIZE);
+        freel(MAX_SHADER_SIZE);
+    };
     
 	if (!parse_shader(source, vertex_src, fragment_src)) {
         error("Failed to parse shader %s", path);

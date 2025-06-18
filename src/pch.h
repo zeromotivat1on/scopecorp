@@ -140,9 +140,21 @@ template <class F> My_Defer<F> operator+(My_Defer_Ref, F f) { return {f}; }
 #define PATH_FLIP_BOOK(x) DIR_FLIP_BOOKS x
 #define PATH_LEVEL(x)     DIR_LEVELS x
 
+struct Source_Location {
+    const char *file = null;
+    s32 line = 0;
+
+    Source_Location(const char *file, u32 line)
+        : file(file), line(line) {}
+
+    static Source_Location current(const char *file = __builtin_FILE(), s32 line = __builtin_LINE()) {
+        return Source_Location(file, line);
+    }
+};
+
 #if DEVELOPER
-#define Assert(x) if (x) {} else { report_assert(#x, __FILE__, __LINE__); }
-void report_assert(const char* condition, const char* file, s32 line);
+#define Assert(x) if (x) {} else { report_assert(#x); }
+void report_assert(const char* condition, Source_Location loc = Source_Location::current());
 void debug_break();
 #else
 #define Assert(x)
@@ -167,14 +179,17 @@ enum Direction {
     DIRECTION_COUNT
 };
 
-inline constexpr u64 MAX_ALLOCL_SIZE = MB(64);
-inline constexpr u64 MAX_ALLOCF_SIZE = MB(1);
-
+// Allocation types:
 // s  - stack allocation, default implementation
 // h  - heap allocation, default implementation
 // l  - linear allocation, push/pop bytes
 // f  - frame allocation, cleared at the end of every frame
 // lp - linear allocation from given pointer, push/pop bytes
+
+#define ALLOC_DEBUG 0
+
+inline constexpr u64 MAX_ALLOCL_SIZE = MB(64);
+inline constexpr u64 MAX_ALLOCF_SIZE = MB(1);
 
 bool alloc_init();
 void alloc_shutdown();
@@ -182,8 +197,8 @@ void *allocs(u64 size);
 void *alloch(u64 size);
 void *realloch(void *ptr, u64 size);
 void  freeh(void *ptr);
-void *allocl(u64 size);
-void  freel(u64 size);
+void *allocl(u64 size, Source_Location loc = Source_Location::current());
+void  freel(u64 size, Source_Location loc = Source_Location::current());
 void *allocf(u64 size);
 void  freef();
 void *alloclp(void **ptr, u64 size);

@@ -28,8 +28,8 @@ u64 allocl_size = 0;
 u64 allocf_size = 0;
 
 #if DEVELOPER
-void report_assert(const char *condition, const char *file, s32 line) {
-    error("Assertion %s failed at %s:%d", condition, file, line);
+void report_assert(const char *condition, Source_Location loc) {
+    error("Assertion %s failed at %s:%d", condition, loc.file, loc.line);
     debug_break();
 }
 
@@ -109,14 +109,22 @@ void freeh(void *ptr) {
     free(ptr);
 }
 
-void *allocl(u64 size) {
+void *allocl(u64 size, Source_Location loc) {
+#if ALLOC_DEBUG
+    log("%s %s:%d %llu", __func__, loc.file, loc.line, size);
+#endif
+    
     Assert(allocl_size + size <= MAX_ALLOCL_SIZE);
     void *ptr = (u8 *)allocl_base + allocl_size;
-    allocl_size += size;    
+    allocl_size += size;
     return ptr;
 }
 
-void freel(u64 size) {
+void freel(u64 size, Source_Location loc) {
+#if ALLOC_DEBUG
+    log("%s %s:%d %llu", __func__, loc.file, loc.line, size);
+#endif
+    
     Assert(allocl_size >= size);
     allocl_size -= size;
 }
