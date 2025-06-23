@@ -41,5 +41,6 @@ Font_Info *create_font_info(void *data);
 Font_Atlas *bake_font_atlas(const Font_Info *font, u32 start_charcode, u32 end_charcode, s16 font_size);
 void rescale_font_atlas(Font_Atlas *atlas, s16 font_size);
 s32 get_char_width_px(const Font_Atlas *atlas, const char c);
+s32 get_line_width_px(const Font_Atlas *atlas, const char *text);
 s32 get_line_width_px(const Font_Atlas *atlas, const char *text, s32 count);
 s32 get_glyph_kern_advance(const Font_Info *font, s32 c1, s32 c2);

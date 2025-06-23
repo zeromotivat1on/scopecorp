@@ -32,10 +32,12 @@ Scope_Timer::~Scope_Timer() {
     log("%s %.2fms", info, ms);
 }
 
-Profile_Scope::Profile_Scope(const char *scope_name, const char *scope_filepath, u32 scope_line) {
-    name     = scope_name;
-    filepath = scope_filepath;
-    line     = scope_line;
+Profile_Scope::Profile_Scope(const char *scope_name, const char *scope_file_path, u32 scope_line) {
+    Assert(str_size(scope_name) < MAX_PROFILE_SCOPE_NAME_SIZE);
+    
+    name      = scope_name;
+    file_path = scope_file_path;
+    line      = scope_line;
 
     start = os_perf_counter();
 }
@@ -139,8 +141,12 @@ void draw_runtime_profiler() {
 
     {   // Profiler scopes.
         vec2 pos = vec2(PROFILER_MARGIN + PROFILER_PADDING, viewport.height - PROFILER_MARGIN - PROFILER_PADDING - ascent);
-        const u32 color = rgba_white;
-    
+        
+        const s32 space_width_px = get_char_width_px(&atlas, ASCII_SPACE);
+        const f32 column_offset_1 = PROFILER_MARGIN + PROFILER_PADDING;
+        const f32 column_offset_2 = column_offset_1 + space_width_px * MAX_PROFILE_SCOPE_NAME_SIZE + 1;
+        const f32 column_offset_3 = column_offset_2 + space_width_px * MAX_PROFILE_SCOPE_NAME_SIZE * 0.5f + 1;
+        
         char buffer[256];
         s32 count = 0;
 
@@ -148,10 +154,27 @@ void draw_runtime_profiler() {
         for (u32 i = 0; i < rp.scope_count; ++i) {
             const auto &scope = rp.scopes[i];
             const f32 time = rp.scope_times[i];
-        
-            count = stbsp_snprintf(buffer, sizeof(buffer), "%s %s:%u %.2fms",
-                                   scope.name, scope.filepath, scope.line, time);
+
+            const f32 max_time = 0.6f;
+            const f32 time_alpha = Clamp(time / max_time, 0.0f, 1.0f);
+            const u8 r = (u8)(255 * time_alpha);
+            const u8 g = (u8)(255 * (1.0f - time_alpha));
+            
+            const u32 color = rgba_pack(r, g, 0, 255);
+                
+            pos.x = column_offset_1;
+            count = stbsp_snprintf(buffer, sizeof(buffer), "%s", scope.name);
             ui_draw_text(buffer, count, pos, color, UI_PROFILER_FONT_ATLAS_INDEX);
+
+            pos.x = column_offset_2;
+            count = stbsp_snprintf(buffer, sizeof(buffer), "%.2fms", time);
+            ui_draw_text(buffer, count, pos, color, UI_PROFILER_FONT_ATLAS_INDEX);
+
+            pos.x = column_offset_3;
+            count = stbsp_snprintf(buffer, sizeof(buffer), "%s:%d",
+                                   scope.file_path, scope.line);
+            ui_draw_text(buffer, count, pos, color, UI_PROFILER_FONT_ATLAS_INDEX);
+            
             pos.y -= atlas.line_height;
         }
     }
@@ -188,7 +211,7 @@ void draw_memory_profiler() {
     
     constexpr f32 PROFILER_MARGIN  = 100.0f;
     constexpr f32 PROFILER_PADDING = 16.0f;
-    constexpr u8  PROFILER_MAX_LINE_COUNT = 32;
+    constexpr u8  PROFILER_MAX_LINE_COUNT = 4;
 
     const auto &atlas = *ui.font_atlases[UI_PROFILER_FONT_ATLAS_INDEX];
     const f32 ascent  = atlas.font->ascent  * atlas.px_h_scale;

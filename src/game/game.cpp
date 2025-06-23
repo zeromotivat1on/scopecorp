@@ -74,10 +74,6 @@ void on_input_game(Window_Event *event) {
             game_state.camera_behavior = (Camera_Behavior)(((s32)game_state.camera_behavior + 1) % 3);
         } else if (press && key == KEY_2) {
             game_state.player_movement_behavior = (Player_Movement_Behavior)(((s32)game_state.player_movement_behavior + 1) % 2);
-        } else if (press && ctrl && key == KEY_R) {
-            world->player.location = vec3(0.0f, F32_MIN, 0.0f);
-            world->camera.eye = world->player.location + world->player.camera_offset;
-            world->camera.at = world->camera.eye + forward(world->camera.yaw, world->camera.pitch);
         }
 
         break;
@@ -122,7 +118,7 @@ static void write_sparse_array(File file, Sparse_Array<T> *array) {
     os_file_write(file, array->sparse,   array->capacity * sizeof(s32));
 }
 
-void save_world_level(World *world) {
+void save_level(World *world) {
     START_SCOPE_TIMER(save);
 
     char path[MAX_PATH_SIZE];
@@ -156,10 +152,11 @@ void save_world_level(World *world) {
     write_sparse_array(file, &world->portals);
     write_sparse_array(file, &world->aabbs);
     
-    log("Saved world level %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(save));
+    log("Saved level %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(save));
+    screen_report("Saved level %s", path);
 }
 
-void load_world_level(World *world, const char *path) {
+void load_level(World *world, const char *path) {
     START_SCOPE_TIMER(load);
 
     File file = os_file_open(path, FILE_OPEN_EXISTING, FILE_FLAG_READ);
@@ -186,12 +183,18 @@ void load_world_level(World *world, const char *path) {
     read_sparse_array(file, &world->aabbs);
 
     log("Loaded world level %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(load));
+    screen_report("Loaded level %s", path);
 }
 
 void tick_game(f32 dt) {
     PROFILE_SCOPE(__FUNCTION__);
     
     const auto *input_layer = get_current_input_layer();
+    if (!input_layer) {
+        push_input_layer(&input_layer_game);
+        input_layer = get_current_input_layer();
+    }
+    
     auto *camera = desired_camera(world);
     auto &player = world->player;
     auto &skybox = world->skybox;

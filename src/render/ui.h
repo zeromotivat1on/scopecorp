@@ -11,6 +11,7 @@ inline constexpr u16 MAX_UI_QUAD_DRAW_BUFFER_QUADS = 512;
 inline constexpr s32 UI_DEFAULT_FONT_ATLAS_INDEX = 0;
 inline constexpr s32 UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX = 0;
 inline constexpr s32 UI_PROFILER_FONT_ATLAS_INDEX = 0;
+inline constexpr s32 UI_SCREEN_REPORT_FONT_ATLAS_INDEX = 1;
 
 struct mat4;
 struct Font_Atlas;

@@ -34,11 +34,18 @@
 #include "input_stack.h"
 
 #include "stb_image.h"
+#include "stb_sprintf.h"
 
 s16 KEY_CLOSE_WINDOW          = KEY_ESCAPE;
 s16 KEY_SWITCH_EDITOR_MODE    = KEY_F11;
 s16 KEY_SWITCH_DEBUG_CONSOLE  = KEY_GRAVE_ACCENT;
 s16 KEY_SWITCH_COLLISION_VIEW = KEY_F1;
+
+constexpr u32 MAX_SCREEN_REPORT_SIZE = 256;
+constexpr f32 SCREEN_REPORT_SHOW_TIME = 2.0f;
+constexpr f32 SCREEN_REPORT_FADE_TIME = 0.5f;
+static char screen_report_text[MAX_SCREEN_REPORT_SIZE] = {'\0'};
+static f32 screen_report_time = 0.0f;
 
 struct Find_Entity_By_AABB_Data {
     Entity *e = null;
@@ -98,12 +105,12 @@ void on_input_editor(Window_Event *event) {
                 game_state.view_mode_flags |= VIEW_MODE_FLAG_COLLISION;
             }
         } else if (press && ctrl && key == KEY_S) {
-            save_world_level(world);
+            save_level(world);
         } else if (press && ctrl && key == KEY_R) {
             char path[MAX_PATH_SIZE] = {'\0'};
             str_glue(path, DIR_LEVELS);
             str_glue(path, world->name);
-            load_world_level(world, path);
+            load_level(world, path);
         }
 
         if (world->mouse_picked_entity) {
@@ -273,6 +280,35 @@ void tick_editor(f32 dt) {
                     e->location += move_speed * dt * direction;
                 }
             }
+        }
+    }
+
+    {   // Tick screen report.
+        screen_report_time += dt;
+
+        f32 fade_time = 0.0f;
+        if (screen_report_time > SCREEN_REPORT_SHOW_TIME) {
+            fade_time = screen_report_time - SCREEN_REPORT_SHOW_TIME;
+            
+            if (fade_time > SCREEN_REPORT_FADE_TIME) {
+                screen_report_time = 0.0f;
+                screen_report_text[0] = '\0';
+            }
+        }
+
+        if (screen_report_text[0] != '\0') {
+            const auto &atlas = *ui.font_atlases[UI_SCREEN_REPORT_FONT_ATLAS_INDEX];
+            const s32 width_px = get_line_width_px(&atlas, screen_report_text);
+            const vec2 pos = vec2(viewport.width * 0.5f - width_px * 0.5f, viewport.height * 0.7f);
+
+            const f32 lerp_alpha = Clamp(fade_time / SCREEN_REPORT_FADE_TIME, 0.0f, 1.0f);
+            const u32 alpha = (u32)Lerp(255, 0, lerp_alpha);
+            const u32 color = rgba_pack(255, 255, 255, alpha);
+
+            const vec2 shadow_offset = vec2(atlas.font_size * 0.1f, -atlas.font_size * 0.1f);
+            const u32 shadow_color = rgba_black;
+            
+            ui_draw_text_with_shadow(screen_report_text, pos, color, shadow_offset, shadow_color, UI_SCREEN_REPORT_FONT_ATLAS_INDEX);
         }
     }
 }
@@ -515,7 +551,7 @@ void draw_debug_console() {
                               viewport.height - DEBUG_CONSOLE_MARGIN - DEBUG_CONSOLE_PADDING - ascent);
         const u32 color = rgba_white;
         
-        const f32 max_height = viewport.height - 2 * DEBUG_CONSOLE_MARGIN - DEBUG_CONSOLE_PADDING;
+        const f32 max_height = viewport.height - 2 * DEBUG_CONSOLE_MARGIN - 3 * DEBUG_CONSOLE_PADDING;
 
         history_height = 0.0f;
         char *start = history;
@@ -560,7 +596,7 @@ void draw_debug_console() {
             if (cursor_blink_dt > 2 * DEBUG_CONSOLE_CURSOR_BLINK_INTERVAL) {
                 cursor_blink_dt = 0.0f;
             } else {
-                color = rgba_zero;
+                color = 0;
             }
         }
 
@@ -724,4 +760,13 @@ void on_viewport_resize_debug_console(s16 width, s16 height) {
     history_y = history_min_y;
 
     history_max_width = width - 2 * DEBUG_CONSOLE_MARGIN;
+}
+
+void screen_report(const char *str, ...) {
+    screen_report_time = 0.0f;
+
+    va_list args;
+	va_start(args, str);
+    stbsp_vsnprintf(screen_report_text, MAX_SCREEN_REPORT_SIZE, str, args);
+	va_end(args);
 }

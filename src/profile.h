@@ -5,6 +5,8 @@
 extern s16 KEY_SWITCH_RUNTIME_PROFILER;
 extern s16 KEY_SWITCH_MEMORY_PROFILER;
 
+inline constexpr u32 MAX_PROFILE_SCOPE_NAME_SIZE = 32;
+
 #define PROFILE_SCOPE(name) Profile_Scope (profile_scope##__LINE__)(name, __FILE__, __LINE__)
 
 #define SCOPE_TIMER_NAME(name) CONCAT(scope_timer_, name)
@@ -26,10 +28,10 @@ struct Profile_Scope {
     s64 end = 0;
     s64 diff = 0;
     const char *name = null;
-    const char *filepath = null;
+    const char *file_path = null;
     u32 line = 0;
     
-    Profile_Scope(const char *scope_name, const char *scope_filepath, u32 scope_line);
+    Profile_Scope(const char *scope_name, const char *scope_file_path, u32 scope_line);
     ~Profile_Scope();
 };
 

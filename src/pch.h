@@ -70,9 +70,13 @@ inline constexpr rid RID_NONE = 0;
 
 #define rgba_pack(r, g, b, a) (u32)((r) << 24  | (g) << 16  | (b) << 8 | (a) << 0)
 
-#define rgba_zero   rgba_pack(  0,   0,   0,   0)
-#define rgba_black  rgba_pack(  0,   0,   0, 255)
+#define rgba_r(c, r) (((c) & 0x00FFFFFF) | ((u32)(r) << 24))
+#define rgba_g(c, g) (((c) & 0xFF00FFFF) | ((u32)(g) << 16))
+#define rgba_b(c, b) (((c) & 0xFFFF00FF) | ((u32)(b) << 8))
+#define rgba_a(c, a) (((c) & 0xFFFFFF00) | ((u32)(a) << 0))
+
 #define rgba_white  rgba_pack(255, 255, 255, 255)
+#define rgba_black  rgba_pack(  0,   0,   0, 255)
 #define rgba_red    rgba_pack(255,   0,   0, 255)
 #define rgba_green  rgba_pack(  0, 255,   0, 255)
 #define rgba_blue   rgba_pack(  0,   0, 255, 255)
@@ -128,6 +132,7 @@ template <class F> My_Defer<F> operator+(My_Defer_Ref, F f) { return {f}; }
 #define Min(a, b)      ((a) < (b) ? (a) : (b))
 #define Max(a, b)      ((a) > (b) ? (a) : (b))
 #define Clamp(x, a, b) (Min((b), Max((a), (x))))
+#define Lerp(a, b, t)  ((a) + ((b) - (a)) * (t))
 
 #define PATH_DATA(x)      DIR_DATA x
 #define PATH_PACK(x)      DIR_DATA x

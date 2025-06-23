@@ -94,7 +94,7 @@ s32 main() {
         input_layer_memory_profiler.type = INPUT_LAYER_MEMORY_PROFILER;
         input_layer_memory_profiler.on_input = on_input_memory_profiler;
 
-        push_input_layer(&input_layer_game);
+        push_input_layer(&input_layer_editor);
     }
     
 	window = os_window_create(1920, 1080, GAME_NAME, 0, 0);
@@ -329,10 +329,10 @@ s32 main() {
 
 	world->ed_camera = camera;
 
-    save_world_level(world);
+    save_level(world);
 #else
     const char *main_level_path = PATH_LEVEL("main.wl");
-    load_world_level(world, main_level_path);
+    load_level(world, main_level_path);
 #endif
       
     {

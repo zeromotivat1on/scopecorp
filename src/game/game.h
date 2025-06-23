@@ -28,7 +28,7 @@ enum Property_Change_Type {
 };
 
 struct Game_State {
-	Game_Mode mode = MODE_GAME;
+	Game_Mode mode = MODE_EDITOR;
     u32 view_mode_flags = 0;
 	Camera_Behavior camera_behavior = FOLLOW_PLAYER;
 	Player_Movement_Behavior player_movement_behavior = MOVE_RELATIVE_TO_CAMERA;

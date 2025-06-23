@@ -48,8 +48,8 @@ struct World {
 inline World *world = null;
 
 void init_world(World *world);
-void save_world_level(World *world);
-void load_world_level(World *world, const char *path);
+void save_level(World *world);
+void load_level(World *world, const char *path);
 void tick(World *world, f32 dt);
 Camera *desired_camera(World *world);
 
