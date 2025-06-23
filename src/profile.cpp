@@ -300,16 +300,7 @@ void draw_dev_stats() {
 	{   // Entity.
         pos.x = padding;
 		pos.y = (f32)viewport.height - atlas.line_height;
-        
-        const auto &player_aabb = world->aabbs[player.aabb_index];
-		text_size = (s32)stbsp_snprintf(text, sizeof(text), "player\n\tlocation %s\n\tvelocity %s\n\taabb %s %s", to_string(player.location), to_string(player.velocity), to_string(player_aabb.min), to_string(player_aabb.max));
-		ui_draw_text_with_shadow(text, text_size, pos, rgba_white, shadow_offset, rgba_black);
-		pos.y -= 4 * atlas.line_height;
-
-		text_size = (s32)stbsp_snprintf(text, sizeof(text), "camera\n\teye %s\n\tat %s", to_string(camera.eye), to_string(camera.at));
-		ui_draw_text_with_shadow(text, text_size, pos, rgba_white, shadow_offset, rgba_black);
-		pos.y -= 3 * atlas.line_height;
-        
+                
         if (world->mouse_picked_entity) {
             const auto *e = world->mouse_picked_entity;
             const auto property_to_change = game_state.selected_entity_property_to_change;
@@ -328,8 +319,8 @@ void draw_dev_stats() {
         pos.y = (f32)viewport.height - atlas.line_height;
 
         text_size = (s32)stbsp_snprintf(text, sizeof(text),
-                                        "%s %s",
-                                        GAME_VERSION, build_type_name);
+                                        "%s %s %s",
+                                        GAME_VERSION, build_type_name, to_string(game_state.mode));
 		pos.x = viewport.width - get_line_width_px(&atlas, text, text_size) - padding;
 		ui_draw_text_with_shadow(text, text_size, pos, rgba_white, shadow_offset, rgba_black);
 		pos.y -= atlas.line_height;
