@@ -8,19 +8,16 @@
 
 #include "render/texture.h"
 
-Font_Info *create_font_info(void *data) {
-	Font_Info *font = alloclt(Font_Info);
+void init_font(void *data, Font_Info *font) {
+    Assert(font->info == null);
 	font->info = alloclt(stbtt_fontinfo);
 
     // @Cleanup: set stbtt allocator to allocate from linear allocation.
     stbtt_InitFont(font->info, (u8 *)data, stbtt_GetFontOffsetForIndex((u8 *)data, 0));
 	stbtt_GetFontVMetrics(font->info, &font->ascent, &font->descent, &font->line_gap);
-
-	return font;
 }
 
-Font_Atlas *bake_font_atlas(const Font_Info *font, u32 start_charcode, u32 end_charcode, s16 font_size) {
-	Font_Atlas *atlas = alloclt(Font_Atlas);
+void bake_font_atlas(const Font_Info *font, u32 start_charcode, u32 end_charcode, s16 font_size, Font_Atlas *atlas) {
 	atlas->font = font;
 
     atlas->rid_texture = r_create_texture(TEXTURE_TYPE_2D_ARRAY, TEXTURE_FORMAT_RGBA_8, font_size, font_size);
@@ -32,8 +29,6 @@ Font_Atlas *bake_font_atlas(const Font_Info *font, u32 start_charcode, u32 end_c
 	atlas->end_charcode = end_charcode;
     
 	rescale_font_atlas(atlas, font_size);
-
-	return atlas;
 }
 
 s32 get_char_width_px(const Font_Atlas *atlas, const char c) {

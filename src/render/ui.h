@@ -1,5 +1,6 @@
 #pragma once
 
+#include "font.h"
 #include "math/vector.h"
 
 inline constexpr u8  MAX_UI_FONT_ATLASES = 32;
@@ -50,7 +51,7 @@ struct UI_Quad_Draw_Buffer {
 };
 
 struct UI {
-    Font_Atlas *font_atlases[MAX_UI_FONT_ATLASES];
+    Font_Atlas font_atlases[MAX_UI_FONT_ATLASES];
     UI_Draw_Command draw_queue[MAX_UI_DRAW_QUEUE_SIZE];
 
     u8  font_atlas_count = 0;
@@ -61,6 +62,7 @@ struct UI {
 };
 
 inline UI ui;
+inline Font_Info ui_default_font;
 
 void ui_init();
 void ui_draw_text(const char *text, vec2 pos, u32 color, s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX);

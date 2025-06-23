@@ -126,7 +126,7 @@ void draw_runtime_profiler() {
     constexpr f32 PROFILER_MARGIN  = 100.0f;
     constexpr f32 PROFILER_PADDING = 16.0f;
 
-    const auto &atlas = *ui.font_atlases[UI_PROFILER_FONT_ATLAS_INDEX];
+    const auto &atlas = ui.font_atlases[UI_PROFILER_FONT_ATLAS_INDEX];
     const f32 ascent  = atlas.font->ascent  * atlas.px_h_scale;
     const f32 descent = atlas.font->descent * atlas.px_h_scale;
 
@@ -213,7 +213,7 @@ void draw_memory_profiler() {
     constexpr f32 PROFILER_PADDING = 16.0f;
     constexpr u8  PROFILER_MAX_LINE_COUNT = 4;
 
-    const auto &atlas = *ui.font_atlases[UI_PROFILER_FONT_ATLAS_INDEX];
+    const auto &atlas = ui.font_atlases[UI_PROFILER_FONT_ATLAS_INDEX];
     const f32 ascent  = atlas.font->ascent  * atlas.px_h_scale;
     const f32 descent = atlas.font->descent * atlas.px_h_scale;
 
@@ -287,7 +287,7 @@ void on_input_memory_profiler(Window_Event *event) {
 void draw_dev_stats() {
     PROFILE_SCOPE(__FUNCTION__);
     
-    const auto &atlas = *ui.font_atlases[UI_DEFAULT_FONT_ATLAS_INDEX];
+    const auto &atlas = ui.font_atlases[UI_DEFAULT_FONT_ATLAS_INDEX];
 	const auto &player = world->player;
 	const auto &camera = *desired_camera(world);
 

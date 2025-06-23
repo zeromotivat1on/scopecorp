@@ -11,18 +11,18 @@ struct Font : Asset {
 };
 
 struct Font_Info {
-	struct stbtt_fontinfo *info;
+	struct stbtt_fontinfo *info = null;
 
 	// Unscaled font vertical params, scale by px_h_scale from Font_Atlas.
-	s32 ascent;
-	s32 descent;
-	s32 line_gap;
+	s32 ascent   = 0;
+	s32 descent  = 0;
+	s32 line_gap = 0;
 };
 
 struct Font_Glyph_Metric {
-	s32 offset_x;
-	s32 offset_y;
-	s32 advance_width; // already scaled
+	s32 offset_x = 0;
+	s32 offset_y = 0;
+	s32 advance_width = 0; // already scaled
 };
 
 struct Font_Atlas {
@@ -37,8 +37,8 @@ struct Font_Atlas {
 	s16 font_size; // size of glyph square bitmap
 };
 
-Font_Info *create_font_info(void *data);
-Font_Atlas *bake_font_atlas(const Font_Info *font, u32 start_charcode, u32 end_charcode, s16 font_size);
+void init_font(void *data, Font_Info *font);
+void bake_font_atlas(const Font_Info *font, u32 start_charcode, u32 end_charcode, s16 font_size, Font_Atlas *atlas);
 void rescale_font_atlas(Font_Atlas *atlas, s16 font_size);
 s32 get_char_width_px(const Font_Atlas *atlas, const char c);
 s32 get_line_width_px(const Font_Atlas *atlas, const char *text);

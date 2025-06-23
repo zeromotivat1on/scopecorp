@@ -297,7 +297,7 @@ void tick_editor(f32 dt) {
         }
 
         if (screen_report_text[0] != '\0') {
-            const auto &atlas = *ui.font_atlases[UI_SCREEN_REPORT_FONT_ATLAS_INDEX];
+            const auto &atlas = ui.font_atlases[UI_SCREEN_REPORT_FONT_ATLAS_INDEX];
             const s32 width_px = get_line_width_px(&atlas, screen_report_text);
             const vec2 pos = vec2(viewport.width * 0.5f - width_px * 0.5f, viewport.height * 0.7f);
 
@@ -517,7 +517,7 @@ void draw_debug_console() {
     auto &input_size = debug_console.input_size;
     auto &cursor_blink_dt = debug_console.cursor_blink_dt;
     
-    const auto &atlas = *ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
+    const auto &atlas = ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
 
     cursor_blink_dt += delta_time;
         
@@ -613,7 +613,7 @@ void add_to_debug_console_history(const char *text, u32 count) {
     auto &history_size = debug_console.history_size;
     auto &history_max_width = debug_console.history_max_width;
 
-    const auto &atlas = *ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
+    const auto &atlas = ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
 
     f32 text_width = 0.0f; 
     for (u32 i = 0; i < count; ++i) {
@@ -649,7 +649,7 @@ static void scroll_debug_console(s32 delta) {
     auto &history_y = debug_console.history_y;
     auto &history_min_y = debug_console.history_min_y;
 
-    const auto &atlas = *ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
+    const auto &atlas = ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
     
     history_y -= delta * atlas.line_height;
     history_y = Clamp(history_y, history_min_y, history_min_y + history_height);
@@ -690,7 +690,7 @@ void on_input_debug_console(Window_Event *event) {
         auto &input_size = debug_console.input_size;
         auto &cursor_blink_dt = debug_console.cursor_blink_dt;
 
-        const auto &atlas = *ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
+        const auto &atlas = ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
 
         cursor_blink_dt = 0.0f;
     

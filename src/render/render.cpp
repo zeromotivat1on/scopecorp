@@ -346,13 +346,15 @@ void geo_flush() {
 
 void ui_init() {
     {
-        Font_Info *font_info = create_font_info(asset_table.fonts[SID_FONT_BETTER_VCR].data);
-        Font_Atlas *atlas_16 = bake_font_atlas(font_info, 33, 126, 16);
-        Font_Atlas *atlas_24 = bake_font_atlas(font_info, 33, 126, 24);
+        init_font(asset_table.fonts[SID_FONT_BETTER_VCR].data, &ui_default_font);
+
+        Font_Atlas atlas_16, atlas_24;
+        bake_font_atlas(&ui_default_font, 33, 126, 16, &atlas_16);
+        bake_font_atlas(&ui_default_font, 33, 126, 24, &atlas_24);
         
-        ui.font_atlases[UI_DEFAULT_FONT_ATLAS_INDEX] = atlas_16;
+        ui.font_atlases[UI_DEFAULT_FONT_ATLAS_INDEX]       = atlas_16;
         ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX] = atlas_16;
-        ui.font_atlases[UI_PROFILER_FONT_ATLAS_INDEX] = atlas_16;
+        ui.font_atlases[UI_PROFILER_FONT_ATLAS_INDEX]      = atlas_16;
         ui.font_atlases[UI_SCREEN_REPORT_FONT_ATLAS_INDEX] = atlas_24;
     }
     
@@ -440,7 +442,7 @@ void ui_draw_text(const char *text, u32 count, vec2 pos, u32 color, s32 atlas_in
     Assert(atlas_index < MAX_UI_FONT_ATLASES);
     Assert(ui.draw_queue_size < MAX_UI_DRAW_QUEUE_SIZE);
 
-	const auto &atlas = *ui.font_atlases[atlas_index];
+	const auto &atlas = ui.font_atlases[atlas_index];
     auto &tdb = ui.text_draw_buffer;
 
     auto &ui_cmd = ui.draw_queue[ui.draw_queue_size];
@@ -586,7 +588,7 @@ void ui_flush() {
         s32 last_adjacent_index = i;
         for (s32 j = i; j < ui.draw_queue_size; ++j) {
             const auto &ui_cmd = ui.draw_queue[j];
-            const auto &atlas  = *ui.font_atlases[ui_cmd.atlas_index];
+            const auto &atlas  = ui.font_atlases[ui_cmd.atlas_index];
 
             // UI commands should have the same type and use the same atlas.
             if (ui_cmd.type != ui_draw_type || ui_cmd.atlas_index != atlas_index) {
