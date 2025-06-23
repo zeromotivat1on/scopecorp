@@ -33,7 +33,8 @@ struct Entity {
     vec3 location;
     quat rotation;
     vec3 scale = vec3(1.0f);
-
+    vec2 uv_scale = vec2(1.0f);
+    
     s32 aabb_index = INVALID_INDEX;
     
     Entity_Draw_Data draw_data;

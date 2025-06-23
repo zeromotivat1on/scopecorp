@@ -182,7 +182,7 @@ s32 main() {
     world = alloclt(World);
 	init_world(world);
 
-#if 1
+#if 0
     str_copy(world->name, "main.wl");
 
 	auto &player = *(Player *)create_entity(world, ENTITY_PLAYER);
@@ -199,15 +199,11 @@ s32 main() {
 		player.draw_data.sid_mesh     = SID_MESH_PLAYER;
 		player.draw_data.sid_material = SID_MATERIAL_PLAYER;
         player.draw_data.eid_vertex_data_offset = EID_VERTEX_DATA_SIZE;
-        
+
+        player.sid_sound_steps = SID_SOUND_PLAYER_STEPS;
+                
         *(eid *)((u8 *)EID_VERTEX_DATA + EID_VERTEX_DATA_SIZE) = player.eid;
         EID_VERTEX_DATA_SIZE += sizeof(u32);
-            
-        const vec2 uv_scale = vec2(1.0f);
-        auto &material = asset_table.materials[player.draw_data.sid_material];
-		set_material_uniform_value(&material, "u_uv_scale", &uv_scale, sizeof(uv_scale));
-        
-        player.sid_sound_steps = SID_SOUND_PLAYER_STEPS;
 	}
 
     auto &portal = *(Portal *)create_entity(world, ENTITY_PORTAL);
@@ -227,7 +223,8 @@ s32 main() {
 	{        
 		ground.scale = vec3(16.0f, 16.0f, 0.0f);
         ground.rotation = quat_from_axis_angle(vec3_right, 90.0f);
-
+        ground.uv_scale = vec2(ground.scale.x, ground.scale.y);
+        
         auto &aabb = world->aabbs[ground.aabb_index];
         const vec3 aabb_offset = vec3(ground.scale.x * 2, 0.0f, ground.scale.y * 2);
         aabb.min = ground.location - aabb_offset * 0.5f;
@@ -239,10 +236,6 @@ s32 main() {
         
         *(eid *)((u8 *)EID_VERTEX_DATA + EID_VERTEX_DATA_SIZE) = ground.eid;
         EID_VERTEX_DATA_SIZE += sizeof(u32);
-
-        auto &material = asset_table.materials[ground.draw_data.sid_material];
-        const vec2 uv_scale = vec2(ground.scale.x, ground.scale.y);
-		set_material_uniform_value(&material, "u_uv_scale", &uv_scale, sizeof(uv_scale));
 	}
 
 	auto &cube = *(Static_Mesh *)create_entity(world, ENTITY_STATIC_MESH);
@@ -259,10 +252,6 @@ s32 main() {
         
         *(eid *)((u8 *)EID_VERTEX_DATA + EID_VERTEX_DATA_SIZE) = cube.eid;
         EID_VERTEX_DATA_SIZE += sizeof(u32);
-        
-        const vec2 uv_scale = vec2(1.0f);
-        auto &material = asset_table.materials[cube.draw_data.sid_material];
-		set_material_uniform_value(&material, "u_uv_scale", &uv_scale, sizeof(uv_scale));
 	}
 
 	auto &skybox = *(Skybox *)create_entity(world, ENTITY_SKYBOX);
@@ -343,7 +332,7 @@ s32 main() {
     save_world_level(world);
 #else
     const char *main_level_path = PATH_LEVEL("main.wl");
-    load_world_level(world, main_level_path);    
+    load_world_level(world, main_level_path);
 #endif
       
     {

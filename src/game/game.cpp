@@ -274,7 +274,9 @@ void tick_game(f32 dt) {
         
         const mat4 model = mat4_transform(it.location, it.rotation, it.scale);
 		set_material_uniform_value(&material, "u_model", &model, sizeof(model));
-        
+
+        set_material_uniform_value(&material, "u_uv_scale", &it.uv_scale, sizeof(it.uv_scale));
+
         set_material_uniform_value(&material, "u_material.ambient",   &material.ambient, sizeof(material.ambient));
         set_material_uniform_value(&material, "u_material.diffuse",   &material.diffuse, sizeof(material.diffuse));
         set_material_uniform_value(&material, "u_material.specular",  &material.specular, sizeof(material.specular));
@@ -423,6 +425,8 @@ void tick_game(f32 dt) {
         } else {
             au_play_sound_or_continue(player.sid_sound_steps);
         }
+
+        set_material_uniform_value(&material, "u_uv_scale", &player.uv_scale, sizeof(player.uv_scale));
 
         const mat4 model = mat4_transform(player.location, player.rotation, player.scale);
         set_material_uniform_value(&material, "u_model", &model, sizeof(model));

@@ -69,6 +69,7 @@ static For_Each_Result cb_find_entity_by_aabb(Entity *e, void *user_data) {
 
 void on_input_editor(Window_Event *event) {
     const bool press = event->key_press;
+    const bool ctrl  = event->with_ctrl;
     const auto key = event->key_code;
         
     switch (event->type) {
@@ -81,7 +82,7 @@ void on_input_editor(Window_Event *event) {
             open_runtime_profiler();
         } else if (press && key == KEY_SWITCH_MEMORY_PROFILER) {
             open_memory_profiler();
-        }else if (press && key == KEY_SWITCH_EDITOR_MODE) {
+        } else if (press && key == KEY_SWITCH_EDITOR_MODE) {
             game_state.mode = MODE_GAME;
             os_window_lock_cursor(window, true);
             pop_input_layer();
@@ -96,6 +97,13 @@ void on_input_editor(Window_Event *event) {
             } else {
                 game_state.view_mode_flags |= VIEW_MODE_FLAG_COLLISION;
             }
+        } else if (press && ctrl && key == KEY_S) {
+            save_world_level(world);
+        } else if (press && ctrl && key == KEY_R) {
+            char path[MAX_PATH_SIZE] = {'\0'};
+            str_glue(path, DIR_LEVELS);
+            str_glue(path, world->name);
+            load_world_level(world, path);
         }
 
         if (world->mouse_picked_entity) {
