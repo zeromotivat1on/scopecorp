@@ -38,6 +38,14 @@ inline Input_Layer *get_current_input_layer() {
     return null;
 }
 
+inline Input_Layer_Type get_current_input_layer_type() {
+    const auto *layer = get_current_input_layer();
+    if (layer) {
+        return layer->type;
+    }
+    return INPUT_LAYER_NONE;
+}
+
 inline void push_input_layer(Input_Layer *layer) {
     Assert(input_stack.layer_count < MAX_INPUT_STACK_LAYERS);
     input_stack.layers[input_stack.layer_count] = layer;
