@@ -1,7 +1,9 @@
 #pragma once
 
-enum Input_Key : s16 {
-    KEY_UNKNOWN,
+#include "large.h"
+
+enum Input_Key : u8 {
+    KEY_NONE,
 
     // Printable keys.
     KEY_SPACE,
@@ -136,10 +138,10 @@ enum Input_Key : s16 {
     KEY_COUNT,
 };
 
-enum Gamepad_Button : s16 {
-    GAMEPAD_BUTTON_INVALID = -1,
+enum Gamepad_Button : u8 {
+    GAMEPAD_BUTTON_NONE,
 
-    GAMEPAD_FACE_UP = 0,
+    GAMEPAD_FACE_UP,
     GAMEPAD_FACE_RIGHT,
     GAMEPAD_FACE_DOWN,
     GAMEPAD_FACE_LEFT,
@@ -168,10 +170,10 @@ enum Gamepad_Button : s16 {
     GAMEPAD_X = GAMEPAD_FACE_LEFT,
 };
 
-enum Gamepad_Axis : s16 {
-    GAMEPAD_AXIS_INVALID = -1,
+enum Gamepad_Axis : u8 {
+    GAMEPAD_AXIS_NONE,
 
-    GAMEPAD_LX = 0,
+    GAMEPAD_LX,
     GAMEPAD_LY,
     GAMEPAD_RX,
     GAMEPAD_RY,
@@ -182,11 +184,15 @@ enum Gamepad_Axis : s16 {
 };
 
 struct Input_Table {
-    bool key_states[KEY_COUNT]; 
-    
-    s16 virtual_keys[KEY_COUNT]; // key to virtual keycode
-    s16 scan_codes[KEY_COUNT];   // key to keyboard scancode
-    s16 key_codes[512];          // virtual keycode to key
+    // @Cleanup: keys also include mouse buttons, maybe separate for clarity?
+    u256 keys;      // current key states
+    u256 keys_last; // previous key states
+    u256 keys_down; // keys pressed this frame
+    u256 keys_up;   // keys released this frame
+        
+    u16 virtual_keys[KEY_COUNT]; // key to virtual keycode
+    u16 scan_codes[KEY_COUNT];   // key to keyboard scancode
+    u8  key_codes[512];          // virtual keycode to key
 
     s16 mouse_x;
     s16 mouse_y;
@@ -201,3 +207,7 @@ struct Input_Table {
 inline Input_Table input_table;
 
 void init_input_table();
+
+inline bool down(Input_Key key) {
+    return check(input_table.keys.buckets, key);
+}

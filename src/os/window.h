@@ -4,22 +4,6 @@ inline constexpr u32 MAX_WINDOW_DROP_COUNT = 64;
 
 typedef void(*Window_Event_Callback)(struct Window *window, struct Window_Event *event);
 
-struct Window {
-    void *user_data;
-	Window_Event_Callback event_callback;
-
-	s16 width;
-	s16 height;
-
-    bool focused;
-	bool cursor_locked;
-	bool last_cursor_locked;
-
-#if WIN32
-	struct Win32_Window *win32;
-#endif
-};
-
 enum Window_Event_Type : u8 {
 	WINDOW_EVENT_UNKNOWN,
 	WINDOW_EVENT_RESIZE,
@@ -47,6 +31,22 @@ struct Window_Event {
     s16 prev_height;
 };
 
+struct Window {
+    void *user_data;
+	Window_Event_Callback event_callback;
+
+	s16 width;
+	s16 height;
+
+    bool focused;
+	bool cursor_locked;
+	bool last_cursor_locked;
+
+#if WIN32
+	struct Win32_Window *win32;
+#endif
+};
+
 inline Window *window = null;
 
 inline constexpr s32 MAX_WINDOW_EVENT_QUEUE_SIZE = 32; // max window events per frame
@@ -54,13 +54,13 @@ inline Window_Event window_event_queue[MAX_WINDOW_EVENT_QUEUE_SIZE];
 inline s32 window_event_queue_size = 0;
 
 Window *os_window_create(s32 w, s32 h, const char *name, s32 x, s32 y, void *user_data = null);
-void    os_window_register_event_callback(Window *window, Window_Event_Callback callback);
-void    os_window_destroy(Window *window);
-void    os_window_poll_events(Window *window);
-void    os_window_close(Window *window);
-bool    os_window_is_alive(Window *window);
-bool    os_window_set_title(Window *window, const char *title);
-void    os_window_lock_cursor(Window *window, bool lock);
-void    os_window_swap_buffers(Window *window);
+void os_window_register_event_callback(Window *window, Window_Event_Callback callback);
+void os_window_destroy(Window *window);
+void os_window_poll_events(Window *window);
+void os_window_close(Window *window);
+bool os_window_is_alive(Window *window);
+bool os_window_set_title(Window *window, const char *title);
+void os_window_lock_cursor(Window *window, bool lock);
+void os_window_swap_buffers(Window *window);
 
-void    os_set_vsync(bool enable);
+void os_set_vsync(bool enable);

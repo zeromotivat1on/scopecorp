@@ -334,22 +334,22 @@ void tick_game(f32 dt) {
 
             // @Todo: use input action instead of direct key state.
             if (game_state.player_movement_behavior == MOVE_INDEPENDENT) {
-                if (input_table.key_states[KEY_D]) {
+                if (down(KEY_D)) {
                     velocity.x = speed;
                     player.move_direction = DIRECTION_RIGHT;
                 }
 
-                if (input_table.key_states[KEY_A]) {
+                if (down(KEY_A)) {
                     velocity.x = -speed;
                     player.move_direction = DIRECTION_LEFT;
                 }
 
-                if (input_table.key_states[KEY_W]) {
+                if (down(KEY_W)) {
                     velocity.z = speed;
                     player.move_direction = DIRECTION_FORWARD;
                 }
 
-                if (input_table.key_states[KEY_S]) {
+                if (down(KEY_S)) {
                     velocity.z = -speed;
                     player.move_direction = DIRECTION_BACK;
                 }
@@ -358,22 +358,22 @@ void tick_game(f32 dt) {
                 const vec3 camera_forward = forward(camera.yaw, camera.pitch);
                 const vec3 camera_right = camera.up.cross(camera_forward).normalize();
 
-                if (input_table.key_states[KEY_D]) {
+                if (down(KEY_D)) {
                     velocity += speed * camera_right;
                     player.move_direction = DIRECTION_RIGHT;
                 }
 
-                if (input_table.key_states[KEY_A]) {
+                if (down(KEY_A)) {
                     velocity -= speed * camera_right;
                     player.move_direction = DIRECTION_LEFT;
                 }
 
-                if (input_table.key_states[KEY_W]) {
+                if (down(KEY_W)) {
                     velocity += speed * camera_forward;
                     player.move_direction = DIRECTION_FORWARD;
                 }
 
-                if (input_table.key_states[KEY_S]) {
+                if (down(KEY_S)) {
                     velocity -= speed * camera_forward;
                     player.move_direction = DIRECTION_BACK;
                 }

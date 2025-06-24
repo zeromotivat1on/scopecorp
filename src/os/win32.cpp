@@ -334,9 +334,9 @@ static LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam, L
 	if (!window) return DefWindowProc(hwnd, umsg, wparam, lparam);
 
 	Window_Event event = {};
-    event.with_ctrl  = input_table.key_states[KEY_CTRL];
-    event.with_shift = input_table.key_states[KEY_SHIFT];
-    event.with_alt   = input_table.key_states[KEY_ALT];
+    event.with_ctrl  = check(input_table.keys.buckets, KEY_CTRL);
+    event.with_shift = check(input_table.keys.buckets, KEY_SHIFT);
+    event.with_alt   = check(input_table.keys.buckets, KEY_ALT);
         
 	switch (umsg) {
     case WM_SETFOCUS: {
@@ -345,7 +345,7 @@ static LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam, L
         break;
     }
     case WM_KILLFOCUS: {
-        input_table.key_states[KEY_ALT] = false;
+        clear(input_table.keys.buckets, KEY_ALT);
         
         window->focused = false;
         window->last_cursor_locked = window->cursor_locked;
@@ -383,7 +383,7 @@ static LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam, L
         event.key_code = input_table.key_codes[wparam];
 
         Assert(event.key_code > 0);
-        input_table.key_states[event.key_code] = true;
+        set(input_table.keys.buckets, event.key_code);
 
         s32 key_down_event_index = INVALID_INDEX;
 		for (s32 i = 0; i < window_event_queue_size; ++i)
@@ -406,7 +406,7 @@ static LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam, L
 		event.key_code = input_table.key_codes[wparam];
 
 		Assert(event.key_code > 0);
-		input_table.key_states[event.key_code] = false;
+        clear(input_table.keys.buckets, event.key_code);
 
 		Assert(window_event_queue_size < MAX_WINDOW_EVENT_QUEUE_SIZE);
 		window_event_queue[window_event_queue_size++] = event;
@@ -428,8 +428,12 @@ static LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam, L
 		event.key_press = umsg == WM_LBUTTONDOWN;
 		event.key_code = MOUSE_LEFT;
 
-		input_table.key_states[event.key_code] = event.key_press;
-
+        if (event.key_press) {
+            set(input_table.keys.buckets, event.key_code);
+        } else {
+            clear(input_table.keys.buckets, event.key_code);
+        }
+        
 		Assert(window_event_queue_size < MAX_WINDOW_EVENT_QUEUE_SIZE);
 		window_event_queue[window_event_queue_size++] = event;
 
@@ -441,8 +445,12 @@ static LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam, L
 		event.key_press = umsg == WM_RBUTTONDOWN;
 		event.key_code = MOUSE_RIGHT;
 
-		input_table.key_states[event.key_code] = event.key_press;
-
+        if (event.key_press) {
+            set(input_table.keys.buckets, event.key_code);
+        } else {
+            clear(input_table.keys.buckets, event.key_code);
+        }
+        
 		Assert(window_event_queue_size < MAX_WINDOW_EVENT_QUEUE_SIZE);
 		window_event_queue[window_event_queue_size++] = event;
 
@@ -454,8 +462,12 @@ static LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam, L
 		event.key_press = umsg == WM_MBUTTONDOWN;
 		event.key_code = MOUSE_MIDDLE;
 
-		input_table.key_states[event.key_code] = event.key_press;
-
+        if (event.key_press) {
+            set(input_table.keys.buckets, event.key_code);
+        } else {
+            clear(input_table.keys.buckets, event.key_code);
+        }
+        
 		Assert(window_event_queue_size < MAX_WINDOW_EVENT_QUEUE_SIZE);
 		window_event_queue[window_event_queue_size++] = event;
 
@@ -583,7 +595,7 @@ void os_window_destroy(Window *window) {
 void os_window_poll_events(Window *window) {
 	input_table.mouse_offset_x = 0;
 	input_table.mouse_offset_y = 0;
-
+    
 	MSG msg = {0};
 	msg.hwnd = window->win32->hwnd;
 
@@ -592,6 +604,21 @@ void os_window_poll_events(Window *window) {
 		DispatchMessage(&msg);
 	}
 
+    {   // Update extra key states.
+        const u64 count = COUNT(input_table.keys.buckets);
+        
+        u64 *changes = (u64 *)allocs(count * sizeof(u64));
+        xor(changes, input_table.keys.buckets, input_table.keys_last.buckets, count);
+
+        u64 *not_buckets = (u64 *)allocs(count * sizeof(u64));
+        not(not_buckets, input_table.keys.buckets, count);
+
+        and(input_table.keys_down.buckets, changes, input_table.keys.buckets, count);
+        and(input_table.keys_up.buckets,   changes, not_buckets,              count);
+
+        copy_bytes(&input_table.keys_last, &input_table.keys, sizeof(input_table.keys));
+    }
+    
 	input_table.mouse_offset_x = input_table.mouse_last_x - input_table.mouse_x;
 	input_table.mouse_offset_y = input_table.mouse_last_y - input_table.mouse_y;
 
@@ -607,10 +634,10 @@ void os_window_poll_events(Window *window) {
 		input_table.mouse_last_y = input_table.mouse_y;
 	}
 
-	for (s32 i = 0; i < window_event_queue_size; ++i)
-
+	for (s32 i = 0; i < window_event_queue_size; ++i) {
 		window->event_callback(window, window_event_queue + i);
-
+    }
+    
 	window_event_queue_size = 0;
 }
 
@@ -745,7 +772,7 @@ void init_input_table() {
     input_table.virtual_keys[KEY_F22]           = VK_F22;
     input_table.virtual_keys[KEY_F23]           = VK_F23;
     input_table.virtual_keys[KEY_F24]           = VK_F24;
-    input_table.virtual_keys[KEY_F25]           = KEY_UNKNOWN;
+    input_table.virtual_keys[KEY_F25]           = KEY_NONE;
     input_table.virtual_keys[KEY_KP_0]          = VK_NUMPAD0;
     input_table.virtual_keys[KEY_KP_1]          = VK_NUMPAD1;
     input_table.virtual_keys[KEY_KP_2]          = VK_NUMPAD2;
@@ -761,24 +788,24 @@ void init_input_table() {
     input_table.virtual_keys[KEY_KP_MULTIPLY]   = VK_MULTIPLY;
     input_table.virtual_keys[KEY_KP_SUBTRACT]   = VK_SUBTRACT;
     input_table.virtual_keys[KEY_KP_ADD]        = VK_ADD;
-    input_table.virtual_keys[KEY_KP_ENTER]      = KEY_UNKNOWN;
-    input_table.virtual_keys[KEY_KP_EQUAL]      = KEY_UNKNOWN;
+    input_table.virtual_keys[KEY_KP_ENTER]      = KEY_NONE;
+    input_table.virtual_keys[KEY_KP_EQUAL]      = KEY_NONE;
     input_table.virtual_keys[KEY_SHIFT]         = VK_SHIFT;
     input_table.virtual_keys[KEY_CTRL]          = VK_CONTROL;
     input_table.virtual_keys[KEY_ALT]           = VK_MENU;
     input_table.virtual_keys[KEY_LEFT_SHIFT]    = VK_LSHIFT;
     input_table.virtual_keys[KEY_LEFT_CTRL]     = VK_LCONTROL;
     input_table.virtual_keys[KEY_LEFT_ALT]      = VK_LMENU;
-    input_table.virtual_keys[KEY_LEFT_SUPER]    = KEY_UNKNOWN;
+    input_table.virtual_keys[KEY_LEFT_SUPER]    = KEY_NONE;
     input_table.virtual_keys[KEY_RIGHT_SHIFT]   = VK_RSHIFT;
     input_table.virtual_keys[KEY_RIGHT_CTRL]    = VK_RCONTROL;
     input_table.virtual_keys[KEY_RIGHT_ALT]     = VK_RMENU;
-    input_table.virtual_keys[KEY_RIGHT_SUPER]   = KEY_UNKNOWN;
-    input_table.virtual_keys[KEY_MENU]          = KEY_UNKNOWN;
+    input_table.virtual_keys[KEY_RIGHT_SUPER]   = KEY_NONE;
+    input_table.virtual_keys[KEY_MENU]          = KEY_NONE;
 
-	for (s16 key = 0; key < KEY_COUNT; ++key) {
-		const s32 virtual_key = input_table.virtual_keys[key];
-		if (virtual_key == KEY_UNKNOWN) continue;
+	for (u8 key = 0; key < KEY_COUNT; ++key) {
+		const u16 virtual_key = input_table.virtual_keys[key];
+		if (virtual_key == KEY_NONE) continue;
 
 		input_table.key_codes[virtual_key] = key;
 

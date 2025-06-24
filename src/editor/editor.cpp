@@ -189,22 +189,22 @@ void tick_editor(f32 dt) {
 
             vec3 velocity;
 
-            if (input_table.key_states[KEY_D])
+            if (down(KEY_D))
                 velocity += speed * camera_right;
 
-            if (input_table.key_states[KEY_A])
+            if (down(KEY_A))
                 velocity -= speed * camera_right;
 
-            if (input_table.key_states[KEY_W])
+            if (down(KEY_W))
                 velocity += speed * camera_forward;
 
-            if (input_table.key_states[KEY_S])
+            if (down(KEY_S))
                 velocity -= speed * camera_forward;
 
-            if (input_table.key_states[KEY_E])
+            if (down(KEY_E))
                 velocity += speed * camera.up;
 
-            if (input_table.key_states[KEY_Q])
+            if (down(KEY_Q))
                 velocity -= speed * camera.up;
 
             camera.eye += velocity.truncate(speed);
@@ -214,8 +214,8 @@ void tick_editor(f32 dt) {
     
     // Tick selected entity modify.
     if (input_layer->type == INPUT_LAYER_EDITOR) {
-        const bool ctrl  = input_table.key_states[KEY_CTRL];
-        const bool shift = input_table.key_states[KEY_SHIFT];
+        const bool ctrl  = down(KEY_CTRL);
+        const bool shift = down(KEY_SHIFT);
         
         if (world->mouse_picked_entity) {
             auto *e = world->mouse_picked_entity;
@@ -223,60 +223,60 @@ void tick_editor(f32 dt) {
             if (game_state.selected_entity_property_to_change == PROPERTY_ROTATION) {
                 const f32 rotate_speed = shift ? 0.04f : 0.01f;
 
-                if (input_table.key_states[KEY_LEFT]) {
+                if (down(KEY_LEFT)) {
                     e->rotation *= quat_from_axis_angle(vec3_left, rotate_speed);
                 }
 
-                if (input_table.key_states[KEY_RIGHT]) {
+                if (down(KEY_RIGHT)) {
                     e->rotation *= quat_from_axis_angle(vec3_right, rotate_speed);
                 }
 
-                if (input_table.key_states[KEY_UP]) {
+                if (down(KEY_UP)) {
                     const vec3 direction = ctrl ? vec3_up : vec3_forward;
                     e->rotation *= quat_from_axis_angle(direction, rotate_speed);
                 }
 
-                if (input_table.key_states[KEY_DOWN]) {
+                if (down(KEY_DOWN)) {
                     const vec3 direction = ctrl ? vec3_down : vec3_back;
                     e->rotation *= quat_from_axis_angle(direction, rotate_speed);
                 }
             } else if (game_state.selected_entity_property_to_change == PROPERTY_SCALE) {
                 const f32 scale_speed = shift ? 4.0f : 1.0f;
                 
-                if (input_table.key_states[KEY_LEFT]) {
+                if (down(KEY_LEFT)) {
                     e->scale += scale_speed * dt * vec3_left;
                 }
 
-                if (input_table.key_states[KEY_RIGHT]) {
+                if (down(KEY_RIGHT)) {
                     e->scale += scale_speed * dt * vec3_right;
                 }
 
-                if (input_table.key_states[KEY_UP]) {
+                if (down(KEY_UP)) {
                     const vec3 direction = ctrl ? vec3_up : vec3_forward;
                     e->scale += scale_speed * dt * direction;
                 }
 
-                if (input_table.key_states[KEY_DOWN]) {
+                if (down(KEY_DOWN)) {
                     const vec3 direction = ctrl ? vec3_down : vec3_back;
                     e->scale += scale_speed * dt * direction;
                 }
             } else if (game_state.selected_entity_property_to_change == PROPERTY_LOCATION) {
                 const f32 move_speed = shift ? 4.0f : 1.0f;
 
-                if (input_table.key_states[KEY_LEFT]) {
+                if (down(KEY_LEFT)) {
                     e->location += move_speed * dt * vec3_left;
                 }
 
-                if (input_table.key_states[KEY_RIGHT]) {
+                if (down(KEY_RIGHT)) {
                     e->location += move_speed * dt * vec3_right;
                 }
 
-                if (input_table.key_states[KEY_UP]) {
+                if (down(KEY_UP)) {
                     const vec3 direction = ctrl ? vec3_up : vec3_forward;
                     e->location += move_speed * dt * direction;
                 }
 
-                if (input_table.key_states[KEY_DOWN]) {
+                if (down(KEY_DOWN)) {
                     const vec3 direction = ctrl ? vec3_down : vec3_back;
                     e->location += move_speed * dt * direction;
                 }
