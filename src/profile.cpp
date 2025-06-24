@@ -319,8 +319,8 @@ void draw_dev_stats() {
         pos.y = (f32)viewport.height - atlas.line_height;
 
         text_size = (s32)stbsp_snprintf(text, sizeof(text),
-                                        "%s %s %s",
-                                        GAME_VERSION, build_type_name, to_string(game_state.mode));
+                                        "%s %s",
+                                        GAME_VERSION, build_type_name);
 		pos.x = viewport.width - get_line_width_px(&atlas, text, text_size) - padding;
 		ui_draw_text_with_shadow(text, text_size, pos, rgba_white, shadow_offset, rgba_black);
 		pos.y -= atlas.line_height;

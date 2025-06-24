@@ -93,6 +93,7 @@ void on_input_editor(Window_Event *event) {
             game_state.mode = MODE_GAME;
             os_window_lock_cursor(window, true);
             pop_input_layer();
+            screen_report("Game");
             
             if (world->mouse_picked_entity) {
                 world->mouse_picked_entity->flags &= ~ENTITY_FLAG_SELECTED_IN_EDITOR;

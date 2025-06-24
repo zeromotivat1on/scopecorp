@@ -23,6 +23,7 @@
 #include "render/uniform.h"
 #include "render/material.h"
 #include "render/texture.h"
+#include "render/buffer_storage.h"
 
 #include "audio/sound.h"
 
@@ -64,6 +65,7 @@ void on_input_game(Window_Event *event) {
         } else if (press && key == KEY_SWITCH_EDITOR_MODE) {
             game_state.mode = MODE_EDITOR;
             push_input_layer(&input_layer_editor);
+            screen_report("Editor");
         } else if (press && key == KEY_SWITCH_COLLISION_VIEW) {
             if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
                 game_state.view_mode_flags &= ~VIEW_MODE_FLAG_COLLISION;
@@ -156,6 +158,21 @@ void save_level(World *world) {
     screen_report("Saved level %s", path);
 }
 
+For_Each_Result cb_init_entity_after_level_load(Entity *e, void *user_data) {
+    auto *world = (World *)user_data;
+
+    if (e->eid != EID_NONE) {
+        Assert(EID_VERTEX_DATA_SIZE < MAX_EID_VERTEX_DATA_SIZE);
+        
+        e->draw_data.eid_vertex_data_offset = EID_VERTEX_DATA_SIZE;
+
+        *(eid *)((u8 *)EID_VERTEX_DATA + EID_VERTEX_DATA_SIZE) = e->eid;
+        EID_VERTEX_DATA_SIZE += sizeof(u32);
+    }
+    
+    return RESULT_CONTINUE;
+}
+
 void load_level(World *world, const char *path) {
     START_SCOPE_TIMER(load);
 
@@ -182,6 +199,8 @@ void load_level(World *world, const char *path) {
     read_sparse_array(file, &world->portals);
     read_sparse_array(file, &world->aabbs);
 
+    for_each_entity(world, cb_init_entity_after_level_load, world);
+    
     log("Loaded world level %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(load));
     screen_report("Loaded level %s", path);
 }
