@@ -131,6 +131,8 @@ void draw_world(const World *world) {
 }
 
 void draw_entity(const Entity *e) {
+    if (e->draw_data.sid_material == SID_NONE) return;
+
     const auto &frame_buffer = viewport.frame_buffer;
 
     Render_Command command = {};
@@ -526,6 +528,8 @@ void ui_flush() {
     }
 
     ui.draw_queue_size = 0;
+    ui.id_hot = UIID_NONE;
+
     tdb.char_count = 0;
     qdb.quad_count = 0;
 }

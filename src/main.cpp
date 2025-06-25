@@ -414,24 +414,6 @@ s32 main() {
 
         tick_game(delta_time);
         tick_editor(delta_time);
-
-        ui.id_hot = UIID_NONE;
-        
-        const uiid id = { 0, 1, 0 };
-        const UI_Button_Style style = {
-            vec2(100.0f),
-            vec2(200.0f),
-            vec2(100.0f),
-            rgba_white,
-            rgba_pack(255, 255, 255, 200),
-            rgba_white,
-            rgba_black,
-            rgba_pack(0, 0, 0, 200),
-            rgba_black
-        };
-        if (ui_button(id, "I am button", style)) {
-            screen_report("Click!");
-        }
         
 #if 0
         static f32 pixel_size_time = -1.0f;

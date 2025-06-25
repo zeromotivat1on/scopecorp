@@ -292,6 +292,8 @@ void tick_game(f32 dt) {
         aabb.min = it.location - half_extent;
         aabb.max = it.location + half_extent;
 
+        if (it.draw_data.sid_material == SID_NONE) continue;
+        
         auto &material = asset_table.materials[it.draw_data.sid_material];
         
         const mat4 model = mat4_transform(it.location, it.rotation, it.scale);
