@@ -17,6 +17,30 @@ inline constexpr s32 UI_SCREEN_REPORT_FONT_ATLAS_INDEX = 3;
 struct mat4;
 struct Font_Atlas;
 
+struct uiid {
+    u16 owner;
+    u16 item;
+    u16 index;
+};
+
+inline constexpr uiid UIID_NONE = { 0, 0, 0 };
+
+inline bool operator==(const uiid &a, const uiid &b) {
+    return a.owner == b.owner && a.item == b.item && a.index == b.index;
+}
+
+struct UI_Button_Style {
+    vec2 p0 = vec2_zero;
+    vec2 p1 = vec2_zero;
+    vec2 pos_text = vec2_zero;
+    u32 color_text        = 0;
+    u32 color_text_hot    = 0;
+    u32 color_text_active = 0;
+    u32 color_quad        = 0;
+    u32 color_quad_hot    = 0;
+    u32 color_quad_active = 0;
+};
+
 enum UI_Draw_Type {
     UI_DRAW_TEXT,
     UI_DRAW_QUAD,
@@ -59,15 +83,21 @@ struct UI {
 
     UI_Text_Draw_Buffer text_draw_buffer;
     UI_Quad_Draw_Buffer quad_draw_buffer;
+
+    uiid id_hot;
+    uiid id_active;
 };
 
 inline UI ui;
 inline Font_Info ui_default_font;
 
 void ui_init();
+void ui_flush();
+
+bool ui_button(uiid id, const char *text, const UI_Button_Style &style);
+
 void ui_draw_text(const char *text, vec2 pos, u32 color, s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX);
 void ui_draw_text(const char *text, u32 count, vec2 pos, u32 color, s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX);
 void ui_draw_text_with_shadow(const char *text, vec2 pos, u32 color, vec2 shadow_offset, u32 shadow_color, s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX);
 void ui_draw_text_with_shadow(const char *text, u32 count, vec2 pos, u32 color, vec2 shadow_offset, u32 shadow_color, s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX);
 void ui_draw_quad(vec2 p0, vec2 p1, u32 color);
-void ui_flush();

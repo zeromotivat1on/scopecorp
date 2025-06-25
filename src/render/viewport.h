@@ -17,6 +17,8 @@ struct Viewport {
     s16 height = 0;
     f32 resolution_scale = 1.0f; // applied for frame buffer
 
+    vec2 mouse_pos = vec2_zero;
+    
     mat4 orthographic_projection;
 
     Frame_Buffer frame_buffer;

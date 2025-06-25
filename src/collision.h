@@ -28,6 +28,7 @@ bool overlap(const vec3 &point, const Sphere &sphere);
 bool overlap(const Sphere &a, const Sphere &b);
 bool overlap(const Sphere &sphere, const AABB &aabb);
 bool overlap(const Ray &ray, const AABB &aabb, f32 *near = null);
+bool inside(const vec2 &point, const vec2 &p0, const vec2 &p1);
 
 s32 find_closest_overlapped_aabb(const Ray &ray, AABB *aabbs, s32 count);
 

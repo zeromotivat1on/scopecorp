@@ -58,6 +58,16 @@ bool overlap(const Ray &ray, const AABB &aabb, f32 *near) {
     return tmin <= tmax;
 }
 
+bool inside(const vec2 &point, const vec2 &p0, const vec2 &p1) {
+    const f32 x0 = Min(p0.x, p1.x);
+    const f32 y0 = Min(p0.y, p1.y);
+
+    const f32 x1 = Max(p0.x, p1.x);
+    const f32 y1 = Max(p0.y, p1.y);
+    
+    return point.x >= x0 && point.x <= x1 && point.y >= y0 && point.y <= y1;
+}
+
 s32 find_closest_overlapped_aabb(const Ray &ray, AABB *aabbs, s32 count) {
     PROFILE_SCOPE(__FUNCTION__);
     

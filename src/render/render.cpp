@@ -18,10 +18,13 @@
 #include "render/mesh.h"
 #include "render/ui.h"
 
+#include "editor/editor.h"
+
 #include "game/game.h"
 #include "game/world.h"
 #include "game/entity.h"
 
+#include "os/input.h"
 #include "os/atomic.h"
 #include "os/window.h"
 
@@ -434,6 +437,141 @@ void ui_init() {
     }
 }
 
+void ui_flush() {
+    PROFILE_SCOPE(__FUNCTION__);
+
+    auto &tdb = ui.text_draw_buffer;
+    auto &qdb = ui.quad_draw_buffer;
+
+    s32 total_char_instance_offset = 0;
+    s32 total_quad_instance_offset = 0;
+    
+    for (s32 i = 0; i < ui.draw_queue_size; ++i) {
+        Render_Command r_cmd = {};
+        r_cmd.flags = RENDER_FLAG_VIEWPORT | RENDER_FLAG_SCISSOR | RENDER_FLAG_CULL_FACE | RENDER_FLAG_BLEND | RENDER_FLAG_RESET;
+        r_cmd.render_mode  = RENDER_TRIANGLE_STRIP;
+        r_cmd.polygon_mode = POLYGON_FILL;
+        r_cmd.viewport.x      = viewport.x;
+        r_cmd.viewport.y      = viewport.y;
+        r_cmd.viewport.width  = viewport.width;
+        r_cmd.viewport.height = viewport.height;
+        r_cmd.scissor.x      = viewport.x;
+        r_cmd.scissor.y      = viewport.y;
+        r_cmd.scissor.width  = viewport.width;
+        r_cmd.scissor.height = viewport.height;
+        r_cmd.cull_face.type    = CULL_FACE_BACK;
+        r_cmd.cull_face.winding = WINDING_COUNTER_CLOCKWISE;
+        r_cmd.blend.source      = BLEND_SOURCE_ALPHA;
+        r_cmd.blend.destination = BLEND_ONE_MINUS_SOURCE_ALPHA;
+        r_cmd.instance_count = 0;
+        r_cmd.buffer_element_count = 0;
+    
+        const s32 char_instance_offset = total_char_instance_offset;
+        const s32 quad_instance_offset = total_quad_instance_offset;
+        
+        const auto &ui_draw_type = ui.draw_queue[i].type;
+        const auto &atlas_index  = ui.draw_queue[i].atlas_index;
+        
+        // Detect similar adjacent ui commands and stack them in one render command.
+        s32 last_adjacent_index = i;
+        for (s32 j = i; j < ui.draw_queue_size; ++j) {
+            const auto &ui_cmd = ui.draw_queue[j];
+            const auto &atlas  = ui.font_atlases[ui_cmd.atlas_index];
+
+            // UI commands should have the same type and use the same atlas.
+            if (ui_cmd.type != ui_draw_type || ui_cmd.atlas_index != atlas_index) {
+                break;
+            }
+            
+            last_adjacent_index = j;
+
+            switch (ui_cmd.type) {
+            case UI_DRAW_TEXT: {
+                r_cmd.rid_vertex_array = tdb.rid_vertex_array;
+                r_cmd.buffer_element_count = 4;
+                r_cmd.instance_count += ui_cmd.element_count;
+                r_cmd.instance_offset = char_instance_offset;
+
+                r_cmd.sid_material = tdb.sid_material;
+                r_cmd.rid_override_texture = atlas.rid_texture;
+
+                total_char_instance_offset += ui_cmd.element_count;
+            
+                break;
+            }
+            case UI_DRAW_QUAD: {
+                r_cmd.rid_vertex_array = qdb.rid_vertex_array;
+                r_cmd.buffer_element_count += 4;
+                r_cmd.buffer_element_offset = 4 * quad_instance_offset;
+
+                // Instance count for quad should be 1 as for now vertex data for ui 
+                // elements takes raw positions from vertex buffer unlike text that
+                // takes transform matrix as vertex data and apply it to static quad
+                // vertices.
+                r_cmd.instance_count  = ui_cmd.element_count;
+                r_cmd.instance_offset = quad_instance_offset;
+
+                r_cmd.sid_material = qdb.sid_material;
+            
+                total_quad_instance_offset += ui_cmd.element_count;
+            
+                break;
+            }
+            }
+        }
+        
+        i = last_adjacent_index;
+
+        r_submit(&r_cmd);
+    }
+
+    ui.draw_queue_size = 0;
+    tdb.char_count = 0;
+    qdb.quad_count = 0;
+}
+
+bool ui_button(uiid id, const char *text, const UI_Button_Style &style) {
+    u32 color_text = style.color_text;
+    u32 color_quad = style.color_quad;
+    bool clicked = false;
+
+    if (inside(viewport.mouse_pos, style.p0, style.p1)) {
+        ui.id_hot = id;
+
+        color_text = style.color_text_hot;
+        color_quad = style.color_quad_hot;
+
+        if (down_now(MOUSE_LEFT)) {
+            ui.id_active = id;
+        }
+    }
+    
+    if (id == ui.id_active) {
+        color_text = style.color_text_active;
+        color_quad = style.color_quad_active;
+            
+        if (up_now(MOUSE_LEFT)) {
+            if (id == ui.id_hot) {
+                clicked = true;
+            }
+            ui.id_active = UIID_NONE;
+        }
+    }
+
+    // @Cleanup: this was already done during inside check and will be done
+    // during ui_draw_quad, a lot of same stuff...
+    const f32 x0 = Min(style.p0.x, style.p1.x);
+    const f32 y0 = Min(style.p0.y, style.p1.y);
+
+    const f32 x1 = Max(style.p0.x, style.p1.x);
+    const f32 y1 = Max(style.p0.y, style.p1.y);
+
+    ui_draw_quad(style.p0, style.p1, color_quad);
+    ui_draw_text(text, style.pos_text, color_text);
+    
+    return clicked;
+}
+
 void ui_draw_text(const char *text, vec2 pos, u32 color, s32 atlas_index) {
     ui_draw_text(text, (u32)str_size(text), pos, color, atlas_index);
 }
@@ -547,99 +685,6 @@ void ui_draw_quad(vec2 p0, vec2 p1, u32 color) {
     vc[3] = color;
     
     qdb.quad_count += 1;
-}
-
-void ui_flush() {
-    PROFILE_SCOPE(__FUNCTION__);
-
-    auto &tdb = ui.text_draw_buffer;
-    auto &qdb = ui.quad_draw_buffer;
-
-    s32 total_char_instance_offset = 0;
-    s32 total_quad_instance_offset = 0;
-    
-    for (s32 i = 0; i < ui.draw_queue_size; ++i) {
-        Render_Command r_cmd = {};
-        r_cmd.flags = RENDER_FLAG_VIEWPORT | RENDER_FLAG_SCISSOR | RENDER_FLAG_CULL_FACE | RENDER_FLAG_BLEND | RENDER_FLAG_RESET;
-        r_cmd.render_mode  = RENDER_TRIANGLE_STRIP;
-        r_cmd.polygon_mode = POLYGON_FILL;
-        r_cmd.viewport.x      = viewport.x;
-        r_cmd.viewport.y      = viewport.y;
-        r_cmd.viewport.width  = viewport.width;
-        r_cmd.viewport.height = viewport.height;
-        r_cmd.scissor.x      = viewport.x;
-        r_cmd.scissor.y      = viewport.y;
-        r_cmd.scissor.width  = viewport.width;
-        r_cmd.scissor.height = viewport.height;
-        r_cmd.cull_face.type    = CULL_FACE_BACK;
-        r_cmd.cull_face.winding = WINDING_COUNTER_CLOCKWISE;
-        r_cmd.blend.source      = BLEND_SOURCE_ALPHA;
-        r_cmd.blend.destination = BLEND_ONE_MINUS_SOURCE_ALPHA;
-        r_cmd.instance_count = 0;
-        r_cmd.buffer_element_count = 0;
-    
-        const s32 char_instance_offset = total_char_instance_offset;
-        const s32 quad_instance_offset = total_quad_instance_offset;
-        
-        const auto &ui_draw_type = ui.draw_queue[i].type;
-        const auto &atlas_index  = ui.draw_queue[i].atlas_index;
-        
-        // Detect similar adjacent ui commands and stack them in one render command.
-        s32 last_adjacent_index = i;
-        for (s32 j = i; j < ui.draw_queue_size; ++j) {
-            const auto &ui_cmd = ui.draw_queue[j];
-            const auto &atlas  = ui.font_atlases[ui_cmd.atlas_index];
-
-            // UI commands should have the same type and use the same atlas.
-            if (ui_cmd.type != ui_draw_type || ui_cmd.atlas_index != atlas_index) {
-                break;
-            }
-            
-            last_adjacent_index = j;
-
-            switch (ui_cmd.type) {
-            case UI_DRAW_TEXT: {
-                r_cmd.rid_vertex_array = tdb.rid_vertex_array;
-                r_cmd.buffer_element_count = 4;
-                r_cmd.instance_count += ui_cmd.element_count;
-                r_cmd.instance_offset = char_instance_offset;
-
-                r_cmd.sid_material = tdb.sid_material;
-                r_cmd.rid_override_texture = atlas.rid_texture;
-
-                total_char_instance_offset += ui_cmd.element_count;
-            
-                break;
-            }
-            case UI_DRAW_QUAD: {
-                r_cmd.rid_vertex_array = qdb.rid_vertex_array;
-                r_cmd.buffer_element_count += 4;
-                r_cmd.buffer_element_offset = 4 * quad_instance_offset;
-
-                // Instance count for quad should be 1 as for now vertex data for ui 
-                // elements takes raw positions from vertex buffer unlike text that
-                // takes transform matrix as vertex data and apply it to static quad
-                // vertices.
-                r_cmd.instance_count  = ui_cmd.element_count;
-                r_cmd.instance_offset = quad_instance_offset;
-
-                r_cmd.sid_material = qdb.sid_material;
-            
-                total_quad_instance_offset += ui_cmd.element_count;
-            
-                break;
-            }
-            }
-        }
-        
-        i = last_adjacent_index;
-
-        r_submit(&r_cmd);
-    }
-
-    ui.draw_queue_size = 0;
-    tdb.char_count = 0;
-    qdb.quad_count = 0;
 }
 
 void r_init_buffer_storages() {

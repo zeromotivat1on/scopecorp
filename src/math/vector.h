@@ -144,6 +144,8 @@ struct vec4 {
 	const f32 *ptr() const;
 };
 
+#define vec2_zero vec2( 0,  0)
+
 #define vec3_zero    vec3( 0,  0,  0)
 #define vec3_right   vec3( 1,  0,  0)
 #define vec3_left    vec3(-1,  0,  0)

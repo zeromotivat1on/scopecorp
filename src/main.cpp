@@ -407,13 +407,32 @@ s32 main() {
 
 		os_window_poll_events(window);
 
-        // @Cleanup: this one is pretty slow, but bearable for now.
-        // Move to other thread later if it becomes a big deal.
+        viewport.mouse_pos = vec2(Clamp((f32)input_table.mouse_x - viewport.x, 0.0f, viewport.width),
+                                  Clamp((f32)input_table.mouse_y - viewport.y, 0.0f, viewport.height));
+        
         check_for_hot_reload(&hot_reload_list);
 
         tick_game(delta_time);
         tick_editor(delta_time);
 
+        ui.id_hot = UIID_NONE;
+        
+        const uiid id = { 0, 1, 0 };
+        const UI_Button_Style style = {
+            vec2(100.0f),
+            vec2(200.0f),
+            vec2(100.0f),
+            rgba_white,
+            rgba_pack(255, 255, 255, 200),
+            rgba_white,
+            rgba_black,
+            rgba_pack(0, 0, 0, 200),
+            rgba_black
+        };
+        if (ui_button(id, "I am button", style)) {
+            screen_report("Click!");
+        }
+        
 #if 0
         static f32 pixel_size_time = -1.0f;
         if (pixel_size_time > 180.0f) pixel_size_time = 0.0f;
@@ -485,6 +504,7 @@ s32 main() {
             delta_time = 0.16f;
         }
 #endif
+        //os_thread_sleep(200);
 	}
 
     os_thread_terminate(hot_reload_thread);

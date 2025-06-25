@@ -211,3 +211,11 @@ void init_input_table();
 inline bool down(Input_Key key) {
     return check(input_table.keys.buckets, key);
 }
+
+inline bool down_now(Input_Key key) {
+    return check(input_table.keys_down.buckets, key);
+}
+
+inline bool up_now(Input_Key key) {
+    return check(input_table.keys_up.buckets, key);
+}

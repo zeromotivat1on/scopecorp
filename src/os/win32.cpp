@@ -11,6 +11,8 @@
 #include "os/time.h"
 #include "os/window.h"
 
+#include "editor/editor.h"
+
 #define VC_EXTRALEAN
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -475,7 +477,7 @@ static LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam, L
 	}
 	case WM_MOUSEMOVE: {
 		input_table.mouse_x = GET_X_LPARAM(lparam);
-		input_table.mouse_y = GET_Y_LPARAM(lparam);
+		input_table.mouse_y = window->height - GET_Y_LPARAM(lparam) - 1;
 		break;
 	}
     case WM_MOUSEWHEEL: {
@@ -605,22 +607,21 @@ void os_window_poll_events(Window *window) {
 	}
 
     {   // Update extra key states.
-        const u64 count = COUNT(input_table.keys.buckets);
+        const u256 changes = input_table.keys ^ input_table.keys_last;
+        input_table.keys_down = changes & input_table.keys;
+        input_table.keys_up   = changes & ~input_table.keys;
         
-        u64 *changes = (u64 *)allocs(count * sizeof(u64));
-        xor(changes, input_table.keys.buckets, input_table.keys_last.buckets, count);
-
-        u64 *not_buckets = (u64 *)allocs(count * sizeof(u64));
-        not(not_buckets, input_table.keys.buckets, count);
-
-        and(input_table.keys_down.buckets, changes, input_table.keys.buckets, count);
-        and(input_table.keys_up.buckets,   changes, not_buckets,              count);
-
+        /*screen_report("LMB | key %d | last %d | down %d | up %d",
+                      check(input_table.keys.buckets, MOUSE_LEFT),
+                      check(input_table.keys_last.buckets, MOUSE_LEFT),
+                      check(input_table.keys_down.buckets, MOUSE_LEFT),
+                      check(input_table.keys_up.buckets, MOUSE_LEFT));*/
+                
         copy_bytes(&input_table.keys_last, &input_table.keys, sizeof(input_table.keys));
     }
     
-	input_table.mouse_offset_x = input_table.mouse_last_x - input_table.mouse_x;
-	input_table.mouse_offset_y = input_table.mouse_last_y - input_table.mouse_y;
+	input_table.mouse_offset_x = input_table.mouse_x - input_table.mouse_last_x;
+	input_table.mouse_offset_y = input_table.mouse_y - input_table.mouse_last_y;
 
 	if (window->cursor_locked) {
 		POINT point;

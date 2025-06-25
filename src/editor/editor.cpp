@@ -150,7 +150,7 @@ void on_input_editor(Window_Event *event) {
                     }
                 }
             } else {
-                const u32 pixel = r_read_frame_buffer_pixel(viewport.frame_buffer.rid, 1, input_table.mouse_x, input_table.mouse_y);
+                const u32 pixel = r_read_frame_buffer_pixel(viewport.frame_buffer.rid, 1, (s32)viewport.mouse_pos.x, (s32)viewport.mouse_pos.y);
                 auto *e = find_entity_by_eid(world, (eid)pixel);
                 if (e) {
                     mouse_pick_entity(world, e);
@@ -178,7 +178,7 @@ void tick_editor(f32 dt) {
             auto &camera = world->ed_camera;
 
             if (window->cursor_locked) {   
-                camera.yaw += input_table.mouse_offset_x * mouse_sensitivity * dt;
+                camera.yaw -= input_table.mouse_offset_x * mouse_sensitivity * dt;
                 camera.pitch += input_table.mouse_offset_y * mouse_sensitivity * dt;
                 camera.pitch = Clamp(camera.pitch, -89.0f, 89.0f);
             }

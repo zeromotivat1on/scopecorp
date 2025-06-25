@@ -451,8 +451,8 @@ s32 r_read_frame_buffer_pixel(rid rid_frame_buffer, s32 color_attachment_index, 
     glReadBuffer(GL_COLOR_ATTACHMENT0 + color_attachment_index);
 
     s32 pixel = -1;
-    x = (s32)((f32)(x - viewport.x) * viewport.resolution_scale);
-    y = (s32)((f32)(viewport.height - y - 1) * viewport.resolution_scale);
+    x = (s32)(x * viewport.resolution_scale);
+    y = (s32)(y * viewport.resolution_scale);
     glReadPixels(x, y, 1, 1, GL_RED_INTEGER, GL_INT, &pixel);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     
