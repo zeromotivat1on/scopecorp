@@ -571,14 +571,13 @@ bool ui_button(uiid id, const char *text, const UI_Button_Style &style) {
     const f32 y1 = Max(style.p0.y, style.p1.y);
 
     ui_draw_quad(style.p0, style.p1, color_quad);
-    ui_draw_text(text, style.pos_text, color_text);
+    ui_draw_text(text, style.pos_text, color_text, style.atlas_index);
     
     return clicked;
 }
 
 bool ui_button(uiid id, const char *text, const UI_Button_Style_Centered &style) {
-    // @Todo: pass atlas index with style.
-    const auto &atlas = ui.font_atlases[UI_DEFAULT_FONT_ATLAS_INDEX];
+    const auto &atlas = ui.font_atlases[style.atlas_index];
     
     const s32 width = get_line_width_px(&atlas, text);
     const s32 height = atlas.line_height;
@@ -586,7 +585,7 @@ bool ui_button(uiid id, const char *text, const UI_Button_Style_Centered &style)
     const vec2 p0 = style.pos_text - style.padding;
     const vec2 p1 = vec2(p0.x + width + 2 * style.padding.x, p0.y + height + 2 * style.padding.y);
 
-    return ui_button(id, text, { p0, p1, style.pos_text, style.color_text, style.color_quad });
+    return ui_button(id, text, { p0, p1, style.pos_text, style.color_text, style.color_quad, style.atlas_index });
 }
 
 void ui_draw_text(const char *text, vec2 pos, u32 color, s32 atlas_index) {

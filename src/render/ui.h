@@ -41,6 +41,7 @@ struct UI_Button_Style {
     vec2 pos_text = vec2_zero;
     UI_Color color_text;
     UI_Color color_quad;
+    s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX;
 };
 
 struct UI_Button_Style_Centered {
@@ -48,6 +49,7 @@ struct UI_Button_Style_Centered {
     vec2 padding  = vec2_zero;
     UI_Color color_text;
     UI_Color color_quad;
+    s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX;
 };
 
 enum UI_Draw_Type {
