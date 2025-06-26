@@ -30,6 +30,46 @@
 
 #include "math/math_core.h"
 
+static Render_Command frame_buffer_command;
+
+void r_fb_submit_begin(const Frame_Buffer &frame_buffer) {
+    frame_buffer_command = {};
+    frame_buffer_command.flags = RENDER_FLAG_VIEWPORT | RENDER_FLAG_SCISSOR;
+    frame_buffer_command.viewport.x = 0;
+    frame_buffer_command.viewport.y = 0;
+    frame_buffer_command.viewport.width  = frame_buffer.width;
+    frame_buffer_command.viewport.height = frame_buffer.height;
+    frame_buffer_command.scissor.x = 0;
+    frame_buffer_command.scissor.y = 0;
+    frame_buffer_command.scissor.width  = frame_buffer.width;
+    frame_buffer_command.scissor.height = frame_buffer.height;
+    frame_buffer_command.rid_frame_buffer = frame_buffer.rid;
+    r_submit(&frame_buffer_command);
+
+    {   // Clear frame buffer.
+        Render_Command command = {};
+        command.flags = RENDER_FLAG_CLEAR;
+        command.clear.color = vec3_white;
+        command.clear.flags = CLEAR_FLAG_COLOR | CLEAR_FLAG_DEPTH | CLEAR_FLAG_STENCIL;
+        r_submit(&command);
+    }
+}
+
+void r_fb_submit_end(const Frame_Buffer &frame_buffer) {
+    frame_buffer_command.flags = RENDER_FLAG_RESET;
+    r_submit(&frame_buffer_command);
+
+    {   // Clear screen.
+        Render_Command command = {};
+        command.flags = RENDER_FLAG_CLEAR;
+        command.clear.color = vec3_black;
+        command.clear.flags = CLEAR_FLAG_COLOR;
+        r_submit(&command);
+    }
+
+    r_draw_frame_buffer(frame_buffer, 0);
+}
+
 void cache_texture_sids(Texture_Sid_List *list) {
     list->skybox = SID("/data/textures/skybox.png");
     list->stone  = SID("/data/textures/stone.png");

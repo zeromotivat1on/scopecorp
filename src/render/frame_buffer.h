@@ -33,4 +33,4 @@ void r_init_frame_buffer(s16 width, s16 height, const Texture_Format_Type *color
 void r_recreate_frame_buffer(Frame_Buffer *frame_buffer, s16 width, s16 height);
 s32 r_read_frame_buffer_pixel(rid rid_frame_buffer, s32 color_attachment_index, s32 x, s32 y);
 
-void draw_frame_buffer(Frame_Buffer *frame_buffer, s32 color_attachment_index);
+void r_draw_frame_buffer(const Frame_Buffer &frame_buffer, s32 color_attachment_index);

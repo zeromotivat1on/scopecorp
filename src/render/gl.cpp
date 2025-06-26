@@ -1,5 +1,5 @@
 #include "pch.h"
-#include "render/render_init.h"
+#include "render/render.h"
 #include "render/glad.h"
 #include "render/shader.h"
 #include "render/uniform.h"
@@ -496,16 +496,16 @@ void r_init_frame_buffer_draw() {
     copy_bytes(index_data, indices, sizeof(indices));
 }
 
-void draw_frame_buffer(Frame_Buffer *frame_buffer, s32 color_attachment_index) {
-    auto &material = asset_table.materials[frame_buffer->sid_material];
+void r_draw_frame_buffer(const Frame_Buffer &frame_buffer, s32 color_attachment_index) {
+    auto &material = asset_table.materials[frame_buffer.sid_material];
     
-    set_material_uniform_value(&material, "u_pixel_size", &frame_buffer->pixel_size, sizeof(frame_buffer->pixel_size));
-    set_material_uniform_value(&material, "u_curve_distortion_factor", &frame_buffer->curve_distortion_factor, sizeof(frame_buffer->curve_distortion_factor));
-    set_material_uniform_value(&material, "u_chromatic_aberration_offset", &frame_buffer->chromatic_aberration_offset, sizeof(frame_buffer->chromatic_aberration_offset));
-    set_material_uniform_value(&material, "u_quantize_color_count", &frame_buffer->quantize_color_count, sizeof(frame_buffer->quantize_color_count));
-    set_material_uniform_value(&material, "u_noise_blend_factor", &frame_buffer->noise_blend_factor, sizeof(frame_buffer->noise_blend_factor));
-    set_material_uniform_value(&material, "u_scanline_count", &frame_buffer->scanline_count, sizeof(frame_buffer->scanline_count));
-    set_material_uniform_value(&material, "u_scanline_intensity", &frame_buffer->scanline_intensity, sizeof(frame_buffer->scanline_intensity));
+    set_material_uniform_value(&material, "u_pixel_size", &frame_buffer.pixel_size, sizeof(frame_buffer.pixel_size));
+    set_material_uniform_value(&material, "u_curve_distortion_factor", &frame_buffer.curve_distortion_factor, sizeof(frame_buffer.curve_distortion_factor));
+    set_material_uniform_value(&material, "u_chromatic_aberration_offset", &frame_buffer.chromatic_aberration_offset, sizeof(frame_buffer.chromatic_aberration_offset));
+    set_material_uniform_value(&material, "u_quantize_color_count", &frame_buffer.quantize_color_count, sizeof(frame_buffer.quantize_color_count));
+    set_material_uniform_value(&material, "u_noise_blend_factor", &frame_buffer.noise_blend_factor, sizeof(frame_buffer.noise_blend_factor));
+    set_material_uniform_value(&material, "u_scanline_count", &frame_buffer.scanline_count, sizeof(frame_buffer.scanline_count));
+    set_material_uniform_value(&material, "u_scanline_intensity", &frame_buffer.scanline_intensity, sizeof(frame_buffer.scanline_intensity));
     
     Render_Command command = {};
     command.flags = RENDER_FLAG_VIEWPORT | RENDER_FLAG_SCISSOR | RENDER_FLAG_CULL_FACE | RENDER_FLAG_INDEXED;
@@ -523,8 +523,8 @@ void draw_frame_buffer(Frame_Buffer *frame_buffer, s32 color_attachment_index) {
     command.cull_face.winding = WINDING_COUNTER_CLOCKWISE;
 
     command.rid_vertex_array = rid_fb_va;
-    command.sid_material = frame_buffer->sid_material;
-    command.rid_override_texture = frame_buffer->color_attachments[color_attachment_index].rid_texture;
+    command.sid_material = frame_buffer.sid_material;
+    command.rid_override_texture = frame_buffer.color_attachments[color_attachment_index].rid_texture;
 
     command.buffer_element_count = fb_index_count;
     command.buffer_element_offset = fb_index_data_offset;

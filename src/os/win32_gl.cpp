@@ -2,7 +2,7 @@
 #include "log.h"
 #include "profile.h"
 
-#include "render/render_init.h"
+#include "render/render.h"
 #include "render/glad.h"
 
 #define VC_EXTRALEAN 1

@@ -19,7 +19,7 @@
 
 #include "math/math_core.h"
 
-#include "render/render_init.h"
+#include "render/render.h"
 #include "render/render_stats.h"
 #include "render/render_command.h"
 #include "render/buffer_storage.h"
@@ -414,35 +414,7 @@ s32 main() {
 
         tick_game(delta_time);
         tick_editor(delta_time);
-        
-#if 0
-        static f32 pixel_size_time = -1.0f;
-        if (pixel_size_time > 180.0f) pixel_size_time = 0.0f;
-        viewport.frame_buffer.pixel_size = (sin(pixel_size_time) + 1.0f) * viewport.frame_buffer.width * 0.05f;
-        pixel_size_time += delta_time * 4.0f;
-#endif
-        
-        Render_Command frame_buffer_command = {};
-        frame_buffer_command.flags = RENDER_FLAG_VIEWPORT | RENDER_FLAG_SCISSOR;
-        frame_buffer_command.viewport.x = 0;
-        frame_buffer_command.viewport.y = 0;
-        frame_buffer_command.viewport.width  = viewport.frame_buffer.width;
-        frame_buffer_command.viewport.height = viewport.frame_buffer.height;
-        frame_buffer_command.scissor.x = 0;
-        frame_buffer_command.scissor.y = 0;
-        frame_buffer_command.scissor.width  = viewport.frame_buffer.width;
-        frame_buffer_command.scissor.height = viewport.frame_buffer.height;
-        frame_buffer_command.rid_frame_buffer = viewport.frame_buffer.rid;
-        r_submit(&frame_buffer_command);
-
-        {
-            Render_Command command = {};
-            command.flags = RENDER_FLAG_CLEAR;
-            command.clear.color = vec3_white;
-            command.clear.flags = CLEAR_FLAG_COLOR | CLEAR_FLAG_DEPTH | CLEAR_FLAG_STENCIL;
-            r_submit(&command);
-        }
-        
+                
         draw_world(world);
 
 #if DEVELOPER
@@ -453,27 +425,27 @@ s32 main() {
         draw_memory_profiler();
 #endif
         
-        update_render_stats();
-        
-		r_flush(&entity_render_queue);
-        geo_flush();
-         
-        frame_buffer_command.flags = RENDER_FLAG_RESET;
-        r_submit(&frame_buffer_command);
+#if 0
+        static f32 pixel_size_time = -1.0f;
+        if (pixel_size_time > 180.0f) pixel_size_time = 0.0f;
+        viewport.frame_buffer.pixel_size = (sin(pixel_size_time) + 1.0f) * viewport.frame_buffer.width * 0.05f;
+        pixel_size_time += delta_time * 4.0f;
+#endif
 
-        {
-            Render_Command command = {};
-            command.flags = RENDER_FLAG_CLEAR;
-            command.clear.color = vec3_black;
-            command.clear.flags = CLEAR_FLAG_COLOR;
-            r_submit(&command);
+        {   // Frame buffer submit.
+            r_fb_submit_begin(viewport.frame_buffer);
+            
+            r_flush(&entity_render_queue);
+            geo_flush();
+
+            r_fb_submit_end(viewport.frame_buffer);
         }
         
-        draw_frame_buffer(&viewport.frame_buffer, 0);
-        ui_flush();
+        ui_flush(); // ui is drawn directly to default frame buffer
 
 		os_window_swap_buffers(window);
-        
+        update_render_stats();
+
         freef(); // clear frame allocation
  
 		const s64 end_counter = os_perf_counter();
