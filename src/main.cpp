@@ -111,19 +111,19 @@ s32 main() {
     }
 
     r_detect_capabilities();
-
     r_init_buffer_storages();
-    
+    r_init_global_uniforms();
+
+    uniform_value_cache.data = allocl(MAX_UNIFORM_VALUE_CACHE_SIZE);
+    uniform_value_cache.size = 0;
+    uniform_value_cache.capacity = MAX_UNIFORM_VALUE_CACHE_SIZE;
+
     au_init_context();
 
     os_window_lock_cursor(window, true);
     os_set_vsync(false);
 
     stbi_set_flip_vertically_on_load(true);
-
-    uniform_value_cache.data = allocl(MAX_UNIFORM_VALUE_CACHE_SIZE);
-    uniform_value_cache.size = 0;
-    uniform_value_cache.capacity = MAX_UNIFORM_VALUE_CACHE_SIZE;
     
     cache_texture_sids(&texture_sids);
 
@@ -334,69 +334,7 @@ s32 main() {
     const char *main_level_path = PATH_LEVEL("main.wl");
     load_level(world, main_level_path);
 #endif
-      
-    {
-        RID_UNIFORM_BUFFER = r_create_uniform_buffer(MAX_UNIFORM_BUFFER_SIZE);
-        
-        constexpr s32 MAX_UNIFORM_LIGHTS = 64; // must be the same as in shaders
-        static_assert(MAX_UNIFORM_LIGHTS >= MAX_POINT_LIGHTS + MAX_DIRECT_LIGHTS);
-
-        const Uniform_Block_Field camera_fields[] = {
-            { UNIFORM_F32_3,   1 },
-            { UNIFORM_F32_4X4, 1 },
-            { UNIFORM_F32_4X4, 1 },
-            { UNIFORM_F32_4X4, 1 },
-        };
-
-        const Uniform_Block_Field viewport_fields[] = {
-            { UNIFORM_F32_2,   1 },
-            { UNIFORM_F32_4X4, 1 },
-        };
-         
-        const Uniform_Block_Field direct_light_fields[] = {
-            { UNIFORM_U32,   1 },
-            { UNIFORM_F32_3, MAX_DIRECT_LIGHTS },
-            { UNIFORM_F32_3, MAX_DIRECT_LIGHTS },
-            { UNIFORM_F32_3, MAX_DIRECT_LIGHTS },
-            { UNIFORM_F32_3, MAX_DIRECT_LIGHTS },
-        };
-
-        const Uniform_Block_Field point_light_fields[] = {
-            { UNIFORM_U32,   1 },
-            { UNIFORM_F32_3, MAX_POINT_LIGHTS },
-            { UNIFORM_F32_3, MAX_POINT_LIGHTS },
-            { UNIFORM_F32_3, MAX_POINT_LIGHTS },
-            { UNIFORM_F32_3, MAX_POINT_LIGHTS },
-            { UNIFORM_F32,   MAX_POINT_LIGHTS },
-            { UNIFORM_F32,   MAX_POINT_LIGHTS },
-            { UNIFORM_F32,   MAX_POINT_LIGHTS },
-        };
-
-        r_add_uniform_block(RID_UNIFORM_BUFFER,
-                            UNIFORM_BLOCK_BINDING_CAMERA,
-                            UNIFORM_BLOCK_NAME_CAMERA,
-                            camera_fields, COUNT(camera_fields),
-                            &uniform_block_camera);
-
-        r_add_uniform_block(RID_UNIFORM_BUFFER,
-                            UNIFORM_BLOCK_BINDING_VIEWPORT,
-                            UNIFORM_BLOCK_NAME_VIEWPORT,
-                            viewport_fields, COUNT(viewport_fields),
-                            &uniform_block_viewport);
-
-        r_add_uniform_block(RID_UNIFORM_BUFFER,
-                            UNIFORM_BLOCK_BINDING_DIRECT_LIGHTS,
-                            UNIFORM_BLOCK_NAME_DIRECT_LIGHTS,
-                            direct_light_fields, COUNT(direct_light_fields),
-                            &uniform_block_direct_lights);
-
-        r_add_uniform_block(RID_UNIFORM_BUFFER,
-                            UNIFORM_BLOCK_BINDING_POINT_LIGHTS,
-                            UNIFORM_BLOCK_NAME_POINT_LIGHTS,
-                            point_light_fields, COUNT(point_light_fields),
-                            &uniform_block_point_lights);
-    }
-
+    
 	delta_time = 0.0f;
 	s64 begin_counter = os_perf_counter();
 

@@ -313,7 +313,8 @@ void tick_editor(f32 dt) {
         }
     }
 
-    if (game_state.mode == MODE_EDITOR) { // Entity ui.
+    // Create entity ui.
+    if (!window->cursor_locked && game_state.mode == MODE_EDITOR) {
         const uiid id = { 0, 1, 0 };
         const UI_Button_Style_Centered style = {
             vec2(100.0f),

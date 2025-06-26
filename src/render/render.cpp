@@ -32,6 +32,68 @@
 
 static Render_Command frame_buffer_command;
 
+void r_init_global_uniforms() {
+    RID_UNIFORM_BUFFER = r_create_uniform_buffer(MAX_UNIFORM_BUFFER_SIZE);
+        
+    constexpr s32 MAX_UNIFORM_LIGHTS = 64; // must be the same as in shaders
+    static_assert(MAX_UNIFORM_LIGHTS >= MAX_POINT_LIGHTS + MAX_DIRECT_LIGHTS);
+
+    const Uniform_Block_Field camera_fields[] = {
+        { UNIFORM_F32_3,   1 },
+        { UNIFORM_F32_4X4, 1 },
+        { UNIFORM_F32_4X4, 1 },
+        { UNIFORM_F32_4X4, 1 },
+    };
+
+    const Uniform_Block_Field viewport_fields[] = {
+        { UNIFORM_F32_2,   1 },
+        { UNIFORM_F32_4X4, 1 },
+    };
+         
+    const Uniform_Block_Field direct_light_fields[] = {
+        { UNIFORM_U32,   1 },
+        { UNIFORM_F32_3, MAX_DIRECT_LIGHTS },
+        { UNIFORM_F32_3, MAX_DIRECT_LIGHTS },
+        { UNIFORM_F32_3, MAX_DIRECT_LIGHTS },
+        { UNIFORM_F32_3, MAX_DIRECT_LIGHTS },
+    };
+
+    const Uniform_Block_Field point_light_fields[] = {
+        { UNIFORM_U32,   1 },
+        { UNIFORM_F32_3, MAX_POINT_LIGHTS },
+        { UNIFORM_F32_3, MAX_POINT_LIGHTS },
+        { UNIFORM_F32_3, MAX_POINT_LIGHTS },
+        { UNIFORM_F32_3, MAX_POINT_LIGHTS },
+        { UNIFORM_F32,   MAX_POINT_LIGHTS },
+        { UNIFORM_F32,   MAX_POINT_LIGHTS },
+        { UNIFORM_F32,   MAX_POINT_LIGHTS },
+    };
+
+    r_add_uniform_block(RID_UNIFORM_BUFFER,
+                        UNIFORM_BLOCK_BINDING_CAMERA,
+                        UNIFORM_BLOCK_NAME_CAMERA,
+                        camera_fields, COUNT(camera_fields),
+                        &uniform_block_camera);
+
+    r_add_uniform_block(RID_UNIFORM_BUFFER,
+                        UNIFORM_BLOCK_BINDING_VIEWPORT,
+                        UNIFORM_BLOCK_NAME_VIEWPORT,
+                        viewport_fields, COUNT(viewport_fields),
+                        &uniform_block_viewport);
+
+    r_add_uniform_block(RID_UNIFORM_BUFFER,
+                        UNIFORM_BLOCK_BINDING_DIRECT_LIGHTS,
+                        UNIFORM_BLOCK_NAME_DIRECT_LIGHTS,
+                        direct_light_fields, COUNT(direct_light_fields),
+                        &uniform_block_direct_lights);
+
+    r_add_uniform_block(RID_UNIFORM_BUFFER,
+                        UNIFORM_BLOCK_BINDING_POINT_LIGHTS,
+                        UNIFORM_BLOCK_NAME_POINT_LIGHTS,
+                        point_light_fields, COUNT(point_light_fields),
+                        &uniform_block_point_lights);
+}
+
 void r_fb_submit_begin(const Frame_Buffer &frame_buffer) {
     frame_buffer_command = {};
     frame_buffer_command.flags = RENDER_FLAG_VIEWPORT | RENDER_FLAG_SCISSOR;
