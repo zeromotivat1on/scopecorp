@@ -535,15 +535,15 @@ void ui_flush() {
 }
 
 bool ui_button(uiid id, const char *text, const UI_Button_Style &style) {
-    u32 color_text = style.color_text;
-    u32 color_quad = style.color_quad;
+    u32 color_text = style.color_text.cold;
+    u32 color_quad = style.color_quad.cold;
     bool clicked = false;
 
     if (inside(viewport.mouse_pos, style.p0, style.p1)) {
         ui.id_hot = id;
 
-        color_text = style.color_text_hot;
-        color_quad = style.color_quad_hot;
+        color_text = style.color_text.hot;
+        color_quad = style.color_quad.hot;
 
         if (down_now(MOUSE_LEFT)) {
             ui.id_active = id;
@@ -551,8 +551,8 @@ bool ui_button(uiid id, const char *text, const UI_Button_Style &style) {
     }
     
     if (id == ui.id_active) {
-        color_text = style.color_text_active;
-        color_quad = style.color_quad_active;
+        color_text = style.color_text.active;
+        color_quad = style.color_quad.active;
             
         if (up_now(MOUSE_LEFT)) {
             if (id == ui.id_hot) {
@@ -574,6 +574,19 @@ bool ui_button(uiid id, const char *text, const UI_Button_Style &style) {
     ui_draw_text(text, style.pos_text, color_text);
     
     return clicked;
+}
+
+bool ui_button(uiid id, const char *text, const UI_Button_Style_Centered &style) {
+    // @Todo: pass atlas index with style.
+    const auto &atlas = ui.font_atlases[UI_DEFAULT_FONT_ATLAS_INDEX];
+    
+    const s32 width = get_line_width_px(&atlas, text);
+    const s32 height = atlas.line_height;
+    
+    const vec2 p0 = style.pos_text - style.padding;
+    const vec2 p1 = vec2(p0.x + width + 2 * style.padding.x, p0.y + height + 2 * style.padding.y);
+
+    return ui_button(id, text, { p0, p1, style.pos_text, style.color_text, style.color_quad });
 }
 
 void ui_draw_text(const char *text, vec2 pos, u32 color, s32 atlas_index) {

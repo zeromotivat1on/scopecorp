@@ -315,13 +315,12 @@ void tick_editor(f32 dt) {
 
     if (game_state.mode == MODE_EDITOR) { // Entity ui.
         const uiid id = { 0, 1, 0 };
-        const UI_Button_Style style = {
-            vec2(16.0f, viewport.height - 16.0f), vec2(116.0f, viewport.height - 66.0f),
-            vec2(26.0f, viewport.height - 56.0f),
-            rgba_white, rgba_pack(255, 255, 255, 200), rgba_white,
-            rgba_black, rgba_pack(0, 0, 0, 200), rgba_black
+        const UI_Button_Style_Centered style = {
+            vec2(100.0f),
+            vec2(32.0f, 16.0f),
+            UI_Color { rgba_white, rgba_pack(255, 255, 255, 200), rgba_white },
+            UI_Color { rgba_black, rgba_pack(0, 0, 0, 200), rgba_black }
         };
-        
         if (ui_button(id, "Add static mesh", style)) {
             create_entity(world, ENTITY_STATIC_MESH);
         }

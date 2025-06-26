@@ -9,9 +9,9 @@ inline constexpr u16 MAX_UI_TEXT_DRAW_BUFFERS = 8;
 inline constexpr u16 MAX_UI_TEXT_DRAW_BUFFER_CHARS = 4096;
 inline constexpr u16 MAX_UI_QUAD_DRAW_BUFFER_QUADS = 512;
 
-inline constexpr s32 UI_DEFAULT_FONT_ATLAS_INDEX = 0;
+inline constexpr s32 UI_DEFAULT_FONT_ATLAS_INDEX       = 0;
 inline constexpr s32 UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX = 1;
-inline constexpr s32 UI_PROFILER_FONT_ATLAS_INDEX = 2;
+inline constexpr s32 UI_PROFILER_FONT_ATLAS_INDEX      = 2;
 inline constexpr s32 UI_SCREEN_REPORT_FONT_ATLAS_INDEX = 3;
 
 struct mat4;
@@ -29,16 +29,25 @@ inline bool operator==(const uiid &a, const uiid &b) {
     return a.owner == b.owner && a.item == b.item && a.index == b.index;
 }
 
+struct UI_Color {
+    u32 cold   = 0;
+    u32 hot    = 0;
+    u32 active = 0;
+};
+
 struct UI_Button_Style {
     vec2 p0 = vec2_zero;
     vec2 p1 = vec2_zero;
     vec2 pos_text = vec2_zero;
-    u32 color_text        = 0;
-    u32 color_text_hot    = 0;
-    u32 color_text_active = 0;
-    u32 color_quad        = 0;
-    u32 color_quad_hot    = 0;
-    u32 color_quad_active = 0;
+    UI_Color color_text;
+    UI_Color color_quad;
+};
+
+struct UI_Button_Style_Centered {
+    vec2 pos_text = vec2_zero;
+    vec2 padding  = vec2_zero;
+    UI_Color color_text;
+    UI_Color color_quad;
 };
 
 enum UI_Draw_Type {
@@ -95,6 +104,7 @@ void ui_init();
 void ui_flush();
 
 bool ui_button(uiid id, const char *text, const UI_Button_Style &style);
+bool ui_button(uiid id, const char *text, const UI_Button_Style_Centered &style);
 
 void ui_draw_text(const char *text, vec2 pos, u32 color, s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX);
 void ui_draw_text(const char *text, u32 count, vec2 pos, u32 color, s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX);
