@@ -3,6 +3,7 @@
 #define DEBUG_CONSOLE_UNKNOWN_COMMAND_WARNING "unknown command: "
 
 #define DEBUG_CONSOLE_COMMAND_CLEAR "clear"
+#define DEBUG_CONSOLE_COMMAND_LEVEL "level"
 
 inline constexpr s32 MAX_DEBUG_CONSOLE_HISTORY_SIZE = KB(32);
 inline constexpr s32 MAX_DEBUG_CONSOLE_INPUT_SIZE   = 64;
@@ -39,6 +40,7 @@ void init_debug_console();
 void open_debug_console();
 void close_debug_console();
 void draw_debug_console();
+void add_to_debug_console_history(const char *text);
 void add_to_debug_console_history(const char *text, u32 count);
 void on_input_debug_console(Window_Event *event);
 void on_viewport_resize_debug_console(s16 width, s16 height);

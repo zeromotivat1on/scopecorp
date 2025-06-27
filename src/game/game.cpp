@@ -36,7 +36,11 @@ void on_window_resize(s16 width, s16 height) {
     r_set_uniform_block_value(&uniform_block_viewport, 1, 0, &viewport.orthographic_projection, get_uniform_type_size_gpu_aligned(UNIFORM_F32_4X4));        
         
     on_viewport_resize(&world->camera, &viewport);
-    world->ed_camera = world->camera;
+    world->ed_camera.aspect = world->camera.aspect;
+    world->ed_camera.left   = world->camera.left;
+    world->ed_camera.right  = world->camera.right;
+    world->ed_camera.bottom = world->camera.bottom;
+    world->ed_camera.top    = world->camera.top;
 
     on_viewport_resize_debug_console(viewport.width, viewport.height);
 
@@ -131,10 +135,10 @@ void save_level(World *world) {
     defer { os_file_close(file); };
     
     if (file == INVALID_FILE) {
-        log("World level %s does not exist, creating new one", path);
+        log("Level %s does not exist, creating new one", path);
         file = os_file_open(path, FILE_OPEN_NEW, FILE_FLAG_WRITE);
         if (file == INVALID_FILE) {
-            error("Failed to create new world level %s", path);
+            error("Failed to create new level %s", path);
             return;
         }
     }
@@ -180,7 +184,7 @@ void load_level(World *world, const char *path) {
     defer { os_file_close(file); };
     
     if (file == INVALID_FILE) {
-        error("Failed to open asset pack for load %s", path);
+        error("Failed to open level %s", path);
         return;
     }
 
@@ -201,7 +205,7 @@ void load_level(World *world, const char *path) {
 
     for_each_entity(world, cb_init_entity_after_level_load, world);
     
-    log("Loaded world level %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(load));
+    log("Loaded level %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(load));
     screen_report("Loaded level %s", path);
 }
 

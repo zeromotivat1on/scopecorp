@@ -622,6 +622,10 @@ void draw_debug_console() {
     }
 }
 
+void add_to_debug_console_history(const char *text) {
+    add_to_debug_console_history(text, (u32)str_size(text));
+}
+
 void add_to_debug_console_history(const char *text, u32 count) {
     if (!debug_console.history) {
         return;
@@ -716,28 +720,47 @@ void on_input_debug_console(Window_Event *event) {
             if (input_size > 0) {
                 static char add_text[MAX_DEBUG_CONSOLE_INPUT_SIZE + 128] = { '\0' };
             
-                // @Cleanup: make better history overflow handling.
+                // @Todo: make better history overflow handling.
                 if (history_size + input_size > MAX_DEBUG_CONSOLE_HISTORY_SIZE) {
                     history[0] = '\0';
                     history_size = 0;
                 }
 
-                const bool clear = str_cmp(input, DEBUG_CONSOLE_COMMAND_CLEAR, input_size);
-                if (clear) {
-                    history[0] = '\0';
-                    history_size = 0;
-                    history_y = history_min_y;
-                } else {
-                    static const u32 warning_size = (u32)str_size(DEBUG_CONSOLE_UNKNOWN_COMMAND_WARNING);
-                    str_glue(add_text, DEBUG_CONSOLE_UNKNOWN_COMMAND_WARNING, warning_size);
+                const char *DELIMITERS = " ";
+                const char *token = str_token(input, DELIMITERS);
+                
+                if (token) {
+                    if (str_cmp(token, DEBUG_CONSOLE_COMMAND_CLEAR)) {
+                        const char *next = str_token(null, DELIMITERS);
+                        if (!next) {
+                            history[0] = '\0';
+                            history_size = 0;
+                            history_y = history_min_y;
+                        } else {
+                            str_glue(add_text, "usage: clear\n");
+                            add_to_debug_console_history(add_text);
+                        }
+                    } else if (str_cmp(token, DEBUG_CONSOLE_COMMAND_LEVEL)) {
+                        const char *name = str_token(null, DELIMITERS);
+                        if (name) {
+                            char path[MAX_PATH_SIZE] = { '\0' };
+                            str_glue(path, DIR_LEVELS);
+                            str_glue(path, name);
+                        
+                            load_level(world, path);
+                        } else {
+                            str_glue(add_text, "usage: level name_with_extension\n");
+                            add_to_debug_console_history(add_text);
+                        }
+                    } else {
+                        str_glue(add_text, DEBUG_CONSOLE_UNKNOWN_COMMAND_WARNING);
+                        str_glue(add_text, input);
+                        str_glue(add_text, "\n");
+                        add_to_debug_console_history(add_text);
+                    }
+   
                 }
-
-                if (!clear) {
-                    str_glue(add_text, input, input_size);
-                    str_glue(add_text, "\n",  1);
-                    add_to_debug_console_history(add_text, (u32)str_size(add_text));
-                }
-            
+                
                 input_size = 0;
                 add_text[0] = '\0';
             }
@@ -748,6 +771,7 @@ void on_input_debug_console(Window_Event *event) {
         if (character == ASCII_BACKSPACE) {
             input_size -= 1;
             input_size = Max(0, input_size);
+            input[input_size] = '\0';
         }
 
         if (is_ascii_printable(character)) {
@@ -757,6 +781,7 @@ void on_input_debug_console(Window_Event *event) {
         
             input[input_size] = (char)character;
             input_size += 1;
+            input[input_size] = '\0';
         }
         
         break;

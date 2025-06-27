@@ -183,7 +183,7 @@ s32 main() {
 	init_world(world);
 
 #if 0
-    str_copy(world->name, "main.wl");
+    str_copy(world->name, "main.lvl");
 
 	auto &player = *(Player *)create_entity(world, ENTITY_PLAYER);
 	{
@@ -315,7 +315,7 @@ s32 main() {
 
     save_level(world);
 #else
-    const char *main_level_path = PATH_LEVEL("main.wl");
+    const char *main_level_path = PATH_LEVEL("main.lvl");
     load_level(world, main_level_path);
 #endif
     
