@@ -21,8 +21,8 @@
 #include "render/render_stats.h"
 #include "render/buffer_storage.h"
 
-s16 KEY_SWITCH_RUNTIME_PROFILER = KEY_F5;
-s16 KEY_SWITCH_MEMORY_PROFILER  = KEY_F6;
+Input_Key KEY_SWITCH_RUNTIME_PROFILER = KEY_F5;
+Input_Key KEY_SWITCH_MEMORY_PROFILER  = KEY_F6;
  
 Scope_Timer::Scope_Timer(const char *info)
     : info(info), start(os_perf_counter()) {}

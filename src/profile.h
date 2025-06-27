@@ -2,8 +2,10 @@
 
 #include "os/time.h"
 
-extern s16 KEY_SWITCH_RUNTIME_PROFILER;
-extern s16 KEY_SWITCH_MEMORY_PROFILER;
+enum Input_Key : u8;
+
+extern Input_Key KEY_SWITCH_RUNTIME_PROFILER;
+extern Input_Key KEY_SWITCH_MEMORY_PROFILER;
 
 inline constexpr u32 MAX_PROFILE_SCOPE_NAME_SIZE = 32;
 

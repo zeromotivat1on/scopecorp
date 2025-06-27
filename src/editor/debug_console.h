@@ -12,7 +12,8 @@ inline constexpr f32 DEBUG_CONSOLE_PADDING = 16.0f;
 
 inline constexpr f32 DEBUG_CONSOLE_CURSOR_BLINK_INTERVAL = 0.5f;
 
-extern s16 KEY_SWITCH_DEBUG_CONSOLE;
+enum Input_Key : u8;
+extern Input_Key KEY_SWITCH_DEBUG_CONSOLE;
 
 struct Window_Event;
 
