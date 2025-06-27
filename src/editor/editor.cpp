@@ -52,7 +52,7 @@ struct Find_Entity_By_AABB_Data {
     s32 aabb_index = INVALID_INDEX;
 };
 
-static void mouse_pick_entity(World *world, Entity *e) {
+void mouse_pick_entity(World *world, Entity *e) {
     if (world->mouse_picked_entity) {
         world->mouse_picked_entity->flags &= ~ENTITY_FLAG_SELECTED_IN_EDITOR;
     }
@@ -61,6 +61,13 @@ static void mouse_pick_entity(World *world, Entity *e) {
     world->mouse_picked_entity = e;
 
     game_state.selected_entity_property_to_change = PROPERTY_LOCATION;
+}
+
+void mouse_unpick_entity(World *world) {
+    if (world->mouse_picked_entity) {
+        world->mouse_picked_entity->flags &= ~ENTITY_FLAG_SELECTED_IN_EDITOR;
+        world->mouse_picked_entity = null;
+    }
 }
 
 static For_Each_Result cb_find_entity_by_aabb(Entity *e, void *user_data) {
@@ -94,11 +101,7 @@ void on_input_editor(Window_Event *event) {
             os_window_lock_cursor(window, true);
             pop_input_layer();
             screen_report("Game");
-            
-            if (world->mouse_picked_entity) {
-                world->mouse_picked_entity->flags &= ~ENTITY_FLAG_SELECTED_IN_EDITOR;
-                world->mouse_picked_entity = null;
-            }
+            mouse_unpick_entity(world);
         } else if (press && key == KEY_SWITCH_COLLISION_VIEW) {
             if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
                 game_state.view_mode_flags &= ~VIEW_MODE_FLAG_COLLISION;
@@ -129,12 +132,12 @@ void on_input_editor(Window_Event *event) {
     case WINDOW_EVENT_MOUSE: {
         if (press && key == MOUSE_MIDDLE) {
             os_window_lock_cursor(window, !window->cursor_locked);
-        } else if (press && key == MOUSE_RIGHT) {
-            if (world->mouse_picked_entity) {
-                world->mouse_picked_entity->flags &= ~ENTITY_FLAG_SELECTED_IN_EDITOR;
-                world->mouse_picked_entity = null;
+            if (window->cursor_locked) {
+                mouse_unpick_entity(world);
             }
-        } else if (press && key == MOUSE_LEFT) {
+        } else if (press && key == MOUSE_RIGHT && !window->cursor_locked) {
+            mouse_unpick_entity(world);
+        } else if (press && key == MOUSE_LEFT && !window->cursor_locked) {
             if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
                 const Ray ray = world_ray_from_viewport_location(desired_camera(world), &viewport, input_table.mouse_x, input_table.mouse_y);
                 const s32 aabb_index = find_closest_overlapped_aabb(ray, world->aabbs.items, world->aabbs.count);

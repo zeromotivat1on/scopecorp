@@ -198,12 +198,8 @@ s32 main() {
 
 		player.draw_data.sid_mesh     = SID_MESH_PLAYER;
 		player.draw_data.sid_material = SID_MATERIAL_PLAYER;
-        player.draw_data.eid_vertex_data_offset = EID_VERTEX_DATA_SIZE;
 
         player.sid_sound_steps = SID_SOUND_PLAYER_STEPS;
-                
-        *(eid *)((u8 *)EID_VERTEX_DATA + EID_VERTEX_DATA_SIZE) = player.eid;
-        EID_VERTEX_DATA_SIZE += sizeof(u32);
 	}
 
     auto &portal = *(Portal *)create_entity(world, ENTITY_PORTAL);
@@ -232,10 +228,6 @@ s32 main() {
 
         ground.draw_data.sid_mesh     = SID_MESH_QUAD;
         ground.draw_data.sid_material = SID_MATERIAL_GROUND;
-        ground.draw_data.eid_vertex_data_offset = EID_VERTEX_DATA_SIZE;
-        
-        *(eid *)((u8 *)EID_VERTEX_DATA + EID_VERTEX_DATA_SIZE) = ground.eid;
-        EID_VERTEX_DATA_SIZE += sizeof(u32);
 	}
 
 	auto &cube = *(Static_Mesh *)create_entity(world, ENTITY_STATIC_MESH);
@@ -248,10 +240,6 @@ s32 main() {
 
 		cube.draw_data.sid_mesh     = SID_MESH_CUBE;
 		cube.draw_data.sid_material = SID_MATERIAL_CUBE;
-        cube.draw_data.eid_vertex_data_offset = EID_VERTEX_DATA_SIZE;
-        
-        *(eid *)((u8 *)EID_VERTEX_DATA + EID_VERTEX_DATA_SIZE) = cube.eid;
-        EID_VERTEX_DATA_SIZE += sizeof(u32);
 	}
 
 	auto &skybox = *(Skybox *)create_entity(world, ENTITY_SKYBOX);
@@ -261,10 +249,6 @@ s32 main() {
         
 		skybox.draw_data.sid_mesh     = SID_MESH_SKYBOX;
 		skybox.draw_data.sid_material = SID_MATERIAL_SKYBOX;
-        skybox.draw_data.eid_vertex_data_offset = EID_VERTEX_DATA_SIZE;
-        
-        *(eid *)((u8 *)EID_VERTEX_DATA + EID_VERTEX_DATA_SIZE) = skybox.eid;
-        EID_VERTEX_DATA_SIZE += sizeof(u32);
 	}
 
     auto &sound_emitter_2d = *(Sound_Emitter_2D *)create_entity(world, ENTITY_SOUND_EMITTER_2D);
@@ -396,7 +380,6 @@ s32 main() {
             delta_time = 0.16f;
         }
 #endif
-        //os_thread_sleep(200);
 	}
 
     os_thread_terminate(hot_reload_thread);

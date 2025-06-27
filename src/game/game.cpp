@@ -549,17 +549,22 @@ Entity *create_entity(World *world, Entity_Type e_type) {
     }
 
     if (e) {
-        static eid eid = 1;
+        static eid eid_global = 1;
 
-        e->eid = eid;
+        e->eid = eid_global;
         e->aabb_index = world->aabbs.add_default();
 
         auto &aabb = world->aabbs[e->aabb_index];
         const vec3 half_extent = e->scale * 0.5f;
         aabb.min = e->location - half_extent;
         aabb.max = e->location + half_extent;
-        
-        eid += 1;
+
+        Assert(EID_VERTEX_DATA_SIZE < MAX_EID_VERTEX_DATA_SIZE);
+        e->draw_data.eid_vertex_data_offset = EID_VERTEX_DATA_SIZE;
+        *(eid *)((u8 *)EID_VERTEX_DATA + EID_VERTEX_DATA_SIZE) = e->eid;
+        EID_VERTEX_DATA_SIZE += sizeof(u32);
+         
+        eid_global += 1;
     }
     
     return e;
