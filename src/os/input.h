@@ -212,6 +212,10 @@ inline bool down(Input_Key key) {
     return check(input_table.keys.buckets, key);
 }
 
+inline bool up(Input_Key key) {
+    return !down(key);
+}
+
 inline bool down_now(Input_Key key) {
     return check(input_table.keys_down.buckets, key);
 }
