@@ -70,10 +70,15 @@ inline constexpr rid RID_NONE = 0;
 
 #define rgba_pack(r, g, b, a) (u32)((r) << 24  | (g) << 16  | (b) << 8 | (a) << 0)
 
-#define rgba_r(c, r) (((c) & 0x00FFFFFF) | ((u32)(r) << 24))
-#define rgba_g(c, g) (((c) & 0xFF00FFFF) | ((u32)(g) << 16))
-#define rgba_b(c, b) (((c) & 0xFFFF00FF) | ((u32)(b) << 8))
-#define rgba_a(c, a) (((c) & 0xFFFFFF00) | ((u32)(a) << 0))
+#define rgba_set_r(c, r) (((c) & 0x00FFFFFF) | ((u32)(r) << 24))
+#define rgba_set_g(c, g) (((c) & 0xFF00FFFF) | ((u32)(g) << 16))
+#define rgba_set_b(c, b) (((c) & 0xFFFF00FF) | ((u32)(b) << 8))
+#define rgba_set_a(c, a) (((c) & 0xFFFFFF00) | ((u32)(a) << 0))
+
+#define rgba_get_r(c) ((c) & 0xFF000000)
+#define rgba_get_g(c) ((c) & 0x00FF0000)
+#define rgba_get_b(c) ((c) & 0x0000FF00)
+#define rgba_get_a(c) ((c) & 0x000000FF)
 
 #define rgba_white  rgba_pack(255, 255, 255, 255)
 #define rgba_black  rgba_pack(  0,   0,   0, 255)
@@ -127,6 +132,8 @@ template <class F> My_Defer<F> operator+(My_Defer_Ref, F f) { return {f}; }
 #define For(x) for (auto &it : (x))
 
 #define Align(x, alignment) (((x) + (alignment) - 1) & ~((alignment) - 1))
+
+#define Offsetof(x, m) ((u64)&(((x *)0)->m))
 
 #define Sign(x)        ((x) > 0 ? 1 : -1)
 #define Min(a, b)      ((a) < (b) ? (a) : (b))

@@ -638,8 +638,6 @@ void os_window_poll_events(Window *window) {
 	for (s32 i = 0; i < window_event_queue_size; ++i) {
 		window->event_callback(window, window_event_queue + i);
     }
-    
-	window_event_queue_size = 0;
 }
 
 void os_window_close(Window *window) {

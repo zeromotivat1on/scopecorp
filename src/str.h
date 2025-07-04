@@ -20,4 +20,13 @@ const char *str_char_from_end(const char *str, s32 c);
 bool is_space(s32 c);
 
 f32 str_to_f32(const char *str);
+
+s8  str_to_s8(const char *str);
+s16 str_to_s16(const char *str);
+s32 str_to_s32(const char *str);
+s64 str_to_s64(const char *str);
+
+u8  str_to_u8(const char *str);
+u16 str_to_u16(const char *str); 
 u32 str_to_u32(const char *str);
+u64 str_to_u64(const char *str);

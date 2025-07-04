@@ -136,7 +136,7 @@ void draw_runtime_profiler() {
         const vec2 q1 = vec2(viewport.width - PROFILER_MARGIN,
                              viewport.height - PROFILER_MARGIN);
         const u32 color = rgba_pack(0, 0, 0, 200);
-        ui_draw_quad(q0, q1, color);
+        ui_quad(q0, q1, color);
     }
 
     {   // Profiler scopes.
@@ -164,16 +164,16 @@ void draw_runtime_profiler() {
                 
             pos.x = column_offset_1;
             count = stbsp_snprintf(buffer, sizeof(buffer), "%s", scope.name);
-            ui_draw_text(buffer, count, pos, color, UI_PROFILER_FONT_ATLAS_INDEX);
+            ui_text(buffer, count, pos, color, UI_PROFILER_FONT_ATLAS_INDEX);
 
             pos.x = column_offset_2;
             count = stbsp_snprintf(buffer, sizeof(buffer), "%.2fms", time);
-            ui_draw_text(buffer, count, pos, color, UI_PROFILER_FONT_ATLAS_INDEX);
+            ui_text(buffer, count, pos, color, UI_PROFILER_FONT_ATLAS_INDEX);
 
             pos.x = column_offset_3;
             count = stbsp_snprintf(buffer, sizeof(buffer), "%s:%d",
                                    scope.file_path, scope.line);
-            ui_draw_text(buffer, count, pos, color, UI_PROFILER_FONT_ATLAS_INDEX);
+            ui_text(buffer, count, pos, color, UI_PROFILER_FONT_ATLAS_INDEX);
             
             pos.y -= atlas.line_height;
         }
@@ -223,7 +223,7 @@ void draw_memory_profiler() {
         const vec2 q1 = vec2(viewport.width - PROFILER_MARGIN,
                              viewport.height - PROFILER_MARGIN);
         const u32 color = rgba_pack(0, 0, 0, 200);
-        ui_draw_quad(q0, q1, color);
+        ui_quad(q0, q1, color);
     }
 
     {   // Profiler scopes.
@@ -239,14 +239,14 @@ void draw_memory_profiler() {
 		count = (s32)stbsp_snprintf(buffer, sizeof(buffer),
                                     "CPU Linear %.2fmb/%.2fmb (%.2f%%)",
                                     (f32)allocl_size / 1024 / 1024, (f32)MAX_ALLOCL_SIZE / 1024 / 1024, allocl_percent);
-		ui_draw_text(buffer, count, pos, rgba_white);
+		ui_text(buffer, count, pos, rgba_white);
         pos.y -= atlas.line_height;
 
         const f32 allocf_percent = (f32)allocf_size / MAX_ALLOCF_SIZE * 100.0f;
 		count = (s32)stbsp_snprintf(buffer, sizeof(buffer),
                                     "CPU Frame  %.2fmb/%.2fmb (%.2f%%)",
                                     (f32)allocf_size / 1024 / 1024, (f32)MAX_ALLOCF_SIZE / 1024 / 1024, allocf_percent);
-		ui_draw_text(buffer, count, pos, rgba_white);
+		ui_text(buffer, count, pos, rgba_white);
         pos.y -= atlas.line_height;
 
         const auto &vbs = vertex_buffer_storage;
@@ -254,7 +254,7 @@ void draw_memory_profiler() {
 		count = (s32)stbsp_snprintf(buffer, sizeof(buffer),
                                     "GPU Vertex %.2fmb/%.2fmb (%.2f%%)",
                                     (f32)vbs.size / 1024 / 1024, (f32)vbs.capacity / 1024 / 1024, rallocv_percent);
-		ui_draw_text(buffer, count, pos, rgba_white);
+		ui_text(buffer, count, pos, rgba_white);
         pos.y -= atlas.line_height;
 
         const auto &ibs = index_buffer_storage;
@@ -262,7 +262,7 @@ void draw_memory_profiler() {
 		count = (s32)stbsp_snprintf(buffer, sizeof(buffer),
                                     "GPU Index  %.2fmb/%.2fmb (%.2f%%)",
                                     (f32)ibs.size / 1024 / 1024, (f32)ibs.capacity / 1024 / 1024, ralloci_percent);
-		ui_draw_text(buffer, count, pos, rgba_white);
+		ui_text(buffer, count, pos, rgba_white);
         pos.y -= atlas.line_height;
     }
 }
@@ -301,8 +301,8 @@ void draw_dev_stats() {
         pos.x = padding;
 		pos.y = (f32)viewport.height - atlas.line_height;
                 
-        if (world->mouse_picked_entity) {
-            const auto *e = world->mouse_picked_entity;
+        if (editor.mouse_picked_entity) {
+            const auto *e = editor.mouse_picked_entity;
             const auto property_to_change = game_state.selected_entity_property_to_change;
             
             text_size = (s32)stbsp_snprintf(text, sizeof(text), "%s %u\n%slocation %s\n%srotation %s\n%sscale %s",
@@ -310,7 +310,7 @@ void draw_dev_stats() {
                                             property_to_change == PROPERTY_LOCATION ? " -> " : "\t", to_string(e->location),
                                             property_to_change == PROPERTY_ROTATION ? " -> " : "\t", to_string(e->rotation),
                                             property_to_change == PROPERTY_SCALE ? " -> " : "\t", to_string(e->scale));
-            ui_draw_text_with_shadow(text, text_size, pos, rgba_white, shadow_offset, rgba_black);
+            ui_text_with_shadow(text, text_size, pos, rgba_white, shadow_offset, rgba_black);
             pos.y -= 4 * atlas.line_height;
         }
 	}
@@ -322,35 +322,35 @@ void draw_dev_stats() {
                                         "%s %s",
                                         GAME_VERSION, build_type_name);
 		pos.x = viewport.width - get_line_width_px(&atlas, text, text_size) - padding;
-		ui_draw_text_with_shadow(text, text_size, pos, rgba_white, shadow_offset, rgba_black);
+		ui_text_with_shadow(text, text_size, pos, rgba_white, shadow_offset, rgba_black);
 		pos.y -= atlas.line_height;
 
 		text_size = (s32)stbsp_snprintf(text, sizeof(text),
                                         "%.2fms %.ffps",
                                         average_dt * 1000.0f, average_fps);
 		pos.x = viewport.width - get_line_width_px(&atlas, text, text_size) - padding;
-		ui_draw_text_with_shadow(text, text_size, pos, rgba_white, shadow_offset, rgba_black);
+		ui_text_with_shadow(text, text_size, pos, rgba_white, shadow_offset, rgba_black);
 		pos.y -= atlas.line_height;
         
         text_size = (s32)stbsp_snprintf(text, sizeof(text),
                                         "window %dx%d",
                                         window->width, window->height);
 		pos.x = viewport.width - get_line_width_px(&atlas, text, text_size) - padding;
-		ui_draw_text_with_shadow(text, text_size, pos, rgba_white, shadow_offset, rgba_black);
+		ui_text_with_shadow(text, text_size, pos, rgba_white, shadow_offset, rgba_black);
 		pos.y -= atlas.line_height;
 
         text_size = (s32)stbsp_snprintf(text, sizeof(text),
                                         "viewport %dx%d",
                                         viewport.width, viewport.height);
 		pos.x = viewport.width - get_line_width_px(&atlas, text, text_size) - padding;
-		ui_draw_text_with_shadow(text, text_size, pos, rgba_white, shadow_offset, rgba_black);
+		ui_text_with_shadow(text, text_size, pos, rgba_white, shadow_offset, rgba_black);
         pos.y -= atlas.line_height;
 
         text_size = (s32)stbsp_snprintf(text, sizeof(text),
                                         "draw calls %d",
                                         draw_call_count);
 		pos.x = viewport.width - get_line_width_px(&atlas, text, text_size) - padding;
-		ui_draw_text_with_shadow(text, text_size, pos, rgba_white, shadow_offset, rgba_black);
+		ui_text_with_shadow(text, text_size, pos, rgba_white, shadow_offset, rgba_black);
 		pos.y -= atlas.line_height;
 	}
 

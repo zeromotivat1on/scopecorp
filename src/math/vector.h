@@ -171,7 +171,9 @@ struct vec4 {
 #define vec4_purple vec4(1, 0, 1, 1)
 
 // Uses static 2d buffer internally, for debug purposes only.
+const char *to_string(const vec2 &v);
 const char *to_string(const vec3 &v);
+const char *to_string(const vec4 &v);
 
 vec2 normalize(const vec2 &v);
 vec3 normalize(const vec3 &v);

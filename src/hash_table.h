@@ -7,7 +7,7 @@ struct Hash_Table {
     typedef u64 (*Hash   )(const K &key);
     typedef bool(*Compare)(const K &a, const K &b);
 
-    static inline u64  default_hash   (const K &a)             { return (u64)a; }
+    static inline u64  default_hash   (const K &a)             { return *(u64 *)&a; }
     static inline bool default_compare(const K &a, const K &b) { return a == b; }
 
     struct Iterator {

@@ -248,4 +248,8 @@ void os_set_vsync(bool enable) {
 void os_window_swap_buffers(Window *window) {
     PROFILE_SCOPE(__FUNCTION__);
 	SwapBuffers(window->win32->hdc);
+
+    // Clear event queue. It was moved here from poll_events as now we need to know what
+    // events were passed this frame during main loop.
+    window_event_queue_size = 0;
 }

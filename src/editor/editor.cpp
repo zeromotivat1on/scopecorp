@@ -32,6 +32,7 @@
 #include "asset.h"
 #include "flip_book.h"
 #include "input_stack.h"
+#include "reflection.h"
 
 #include "stb_image.h"
 #include "stb_sprintf.h"
@@ -53,20 +54,20 @@ struct Find_Entity_By_AABB_Data {
 };
 
 void mouse_pick_entity(World *world, Entity *e) {
-    if (world->mouse_picked_entity) {
-        world->mouse_picked_entity->flags &= ~ENTITY_FLAG_SELECTED_IN_EDITOR;
+    if (editor.mouse_picked_entity) {
+        editor.mouse_picked_entity->flags &= ~ENTITY_FLAG_SELECTED_IN_EDITOR;
     }
                 
     e->flags |= ENTITY_FLAG_SELECTED_IN_EDITOR;
-    world->mouse_picked_entity = e;
+    editor.mouse_picked_entity = e;
 
     game_state.selected_entity_property_to_change = PROPERTY_LOCATION;
 }
 
 void mouse_unpick_entity(World *world) {
-    if (world->mouse_picked_entity) {
-        world->mouse_picked_entity->flags &= ~ENTITY_FLAG_SELECTED_IN_EDITOR;
-        world->mouse_picked_entity = null;
+    if (editor.mouse_picked_entity) {
+        editor.mouse_picked_entity->flags &= ~ENTITY_FLAG_SELECTED_IN_EDITOR;
+        editor.mouse_picked_entity = null;
     }
 }
 
@@ -117,7 +118,7 @@ void on_input_editor(Window_Event *event) {
             load_level(world, path);
         }
 
-        if (world->mouse_picked_entity) {
+        if (editor.mouse_picked_entity) {
             if (press && key == KEY_Z) {
                 game_state.selected_entity_property_to_change = PROPERTY_LOCATION;
             } else if (press && key == KEY_X) {
@@ -132,12 +133,9 @@ void on_input_editor(Window_Event *event) {
     case WINDOW_EVENT_MOUSE: {
         if (press && key == MOUSE_MIDDLE) {
             os_window_lock_cursor(window, !window->cursor_locked);
-            if (window->cursor_locked) {
-                mouse_unpick_entity(world);
-            }
         } else if (press && key == MOUSE_RIGHT && !window->cursor_locked) {
             mouse_unpick_entity(world);
-        } else if (press && key == MOUSE_LEFT && !window->cursor_locked) {
+        } else if (press && key == MOUSE_LEFT && !window->cursor_locked && ui.id_hot == UIID_NONE) {
             if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
                 const Ray ray = world_ray_from_viewport_location(desired_camera(world), &viewport, input_table.mouse_x, input_table.mouse_y);
                 const s32 aabb_index = find_closest_overlapped_aabb(ray, world->aabbs.items, world->aabbs.count);
@@ -168,10 +166,13 @@ void on_input_editor(Window_Event *event) {
 
 void tick_editor(f32 dt) {
     PROFILE_SCOPE(__FUNCTION__);
+
+    const bool ctrl  = down(KEY_CTRL);
+    const bool shift = down(KEY_SHIFT);
     
     const auto *input_layer = get_current_input_layer();
     const auto &player = world->player;
-
+    
     // Tick camera.
     if (game_state.mode == MODE_GAME) {
         world->ed_camera = world->camera;
@@ -215,74 +216,214 @@ void tick_editor(f32 dt) {
         }
     }
     
-    // Tick selected entity modify.
-    if (input_layer->type == INPUT_LAYER_EDITOR) {
-        const bool ctrl  = down(KEY_CTRL);
-        const bool shift = down(KEY_SHIFT);
-        
-        if (world->mouse_picked_entity) {
-            auto *e = world->mouse_picked_entity;
+    // Tick mouse picked entity editor.
+    if (input_layer->type == INPUT_LAYER_EDITOR && editor.mouse_picked_entity) {
+        auto *e = editor.mouse_picked_entity;
 
-            if (game_state.selected_entity_property_to_change == PROPERTY_ROTATION) {
-                const f32 rotate_speed = shift ? 0.04f : 0.01f;
+        {   // Draw entity fields.
+            constexpr f32 MARGIN  = 100.0f;
+            constexpr f32 PADDING = 16.0f;
 
-                if (down(KEY_LEFT)) {
-                    e->rotation *= quat_from_axis_angle(vec3_left, rotate_speed);
-                }
+            const auto &atlas = ui.font_atlases[UI_DEFAULT_FONT_ATLAS_INDEX];
+            const f32 ascent  = atlas.font->ascent  * atlas.px_h_scale;
+            const f32 descent = atlas.font->descent * atlas.px_h_scale;
 
-                if (down(KEY_RIGHT)) {
-                    e->rotation *= quat_from_axis_angle(vec3_right, rotate_speed);
-                }
+            const u32 field_count = REFLECT_FIELD_COUNT(Entity);
+            const f32 height = (f32)field_count * atlas.line_height;
+            
+            const vec2 p0 = vec2(MARGIN, viewport.height - MARGIN);
+            const vec2 p1 = vec2(viewport.width - MARGIN, p0.y - height - 2 * PADDING);
+            const u32 qc = rgba_pack(0, 0, 0, 200);
 
-                if (down(KEY_UP)) {
-                    const vec3 direction = ctrl ? vec3_up : vec3_forward;
-                    e->rotation *= quat_from_axis_angle(direction, rotate_speed);
-                }
+            ui_quad(p0, p1, qc);
 
-                if (down(KEY_DOWN)) {
-                    const vec3 direction = ctrl ? vec3_down : vec3_back;
-                    e->rotation *= quat_from_axis_angle(direction, rotate_speed);
-                }
-            } else if (game_state.selected_entity_property_to_change == PROPERTY_SCALE) {
-                const f32 scale_speed = shift ? 4.0f : 1.0f;
+            // @Todo: correct uiid generation.
+            uiid id = { 0, (u16)e->eid, 0 };
+            vec2 pos = vec2(p0.x + PADDING, p0.y - PADDING - ascent);
+            
+            for (u32 i = 0; i < field_count; ++i) {
+                const auto &field = REFLECT_FIELD_AT(Entity, i);
+                const f32 field_name_width = (f32)get_line_width_px(&atlas, field.name);
+
+                constexpr u32 tcc = rgba_white;
+                constexpr u32 tch = rgba_white;
+                constexpr u32 tca = rgba_white;
+                constexpr u32 qcc = rgba_pack(16, 16, 16, 200);
+                constexpr u32 qch = 0;
+                constexpr u32 qca = rgba_pack(32, 32, 32, 200);
+                constexpr u32 ccc = rgba_white;
+                constexpr u32 cch = rgba_white;
+                constexpr u32 cca = rgba_white;
                 
-                if (down(KEY_LEFT)) {
-                    e->scale += scale_speed * dt * vec3_left;
+                UI_Input_Style style = {
+                    vec2(pos.x + atlas.space_advance_width * 48, pos.y),
+                    vec2_zero,
+                    { tcc, tch, tca },
+                    { qcc, qch, qca },
+                    { ccc, cch, cca },
+                };
+
+                ui_text(field.name, pos, rgba_white);
+
+                switch (field.type) {
+                case FIELD_S8: {
+                    auto &v = reflect_field_cast<s8>(*e, field);
+                    ui_input_s8(id, &v, style);
+                    id.index += 1;
+                    break;
+                }
+                case FIELD_S16: {
+                    auto &v = reflect_field_cast<s16>(*e, field);
+                    ui_input_s16(id, &v, style);
+                    id.index += 1;
+                    break;
+                }
+                case FIELD_S32: {
+                    auto &v = reflect_field_cast<s32>(*e, field);
+                    ui_input_s32(id, &v, style);
+                    id.index += 1;
+                    break;
+                }
+                case FIELD_U8: {
+                    auto &v = reflect_field_cast<u8>(*e, field);
+                    ui_input_u8(id, &v, style);
+                    id.index += 1;
+                    break;
+                }
+                case FIELD_U16: {
+                    auto &v = reflect_field_cast<u16>(*e, field);
+                    ui_input_u16(id, &v, style);
+                    id.index += 1;
+                    break;
+                }
+                case FIELD_U32: {
+                    auto &v = reflect_field_cast<u32>(*e, field);
+                    ui_input_u32(id, &v, style);
+                    id.index += 1;
+                    break;
+                }
+                case FIELD_SID: {
+                    auto &v = reflect_field_cast<sid>(*e, field);
+                    ui_input_sid(id, &v, style);
+                    id.index += 1;
+                    break;
+                }
+                case FIELD_VEC2: {
+                    auto &v = reflect_field_cast<vec2>(*e, field);
+
+                    ui_input_f32(id, &v.x, style);
+                    id.index += 1;
+                    style.pos_text.x += (UI_INPUT_BUFFER_SIZE_F32 + 1) * atlas.space_advance_width;
+
+                    ui_input_f32(id, &v.y, style);
+                    id.index += 1;
+                    style.pos_text.x += (UI_INPUT_BUFFER_SIZE_F32 + 1) * atlas.space_advance_width;
+
+                    break;
+                }
+                case FIELD_VEC3: {
+                    auto &v = reflect_field_cast<vec3>(*e, field);
+                    
+                    ui_input_f32(id, &v.x, style);
+                    id.index += 1;
+                    style.pos_text.x += (UI_INPUT_BUFFER_SIZE_F32 + 1) * atlas.space_advance_width;
+
+                    ui_input_f32(id, &v.y, style);
+                    id.index += 1;
+                    style.pos_text.x += (UI_INPUT_BUFFER_SIZE_F32 + 1) * atlas.space_advance_width;
+
+                    ui_input_f32(id, &v.z, style);
+                    id.index += 1;
+                    style.pos_text.x += (UI_INPUT_BUFFER_SIZE_F32 + 1) * atlas.space_advance_width;
+                    
+                    break;
+                }
+                case FIELD_QUAT: {
+                    auto &v = reflect_field_cast<quat>(*e, field);
+
+                    ui_input_f32(id, &v.x, style);
+                    id.index += 1;
+                    style.pos_text.x += (UI_INPUT_BUFFER_SIZE_F32 + 1) * atlas.space_advance_width;
+
+                    ui_input_f32(id, &v.y, style);
+                    id.index += 1;
+                    style.pos_text.x += (UI_INPUT_BUFFER_SIZE_F32 + 1) * atlas.space_advance_width;
+
+                    ui_input_f32(id, &v.z, style);
+                    id.index += 1;
+                    style.pos_text.x += (UI_INPUT_BUFFER_SIZE_F32 + 1) * atlas.space_advance_width;
+
+                    ui_input_f32(id, &v.w, style);
+                    id.index += 1;
+                    style.pos_text.x += (UI_INPUT_BUFFER_SIZE_F32 + 1) * atlas.space_advance_width;
+                    
+                    break;
+                }
                 }
 
-                if (down(KEY_RIGHT)) {
-                    e->scale += scale_speed * dt * vec3_right;
-                }
+                pos.y -= atlas.line_height;
+            }
+        }
+        
+        if (game_state.selected_entity_property_to_change == PROPERTY_ROTATION) {
+            const f32 rotate_speed = shift ? 0.04f : 0.01f;
 
-                if (down(KEY_UP)) {
-                    const vec3 direction = ctrl ? vec3_up : vec3_forward;
-                    e->scale += scale_speed * dt * direction;
-                }
+            if (down(KEY_LEFT)) {
+                e->rotation *= quat_from_axis_angle(vec3_left, rotate_speed);
+            }
 
-                if (down(KEY_DOWN)) {
-                    const vec3 direction = ctrl ? vec3_down : vec3_back;
-                    e->scale += scale_speed * dt * direction;
-                }
-            } else if (game_state.selected_entity_property_to_change == PROPERTY_LOCATION) {
-                const f32 move_speed = shift ? 4.0f : 1.0f;
+            if (down(KEY_RIGHT)) {
+                e->rotation *= quat_from_axis_angle(vec3_right, rotate_speed);
+            }
 
-                if (down(KEY_LEFT)) {
-                    e->location += move_speed * dt * vec3_left;
-                }
+            if (down(KEY_UP)) {
+                const vec3 direction = ctrl ? vec3_up : vec3_forward;
+                e->rotation *= quat_from_axis_angle(direction, rotate_speed);
+            }
 
-                if (down(KEY_RIGHT)) {
-                    e->location += move_speed * dt * vec3_right;
-                }
+            if (down(KEY_DOWN)) {
+                const vec3 direction = ctrl ? vec3_down : vec3_back;
+                e->rotation *= quat_from_axis_angle(direction, rotate_speed);
+            }
+        } else if (game_state.selected_entity_property_to_change == PROPERTY_SCALE) {
+            const f32 scale_speed = shift ? 4.0f : 1.0f;
+                
+            if (down(KEY_LEFT)) {
+                e->scale += scale_speed * dt * vec3_left;
+            }
 
-                if (down(KEY_UP)) {
-                    const vec3 direction = ctrl ? vec3_up : vec3_forward;
-                    e->location += move_speed * dt * direction;
-                }
+            if (down(KEY_RIGHT)) {
+                e->scale += scale_speed * dt * vec3_right;
+            }
 
-                if (down(KEY_DOWN)) {
-                    const vec3 direction = ctrl ? vec3_down : vec3_back;
-                    e->location += move_speed * dt * direction;
-                }
+            if (down(KEY_UP)) {
+                const vec3 direction = ctrl ? vec3_up : vec3_forward;
+                e->scale += scale_speed * dt * direction;
+            }
+
+            if (down(KEY_DOWN)) {
+                const vec3 direction = ctrl ? vec3_down : vec3_back;
+                e->scale += scale_speed * dt * direction;
+            }
+        } else if (game_state.selected_entity_property_to_change == PROPERTY_LOCATION) {
+            const f32 move_speed = shift ? 4.0f : 1.0f;
+
+            if (down(KEY_LEFT)) {
+                e->location += move_speed * dt * vec3_left;
+            }
+
+            if (down(KEY_RIGHT)) {
+                e->location += move_speed * dt * vec3_right;
+            }
+
+            if (down(KEY_UP)) {
+                const vec3 direction = ctrl ? vec3_up : vec3_forward;
+                e->location += move_speed * dt * direction;
+            }
+
+            if (down(KEY_DOWN)) {
+                const vec3 direction = ctrl ? vec3_down : vec3_back;
+                e->location += move_speed * dt * direction;
             }
         }
     }
@@ -312,20 +453,22 @@ void tick_editor(f32 dt) {
             const vec2 shadow_offset = vec2(atlas.font_size * 0.1f, -atlas.font_size * 0.1f);
             const u32 shadow_color = rgba_black;
             
-            ui_draw_text_with_shadow(screen_report_text, pos, color, shadow_offset, shadow_color, UI_SCREEN_REPORT_FONT_ATLAS_INDEX);
+            ui_text_with_shadow(screen_report_text, pos, color, shadow_offset, shadow_color, UI_SCREEN_REPORT_FONT_ATLAS_INDEX);
         }
     }
 
     // Create entity ui.
     if (!window->cursor_locked && game_state.mode == MODE_EDITOR) {
         const uiid id = { 0, 1, 0 };
-        const UI_Button_Style_Centered style = {
+        const UI_Button_Style style = {
             vec2(100.0f),
             vec2(32.0f, 16.0f),
             UI_Color { rgba_white, rgba_pack(255, 255, 255, 200), rgba_white },
             UI_Color { rgba_black, rgba_pack(0, 0, 0, 200), rgba_black }
         };
-        if (ui_button(id, "Add static mesh", style)) {
+
+        const u8 flags = ui_button(id, "Add static mesh", style);
+        if (flags & UI_FLAG_FINISHED) {
             create_entity(world, ENTITY_STATIC_MESH);
         }
     }
@@ -548,20 +691,20 @@ void draw_debug_console() {
         const vec2 q0 = vec2(DEBUG_CONSOLE_MARGIN);
         const vec2 q1 = vec2(viewport.width - DEBUG_CONSOLE_MARGIN, viewport.height - DEBUG_CONSOLE_MARGIN);
         const u32 color = rgba_pack(0, 0, 0, 200);
-        ui_draw_quad(q0, q1, color);
+        ui_quad(q0, q1, color);
     }
 
     {   // Input quad.
         const vec2 q0 = vec2(DEBUG_CONSOLE_MARGIN);
         const vec2 q1 = vec2(viewport.width - DEBUG_CONSOLE_MARGIN, DEBUG_CONSOLE_MARGIN + lower_case_height + 2 * DEBUG_CONSOLE_PADDING);
         const u32 color = rgba_pack(0, 0, 0, 200);
-        ui_draw_quad(q0, q1, color);
+        ui_quad(q0, q1, color);
     }
 
     {   // Input text.
         const vec2 pos = vec2(DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING);
         const u32 color = rgba_white;
-        ui_draw_text(input, input_size, pos, color, UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX);
+        ui_text(input, input_size, pos, color, UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX);
     }
 
     {   // History text.
@@ -600,7 +743,7 @@ void draw_debug_console() {
             }
         }
 
-        ui_draw_text(start, draw_count, pos, color, UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX);
+        ui_text(start, draw_count, pos, color, UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX);
     }
     
     {   // Cursor quad.
@@ -618,7 +761,7 @@ void draw_debug_console() {
             }
         }
 
-        ui_draw_quad(q0, q1, color);
+        ui_quad(q0, q1, color);
     }
 }
 

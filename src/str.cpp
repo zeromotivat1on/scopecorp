@@ -96,6 +96,34 @@ f32 str_to_f32(const char *str) {
     return (f32)atof(str);
 }
 
+s8 str_to_s8(const char *str) {
+    return (s8)strtol(str, null, 0);
+}
+
+s16 str_to_s16(const char *str) {
+    return (s16)strtol(str, null, 0);
+}
+
+s32 str_to_s32(const char *str) {
+    return (s32)strtol(str, null, 0);
+}
+
+s64 str_to_s64(const char *str) {
+    return strtol(str, null, 0);
+}
+
+u8 str_to_u8(const char *str) {
+    return (u8)strtol(str, null, 0);
+}
+
+u16 str_to_u16(const char *str) {
+    return (u16)strtol(str, null, 0);
+}
+
 u32 str_to_u32(const char *str) {
     return (u32)strtoul(str, null, 0);
+}
+
+u64 str_to_u64(const char *str) {
+    return strtoul(str, null, 0);
 }

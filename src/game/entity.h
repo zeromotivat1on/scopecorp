@@ -1,9 +1,11 @@
 #pragma once
 
+#include "reflection.h"
+
 #include "math/vector.h"
 #include "math/quat.h"
 
-enum Entity_Type {
+enum Entity_Type : u8 {
     ENTITY_PLAYER,
     ENTITY_SKYBOX,
     ENTITY_STATIC_MESH,
@@ -39,6 +41,20 @@ struct Entity {
     
     Entity_Draw_Data draw_data;
 };
+
+REFLECT_BEGIN(Entity)
+REFLECT_FIELD(Entity, flags,      FIELD_U32)
+REFLECT_FIELD(Entity, type,       FIELD_U8)
+REFLECT_FIELD(Entity, eid,        FIELD_U32)
+REFLECT_FIELD(Entity, location,   FIELD_VEC3)
+REFLECT_FIELD(Entity, rotation,   FIELD_QUAT)
+REFLECT_FIELD(Entity, scale,      FIELD_VEC3)
+REFLECT_FIELD(Entity, uv_scale,   FIELD_VEC2)
+REFLECT_FIELD(Entity, aabb_index, FIELD_S32)
+REFLECT_FIELD(Entity, draw_data.sid_mesh,               FIELD_SID)
+REFLECT_FIELD(Entity, draw_data.sid_material,           FIELD_SID)
+REFLECT_FIELD(Entity, draw_data.eid_vertex_data_offset, FIELD_U32)
+REFLECT_END(Entity)
 
 struct Player : Entity {
     Player() { type = ENTITY_PLAYER; }

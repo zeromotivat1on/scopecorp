@@ -7,6 +7,7 @@
 #include "profile.h"
 #include "asset.h"
 #include "input_stack.h"
+#include "reflection.h"
 
 #include "stb_sprintf.h"
 #include "stb_image.h"
@@ -67,7 +68,25 @@ void on_window_event(Window *window, Window_Event *event) {
     }
 }
 
+struct Base { s32 a, b; };
+struct P : Base { f32 x, y; };
+REFLECT_BEGIN(P)
+REFLECT_FIELD(P, a, FIELD_S32)
+REFLECT_FIELD(P, b, FIELD_S32)
+REFLECT_FIELD(P, x, FIELD_F32)
+REFLECT_FIELD(P, y, FIELD_F32)
+REFLECT_END(P)
+
 s32 main() {
+    P p = { 0, 0, -5.0f, 13.0f };
+    for (u32 i = 0; i < REFLECT_FIELD_COUNT(P); ++i) {
+        const auto &field = REFLECT_FIELD_AT(P, i);
+        if (field.type == FIELD_F32) {
+            //log("%.2f", *(f32 *)((u8 *)&p + field.offset));
+            log("%.2f", reflect_field_cast<f32>(p, field));
+        }
+    }
+    
     START_SCOPE_TIMER(startup);
     
     if (!alloc_init()) {
@@ -327,6 +346,8 @@ s32 main() {
 	while (os_window_is_alive(window)) {
         PROFILE_SCOPE("game_frame");
 
+        // @Note: event queue is NOT cleared after this call as some parts of the code
+        // want to know which events were polled. The queue is cleared during buffer swap.
 		os_window_poll_events(window);
 
         viewport.mouse_pos = vec2(Clamp((f32)input_table.mouse_x - viewport.x, 0.0f, viewport.width),
@@ -338,7 +359,7 @@ s32 main() {
         tick_editor(delta_time);
                 
         draw_world(world);
-
+        
 #if DEVELOPER
         geo_draw_debug();
         draw_dev_stats();

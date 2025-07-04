@@ -41,8 +41,6 @@ struct World {
 	Sparse_Array<Portal>           portals;
     
 	Sparse_Array<AABB> aabbs;
-
-    Entity *mouse_picked_entity = null;
 };
 
 inline World *world = null;

@@ -551,6 +551,16 @@ const f32* vec4::ptr() const {
 
 // Ex
 
+const char *to_string(const vec2 &v) {
+    static char buffers[4][32];
+    static s32 buffer_index = 0;
+    buffer_index = (buffer_index + 1) % 4;
+
+    char* buffer = buffers[buffer_index];
+    stbsp_snprintf(buffer, 32, "(%.3f %.3f)", v.x, v.y);
+    return buffer;
+}
+
 const char* to_string(const vec3 &v) {
     static char buffers[4][32];
     static s32 buffer_index = 0;
@@ -558,6 +568,16 @@ const char* to_string(const vec3 &v) {
 
     char* buffer = buffers[buffer_index];
     stbsp_snprintf(buffer, 32, "(%.3f %.3f %.3f)", v.x, v.y, v.z);
+    return buffer;
+}
+
+const char *to_string(const vec4 &v) {
+    static char buffers[4][32];
+    static s32 buffer_index = 0;
+    buffer_index = (buffer_index + 1) % 4;
+
+    char* buffer = buffers[buffer_index];
+    stbsp_snprintf(buffer, 32, "(%.3f %.3f %.3f %.3f)", v.x, v.y, v.z, v.w);
     return buffer;
 }
 

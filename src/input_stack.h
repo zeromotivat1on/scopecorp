@@ -11,7 +11,7 @@ enum Input_Layer_Type : u8 {
     INPUT_LAYER_MEMORY_PROFILER,
 };
 
-typedef void(*On_Input)(struct Window_Event *event);
+typedef void(* On_Input)(struct Window_Event *event);
 
 struct Input_Layer {
     On_Input on_input = null;
