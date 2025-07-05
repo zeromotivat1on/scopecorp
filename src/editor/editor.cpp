@@ -254,9 +254,10 @@ void tick_editor(f32 dt) {
                 constexpr u32 ccc = rgba_white;
                 constexpr u32 cch = rgba_white;
                 constexpr u32 cca = rgba_white;
-                
+
+                const s32 offset = atlas.space_advance_width * 40;
                 UI_Input_Style style = {
-                    vec2(pos.x + atlas.space_advance_width * 48, pos.y),
+                    vec2(pos.x + offset, pos.y),
                     vec2_zero,
                     { tcc, tch, tca },
                     { qcc, qch, qca },
