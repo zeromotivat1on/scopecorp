@@ -14,11 +14,21 @@
 #include "audio/wav.h"
 #include "audio/sound.h"
 
+#include "render/buffer_storage.h"
 #include "render/shader.h"
 #include "render/texture.h"
 #include "render/material.h"
 #include "render/uniform.h"
 #include "render/mesh.h"
+
+#include "math/matrix.h"
+
+const char *TYPE_NAME_U32  = "u32";
+const char *TYPE_NAME_F32  = "f32";
+const char *TYPE_NAME_VEC2 = "vec2";
+const char *TYPE_NAME_VEC3 = "vec3";
+const char *TYPE_NAME_VEC4 = "vec4";
+const char *TYPE_NAME_MAT4 = "mat4";
 
 struct Asset_Source_Callback_Data {
     Asset_Type asset_type = ASSET_NONE;
@@ -657,5 +667,463 @@ u32 get_asset_type_size(Asset_Type type) {
     default:
         error("Failed to get asset size from type %d", type);
         return 0;
+    }
+}
+
+
+static void init_mesh_asset_mesh(Mesh *mesh, void *data) {
+    constexpr u32 MAX_LINE_BUFFER_SIZE = 256;
+    
+    enum Declaration_Type {
+        DECL_NONE,
+        DECL_VERTEX_COUNT,
+        DECL_INDEX_COUNT,
+        DECL_VERTEX_COMPONENT,
+        DECL_DATA_GO,
+        DECL_POSITION,
+        DECL_NORMAL,
+        DECL_INDEX,
+        DECL_UV,
+        
+        DECL_COUNT
+    };
+
+    const char *DECL_NAME_VERTEX_COUNT      = "vn";
+    const char *DECL_NAME_INDEX_COUNT       = "in";
+    const char *DECL_NAME_VERTEX_COMPONENT  = "vc";
+    const char *DECL_NAME_DATA_GO = "go";
+    const char *DECL_NAME_POSITION = "p";
+    const char *DECL_NAME_NORMAL   = "n";
+    const char *DECL_NAME_UV       = "uv";
+    const char *DECL_NAME_INDEX = "i";
+    
+    const char *DELIMITERS = " ";
+    
+    mesh->vertex_layout_size = 0;
+    
+    char *p = (char *)data;
+    p[mesh->data_size] = '\0';
+
+    u8 *r_vertex_data = (u8 *)vertex_buffer_storage.mapped_data;
+    u8 *r_index_data  = (u8 *)index_buffer_storage.mapped_data;
+    
+    u32 vertex_offsets[MAX_MESH_VERTEX_COMPONENTS];
+
+    s32 decl_to_vertex_layout_index[DECL_COUNT];
+    Vertex_Component_Type decl_to_vct[DECL_COUNT];
+
+    u32 index_data_offset = 0;
+
+    char line_buffer[MAX_LINE_BUFFER_SIZE];
+    char *new_line = str_char(p, ASCII_NEW_LINE);
+    
+    while (new_line) {
+        const s64 line_size = new_line - p;
+        Assert(line_size < MAX_LINE_BUFFER_SIZE);
+        str_copy(line_buffer, p, line_size);
+        line_buffer[line_size] = '\0';
+        
+        char *line = str_trim(line_buffer);
+        if (str_size(line) > 0) {
+            char *token = str_token(line, DELIMITERS);
+            Declaration_Type decl_type = DECL_NONE;
+
+            if (str_cmp(token, DECL_NAME_VERTEX_COUNT)) {
+                decl_type = DECL_VERTEX_COUNT;
+            } else if (str_cmp(token, DECL_NAME_INDEX_COUNT)) {
+                decl_type = DECL_INDEX_COUNT;
+            } else if (str_cmp(token, DECL_NAME_VERTEX_COMPONENT)) {
+                decl_type = DECL_VERTEX_COMPONENT;
+            } else if (str_cmp(token, DECL_NAME_DATA_GO)) {
+                decl_type = DECL_DATA_GO;
+            } else if (str_cmp(token, DECL_NAME_POSITION)) {
+                decl_type = DECL_POSITION;
+            } else if (str_cmp(token, DECL_NAME_NORMAL)) {
+                decl_type = DECL_NORMAL;
+            } else if (str_cmp(token, DECL_NAME_UV)) {
+                decl_type = DECL_UV;
+            } else if (str_cmp(token, DECL_NAME_INDEX)) {
+                decl_type = DECL_INDEX;
+            } else {
+                error("Unknown mesh token declaration '%s'", token);
+                continue;
+            }
+            
+            switch (decl_type) {
+            case DECL_VERTEX_COUNT: {
+                char *sv = str_token(null, DELIMITERS);
+                mesh->vertex_count = str_to_u32(sv);
+                break;
+            }
+            case DECL_INDEX_COUNT: {
+                char *sv = str_token(null, DELIMITERS);
+                mesh->index_count = str_to_u32(sv);
+                break;
+            }
+            case DECL_VERTEX_COMPONENT: {
+                char *sdecl = str_token(null, DELIMITERS);
+                char *stype = str_token(null, DELIMITERS);
+
+                Vertex_Component_Type vct;
+                if (str_cmp(stype, TYPE_NAME_VEC2)) {
+                    vct = VERTEX_F32_2;
+                } else if (str_cmp(stype, TYPE_NAME_VEC3)) {
+                    vct = VERTEX_F32_3;                    
+                } else if (str_cmp(stype, TYPE_NAME_VEC4)) {
+                    vct = VERTEX_F32_4;
+                } else {
+                    error("Unknown mesh token vertex component type declaration '%s'", token);
+                    continue;
+                }
+
+                Declaration_Type decl_vertex_type = DECL_NONE;
+                if (str_cmp(sdecl, DECL_NAME_POSITION)) {
+                    decl_vertex_type = DECL_POSITION;
+                } else if (str_cmp(sdecl, DECL_NAME_NORMAL)) {
+                    decl_vertex_type = DECL_NORMAL;
+                } else if (str_cmp(sdecl, DECL_NAME_UV)) {
+                    decl_vertex_type = DECL_UV;
+                } else {
+                    error("Unknown mesh token vertex component declaration '%s'", token);
+                    continue;
+                }
+
+                decl_to_vct[decl_vertex_type] = vct;
+                decl_to_vertex_layout_index[decl_vertex_type] = mesh->vertex_layout_size;
+
+                Assert(mesh->vertex_layout_size < MAX_MESH_VERTEX_COMPONENTS);
+                mesh->vertex_layout[mesh->vertex_layout_size] = vct;
+                mesh->vertex_layout_size += 1;
+                
+                break;
+            }
+            case DECL_DATA_GO: {
+                Assert(mesh->vertex_layout_size <= MAX_VERTEX_ARRAY_BINDINGS);
+
+                mesh->vertex_size = 0;
+
+                u32 offset = vertex_buffer_storage.size;
+                Vertex_Array_Binding bindings[MAX_VERTEX_ARRAY_BINDINGS];
+                s32 binding_count = 0;
+
+                for (s32 i = 0; i < mesh->vertex_layout_size; ++i) {
+                    const s32 vcs = get_vertex_component_size(mesh->vertex_layout[i]); 
+                    mesh->vertex_size += vcs;
+
+                    auto &binding = bindings[i];
+                    binding.binding_index = i;
+                    binding.data_offset = offset;
+                    binding.layout_size = 1;
+                    binding.layout[0] = { mesh->vertex_layout[i], 0 };
+                    binding_count += 1;
+                    
+                    vertex_offsets[i] = offset;
+
+                    const u32 size = vcs * mesh->vertex_count;
+                    offset += size;
+                }
+
+                mesh->rid_vertex_array = r_create_vertex_array(bindings, binding_count);
+                
+                mesh->vertex_data_size   = mesh->vertex_size * mesh->vertex_count;
+                mesh->vertex_data_offset = vertex_buffer_storage.size;
+
+                vertex_buffer_storage.size += mesh->vertex_data_size;
+                Assert(vertex_buffer_storage.size <= MAX_VERTEX_STORAGE_SIZE);
+
+                mesh->index_data_size  = mesh->index_count  * sizeof(u32);
+                mesh->index_data_offset = index_buffer_storage.size;
+
+                index_buffer_storage.size += mesh->index_data_size;
+                Assert(index_buffer_storage.size <= MAX_INDEX_STORAGE_SIZE);
+
+                index_data_offset = mesh->index_data_offset;
+                
+                break;
+            }
+            case DECL_POSITION:
+            case DECL_NORMAL:
+            case DECL_UV: {
+                const auto vct = decl_to_vct[decl_type];
+                const s32 vli  = decl_to_vertex_layout_index[decl_type];
+                
+                if (decl_type == DECL_NORMAL) {
+                    volatile int a = 0;
+                }
+
+                switch (vct) {
+                case VERTEX_F32_2: {
+                    vec2 v;
+                    for (s32 i = 0; i < 2; ++i) {
+                        char *sv = str_token(null, DELIMITERS);
+                        v[i] = str_to_f32(sv);
+                    }
+
+                    u32 offset = vertex_offsets[vli];
+                    copy_bytes(r_vertex_data + offset, &v, sizeof(v));
+                    vertex_offsets[vli] += sizeof(v);
+                    
+                    break;
+                }
+                case VERTEX_F32_3: {
+                    vec3 v;
+                    for (s32 i = 0; i < 3; ++i) {
+                        char *sv = str_token(null, DELIMITERS);
+                        v[i] = str_to_f32(sv);
+                    }
+
+                    u32 offset = vertex_offsets[vli];
+                    copy_bytes(r_vertex_data + offset, &v, sizeof(v));
+                    vertex_offsets[vli] += sizeof(v);
+                    
+                    break;
+                }
+                case VERTEX_F32_4: {
+                    vec4 v;
+                    for (s32 i = 0; i < 4; ++i) {
+                        char *sv = str_token(null, DELIMITERS);
+                        v[i] = str_to_f32(sv);
+                    }
+
+                    u32 offset = vertex_offsets[vli];
+                    copy_bytes(r_vertex_data + offset, &v, sizeof(v));
+                    vertex_offsets[vli] += sizeof(v);
+                    
+                    break;
+                }
+                }
+                
+                break;
+            }
+            case DECL_INDEX: {
+                char *sv = str_token(null, DELIMITERS);
+
+                const u32 v = str_to_u32(sv);
+                copy_bytes(r_index_data + index_data_offset, &v, sizeof(v));
+                
+                index_data_offset += sizeof(v);
+                
+                break;
+            }
+            }
+        }
+        
+        p += line_size + 1;
+        new_line = str_char(p, ASCII_NEW_LINE);
+    }
+}
+
+static void init_mesh_asset_obj(Mesh *mesh, void *data) {
+    
+}
+
+void init_mesh_asset(Mesh *mesh, void *data) {
+    // @Todo: parse material data - ideally text for editor and binary for release.
+
+    const char *mesh_path = sid_str(mesh->sid_path);
+    const char *extension = str_char_from_end(mesh_path, '.');
+    if (str_cmp(extension, ".mesh")) {
+        init_mesh_asset_mesh(mesh, data);
+        return;
+    } else if (str_cmp(extension, ".obj")) {
+        init_mesh_asset_obj(mesh, data);
+        return;
+    }
+
+    warn("Skipping mesh with unsupported format %s", mesh_path);
+}
+
+void init_material_asset(Material *material, void *data) {
+    // @Todo: parse material data - ideally text for editor and binary for release.
+        
+    enum Declaration_Type {
+        DECL_NONE,
+        DECL_SHADER,
+        DECL_TEXTURE,
+        DECL_AMBIENT,
+        DECL_DIFFUSE,
+        DECL_SPECULAR,
+        DECL_UNIFORM,
+    };
+
+    constexpr u32 MAX_LINE_BUFFER_SIZE = 256;
+
+    const char *DECL_NAME_SHADER   = "s";
+    const char *DECL_NAME_TEXTURE  = "t";
+    const char *DECL_NAME_AMBIENT  = "la";
+    const char *DECL_NAME_DIFFUSE  = "ld";
+    const char *DECL_NAME_SPECULAR = "ls";
+    const char *DECL_NAME_UNIFORM  = "u";
+
+    const char *DELIMITERS = " ";
+
+    material->uniform_count = 0;
+    
+    char *p = (char *)data;
+    p[material->data_size] = '\0';
+
+    char line_buffer[MAX_LINE_BUFFER_SIZE];
+    char *new_line = str_char(p, ASCII_NEW_LINE);
+    
+    while (new_line) {
+        const s64 line_size = new_line - p;
+        Assert(line_size < MAX_LINE_BUFFER_SIZE);
+        str_copy(line_buffer, p, line_size);
+        line_buffer[line_size] = '\0';
+        
+        char *line = str_trim(line_buffer);
+        if (str_size(line) > 0) {
+            char *token = str_token(line, DELIMITERS);
+            Declaration_Type decl_type = DECL_NONE;
+
+            if (str_cmp(token, DECL_NAME_SHADER)) {
+                decl_type = DECL_SHADER;
+            } else if (str_cmp(token, DECL_NAME_TEXTURE)) {
+                decl_type = DECL_TEXTURE;
+            } else if (str_cmp(token, DECL_NAME_AMBIENT)) {
+                decl_type = DECL_AMBIENT;
+            } else if (str_cmp(token, DECL_NAME_DIFFUSE)) {
+                decl_type = DECL_DIFFUSE;
+            } else if (str_cmp(token, DECL_NAME_SPECULAR)) {
+                decl_type = DECL_SPECULAR;
+            } else if (str_cmp(token, DECL_NAME_UNIFORM)) {
+                decl_type = DECL_UNIFORM;
+            } else {
+                error("Unknown material token declaration '%s'", token);
+                continue;
+            }
+
+            switch (decl_type) {
+            case DECL_SHADER: {
+                char *sv = str_token(null, DELIMITERS);
+                material->sid_shader = sid_intern(sv);
+                break;
+            }
+            case DECL_TEXTURE: {
+                char *sv = str_token(null, DELIMITERS);
+                material->sid_texture = sid_intern(sv);
+                break;
+            }
+            case DECL_AMBIENT: {
+                vec3 v;
+                for (s32 i = 0; i < 3; ++i) {
+                    char *sv = str_token(null, DELIMITERS);
+                    if (!sv) break;
+                    v[i] = str_to_f32(sv);
+                }
+
+                material->ambient = v;
+                break;
+            }
+            case DECL_DIFFUSE: {
+                vec3 v;
+                for (s32 i = 0; i < 3; ++i) {
+                    char *sv = str_token(null, DELIMITERS);
+                    if (!sv) break;
+                    v[i] = str_to_f32(sv);
+                }
+
+                material->diffuse = v;
+                break;
+            }
+            case DECL_SPECULAR: {
+                vec3 v;
+                for (s32 i = 0; i < 3; ++i) {
+                    char *sv = str_token(null, DELIMITERS);
+                    if (!sv) break;
+                    v[i] = str_to_f32(sv);
+                }
+
+                material->specular = v;
+                break;
+            }
+            case DECL_UNIFORM: {
+                Assert(material->uniform_count < MAX_MATERIAL_UNIFORMS);
+
+                auto &uniform = material->uniforms[material->uniform_count];
+                uniform.count = 1;
+
+                char *su_name = str_token(null, DELIMITERS);
+                str_copy(uniform.name, su_name);
+
+                char *su_type = str_token(null, DELIMITERS);
+                if (str_cmp(su_type, TYPE_NAME_U32)) {
+                    uniform.type = UNIFORM_U32;
+
+                    u32 v = 0;
+                    char *sv = str_token(null, DELIMITERS);
+                    if (sv) {
+                        v = str_to_u32(sv);
+                    }
+                    
+                    cache_uniform_value_on_cpu(&uniform, &v, sizeof(v));
+                } else if (str_cmp(su_type, TYPE_NAME_F32)) {
+                    uniform.type = UNIFORM_F32;
+
+                    f32 v = 0.0f;
+                    char *sv = str_token(null, DELIMITERS);
+                    if (sv) {
+                        v = str_to_f32(sv);
+                    }
+                    
+                    cache_uniform_value_on_cpu(&uniform, &v, sizeof(v));
+                } else if (str_cmp(su_type, TYPE_NAME_VEC2)) {
+                    uniform.type = UNIFORM_F32_2;
+
+                    vec2 v;
+                    for (s32 i = 0; i < 2; ++i) {
+                        char *sv = str_token(null, DELIMITERS);
+                        if (!sv) break;
+                        v[i] = str_to_f32(sv);
+                    }
+                     
+                    cache_uniform_value_on_cpu(&uniform, &v, sizeof(v));
+                } else if (str_cmp(su_type, TYPE_NAME_VEC3)) {
+                    uniform.type = UNIFORM_F32_3;
+
+                    vec3 v;
+                    for (s32 i = 0; i < 3; ++i) {
+                        char *sv = str_token(null, DELIMITERS);
+                        if (!sv) break;
+                        v[i] = str_to_f32(sv);
+                    }
+
+                    cache_uniform_value_on_cpu(&uniform, &v, sizeof(v));
+                } else if (str_cmp(su_type, TYPE_NAME_VEC4)) {
+                    uniform.type = UNIFORM_F32_4;
+
+                    vec4 v;
+                    for (s32 i = 0; i < 4; ++i) {
+                        char *sv = str_token(null, DELIMITERS);
+                        if (!sv) break;
+                        v[i] = str_to_f32(sv);
+                    }
+
+                    cache_uniform_value_on_cpu(&uniform, &v, sizeof(v));
+                } else if (str_cmp(su_type, TYPE_NAME_MAT4)) {
+                    uniform.type = UNIFORM_F32_4X4;
+
+                    mat4 v = mat4_identity();
+                    for (s32 i = 0; i < 16; ++i) {
+                        char *sv = str_token(null, DELIMITERS);
+                        if (!sv) break;
+                        v[i % 4][i / 4] = str_to_f32(sv);
+                    }
+
+                    cache_uniform_value_on_cpu(&uniform, &v, sizeof(v));
+                } else {
+                    error("Unknown uniform type declaration '%s'", su_type);
+                    continue;
+                }
+
+                material->uniform_count += 1;
+
+                break;
+            }
+            }
+        }
+        
+        p += line_size + 1;
+        new_line = str_char(p, ASCII_NEW_LINE);
     }
 }

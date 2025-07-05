@@ -68,25 +68,7 @@ void on_window_event(Window *window, Window_Event *event) {
     }
 }
 
-struct Base { s32 a, b; };
-struct P : Base { f32 x, y; };
-REFLECT_BEGIN(P)
-REFLECT_FIELD(P, a, FIELD_S32)
-REFLECT_FIELD(P, b, FIELD_S32)
-REFLECT_FIELD(P, x, FIELD_F32)
-REFLECT_FIELD(P, y, FIELD_F32)
-REFLECT_END(P)
-
-s32 main() {
-    P p = { 0, 0, -5.0f, 13.0f };
-    for (u32 i = 0; i < REFLECT_FIELD_COUNT(P); ++i) {
-        const auto &field = REFLECT_FIELD_AT(P, i);
-        if (field.type == FIELD_F32) {
-            //log("%.2f", *(f32 *)((u8 *)&p + field.offset));
-            log("%.2f", reflect_field_cast<f32>(p, field));
-        }
-    }
-    
+s32 main() {    
     START_SCOPE_TIMER(startup);
     
     if (!alloc_init()) {
