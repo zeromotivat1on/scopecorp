@@ -240,7 +240,7 @@ void draw_entity(const Entity *e) {
     Render_Command command = {};
     command.flags = RENDER_FLAG_SCISSOR | RENDER_FLAG_BLEND | RENDER_FLAG_DEPTH | RENDER_FLAG_RESET;
     command.render_mode  = RENDER_TRIANGLES;
-    command.polygon_mode = POLYGON_FILL;
+    command.polygon_mode = game_state.polygon_mode;
     command.scissor.x      = 0;
     command.scissor.y      = 0;
     command.scissor.width  = frame_buffer.width;

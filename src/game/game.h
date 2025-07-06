@@ -27,12 +27,15 @@ enum Property_Change_Type {
     PROPERTY_SCALE,
 };
 
+enum Polygon_Mode : u8;
+
 struct Game_State {
 	Game_Mode mode = MODE_EDITOR;
     u32 view_mode_flags = 0;
 	Camera_Behavior camera_behavior = FOLLOW_PLAYER;
 	Player_Movement_Behavior player_movement_behavior = MOVE_RELATIVE_TO_CAMERA;
     Property_Change_Type selected_entity_property_to_change = PROPERTY_LOCATION;
+    Polygon_Mode polygon_mode = (Polygon_Mode)0;
 };
 
 struct Window_Event;

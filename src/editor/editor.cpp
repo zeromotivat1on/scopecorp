@@ -39,7 +39,8 @@
 
 Input_Key KEY_CLOSE_WINDOW          = KEY_ESCAPE;
 Input_Key KEY_SWITCH_EDITOR_MODE    = KEY_F11;
-Input_Key KEY_SWITCH_COLLISION_VIEW = KEY_F1;
+Input_Key KEY_SWITCH_POLYGON_MODE   = KEY_F1;
+Input_Key KEY_SWITCH_COLLISION_VIEW = KEY_F2;
 Input_Key KEY_SWITCH_DEBUG_CONSOLE  = KEY_GRAVE_ACCENT;
 
 constexpr u32 MAX_SCREEN_REPORT_SIZE = 256;
@@ -103,6 +104,12 @@ void on_input_editor(Window_Event *event) {
             pop_input_layer();
             screen_report("Game");
             mouse_unpick_entity(world);
+        } else if (press && key == KEY_SWITCH_POLYGON_MODE) {
+            if (game_state.polygon_mode == POLYGON_FILL) {
+                game_state.polygon_mode = POLYGON_LINE;
+            } else {
+                game_state.polygon_mode = POLYGON_FILL;
+            }
         } else if (press && key == KEY_SWITCH_COLLISION_VIEW) {
             if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
                 game_state.view_mode_flags &= ~VIEW_MODE_FLAG_COLLISION;

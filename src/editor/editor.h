@@ -4,6 +4,7 @@ enum Input_Key : u8;
 
 extern Input_Key KEY_CLOSE_WINDOW;
 extern Input_Key KEY_SWITCH_EDITOR_MODE;
+extern Input_Key KEY_SWITCH_POLYGON_MODE;
 extern Input_Key KEY_SWITCH_COLLISION_VIEW;
 
 struct World;
