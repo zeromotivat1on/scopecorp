@@ -183,7 +183,7 @@ s32 main() {
     world = alloclt(World);
 	init_world(world);
 
-#if 0
+#if 1
     str_copy(world->name, "main.lvl");
 
 	auto &player = *(Player *)create_entity(world, ENTITY_PLAYER);
@@ -203,19 +203,6 @@ s32 main() {
         player.sid_sound_steps = SID_SOUND_PLAYER_STEPS;
 	}
 
-    auto &portal = *(Portal *)create_entity(world, ENTITY_PORTAL);
-    {        
-        portal.destination_location = vec3(0.0f, F32_MIN, 0.0f);
-        
-        portal.scale = vec3(1.0f);
-        portal.location = vec3(-3.0f, 0.0f, 3.0f);
-
-        auto &aabb = world->aabbs[portal.aabb_index];
-        const vec3 aabb_offset = portal.scale * 2;
-        aabb.min = portal.location - aabb_offset * 0.5f;
-		aabb.max = aabb.min + aabb_offset;
-    }
-    
 	auto &ground = *(Static_Mesh *)create_entity(world, ENTITY_STATIC_MESH);
 	{        
 		ground.scale = vec3(16.0f, 16.0f, 0.0f);
@@ -251,6 +238,19 @@ s32 main() {
 		skybox.draw_data.sid_mesh     = SID_MESH_SKYBOX;
 		skybox.draw_data.sid_material = SID_MATERIAL_SKYBOX;
 	}
+    
+	{
+        auto &model = *(Static_Mesh *)create_entity(world, ENTITY_STATIC_MESH);
+		model.location = vec3(0.0f, 0.0f, 10.0f);
+        model.rotation = quat_from_axis_angle(vec3_right, -90.0f);
+        
+        auto &aabb = world->aabbs[model.aabb_index];
+		aabb.min = model.location - model.scale * 0.5f;
+		aabb.max = aabb.min + model.scale;
+
+		model.draw_data.sid_mesh     = SID("/data/meshes/tower.obj");
+		model.draw_data.sid_material = SID("/data/materials/tower.mat");
+	}
 
     auto &sound_emitter_2d = *(Sound_Emitter_2D *)create_entity(world, ENTITY_SOUND_EMITTER_2D);
     {
@@ -265,7 +265,7 @@ s32 main() {
         direct_light.rotation = quat_from_axis_angle(vec3_right, 0.0f);
         direct_light.scale = vec3(0.1f);
         
-        direct_light.ambient  = vec3_black;
+        direct_light.ambient  = vec3(0.5f);
         direct_light.diffuse  = vec3_black;
         direct_light.specular = vec3_black;
 
@@ -353,7 +353,7 @@ s32 main() {
 #if 0
         static f32 pixel_size_time = -1.0f;
         if (pixel_size_time > 180.0f) pixel_size_time = 0.0f;
-        viewport.frame_buffer.pixel_size = (sin(pixel_size_time) + 1.0f) * viewport.frame_buffer.width * 0.05f;
+        viewport.frame_buffer.pixel_size = (Sin(pixel_size_time) + 1.0f) * viewport.frame_buffer.width * 0.05f;
         pixel_size_time += delta_time * 4.0f;
 #endif
 

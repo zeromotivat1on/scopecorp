@@ -238,7 +238,7 @@ void draw_entity(const Entity *e) {
     const auto &frame_buffer = viewport.frame_buffer;
 
     Render_Command command = {};
-    command.flags = RENDER_FLAG_SCISSOR | RENDER_FLAG_CULL_FACE | RENDER_FLAG_BLEND | RENDER_FLAG_DEPTH | RENDER_FLAG_INDEXED | RENDER_FLAG_RESET;
+    command.flags = RENDER_FLAG_SCISSOR | RENDER_FLAG_BLEND | RENDER_FLAG_DEPTH | RENDER_FLAG_RESET;
     command.render_mode  = RENDER_TRIANGLES;
     command.polygon_mode = POLYGON_FILL;
     command.scissor.x      = 0;
@@ -259,10 +259,23 @@ void draw_entity(const Entity *e) {
     command.stencil.function.mask       = 0xFF;
     command.stencil.mask = 0x00;
 
-    const auto &mesh = asset_table.meshes[e->draw_data.sid_mesh];
+    const auto *pmesh = asset_table.meshes.find(e->draw_data.sid_mesh);
+    if (!pmesh) return;
+    
+    const auto &mesh = *pmesh;
     command.rid_vertex_array = mesh.rid_vertex_array;
-    command.buffer_element_count = mesh.index_count;
-    command.buffer_element_offset = mesh.index_data_offset;
+
+    if (mesh.index_count > 0) {
+        command.flags |= RENDER_FLAG_INDEXED;
+        command.buffer_element_count = mesh.index_count;
+        command.buffer_element_offset = mesh.index_data_offset;
+    } else {
+        command.buffer_element_count = mesh.vertex_count;
+        command.buffer_element_offset = 0;
+    }
+    
+    const auto *pmat = asset_table.materials.find(e->draw_data.sid_material);
+    if (!pmat) return;
     
     command.sid_material = e->draw_data.sid_material;
     
@@ -288,7 +301,7 @@ void draw_entity(const Entity *e) {
 
         const auto *camera = desired_camera(world);
         const u32 color = rgba_yellow;
-        const mat4 mvp = mat4_transform(e->location, e->rotation, e->scale * 1.1f) * camera->view_proj;
+        const mat4 mvp = mat4_transform(e->location, e->rotation, e->scale * 1.02f) * camera->view_proj;
 
         auto &material = asset_table.materials[SID_MATERIAL_OUTLINE];
         set_material_uniform_value(&material, "u_color",     &color, sizeof(color));
@@ -362,7 +375,7 @@ void geo_draw_arrow(vec3 start, vec3 end, u32 color) {
     geo_draw_line(start, end, color);
 
     vec3 forward = normalize(end - start);
-	const vec3 right = absf(forward.y) > 1.0f - F32_EPSILON
+	const vec3 right = Abs(forward.y) > 1.0f - F32_EPSILON
         ? normalize(vec3_right.cross(forward))
         : normalize(vec3_up.cross(forward));
 	const vec3 up = forward.cross(right);

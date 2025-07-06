@@ -21,6 +21,9 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
 
+#define TINYOBJLOADER_IMPLEMENTATION
+#include "tiny_obj_loader.h"
+
 static void *vm_base     = null;
 static void *allocl_base = null;
 static void *allocf_base = null;

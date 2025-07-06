@@ -143,6 +143,8 @@ struct Render_Command {
 
 	rid rid_frame_buffer = RID_NONE;
     rid rid_vertex_array = RID_NONE;
+
+    // @Todo: make it more generic like with mesh sids that set vertex info.
     sid sid_material = SID_NONE;
 
     // @Hack: handle run-time created textures that are not asset and so can't be used

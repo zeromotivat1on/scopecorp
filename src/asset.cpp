@@ -6,7 +6,9 @@
 #include "profile.h"
 #include "font.h"
 #include "flip_book.h"
+
 #include "stb_image.h"
+#include "tiny_obj_loader.h"
 
 #include "os/file.h"
 #include "os/time.h"
@@ -831,7 +833,7 @@ static void init_mesh_asset_mesh(Mesh *mesh, void *data) {
                 vertex_buffer_storage.size += mesh->vertex_data_size;
                 Assert(vertex_buffer_storage.size <= MAX_VERTEX_STORAGE_SIZE);
 
-                mesh->index_data_size  = mesh->index_count  * sizeof(u32);
+                mesh->index_data_size   = mesh->index_count  * sizeof(u32);
                 mesh->index_data_offset = index_buffer_storage.size;
 
                 index_buffer_storage.size += mesh->index_data_size;
@@ -913,12 +915,146 @@ static void init_mesh_asset_mesh(Mesh *mesh, void *data) {
     }
 }
 
+//#include <sstream>
+
 static void init_mesh_asset_obj(Mesh *mesh, void *data) {
+    char path[MAX_PATH_SIZE] = {'\0'};
+    convert_to_full_asset_path(path, sid_str(mesh->sid_path));
+    //std::istringstream sstream((char *)data);
+    tinyobj::attrib_t attrib;
+    std::vector<tinyobj::shape_t> shapes;
+    std::vector<tinyobj::material_t> materials;
+
+    std::string swarn;
+    std::string serr;
+
+    bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &swarn, &serr, path, null, true);
+    //bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &swarn, &serr, &sstream);
+
+    if (!swarn.empty()) {
+        warn("%s", swarn.c_str());
+    }
+
+    if (!serr.empty()) {
+        error("%s", serr.c_str());
+        return;
+    }
+
+    if (!ret) {
+        error("Failed to load mesh %s", sid_str(mesh->sid_path));
+        return;
+    }
+
+    mesh->vertex_layout_size = 0;
     
+    if (attrib.vertices.size() > 0) {
+        mesh->vertex_layout[mesh->vertex_layout_size] = VERTEX_F32_3;
+        mesh->vertex_layout_size += 1;
+    }
+
+    if (attrib.normals.size() > 0) {
+        mesh->vertex_layout[mesh->vertex_layout_size] = VERTEX_F32_3;
+        mesh->vertex_layout_size += 1;
+    }
+
+    if (attrib.texcoords.size() > 0) {
+        mesh->vertex_layout[mesh->vertex_layout_size] = VERTEX_F32_2;
+        mesh->vertex_layout_size += 1;
+    }
+
+    mesh->vertex_count = 0;
+    for (u32 s = 0; s < shapes.size(); s++) {
+        for (u32 f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
+            mesh->vertex_count += (u32)shapes[s].mesh.num_face_vertices[f];
+        }
+    }
+
+    u8 *r_vertex_data = (u8 *)vertex_buffer_storage.mapped_data;
+
+    u32 vertex_offsets[MAX_MESH_VERTEX_COMPONENTS];
+    u32 offset = vertex_buffer_storage.size;
+    
+    Vertex_Array_Binding bindings[MAX_VERTEX_ARRAY_BINDINGS];
+    s32 binding_count = 0;
+
+    for (s32 i = 0; i < mesh->vertex_layout_size; ++i) {
+        const s32 vcs = get_vertex_component_size(mesh->vertex_layout[i]); 
+        mesh->vertex_size += vcs;
+
+        auto &binding = bindings[i];
+        binding.binding_index = i;
+        binding.data_offset = offset;
+        binding.layout_size = 1;
+        binding.layout[0] = { mesh->vertex_layout[i], 0 };
+        binding_count += 1;
+                    
+        vertex_offsets[i] = offset;
+
+        const u32 size = vcs * mesh->vertex_count;
+        offset += size;
+    }
+                
+    mesh->rid_vertex_array = r_create_vertex_array(bindings, binding_count);
+                
+    mesh->vertex_data_size   = mesh->vertex_size * mesh->vertex_count;
+    mesh->vertex_data_offset = vertex_buffer_storage.size;
+
+    vertex_buffer_storage.size += mesh->vertex_data_size;
+    Assert(vertex_buffer_storage.size <= MAX_VERTEX_STORAGE_SIZE);
+
+    for (u32 s = 0; s < shapes.size(); s++) {
+        u32 index_offset = 0;
+        for (u32 f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
+            const u32 fv = shapes[s].mesh.num_face_vertices[f];
+
+            for (u32 v = 0; v < fv; v++) {
+                tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
+
+                {
+                    const f32 vx = attrib.vertices[3 * idx.vertex_index + 0];
+                    const f32 vy = attrib.vertices[3 * idx.vertex_index + 1];
+                    const f32 vz = attrib.vertices[3 * idx.vertex_index + 2];
+
+                    const vec3 pos = vec3(vx, vy, vz);
+                    copy_bytes(r_vertex_data + vertex_offsets[0], &pos, sizeof(pos));
+                    vertex_offsets[0] += sizeof(pos);
+                }
+                
+                if (idx.normal_index >= 0) {
+                    const f32 nx = attrib.normals[3 * idx.normal_index + 0];
+                    const f32 ny = attrib.normals[3 * idx.normal_index + 1];
+                    const f32 nz = attrib.normals[3 * idx.normal_index + 2];
+
+                    const vec3 n = vec3(nx, ny, nz);
+                    copy_bytes(r_vertex_data + vertex_offsets[1], &n, sizeof(n));
+                    vertex_offsets[1] += sizeof(n);
+                }
+
+                if (idx.texcoord_index >= 0) {
+                    const f32 tx = attrib.texcoords[2 * idx.texcoord_index + 0];
+                    const f32 ty = attrib.texcoords[2 * idx.texcoord_index + 1];
+
+                    const vec2 uv = vec2(tx, ty);
+                    copy_bytes(r_vertex_data + vertex_offsets[2], &uv, sizeof(uv));
+                    vertex_offsets[2] += sizeof(uv);
+                }
+                
+                // Optional: vertex colors
+                // const f32 r = attrib.colors[3 * idx.vertex_index + 0];
+                // const f32 g = attrib.colors[3 * idx.vertex_index + 1];
+                // const f32 b = attrib.colors[3 * idx.vertex_index + 2];
+            }
+
+            index_offset += fv;
+
+            // per-face material
+            //shapes[s].mesh.material_ids[f];
+        }
+    }
 }
 
 void init_mesh_asset(Mesh *mesh, void *data) {
-    // @Todo: parse material data - ideally text for editor and binary for release.
+    // @Todo: parse mesh data - ideally text for editor and binary for release.
 
     const char *mesh_path = sid_str(mesh->sid_path);
     const char *extension = str_char_from_end(mesh_path, '.');

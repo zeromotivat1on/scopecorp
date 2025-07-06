@@ -134,12 +134,12 @@ bool mat2::identity(f32 epsilon) const {
 }
 
 bool mat2::symmetric(f32 epsilon) const {
-	return absf(mat[0][1] - mat[1][0]) < epsilon;
+	return Abs(mat[0][1] - mat[1][0]) < epsilon;
 }
 
 bool mat2::diagonal(f32 epsilon) const {
-	return absf(mat[0][1]) <= epsilon &&
-		   absf(mat[1][0]) <= epsilon;
+	return Abs(mat[0][1]) <= epsilon &&
+		   Abs(mat[1][0]) <= epsilon;
 }
 
 f32 mat2::trace() const {
@@ -320,18 +320,18 @@ bool mat3::identity(f32 epsilon) const {
 }
 
 bool mat3::symmetric(f32 epsilon) const {
-	return absf(mat[0][1] - mat[1][0]) <= epsilon &&
-	   	   absf(mat[0][2] - mat[2][0]) <= epsilon &&
-	   	   absf(mat[1][2] - mat[2][1]) <= epsilon;
+	return Abs(mat[0][1] - mat[1][0]) <= epsilon &&
+	   	   Abs(mat[0][2] - mat[2][0]) <= epsilon &&
+	   	   Abs(mat[1][2] - mat[2][1]) <= epsilon;
 }
 
 bool mat3::diagonal(f32 epsilon) const {
-	return absf(mat[0][1]) <= epsilon &&
-		   absf(mat[0][2]) <= epsilon &&
-		   absf(mat[1][0]) <= epsilon &&
-		   absf(mat[1][2]) <= epsilon &&
-		   absf(mat[2][0]) <= epsilon &&
-		   absf(mat[2][1]) <= epsilon;
+	return Abs(mat[0][1]) <= epsilon &&
+		   Abs(mat[0][2]) <= epsilon &&
+		   Abs(mat[1][0]) <= epsilon &&
+		   Abs(mat[1][2]) <= epsilon &&
+		   Abs(mat[2][0]) <= epsilon &&
+		   Abs(mat[2][1]) <= epsilon;
 }
 
 bool mat3::rotated() const {
@@ -591,14 +591,14 @@ bool mat4::identity(f32 epsilon) const {
 bool mat4::symmetric(f32 epsilon) const {
 	for (s32 i = 1; i < 4; ++i)
 		for (s32 j = 0; j < i; ++j)
-			if (absf(mat[i][j] - mat[j][i]) > epsilon) return false;
+			if (Abs(mat[i][j] - mat[j][i]) > epsilon) return false;
 	return true;
 }
 
 bool mat4::diagonal(f32 epsilon) const {
 	for (s32 i = 0; i < 4; ++i)
 		for (s32 j = 0; j < 4; ++j) 
-			if (i != j && absf(mat[i][j]) > epsilon)  return false;
+			if (i != j && Abs(mat[i][j]) > epsilon)  return false;
 	return true;
 }
 
@@ -715,7 +715,7 @@ mat4 mat4_view(const vec3 &eye, const vec3 &at, const vec3 &up) {
 }
 
 mat4 mat4_perspective(f32 rfovy, f32 aspect, f32 n, f32 f) {
-	const f32 tan_half_fovy = tan(rfovy * 0.5f);
+	const f32 tan_half_fovy = Tan(rfovy * 0.5f);
 
 	mat4 result;
 	result[0][0] = 1.0f / (aspect * tan_half_fovy);	// x-axis scaling
@@ -758,7 +758,7 @@ mat4 inverse(const mat4 &m) {
 
 	const f32 det = ( - det3_201_123 * minv[3][0] + det3_201_023 * minv[3][1] - det3_201_013 * minv[3][2] + det3_201_012 * minv[3][3] );
 
-	if (absf(det) < MATRIX_INV_EPSILON ) {
+	if (Abs(det) < MATRIX_INV_EPSILON ) {
         error("Failed to inverse mat4");
 		return mat4_identity();
 	}

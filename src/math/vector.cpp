@@ -114,12 +114,12 @@ bool vec2::equal(const vec2 &a) const {
 }
 
 bool vec2::equal(const vec2 &a, f32 epsilon) const {
-    return absf(x - a.x) <= epsilon &&
-           absf(y - a.y) <= epsilon;
+    return Abs(x - a.x) <= epsilon &&
+           Abs(y - a.y) <= epsilon;
 }
 
 f32 vec2::length() const {
-    return sqrt(x * x + y * y);
+    return Sqrt(x * x + y * y);
 }
 
 f32 vec2::length_sqr() const {
@@ -131,7 +131,7 @@ f32 vec2::dot(const vec2 &a) const {
 }
 
 vec2 &vec2::normalize() {
-    const f32 length_inv = sqrt_inv(x * x + y * y);
+    const f32 length_inv = Sqrtr(x * x + y * y);
 
     x *= length_inv;
     y *= length_inv;
@@ -147,7 +147,7 @@ vec2 &vec2::truncate(f32 length) {
 
     const f32 length_square = x * x + y * y;
     if (length_square > length * length) {
-        const f32 scale_factor = length * sqrt_inv(length_square);
+        const f32 scale_factor = length * Sqrtr(length_square);
         x *= scale_factor;
         y *= scale_factor;
     }
@@ -283,13 +283,13 @@ bool vec3::equal(const vec3 &a) const {
 }
 
 bool vec3::equal(const vec3 &a, f32 epsilon) const {
-    return absf(x - a.x) <= epsilon &&
-           absf(y - a.y) <= epsilon &&
-           absf(z - a.z) <= epsilon;
+    return Abs(x - a.x) <= epsilon &&
+           Abs(y - a.y) <= epsilon &&
+           Abs(z - a.z) <= epsilon;
 }
 
 f32 vec3::length() const {
-    return sqrt(x * x + y * y + z * z);
+    return Sqrt(x * x + y * y + z * z);
 }
 
 f32 vec3::length_sqr() const {
@@ -305,7 +305,7 @@ vec3 vec3::cross(const vec3 &a) const {
 }
 
 vec3 &vec3::normalize() {
-    const f32 length_inv = sqrt_inv(x * x + y * y + z * z);
+    const f32 length_inv = Sqrtr(x * x + y * y + z * z);
 
     x *= length_inv;
     y *= length_inv;
@@ -322,7 +322,7 @@ vec3 &vec3::truncate(f32 length) {
 
     const f32 length_square = x * x + y * y + z * z;
     if (length_square > length * length) {
-        const f32 scale_factor = length * sqrt_inv(length_square);
+        const f32 scale_factor = length * Sqrtr(length_square);
         x *= scale_factor;
         y *= scale_factor;
         z *= scale_factor;
@@ -474,14 +474,14 @@ bool vec4::equal(const vec4 &a) const {
 }
 
 bool vec4::equal(const vec4 &a, f32 epsilon) const {
-    return absf(x - a.x) <= epsilon &&
-           absf(y - a.y) <= epsilon &&
-           absf(z - a.z) <= epsilon &&
-           absf(w - a.w) <= epsilon;
+    return Abs(x - a.x) <= epsilon &&
+           Abs(y - a.y) <= epsilon &&
+           Abs(z - a.z) <= epsilon &&
+           Abs(w - a.w) <= epsilon;
 }
 
 f32 vec4::length() const {
-    return sqrt(x * x + y * y + z * z + w * w);
+    return Sqrt(x * x + y * y + z * z + w * w);
 }
 
 f32 vec4::length_sqr() const {
@@ -493,7 +493,7 @@ f32 vec4::dot(const vec4 &a) const {
 }
 
 vec4 &vec4::normalize() {
-    const f32 lengthInv = sqrt_inv(x * x + y * y + z * z + w * w);
+    const f32 lengthInv = Sqrtr(x * x + y * y + z * z + w * w);
 
     x *= lengthInv;
     y *= lengthInv;
@@ -511,7 +511,7 @@ vec4 &vec4::truncate(f32 length) {
 
     const f32 length_square = x * x + y * y + z * z + w * w;
     if (length_square > length * length) {
-        const f32 scale_factor = length * sqrt_inv(length_square);
+        const f32 scale_factor = length * Sqrtr(length_square);
         x *= scale_factor;
         y *= scale_factor;
         z *= scale_factor;
@@ -582,17 +582,17 @@ const char *to_string(const vec4 &v) {
 }
 
 vec2 normalize(const vec2 &v) {
-    const f32 linv = sqrt_inv(v.x * v.x + v.y * v.y);
+    const f32 linv = Sqrtr(v.x * v.x + v.y * v.y);
     return vec2(v.x * linv, v.y * linv);
 }
 
 vec3 normalize(const vec3 &v) {
-    const f32 linv = sqrt_inv(v.x * v.x + v.y * v.y + v.z * v.z);
+    const f32 linv = Sqrtr(v.x * v.x + v.y * v.y + v.z * v.z);
     return vec3(v.x * linv, v.y * linv, v.z * linv);
 }
 
 vec4 normalize(const vec4 &v) {
-    const f32 linv = sqrt_inv(v.x * v.x + v.y * v.y + v.z * v.z + v.w * v.w);
+    const f32 linv = Sqrtr(v.x * v.x + v.y * v.y + v.z * v.z + v.w * v.w);
     return vec4(v.x * linv, v.y * linv, v.z * linv, v.w * linv);
 }
 
@@ -601,10 +601,10 @@ vec3 vector_direction(const vec3 &start, const vec3 &end) {
 }
 
 vec3 forward(f32 yaw, f32 pitch) {
-    const f32 ycos = cos(rad(yaw));
-    const f32 ysin = sin(rad(yaw));
-    const f32 pcos = cos(rad(pitch));
-    const f32 psin = sin(rad(pitch));
+    const f32 ycos = Cos(Rad(yaw));
+    const f32 ysin = Sin(Rad(yaw));
+    const f32 pcos = Cos(Rad(pitch));
+    const f32 psin = Sin(Rad(pitch));
     return vec3(ycos * pcos, psin, ysin * pcos).normalize();
 }
 
@@ -613,5 +613,5 @@ vec3 right(const vec3 &start, const vec3 &end, const vec3 &up) {
 }
 
 vec3 abs(const vec3 &a) {
-    return vec3(absf(a.x), absf(a.y), absf(a.z));
+    return vec3(Abs(a.x), Abs(a.y), Abs(a.z));
 }

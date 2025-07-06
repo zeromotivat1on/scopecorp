@@ -84,8 +84,7 @@ struct Static_Mesh : Entity {
 struct Skybox : Entity {
     Skybox() { type = ENTITY_SKYBOX; }
 
-    vec2 uv_scale;
-    vec3 uv_offset;
+    vec3 uv_offset = vec3_zero;
 };
 
 struct Direct_Light : Entity {

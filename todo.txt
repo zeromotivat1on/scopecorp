@@ -1,6 +1,8 @@
-- UI input functions for non-text are basically the same, cleanup
+- Update reflected fields during runtime if thet were changed somewhere else.
 
-- Asset save/load/hot-reload code has a lot of duplications, cleanup
+- UI input functions for non-text are basically the same, cleanup.
+
+- Asset save/load/hot-reload code has a lot of duplications, cleanup.
 
 - Get rid of runtime font atlas baking, do it offline and save to asset pak instead of fonts.
 

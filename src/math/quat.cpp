@@ -122,10 +122,10 @@ bool quat::equal(const quat &a) const {
 }
 
 bool quat::equal(const quat &a, const f32 epsilon) const {
-	return absf(x - a.x) <= epsilon &&
-		   absf(y - a.y) <= epsilon &&
-		   absf(z - a.z) <= epsilon &&
-		   absf(w - a.w) <= epsilon;
+	return Abs(x - a.x) <= epsilon &&
+		   Abs(y - a.y) <= epsilon &&
+		   Abs(z - a.z) <= epsilon &&
+		   Abs(w - a.w) <= epsilon;
 }
 
 quat quat::inverse() const {
@@ -133,7 +133,7 @@ quat quat::inverse() const {
 }
 
 f32 quat::length() const {
-	return sqrt(x * x + y * y + z * z + w * w);
+	return Sqrt(x * x + y * y + z * z + w * w);
 }
 
 quat &quat::normalize() {
@@ -149,7 +149,7 @@ quat &quat::normalize() {
 }
 
 f32 quat::calc_w() const {
-	return sqrt(absf(1.0f - (x * x + y * y + z * z)));
+	return Sqrt(Abs(1.0f - (x * x + y * y + z * z)));
 }
 
 
@@ -216,14 +216,14 @@ const char* to_string(const quat &q) {
 }
 
 quat quat_from_axis_angle(const vec3 &axes, f32 deg) {
-    const f32 angle  = rad(deg * 0.5f);
-    const f32 factor = sin(angle);
+    const f32 angle  = Rad(deg * 0.5f);
+    const f32 factor = Sin(angle);
 
     const f32 x = axes.x * factor;
     const f32 y = axes.y * factor;
     const f32 z = axes.z * factor;
 
-    const f32 w = cos(angle);
+    const f32 w = Cos(angle);
 
     return quat(x, y, z, w).normalize();
 }

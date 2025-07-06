@@ -240,11 +240,13 @@ void tick_game(f32 dt) {
         aabb.min = skybox.location - half_extent;
         aabb.max = skybox.location + half_extent;
         
-        auto &material = asset_table.materials[skybox.draw_data.sid_material];
-        
-        skybox.uv_offset = camera->eye;
-        set_material_uniform_value(&material, "u_scale", &skybox.uv_scale, sizeof(skybox.uv_scale));
-        set_material_uniform_value(&material, "u_offset", &skybox.uv_offset, sizeof(skybox.uv_offset));
+        auto *pmat = asset_table.materials.find(skybox.draw_data.sid_material);
+        if (pmat) {
+            auto &material = *pmat;        
+            skybox.uv_offset = camera->eye;
+            set_material_uniform_value(&material, "u_uv_scale", &skybox.uv_scale, sizeof(skybox.uv_scale));
+            set_material_uniform_value(&material, "u_uv_offset", &skybox.uv_offset, sizeof(skybox.uv_offset));
+        }
     }
 
     r_set_uniform_block_value(&uniform_block_direct_lights, 0, 0, &world->direct_lights.count, get_uniform_type_size_gpu_aligned(UNIFORM_U32));
@@ -298,7 +300,10 @@ void tick_game(f32 dt) {
 
         if (it.draw_data.sid_material == SID_NONE) continue;
         
-        auto &material = asset_table.materials[it.draw_data.sid_material];
+        auto *pmat = asset_table.materials.find(it.draw_data.sid_material);
+        if (!pmat) continue;
+
+        auto &material = *pmat;
         
         const mat4 model = mat4_transform(it.location, it.rotation, it.scale);
 		set_material_uniform_value(&material, "u_model", &model, sizeof(model));
@@ -390,20 +395,10 @@ void tick_game(f32 dt) {
 
         player.collide_aabb_index = INVALID_INDEX;
         auto &player_aabb = world->aabbs[player.aabb_index];
-
-        // @Temp
-        For (world->portals) {
-            if (overlap(world->aabbs[it.aabb_index], player_aabb)) {
-                player.location = it.destination_location;
-            }
-        }
         
         for (s32 i = 0; i < world->aabbs.count; ++i) {
             if (i == player.aabb_index) continue;
 
-            // @Temp
-            if (i == world->portals[0].aabb_index) continue;
-                
             const auto &aabb = world->aabbs[i];
             const vec3 resolved_velocity = resolve_moving_static(player_aabb, aabb, player.velocity);
             if (resolved_velocity != player.velocity) {
@@ -413,9 +408,11 @@ void tick_game(f32 dt) {
             }
         }
         
-        auto &material = asset_table.materials[player.draw_data.sid_material];
+        auto *pmat = asset_table.materials.find(player.draw_data.sid_material);
         if (player.velocity == vec3_zero) {
-            material.sid_texture = texture_sids.player_idle[player.move_direction];
+            if (pmat) {
+                pmat->sid_texture = texture_sids.player_idle[player.move_direction];
+            }
         } else {
             switch (player.move_direction) {
             case DIRECTION_LEFT: {
@@ -439,7 +436,9 @@ void tick_game(f32 dt) {
             auto &flip_book = asset_table.flip_books[player.sid_flip_book_move];
             tick(&flip_book, dt);
 
-            material.sid_texture = get_current_frame(&flip_book);
+            if (pmat) {
+                pmat->sid_texture = get_current_frame(&flip_book);
+            }
         }
             
         player.location += player.velocity;
@@ -454,15 +453,17 @@ void tick_game(f32 dt) {
             au_play_sound_or_continue(player.sid_sound_steps);
         }
 
-        set_material_uniform_value(&material, "u_uv_scale", &player.uv_scale, sizeof(player.uv_scale));
+        if (pmat) {
+            set_material_uniform_value(pmat, "u_uv_scale", &player.uv_scale, sizeof(player.uv_scale));
 
-        const mat4 model = mat4_transform(player.location, player.rotation, player.scale);
-        set_material_uniform_value(&material, "u_model", &model, sizeof(model));
+            const mat4 model = mat4_transform(player.location, player.rotation, player.scale);
+            set_material_uniform_value(pmat, "u_model", &model, sizeof(model));
 
-        set_material_uniform_value(&material, "u_material.ambient",   &material.ambient, sizeof(material.ambient));
-        set_material_uniform_value(&material, "u_material.diffuse",   &material.diffuse, sizeof(material.diffuse));
-        set_material_uniform_value(&material, "u_material.specular",  &material.specular, sizeof(material.specular));
-        set_material_uniform_value(&material, "u_material.shininess", &material.shininess, sizeof(material.shininess));
+            set_material_uniform_value(pmat, "u_material.ambient",   &pmat->ambient, sizeof(pmat->ambient));
+            set_material_uniform_value(pmat, "u_material.diffuse",   &pmat->diffuse, sizeof(pmat->diffuse));
+            set_material_uniform_value(pmat, "u_material.specular",  &pmat->specular, sizeof(pmat->specular));
+            set_material_uniform_value(pmat, "u_material.shininess", &pmat->shininess, sizeof(pmat->shininess));
+        }
     }
 
     {   // Tick camera.
@@ -500,7 +501,7 @@ void tick_game(f32 dt) {
                 else
                     target_eye.z = camera.eye.z;
 
-                camera.eye = lerp(camera.eye, target_eye, player.camera_follow_speed * dt);
+                camera.eye = Lerp(camera.eye, target_eye, player.camera_follow_speed * dt);
                 camera.at = camera.eye + forward(camera.yaw, camera.pitch);
             }
         }

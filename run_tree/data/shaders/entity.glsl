@@ -75,7 +75,7 @@ void main() {
                                  u_material.specular, u_material.shininess);
     }
 
-    //out_color = vec4(1, 0, 0, 1) * vec4(phong, 1.0f);
+    //out_color = vec4(1, 1, 1, 1) * vec4(phong, 1.0f);
     out_color = texture(u_sampler, f_uv) * vec4(phong, 1.0f);
     out_entity_id = f_entity_id;
 }

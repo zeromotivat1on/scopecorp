@@ -11,7 +11,7 @@ void update_matrices(Camera *c) {
     c->view = mat4_view(c->eye, c->at, c->up);
 
     if (c->mode == MODE_PERSPECTIVE)
-		c->proj = mat4_perspective(rad(c->fov), c->aspect, c->near, c->far);
+		c->proj = mat4_perspective(Rad(c->fov), c->aspect, c->near, c->far);
     
 	if (c->mode == MODE_ORTHOGRAPHIC)
 		c->proj = mat4_orthographic(c->left, c->right, c->bottom, c->top, c->near, c->far);
