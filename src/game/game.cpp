@@ -24,6 +24,7 @@
 #include "render/material.h"
 #include "render/texture.h"
 #include "render/buffer_storage.h"
+#include "render/render_command.h"
 
 #include "audio/sound.h"
 
@@ -70,6 +71,12 @@ void on_input_game(Window_Event *event) {
             game_state.mode = MODE_EDITOR;
             push_input_layer(&input_layer_editor);
             screen_report("Editor");
+        }  else if (press && key == KEY_SWITCH_POLYGON_MODE) {
+            if (game_state.polygon_mode == POLYGON_FILL) {
+                game_state.polygon_mode = POLYGON_LINE;
+            } else {
+                game_state.polygon_mode = POLYGON_FILL;
+            }
         } else if (press && key == KEY_SWITCH_COLLISION_VIEW) {
             if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
                 game_state.view_mode_flags &= ~VIEW_MODE_FLAG_COLLISION;
