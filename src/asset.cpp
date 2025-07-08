@@ -915,12 +915,11 @@ static void init_mesh_asset_mesh(Mesh *mesh, void *data) {
     }
 }
 
-//#include <sstream>
+#include <sstream>
 
 static void init_mesh_asset_obj(Mesh *mesh, void *data) {
-    char path[MAX_PATH_SIZE] = {'\0'};
-    convert_to_full_asset_path(path, sid_str(mesh->sid_path));
-    //std::istringstream sstream((char *)data);
+    const auto sdata = std::string((char *)data, mesh->data_size);
+    std::istringstream sstream(sdata);
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
     std::vector<tinyobj::material_t> materials;
@@ -928,8 +927,8 @@ static void init_mesh_asset_obj(Mesh *mesh, void *data) {
     std::string swarn;
     std::string serr;
 
-    bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &swarn, &serr, path, null, true);
-    //bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &swarn, &serr, &sstream);
+    tinyobj::MaterialFileReader mat_file_reader(DIR_MATERIALS);
+    bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &swarn, &serr, &sstream, &mat_file_reader);
 
     if (!swarn.empty()) {
         warn("%s", swarn.c_str());
