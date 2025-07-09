@@ -10,6 +10,56 @@ struct Hash_Table {
     static inline u64  default_hash   (const K &a)             { return *(u64 *)&a; }
     static inline bool default_compare(const K &a, const K &b) { return a == b; }
 
+    K   *keys   = null;
+    V   *values = null;
+    u64 *hashes = null;
+    s32  count    = 0;
+    s32  capacity = 0;
+
+    Hash    hash_function    = &default_hash;
+    Compare compare_function = &default_compare;
+    
+    Hash_Table() = default;
+    Hash_Table(s32 capacity)
+        : capacity(capacity),
+          keys  (allocltn(K,   capacity)),
+          values(allocltn(V,   capacity)),
+          hashes(allocltn(u64, capacity)) {
+        for (s32 i = 0; i < capacity; ++i) {
+            hashes[i] = 0;
+        }
+    }
+
+    struct Iterator;
+    struct Const_Iterator;
+    
+    Iterator begin() { return Iterator(this, 0); }
+    Iterator end()   { return Iterator(this, capacity); }
+
+    Const_Iterator begin() const { return Const_Iterator(this, 0); }
+    Const_Iterator end()   const { return Const_Iterator(this, capacity); }
+
+    V &operator[](const K &key) const {
+        const u64 hash = hash_function(key);
+        s32 index = hash % capacity;
+
+        while (hashes[index] != 0) {
+            const auto &table_key = keys[index];
+            if (hashes[index] == hash && compare_function(key, table_key)) {
+                return values[index];
+            }
+
+            index += 1;
+            if (index >= capacity) index = 0;
+        }
+
+        keys  [index] = key;
+        values[index] = V();
+        hashes[index] = hash;
+        
+        return values[index];
+    }
+
     struct Iterator {
         struct Return_Value { K &key; V &value; };
         
@@ -95,92 +145,67 @@ struct Hash_Table {
             return { table->keys[index], table->values[index] };
         }
     };
-
-    K   *keys   = null;
-    V   *values = null;
-    u64 *hashes = null;
-    s32  count    = 0;
-    s32  capacity = 0;
-
-    Hash    hash_function    = &default_hash;
-    Compare compare_function = &default_compare;
-    
-    Hash_Table() = default;
-    Hash_Table(s32 capacity)
-        : capacity(capacity),
-          keys  (allocltn(K,   capacity)),
-          values(allocltn(V,   capacity)),
-          hashes(allocltn(u64, capacity)) {
-        for (s32 i = 0; i < capacity; ++i) {
-            hashes[i] = 0;
-        }
-    }
-    
-    Iterator begin() { return Iterator(this, 0); }
-    Iterator end()   { return Iterator(this, capacity); }
-
-    Const_Iterator begin() const { return Const_Iterator(this, 0); }
-    Const_Iterator end()   const { return Const_Iterator(this, capacity); }
-
-    inline f32 load_factor() const { return (f32)count / capacity; }
-
-    V &operator[](const K &key) const {
-        // @Cleanup: super lazy, implement correctly.
-        return *find(key);
-    }
-    
-    V *find(const K &key) const {
-        const u64 hash = hash_function(key);
-        s32 index = hash % capacity;
-
-        while (hashes[index] != 0) {
-            const auto &table_key = keys[index];
-            if (hashes[index] == hash && compare_function(key, table_key)) {
-                return values + index;
-            }
-
-            index += 1;
-            if (index >= capacity) index = 0;
-        }
-
-        return null;
-    }
-
-    V *add(const K &key, const V &value) {
-        Assert(load_factor() < MAX_HASH_TABLE_LOAD_FACTOR);
-        
-        const u64 hash = hash_function(key);
-        s32 index = hash % capacity;
-
-        while (hashes[index] != 0) {
-            index += 1;
-            if (index >= capacity) index = 0;
-        }
-
-        keys  [index] = key;
-        values[index] = value;
-        hashes[index] = hash;
-
-        count += 1;
-        return values + index;
-    }
-
-    bool remove(const K &key) {
-        const u64 hash = hash_function(key);
-        s32 index = hash % capacity;
-
-        while (hashes[index] != 0) {
-            const auto &table_key = keys[index];
-            if (hashes[index] == hash && compare_function(key, table_key)) {
-                hashes[index] = 0;
-                count--;
-                return true;
-            }
-
-            index += 1;
-            if (index >= capacity) index = 0;
-        }
-
-        return false;
-    }    
 };
+
+template<typename K, typename V>
+f32 load_factor(const Hash_Table<K, V> &table) {
+    return (f32)table.count / table.capacity;
+}
+
+template<typename K, typename V>
+V *find(const Hash_Table<K, V> &table, const K &key) {
+    const u64 hash = table.hash_function(key);
+    s32 index = hash % table.capacity;
+
+    while (table.hashes[index] != 0) {
+        const auto &table_key = table.keys[index];
+        if (table.hashes[index] == hash && table.compare_function(key, table_key)) {
+            return table.values + index;
+        }
+
+        index += 1;
+        if (index >= table.capacity) index = 0;
+    }
+
+    return null;
+}
+
+template<typename K, typename V>
+V *add(Hash_Table<K, V> &table, const K &key, const V &value) {
+    Assert(load_factor(table) < MAX_HASH_TABLE_LOAD_FACTOR);
+        
+    const u64 hash = table.hash_function(key);
+    s32 index = hash % table.capacity;
+
+    while (table.hashes[index] != 0) {
+        index += 1;
+        if (index >= table.capacity) index = 0;
+    }
+
+    table.keys  [index] = key;
+    table.values[index] = value;
+    table.hashes[index] = hash;
+
+    table.count += 1;
+    return table.values + index;
+}
+
+template<typename K, typename V>
+bool remove(Hash_Table<K, V> &table, const K &key) {
+    const u64 hash = table.hash_function(key);
+    s32 index = hash % table.capacity;
+
+    while (table.hashes[index] != 0) {
+        const auto &table_key = keys[index];
+        if (table.hashes[index] == hash && table.compare_function(key, table_key)) {
+            table.hashes[index] = 0;
+            count--;
+            return true;
+        }
+
+        index += 1;
+        if (index >= capacity) index = 0;
+    }
+
+    return false;
+}

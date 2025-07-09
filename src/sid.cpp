@@ -24,13 +24,13 @@ void sid_init() {
 
 sid sid_intern(const char *string) {
     const sid hash = (sid)hash_fnv(string);
-    if (sid_table.find(hash) == null) {        
+    if (find(sid_table, hash) == null) {        
         const u32 size = (u32)str_size(string) + 1;
         Assert(size + sid_buffer_size < MAX_SID_BUFFER_SIZE);
 
         char *destination = sid_buffer + sid_buffer_size;
         copy_bytes(destination, string, size);
-        sid_table.add(hash, destination);
+        add(sid_table, hash, (const char *)destination);
         
         sid_buffer_size += size;
     }
@@ -39,7 +39,7 @@ sid sid_intern(const char *string) {
 
 const char *sid_str(sid sid) {
     const char *str = null;
-    if (const auto **v = sid_table.find(sid)) {
+    if (const auto **v = find(sid_table, sid)) {
         str = *v;
     }
     return str;

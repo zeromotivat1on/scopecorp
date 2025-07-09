@@ -62,7 +62,7 @@ static void init_asset_source_callback(const File_Callback_Data *data) {
     source.sid_relative_path = sid_relative_path;
     
     auto &ast = asset_source_table;
-    ast.table.add(sid_relative_path, source);
+    add(ast.table, sid_relative_path, source);
     ast.count_by_type[source.asset_type] += 1;
 }
 
@@ -486,7 +486,7 @@ void load_asset_pack(const char *path) {
 
                 include.data = data;
 
-                asset_table.shader_includes.add(include.sid_path, include);
+                add(asset_table.shader_includes, include.sid_path, include);
                 
                 break;
             }
@@ -506,7 +506,7 @@ void load_asset_pack(const char *path) {
 
                 init_shader_asset(&shader, data);
 
-                asset_table.shaders.add(shader.sid_path, shader);
+                add(asset_table.shaders, shader.sid_path, shader);
                 
                 break;
             }
@@ -531,7 +531,7 @@ void load_asset_pack(const char *path) {
                 set_texture_wrap(&texture, TEXTURE_WRAP_REPEAT);
                 set_texture_filter(&texture, TEXTURE_FILTER_NEAREST);
 
-                asset_table.textures.add(texture.sid_path, texture);
+                add(asset_table.textures, texture.sid_path, texture);
 
                 break;
             }
@@ -551,7 +551,7 @@ void load_asset_pack(const char *path) {
 
                 init_material_asset(&material, data);
                 
-                asset_table.materials.add(material.sid_path, material);
+                add(asset_table.materials, material.sid_path, material);
 
                 break;
             }
@@ -571,7 +571,7 @@ void load_asset_pack(const char *path) {
 
                 init_mesh_asset(&mesh, data);
                 
-                asset_table.meshes.add(mesh.sid_path, mesh);
+                add(asset_table.meshes, mesh.sid_path, mesh);
 
                 break;
             }
@@ -591,7 +591,7 @@ void load_asset_pack(const char *path) {
 
                 init_sound_asset(&sound, data);
                 
-                asset_table.sounds.add(sound.sid_path, sound);
+                add(asset_table.sounds, sound.sid_path, sound);
 
                 break;
             }
@@ -610,7 +610,7 @@ void load_asset_pack(const char *path) {
 
                 font.data = data;
 
-                asset_table.fonts.add(font.sid_path, font);
+                add(asset_table.fonts, font.sid_path, font);
 
                 break;
             }
@@ -630,7 +630,7 @@ void load_asset_pack(const char *path) {
 
                 init_flip_book_asset(&flip_book, data);
                 
-                asset_table.flip_books.add(flip_book.sid_path, flip_book);
+                add(asset_table.flip_books, flip_book.sid_path, flip_book);
 
                 break;
             }

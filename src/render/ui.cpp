@@ -31,7 +31,7 @@ static u64 ui_input_table_hash(const uiid &a) {
 }
 
 static char *get_or_alloc_input_buffer(uiid id, u32 size, bool *allocated = null) {
-    char **v = ui_input_table.find(id);
+    char **v = find(ui_input_table, id);
     if (v == null) {        
         Assert(size + ui_input_buffer_size < MAX_UI_INPUT_BUFFER_SIZE);
 
@@ -39,7 +39,7 @@ static char *get_or_alloc_input_buffer(uiid id, u32 size, bool *allocated = null
         text[0] = '\0';
         text[size + 1] = '\0';
         
-        v = ui_input_table.add(id, text);
+        v = add(ui_input_table, id, text);
         ui_input_buffer_size += size + 1;
 
         if (allocated) *allocated = true;

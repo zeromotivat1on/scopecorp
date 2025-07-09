@@ -517,7 +517,7 @@ static void cb_queue_for_hot_reload(const File_Callback_Data *callback_data) {
     auto &ast = asset_source_table;
     const auto sid = sid_intern(relative_path);
     
-    if (Asset_Source *source = ast.table.find(sid)) {
+    if (auto *source = find(ast.table, sid)) {
         if (source->last_write_time != callback_data->last_write_time) {
             auto *list = (Hot_Reload_List *)callback_data->user_data;
             

@@ -259,23 +259,22 @@ void draw_entity(const Entity *e) {
     command.stencil.function.mask       = 0xFF;
     command.stencil.mask = 0x00;
 
-    const auto *pmesh = asset_table.meshes.find(e->draw_data.sid_mesh);
-    if (!pmesh) return;
+    const auto *mesh = find(asset_table.meshes, e->draw_data.sid_mesh);
+    if (!mesh) return;
     
-    const auto &mesh = *pmesh;
-    command.rid_vertex_array = mesh.rid_vertex_array;
+    command.rid_vertex_array = mesh->rid_vertex_array;
 
-    if (mesh.index_count > 0) {
+    if (mesh->index_count > 0) {
         command.flags |= RENDER_FLAG_INDEXED;
-        command.buffer_element_count = mesh.index_count;
-        command.buffer_element_offset = mesh.index_data_offset;
+        command.buffer_element_count = mesh->index_count;
+        command.buffer_element_offset = mesh->index_data_offset;
     } else {
-        command.buffer_element_count = mesh.vertex_count;
+        command.buffer_element_count = mesh->vertex_count;
         command.buffer_element_offset = 0;
     }
     
-    const auto *pmat = asset_table.materials.find(e->draw_data.sid_material);
-    if (!pmat) return;
+    const auto *material = find(asset_table.materials, e->draw_data.sid_material);
+    if (!material) return;
     
     command.sid_material = e->draw_data.sid_material;
     

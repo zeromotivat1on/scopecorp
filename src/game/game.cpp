@@ -251,12 +251,11 @@ void tick_game(f32 dt) {
         aabb.min = skybox.location - half_extent;
         aabb.max = skybox.location + half_extent;
         
-        auto *pmat = asset_table.materials.find(skybox.draw_data.sid_material);
-        if (pmat) {
-            auto &material = *pmat;        
+        auto *material = find(asset_table.materials, skybox.draw_data.sid_material);
+        if (material) {
             skybox.uv_offset = camera->eye;
-            set_material_uniform_value(&material, "u_uv_scale", &skybox.uv_scale, sizeof(skybox.uv_scale));
-            set_material_uniform_value(&material, "u_uv_offset", &skybox.uv_offset, sizeof(skybox.uv_offset));
+            set_material_uniform_value(material, "u_uv_scale", &skybox.uv_scale, sizeof(skybox.uv_scale));
+            set_material_uniform_value(material, "u_uv_offset", &skybox.uv_offset, sizeof(skybox.uv_offset));
         }
     }
 
@@ -311,20 +310,18 @@ void tick_game(f32 dt) {
 
         if (it.draw_data.sid_material == SID_NONE) continue;
         
-        auto *pmat = asset_table.materials.find(it.draw_data.sid_material);
-        if (!pmat) continue;
-
-        auto &material = *pmat;
+        auto *material = find(asset_table.materials, it.draw_data.sid_material);
+        if (!material) continue;
         
         const mat4 model = mat4_transform(it.location, it.rotation, it.scale);
-		set_material_uniform_value(&material, "u_model", &model, sizeof(model));
+		set_material_uniform_value(material, "u_model", &model, sizeof(model));
 
-        set_material_uniform_value(&material, "u_uv_scale", &it.uv_scale, sizeof(it.uv_scale));
+        set_material_uniform_value(material, "u_uv_scale", &it.uv_scale, sizeof(it.uv_scale));
 
-        set_material_uniform_value(&material, "u_material.ambient",   &material.ambient, sizeof(material.ambient));
-        set_material_uniform_value(&material, "u_material.diffuse",   &material.diffuse, sizeof(material.diffuse));
-        set_material_uniform_value(&material, "u_material.specular",  &material.specular, sizeof(material.specular));
-        set_material_uniform_value(&material, "u_material.shininess", &material.shininess, sizeof(material.shininess));
+        set_material_uniform_value(material, "u_material.ambient",   &material->ambient, sizeof(material->ambient));
+        set_material_uniform_value(material, "u_material.diffuse",   &material->diffuse, sizeof(material->diffuse));
+        set_material_uniform_value(material, "u_material.specular",  &material->specular, sizeof(material->specular));
+        set_material_uniform_value(material, "u_material.shininess", &material->shininess, sizeof(material->shininess));
 	}
 
     // @Todo: fine-tuned sound play.
@@ -419,10 +416,10 @@ void tick_game(f32 dt) {
             }
         }
         
-        auto *pmat = asset_table.materials.find(player.draw_data.sid_material);
+        auto *material = find(asset_table.materials, player.draw_data.sid_material);
         if (player.velocity == vec3_zero) {
-            if (pmat) {
-                pmat->sid_texture = texture_sids.player_idle[player.move_direction];
+            if (material) {
+                material->sid_texture = texture_sids.player_idle[player.move_direction];
             }
         } else {
             switch (player.move_direction) {
@@ -447,8 +444,8 @@ void tick_game(f32 dt) {
             auto &flip_book = asset_table.flip_books[player.sid_flip_book_move];
             tick(&flip_book, dt);
 
-            if (pmat) {
-                pmat->sid_texture = get_current_frame(&flip_book);
+            if (material) {
+                material->sid_texture = get_current_frame(&flip_book);
             }
         }
             
@@ -464,16 +461,16 @@ void tick_game(f32 dt) {
             au_play_sound_or_continue(player.sid_sound_steps);
         }
 
-        if (pmat) {
-            set_material_uniform_value(pmat, "u_uv_scale", &player.uv_scale, sizeof(player.uv_scale));
+        if (material) {
+            set_material_uniform_value(material, "u_uv_scale", &player.uv_scale, sizeof(player.uv_scale));
 
             const mat4 model = mat4_transform(player.location, player.rotation, player.scale);
-            set_material_uniform_value(pmat, "u_model", &model, sizeof(model));
+            set_material_uniform_value(material, "u_model", &model, sizeof(model));
 
-            set_material_uniform_value(pmat, "u_material.ambient",   &pmat->ambient, sizeof(pmat->ambient));
-            set_material_uniform_value(pmat, "u_material.diffuse",   &pmat->diffuse, sizeof(pmat->diffuse));
-            set_material_uniform_value(pmat, "u_material.specular",  &pmat->specular, sizeof(pmat->specular));
-            set_material_uniform_value(pmat, "u_material.shininess", &pmat->shininess, sizeof(pmat->shininess));
+            set_material_uniform_value(material, "u_material.ambient",   &material->ambient, sizeof(material->ambient));
+            set_material_uniform_value(material, "u_material.diffuse",   &material->diffuse, sizeof(material->diffuse));
+            set_material_uniform_value(material, "u_material.specular",  &material->specular, sizeof(material->specular));
+            set_material_uniform_value(material, "u_material.shininess", &material->shininess, sizeof(material->shininess));
         }
     }
 
