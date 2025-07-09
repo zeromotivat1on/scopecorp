@@ -5,6 +5,9 @@
 #include "math/vector.h"
 #include "math/quat.h"
 
+// Used during entity creation.
+inline eid eid_global_counter = 1;
+
 enum Entity_Type : u8 {
     ENTITY_PLAYER,
     ENTITY_SKYBOX,
@@ -14,6 +17,19 @@ enum Entity_Type : u8 {
     ENTITY_SOUND_EMITTER_2D,
     ENTITY_SOUND_EMITTER_3D,
     ENTITY_PORTAL,
+    
+    ENTITY_TYPE_COUNT
+};
+
+inline const char *entity_type_names[ENTITY_TYPE_COUNT] = {
+    "Player",
+    "Skybox",
+    "Static Mesh",
+    "Direct Light",
+    "Point Light",
+    "Sound Emitter 2D",
+    "Sound Emitter 3D",
+    "Portal",
 };
 
 enum Entity_FLag : u32 {
@@ -28,9 +44,9 @@ struct Entity_Draw_Data {
 };
 
 struct Entity {
-    u32 flags = 0;
-    Entity_Type type;
     eid eid = EID_NONE;
+    Entity_Type type;
+    u32 flags = 0;
     
     vec3 location;
     quat rotation;
@@ -43,9 +59,9 @@ struct Entity {
 };
 
 REFLECT_BEGIN(Entity)
-REFLECT_FIELD(Entity, flags,      FIELD_U32)
-REFLECT_FIELD(Entity, type,       FIELD_U8)
 REFLECT_FIELD(Entity, eid,        FIELD_U32)
+REFLECT_FIELD(Entity, type,       FIELD_U8)
+REFLECT_FIELD(Entity, flags,      FIELD_U32)
 REFLECT_FIELD(Entity, location,   FIELD_VEC3)
 REFLECT_FIELD(Entity, rotation,   FIELD_QUAT)
 REFLECT_FIELD(Entity, scale,      FIELD_VEC3)

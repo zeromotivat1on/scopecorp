@@ -631,6 +631,35 @@ u8 ui_input_sid(uiid id, sid *v, const UI_Input_Style &style) {
     return flags;
 }
 
+u8 ui_combo(uiid id, u32 *selected_index, const char **options, u32 option_count, const UI_Combo_Style &style) {
+    Assert(*selected_index < option_count);
+
+    u8 flags = 0;
+    
+    const UI_Button_Style switch_button_style = {
+        style.pos_text,
+        style.padding,
+        style.color_text,
+        style.color_quad,
+        style.atlas_index,
+    };
+
+    const char *option = options[*selected_index];
+    const u8 switch_button_flags = ui_button(id, option, switch_button_style);
+    
+    if (switch_button_flags & UI_FLAG_FINISHED) {
+        flags |= UI_FLAG_CHANGED;
+        flags |= UI_FLAG_FINISHED;
+        
+        *selected_index += 1;
+        if (*selected_index >= option_count) {
+            *selected_index = 0;
+        }
+    }
+
+    return flags;
+}
+
 void ui_text(const char *text, vec2 pos, u32 color, s32 atlas_index) {
     ui_text(text, (u32)str_size(text), pos, color, atlas_index);
 }

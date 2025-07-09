@@ -251,7 +251,8 @@ void tick_editor(f32 dt) {
             for (u32 i = 0; i < field_count; ++i) {
                 const auto &field = REFLECT_FIELD_AT(Entity, i);
                 const f32 field_name_width = (f32)get_line_width_px(&atlas, field.name);
-
+                const f32 max_width_f32 = (f32)UI_INPUT_BUFFER_SIZE_F32 * atlas.space_advance_width;
+                
                 constexpr u32 tcc = rgba_white;
                 constexpr u32 tch = rgba_white;
                 constexpr u32 tca = rgba_white;
@@ -321,11 +322,11 @@ void tick_editor(f32 dt) {
 
                     ui_input_f32(id, &v.x, style);
                     id.index += 1;
-                    style.pos_text.x += (UI_INPUT_BUFFER_SIZE_F32 + 1) * atlas.space_advance_width;
+                    style.pos_text.x += max_width_f32 + atlas.space_advance_width;
 
                     ui_input_f32(id, &v.y, style);
                     id.index += 1;
-                    style.pos_text.x += (UI_INPUT_BUFFER_SIZE_F32 + 1) * atlas.space_advance_width;
+                    style.pos_text.x += max_width_f32 + atlas.space_advance_width;
 
                     break;
                 }
@@ -334,15 +335,15 @@ void tick_editor(f32 dt) {
                     
                     ui_input_f32(id, &v.x, style);
                     id.index += 1;
-                    style.pos_text.x += (UI_INPUT_BUFFER_SIZE_F32 + 1) * atlas.space_advance_width;
+                    style.pos_text.x += max_width_f32 + atlas.space_advance_width;
 
                     ui_input_f32(id, &v.y, style);
                     id.index += 1;
-                    style.pos_text.x += (UI_INPUT_BUFFER_SIZE_F32 + 1) * atlas.space_advance_width;
+                    style.pos_text.x += max_width_f32 + atlas.space_advance_width;
 
                     ui_input_f32(id, &v.z, style);
                     id.index += 1;
-                    style.pos_text.x += (UI_INPUT_BUFFER_SIZE_F32 + 1) * atlas.space_advance_width;
+                    style.pos_text.x += max_width_f32 + atlas.space_advance_width;
                     
                     break;
                 }
@@ -351,19 +352,19 @@ void tick_editor(f32 dt) {
 
                     ui_input_f32(id, &v.x, style);
                     id.index += 1;
-                    style.pos_text.x += (UI_INPUT_BUFFER_SIZE_F32 + 1) * atlas.space_advance_width;
+                    style.pos_text.x += max_width_f32 + atlas.space_advance_width;
 
                     ui_input_f32(id, &v.y, style);
                     id.index += 1;
-                    style.pos_text.x += (UI_INPUT_BUFFER_SIZE_F32 + 1) * atlas.space_advance_width;
+                    style.pos_text.x += max_width_f32 + atlas.space_advance_width;
 
                     ui_input_f32(id, &v.z, style);
                     id.index += 1;
-                    style.pos_text.x += (UI_INPUT_BUFFER_SIZE_F32 + 1) * atlas.space_advance_width;
+                    style.pos_text.x += max_width_f32 + atlas.space_advance_width;
 
                     ui_input_f32(id, &v.w, style);
                     id.index += 1;
-                    style.pos_text.x += (UI_INPUT_BUFFER_SIZE_F32 + 1) * atlas.space_advance_width;
+                    style.pos_text.x += max_width_f32 + atlas.space_advance_width;
                     
                     break;
                 }
@@ -436,7 +437,43 @@ void tick_editor(f32 dt) {
         }
     }
 
-    {   // Tick screen report.
+    // Create specific entity.
+    if (game_state.mode == MODE_EDITOR && !window->cursor_locked) {
+        const char *button_text = "Add";
+
+        const uiid button_id = { 0, 100, 0 };
+        const uiid combo_id  = { 0, 200, 0 };
+        
+        const UI_Button_Style button_style = {
+            vec2(100.0f),
+            vec2(32.0f, 16.0f),
+            { rgba_white, rgba_pack(255, 255, 255, 200), rgba_white },
+            { rgba_black, rgba_pack(0, 0, 0, 200),       rgba_black },
+        };
+        
+        const auto &atlas = ui.font_atlases[button_style.atlas_index];
+        const f32 width = (f32)get_line_width_px(&atlas, button_text);
+    
+        const UI_Combo_Style combo_style = {
+            button_style.pos_text + vec2(width + 2 * button_style.padding.x + 4.0f, 0.0f),
+            button_style.padding,
+            button_style.color_text,
+            button_style.color_quad,
+            button_style.atlas_index,
+        };
+
+        const u8 button_flags = ui_button(button_id, button_text, button_style);
+
+        constexpr u32 selection_offset = 2;
+        static u32 selected_entity_type = 0;
+        ui_combo(combo_id, &selected_entity_type, entity_type_names + selection_offset, COUNT(entity_type_names) - selection_offset, combo_style);
+        
+        if (button_flags & UI_FLAG_FINISHED) {
+            create_entity(world, (Entity_Type)(selected_entity_type + selection_offset));
+        }
+    }
+
+    {   // Screen report.
         screen_report_time += dt;
 
         f32 fade_time = 0.0f;
@@ -462,22 +499,6 @@ void tick_editor(f32 dt) {
             const u32 shadow_color = rgba_black;
             
             ui_text_with_shadow(screen_report_text, pos, color, shadow_offset, shadow_color, UI_SCREEN_REPORT_FONT_ATLAS_INDEX);
-        }
-    }
-
-    // Create entity ui.
-    if (!window->cursor_locked && game_state.mode == MODE_EDITOR) {
-        const uiid id = { 0, 1, 0 };
-        const UI_Button_Style style = {
-            vec2(100.0f),
-            vec2(32.0f, 16.0f),
-            UI_Color { rgba_white, rgba_pack(255, 255, 255, 200), rgba_white },
-            UI_Color { rgba_black, rgba_pack(0, 0, 0, 200), rgba_black }
-        };
-
-        const u8 flags = ui_button(id, "Add static mesh", style);
-        if (flags & UI_FLAG_FINISHED) {
-            create_entity(world, ENTITY_STATIC_MESH);
         }
     }
 }

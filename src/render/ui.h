@@ -78,6 +78,14 @@ struct UI_Input_Style {
     s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX;
 };
 
+struct UI_Combo_Style {
+    vec2 pos_text = vec2_zero;
+    vec2 padding  = vec2_zero;
+    UI_Color color_text;
+    UI_Color color_quad;
+    s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX;
+};
+
 enum UI_Draw_Type {
     UI_DRAW_TEXT,
     UI_DRAW_QUAD,
@@ -147,6 +155,8 @@ u8 ui_input_u32(uiid id, u32 *v, const UI_Input_Style &style);
 u8 ui_input_u64(uiid id, u64 *v, const UI_Input_Style &style);
 
 u8 ui_input_sid(uiid id, sid *v, const UI_Input_Style &style);
+
+u8 ui_combo(uiid, u32 *selected_index, const char **options, u32 option_count, const UI_Combo_Style &style);
 
 void ui_text(const char *text, vec2 pos, u32 color, s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX);
 void ui_text(const char *text, u32 count, vec2 pos, u32 color, s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX);

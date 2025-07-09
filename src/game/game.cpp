@@ -180,6 +180,10 @@ For_Each_Result cb_init_entity_after_level_load(Entity *e, void *user_data) {
         *(eid *)((u8 *)EID_VERTEX_DATA + EID_VERTEX_DATA_SIZE) = e->eid;
         EID_VERTEX_DATA_SIZE += sizeof(u32);
     }
+
+    if (e->eid > eid_global_counter) {
+        eid_global_counter = e->eid + 1;
+    }
     
     return RESULT_CONTINUE;
 }
@@ -561,9 +565,7 @@ Entity *create_entity(World *world, Entity_Type e_type) {
     }
 
     if (e) {
-        static eid eid_global = 1;
-
-        e->eid = eid_global;
+        e->eid = eid_global_counter;
         e->aabb_index = world->aabbs.add_default();
 
         auto &aabb = world->aabbs[e->aabb_index];
@@ -574,9 +576,9 @@ Entity *create_entity(World *world, Entity_Type e_type) {
         Assert(EID_VERTEX_DATA_SIZE < MAX_EID_VERTEX_DATA_SIZE);
         e->draw_data.eid_vertex_data_offset = EID_VERTEX_DATA_SIZE;
         *(eid *)((u8 *)EID_VERTEX_DATA + EID_VERTEX_DATA_SIZE) = e->eid;
-        EID_VERTEX_DATA_SIZE += sizeof(u32);
+        EID_VERTEX_DATA_SIZE += sizeof(e->eid);
          
-        eid_global += 1;
+        eid_global_counter += 1;
     }
     
     return e;
