@@ -1,7 +1,7 @@
 #begin vertex
 #version 460 core
 
-#include "uniform_blocks.glsl.h"
+#include "camera.glsl.h"
 
 layout (location = 0) in vec3 v_location;
 layout (location = 1) in vec3 v_normal;
@@ -17,7 +17,7 @@ uniform mat4 u_model;
 uniform vec2 u_uv_scale;
 
 void main() {
-    gl_Position = u_view_proj * u_model * vec4(v_location, 1.0f);
+    gl_Position = u_camera_view_proj * u_model * vec4(v_location, 1.0f);
 
     f_normal = v_normal;
     f_uv = v_uv * u_uv_scale;
@@ -29,7 +29,7 @@ void main() {
 #begin fragment
 #version 460 core
 
-#include "uniform_blocks.glsl.h"
+#include "camera.glsl.h"
 #include "light.glsl.h"
 
 layout (location = 0) in vec3     f_normal;

@@ -1,7 +1,7 @@
 #begin vertex
 #version 460 core
 
-#include "uniform_blocks.glsl.h"
+#include "viewport.glsl.h"
 
 layout (location = 0) in vec2 v_vertex; // location and uv
 layout (location = 1) in uint v_color;
