@@ -30,7 +30,7 @@ static u64 ui_input_table_hash(const uiid &a) {
     return hash_pcg64(a.owner + a.item + a.index);
 }
 
-static char *get_or_alloc_input_buffer(uiid id, u32 size, bool *allocated = null) {
+static char *get_or_alloc_input_buffer(uiid id, u32 size) {
     char **v = find(ui_input_table, id);
     if (v == null) {        
         Assert(size + ui_input_buffer_size < MAX_UI_INPUT_BUFFER_SIZE);
@@ -41,133 +41,9 @@ static char *get_or_alloc_input_buffer(uiid id, u32 size, bool *allocated = null
         
         v = add(ui_input_table, id, text);
         ui_input_buffer_size += size + 1;
-
-        if (allocated) *allocated = true;
-    } else {
-        if (allocated) *allocated = false;
     }
     
     return *v;
-}
-
-static char *get_or_alloc_input_buffer_f32(uiid id, f32 initial_value) {
-    constexpr u32 size = UI_INPUT_BUFFER_SIZE_F32;
-    
-    bool allocated = false;
-    char *text = get_or_alloc_input_buffer(id, size, &allocated);
-    if (allocated) {
-        stbsp_snprintf(text, size, "%.3f", initial_value);
-    }
-    
-    return text;
-}
-
-static char *get_or_alloc_input_buffer_s8(uiid id, s8 initial_value) {
-    constexpr u32 size = UI_INPUT_BUFFER_SIZE_S8;
-    
-    bool allocated = false;
-    char *text = get_or_alloc_input_buffer(id, size, &allocated);
-    if (allocated) {
-        stbsp_snprintf(text, size, "%d", initial_value);
-    }
-    
-    return text;
-}
-
-static char *get_or_alloc_input_buffer_s16(uiid id, s16 initial_value) {
-    constexpr u32 size = UI_INPUT_BUFFER_SIZE_S16;
-    
-    bool allocated = false;
-    char *text = get_or_alloc_input_buffer(id, size, &allocated);
-    if (allocated) {
-        stbsp_snprintf(text, size, "%d", initial_value);
-    }
-    
-    return text;
-}
-
-static char *get_or_alloc_input_buffer_s32(uiid id, s32 initial_value) {
-    constexpr u32 size = UI_INPUT_BUFFER_SIZE_S32;
-    
-    bool allocated = false;
-    char *text = get_or_alloc_input_buffer(id, size, &allocated);
-    if (allocated) {
-        stbsp_snprintf(text, size, "%d", initial_value);
-    }
-    
-    return text;
-}
-
-static char *get_or_alloc_input_buffer_s64(uiid id, s64 initial_value) {
-    constexpr u32 size = UI_INPUT_BUFFER_SIZE_S64;
-    
-    bool allocated = false;
-    char *text = get_or_alloc_input_buffer(id, size, &allocated);
-    if (allocated) {
-        stbsp_snprintf(text, size, "%lld", initial_value);
-    }
-    
-    return text;
-}
-
-static char *get_or_alloc_input_buffer_u8(uiid id, u8 initial_value) {
-    constexpr u32 size = UI_INPUT_BUFFER_SIZE_U16;
-    
-    bool allocated = false;
-    char *text = get_or_alloc_input_buffer(id, size, &allocated);
-    if (allocated) {
-        stbsp_snprintf(text, size, "%u", initial_value);
-    }
-    
-    return text;
-}
-
-static char *get_or_alloc_input_buffer_u16(uiid id, u16 initial_value) {
-    constexpr u32 size = UI_INPUT_BUFFER_SIZE_U16;
-    
-    bool allocated = false;
-    char *text = get_or_alloc_input_buffer(id, size, &allocated);
-    if (allocated) {
-        stbsp_snprintf(text, size, "%u", initial_value);
-    }
-    
-    return text;
-}
-
-static char *get_or_alloc_input_buffer_u32(uiid id, u32 initial_value) {
-    constexpr u32 size = UI_INPUT_BUFFER_SIZE_U32;
-    
-    bool allocated = false;
-    char *text = get_or_alloc_input_buffer(id, size, &allocated);
-    if (allocated) {
-        stbsp_snprintf(text, size, "%u", initial_value);
-    }
-    
-    return text;
-}
-
-static char *get_or_alloc_input_buffer_u64(uiid id, u64 initial_value) {
-    constexpr u32 size = UI_INPUT_BUFFER_SIZE_U64;
-    
-    bool allocated = false;
-    char *text = get_or_alloc_input_buffer(id, size, &allocated);
-    if (allocated) {
-        stbsp_snprintf(text, size, "%llu", initial_value);
-    }
-    
-    return text;
-}
-
-static char *get_or_alloc_input_buffer_sid(uiid id, sid initial_value) {
-    constexpr u32 size = UI_INPUT_BUFFER_SIZE_SID;
-    
-    bool allocated = false;
-    char *text = get_or_alloc_input_buffer(id, size, &allocated);
-    if (allocated) {
-        stbsp_snprintf(text, size, "%s", sid_str(initial_value));
-    }
-    
-    return text;
 }
 
 void ui_init() {
@@ -504,102 +380,134 @@ u8 ui_input_text(uiid id, char *text, u32 size, const UI_Input_Style &style) {
 u8 ui_input_f32(uiid id, f32 *v, const UI_Input_Style &style) {
     constexpr u32 size = UI_INPUT_BUFFER_SIZE_F32;
     
-    char *text = get_or_alloc_input_buffer_f32(id, *v);
+    char *text = get_or_alloc_input_buffer(id, size);
     
     const u8 flags = ui_input_text(id, text, size, style);
     if (flags & UI_FLAG_FINISHED) {
         *v = str_to_f32(text);
     }
 
+    if (id != ui.id_active) {
+        stbsp_snprintf(text, size, "%.3f", *v);
+    }
+    
     return flags;
 }
 
 u8 ui_input_s8(uiid id, s8 *v, const UI_Input_Style &style) {
     constexpr u32 size = UI_INPUT_BUFFER_SIZE_S8;
     
-    char *text = get_or_alloc_input_buffer_s8(id, *v);
+    char *text = get_or_alloc_input_buffer(id, size);
     
     const u8 flags = ui_input_text(id, text, size, style);
     if (flags & UI_FLAG_FINISHED) {
         *v = str_to_s8(text);
     }
 
+    if (id != ui.id_active) {
+        stbsp_snprintf(text, size, "%d", *v);
+    }
+    
     return flags;
 }
 
 u8 ui_input_s16(uiid id, s16 *v, const UI_Input_Style &style) {
     constexpr u32 size = UI_INPUT_BUFFER_SIZE_S16;
     
-    char *text = get_or_alloc_input_buffer_s16(id, *v);
+    char *text = get_or_alloc_input_buffer(id, size);
     
     const u8 flags = ui_input_text(id, text, size, style);
     if (flags & UI_FLAG_FINISHED) {
         *v = str_to_s16(text);
     }
 
+    if (id != ui.id_active) {
+        stbsp_snprintf(text, size, "%d", *v);
+    }
+    
     return flags;
 }
 
 u8 ui_input_s32(uiid id, s32 *v, const UI_Input_Style &style) {
     constexpr u32 size = UI_INPUT_BUFFER_SIZE_S32;
     
-    char *text = get_or_alloc_input_buffer_s32(id, *v);
+    char *text = get_or_alloc_input_buffer(id, size);
     
     const u8 flags = ui_input_text(id, text, size, style);
     if (flags & UI_FLAG_FINISHED) {
         *v = str_to_s32(text);
     }
 
+    if (id != ui.id_active) {
+        stbsp_snprintf(text, size, "%d", *v);
+    }
+    
     return flags;
 }
 
 u8 ui_input_s64(uiid id, s64 *v, const UI_Input_Style &style) {
     constexpr u32 size = UI_INPUT_BUFFER_SIZE_S64;
     
-    char *text = get_or_alloc_input_buffer_s64(id, *v);
+    char *text = get_or_alloc_input_buffer(id, size);
     
     const u8 flags = ui_input_text(id, text, size, style);
     if (flags & UI_FLAG_FINISHED) {
         *v = str_to_s64(text);
     }
 
+    if (id != ui.id_active) {
+        stbsp_snprintf(text, size, "%lld", *v);
+    }
+    
     return flags;
 }
 
 u8 ui_input_u8(uiid id, u8 *v, const UI_Input_Style &style) {
     constexpr u32 size = UI_INPUT_BUFFER_SIZE_U8;
     
-    char *text = get_or_alloc_input_buffer_u8(id, *v);
+    char *text = get_or_alloc_input_buffer(id, size);
     
     const u8 flags = ui_input_text(id, text, size, style);
     if (flags & UI_FLAG_FINISHED) {
         *v = str_to_u8(text);
     }
 
+    if (id != ui.id_active) {
+        stbsp_snprintf(text, size, "%u", *v);
+    }
+    
     return flags;
 }
 
 u8 ui_input_u16(uiid id, u16 *v, const UI_Input_Style &style) {
     constexpr u32 size = UI_INPUT_BUFFER_SIZE_U16;
     
-    char *text = get_or_alloc_input_buffer_u16(id, *v);
+    char *text = get_or_alloc_input_buffer(id, size);
     
     const u8 flags = ui_input_text(id, text, size, style);
     if (flags & UI_FLAG_FINISHED) {
         *v = str_to_u16(text);
     }
 
+    if (id != ui.id_active) {
+        stbsp_snprintf(text, size, "%u", *v);
+    }
+    
     return flags;
 }
 
 u8 ui_input_u32(uiid id, u32 *v, const UI_Input_Style &style) {
     constexpr u32 size = UI_INPUT_BUFFER_SIZE_U32;
     
-    char *text = get_or_alloc_input_buffer_u32(id, *v);
+    char *text = get_or_alloc_input_buffer(id, size);
     
     const u8 flags = ui_input_text(id, text, size, style);
     if (flags & UI_FLAG_FINISHED) {
         *v = str_to_u32(text);
+    }
+
+    if (id != ui.id_active) {
+        stbsp_snprintf(text, size, "%u", *v);
     }
 
     return flags;
@@ -608,11 +516,15 @@ u8 ui_input_u32(uiid id, u32 *v, const UI_Input_Style &style) {
 u8 ui_input_u64(uiid id, u64 *v, const UI_Input_Style &style) {
     constexpr u32 size = UI_INPUT_BUFFER_SIZE_U64;
     
-    char *text = get_or_alloc_input_buffer_u64(id, *v);
+    char *text = get_or_alloc_input_buffer(id, size);
     
     const u8 flags = ui_input_text(id, text, size, style);
     if (flags & UI_FLAG_FINISHED) {
         *v = str_to_u64(text);
+    }
+
+    if (id != ui.id_active) {
+        stbsp_snprintf(text, size, "%llu", *v);
     }
 
     return flags;
@@ -621,11 +533,15 @@ u8 ui_input_u64(uiid id, u64 *v, const UI_Input_Style &style) {
 u8 ui_input_sid(uiid id, sid *v, const UI_Input_Style &style) {
     constexpr u32 size = UI_INPUT_BUFFER_SIZE_SID;
     
-    char *text = get_or_alloc_input_buffer_sid(id, *v);
+    char *text = get_or_alloc_input_buffer(id, size);
     
     const u8 flags = ui_input_text(id, text, size, style);
     if (flags & UI_FLAG_FINISHED) {
         *v = sid_intern(text);
+    }
+
+    if (id != ui.id_active) {
+        stbsp_snprintf(text, size, "%s", sid_str(*v));
     }
 
     return flags;
