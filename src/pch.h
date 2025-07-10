@@ -183,7 +183,12 @@ void read_fence();
 void write_fence();
 void memory_fence();
 
-enum Direction {
+enum For_Each_Result : u8 {
+    RESULT_CONTINUE,
+    RESULT_BREAK,
+};
+
+enum Direction : u8 {
     DIRECTION_BACK,
     DIRECTION_RIGHT,
     DIRECTION_LEFT,

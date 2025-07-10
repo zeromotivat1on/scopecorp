@@ -15,12 +15,7 @@ inline constexpr u32 MAX_SOUND_EMITTERS_3D = 128;
 inline constexpr u32 MAX_PORTALS           = 128;
 inline constexpr u32 MAX_AABBS = 2048;
 
-enum For_Each_Result {
-    RESULT_CONTINUE,
-    RESULT_BREAK,
-};
-
-typedef For_Each_Result (* For_Each_Entity_Callback)(Entity *e, void *user_data);
+typedef For_Each_Result (*For_Each_Entity_Callback)(Entity *e, void *user_data);
 
 struct World {
     char name[MAX_WORLD_NAME_SIZE];

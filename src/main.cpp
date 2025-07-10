@@ -183,7 +183,7 @@ s32 main() {
     world = alloclt(World);
 	init_world(world);
 
-#if 0
+#if 1
     str_copy(world->name, "main.lvl");
 
 	auto &player = *(Player *)create_entity(world, ENTITY_PLAYER);

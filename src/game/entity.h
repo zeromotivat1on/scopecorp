@@ -21,17 +21,6 @@ enum Entity_Type : u8 {
     ENTITY_TYPE_COUNT
 };
 
-inline const char *entity_type_names[ENTITY_TYPE_COUNT] = {
-    "Player",
-    "Skybox",
-    "Static Mesh",
-    "Direct Light",
-    "Point Light",
-    "Sound Emitter 2D",
-    "Sound Emitter 3D",
-    "Portal",
-};
-
 enum Entity_FLag : u32 {
     ENTITY_FLAG_SELECTED_IN_EDITOR = 0x1,
 };
@@ -58,18 +47,21 @@ struct Entity {
     Entity_Draw_Data draw_data;
 };
 
+#define REFLECT_ENTITY_FIELDS                                           \
+    REFLECT_FIELD(Entity, eid,        FIELD_U32)                        \
+    REFLECT_FIELD(Entity, type,       FIELD_U8)                         \
+    REFLECT_FIELD(Entity, flags,      FIELD_U32)                        \
+    REFLECT_FIELD(Entity, location,   FIELD_VEC3)                       \
+    REFLECT_FIELD(Entity, rotation,   FIELD_QUAT)                       \
+    REFLECT_FIELD(Entity, scale,      FIELD_VEC3)                       \
+    REFLECT_FIELD(Entity, uv_scale,   FIELD_VEC2)                       \
+    REFLECT_FIELD(Entity, aabb_index, FIELD_S32)                        \
+    REFLECT_FIELD(Entity, draw_data.sid_mesh,               FIELD_SID)  \
+    REFLECT_FIELD(Entity, draw_data.sid_material,           FIELD_SID)  \
+    REFLECT_FIELD(Entity, draw_data.eid_vertex_data_offset, FIELD_U32)  \
+
 REFLECT_BEGIN(Entity)
-REFLECT_FIELD(Entity, eid,        FIELD_U32)
-REFLECT_FIELD(Entity, type,       FIELD_U8)
-REFLECT_FIELD(Entity, flags,      FIELD_U32)
-REFLECT_FIELD(Entity, location,   FIELD_VEC3)
-REFLECT_FIELD(Entity, rotation,   FIELD_QUAT)
-REFLECT_FIELD(Entity, scale,      FIELD_VEC3)
-REFLECT_FIELD(Entity, uv_scale,   FIELD_VEC2)
-REFLECT_FIELD(Entity, aabb_index, FIELD_S32)
-REFLECT_FIELD(Entity, draw_data.sid_mesh,               FIELD_SID)
-REFLECT_FIELD(Entity, draw_data.sid_material,           FIELD_SID)
-REFLECT_FIELD(Entity, draw_data.eid_vertex_data_offset, FIELD_U32)
+REFLECT_ENTITY_FIELDS
 REFLECT_END(Entity)
 
 struct Player : Entity {
@@ -93,15 +85,39 @@ struct Player : Entity {
     s32 collide_aabb_index = INVALID_INDEX;
 };
 
+REFLECT_BEGIN(Player)
+REFLECT_ENTITY_FIELDS
+REFLECT_FIELD(Player, move_speed, FIELD_F32)
+REFLECT_FIELD(Player, ed_camera_speed, FIELD_F32)
+REFLECT_FIELD(Player, mouse_sensitivity, FIELD_F32)
+REFLECT_FIELD(Player, camera_offset, FIELD_VEC3)
+REFLECT_FIELD(Player, camera_dead_zone, FIELD_VEC3)
+REFLECT_FIELD(Player, camera_follow_speed, FIELD_F32)
+REFLECT_FIELD(Player, velocity, FIELD_VEC3)
+REFLECT_FIELD(Player, move_direction, FIELD_U8)
+REFLECT_FIELD(Player, sid_flip_book_move, FIELD_SID)
+REFLECT_FIELD(Player, sid_sound_steps, FIELD_SID)
+REFLECT_FIELD(Player, collide_aabb_index, FIELD_S32)
+REFLECT_END(Player)
+
 struct Static_Mesh : Entity {
     Static_Mesh() { type = ENTITY_STATIC_MESH; }
 };
+
+REFLECT_BEGIN(Static_Mesh)
+REFLECT_ENTITY_FIELDS
+REFLECT_END(Static_Mesh)
 
 struct Skybox : Entity {
     Skybox() { type = ENTITY_SKYBOX; }
 
     vec3 uv_offset = vec3_zero;
 };
+
+REFLECT_BEGIN(Skybox)
+REFLECT_ENTITY_FIELDS
+REFLECT_FIELD(Skybox, uv_offset, FIELD_VEC2)
+REFLECT_END(Skybox)
 
 struct Direct_Light : Entity {
     Direct_Light() { type = ENTITY_DIRECT_LIGHT; }
@@ -112,6 +128,14 @@ struct Direct_Light : Entity {
 
     s32 u_light_index = INVALID_INDEX; // index in Direct_Lights uniform block
 };
+
+REFLECT_BEGIN(Direct_Light)
+REFLECT_ENTITY_FIELDS
+REFLECT_FIELD(Direct_Light, ambient, FIELD_VEC3)
+REFLECT_FIELD(Direct_Light, diffuse, FIELD_VEC3)
+REFLECT_FIELD(Direct_Light, specular, FIELD_VEC3)
+REFLECT_FIELD(Direct_Light, u_light_index, FIELD_S32)
+REFLECT_END(Direct_Light)
 
 struct Light_Attenuation {
     f32 constant  = 0.0f;
@@ -131,11 +155,27 @@ struct Point_Light : Entity {
     s32 u_light_index = INVALID_INDEX; // index in Point_Lights uniform block
 };
 
+REFLECT_BEGIN(Point_Light)
+REFLECT_ENTITY_FIELDS
+REFLECT_FIELD(Point_Light, ambient, FIELD_VEC3)
+REFLECT_FIELD(Point_Light, diffuse, FIELD_VEC3)
+REFLECT_FIELD(Point_Light, specular, FIELD_VEC3)
+REFLECT_FIELD(Point_Light, attenuation.constant, FIELD_F32)
+REFLECT_FIELD(Point_Light, attenuation.linear, FIELD_F32)
+REFLECT_FIELD(Point_Light, attenuation.quadratic, FIELD_F32)
+REFLECT_FIELD(Point_Light, u_light_index, FIELD_S32)
+REFLECT_END(Point_Light)
+
 struct Sound_Emitter_2D : Entity {
     Sound_Emitter_2D() { type = ENTITY_SOUND_EMITTER_2D; }
 
     sid sid_sound = SID_NONE;
 };
+
+REFLECT_BEGIN(Sound_Emitter_2D)
+REFLECT_ENTITY_FIELDS
+REFLECT_FIELD(Sound_Emitter_2D, sid_sound, FIELD_SID)
+REFLECT_END(Sound_Emitter_2D)
 
 struct Sound_Emitter_3D : Entity {
     Sound_Emitter_3D() { type = ENTITY_SOUND_EMITTER_3D; }
@@ -143,8 +183,42 @@ struct Sound_Emitter_3D : Entity {
     sid sid_sound = SID_NONE;
 };
 
+REFLECT_BEGIN(Sound_Emitter_3D)
+REFLECT_ENTITY_FIELDS
+REFLECT_FIELD(Sound_Emitter_3D, sid_sound, FIELD_SID)
+REFLECT_END(Sound_Emitter_3D)
+
 struct Portal : Entity {
     Portal() { type = ENTITY_PORTAL; }
 
     vec3 destination_location = vec3_zero;
 };
+
+REFLECT_BEGIN(Portal)
+REFLECT_ENTITY_FIELDS
+REFLECT_FIELD(Portal, destination_location, FIELD_VEC3)
+REFLECT_END(Portal)
+
+inline const char *entity_type_names[ENTITY_TYPE_COUNT] = {
+    "Player",
+    "Skybox",
+    "Static Mesh",
+    "Direct Light",
+    "Point Light",
+    "Sound Emitter 2D",
+    "Sound Emitter 3D",
+    "Portal",
+};
+
+inline u32 entity_type_field_counts[ENTITY_TYPE_COUNT] = {
+    REFLECT_FIELD_COUNT(Player),
+    REFLECT_FIELD_COUNT(Skybox),
+    REFLECT_FIELD_COUNT(Static_Mesh),
+    REFLECT_FIELD_COUNT(Direct_Light),
+    REFLECT_FIELD_COUNT(Point_Light),
+    REFLECT_FIELD_COUNT(Sound_Emitter_2D),
+    REFLECT_FIELD_COUNT(Sound_Emitter_3D),
+    REFLECT_FIELD_COUNT(Portal),
+};
+
+const Reflect_Field &get_entity_field(Entity_Type type, u32 index);

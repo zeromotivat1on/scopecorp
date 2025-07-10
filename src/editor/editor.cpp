@@ -235,7 +235,7 @@ void tick_editor(f32 dt) {
             const f32 ascent  = atlas.font->ascent  * atlas.px_h_scale;
             const f32 descent = atlas.font->descent * atlas.px_h_scale;
 
-            const u32 field_count = REFLECT_FIELD_COUNT(Entity);
+            const u32 field_count = entity_type_field_counts[(u8)e->type];
             const f32 height = (f32)field_count * atlas.line_height;
             
             const vec2 p0 = vec2(MARGIN, viewport.height - MARGIN);
@@ -249,7 +249,7 @@ void tick_editor(f32 dt) {
             vec2 pos = vec2(p0.x + PADDING, p0.y - PADDING - ascent);
             
             for (u32 i = 0; i < field_count; ++i) {
-                const auto &field = REFLECT_FIELD_AT(Entity, i);
+                const auto &field = get_entity_field(e->type, i);
                 const f32 field_name_width = (f32)get_line_width_px(&atlas, field.name);
                 const f32 max_width_f32 = (f32)UI_INPUT_BUFFER_SIZE_F32 * atlas.space_advance_width;
                 
@@ -293,6 +293,12 @@ void tick_editor(f32 dt) {
                     id.index += 1;
                     break;
                 }
+                case FIELD_S64: {
+                    auto &v = reflect_field_cast<s64>(*e, field);
+                    ui_input_s64(id, &v, style);
+                    id.index += 1;
+                    break;
+                }
                 case FIELD_U8: {
                     auto &v = reflect_field_cast<u8>(*e, field);
                     ui_input_u8(id, &v, style);
@@ -308,6 +314,18 @@ void tick_editor(f32 dt) {
                 case FIELD_U32: {
                     auto &v = reflect_field_cast<u32>(*e, field);
                     ui_input_u32(id, &v, style);
+                    id.index += 1;
+                    break;
+                }
+                case FIELD_U64: {
+                    auto &v = reflect_field_cast<u64>(*e, field);
+                    ui_input_u64(id, &v, style);
+                    id.index += 1;
+                    break;
+                }
+                case FIELD_F32: {
+                    auto &v = reflect_field_cast<f32>(*e, field);
+                    ui_input_f32(id, &v, style);
                     id.index += 1;
                     break;
                 }
@@ -435,6 +453,9 @@ void tick_editor(f32 dt) {
                 e->location += move_speed * dt * direction;
             }
         }
+    } else {
+        // @Cleanup: more like a temp hack, clear ui hot id if we are not in editor.
+        ui.id_hot = UIID_NONE;
     }
 
     // Create specific entity.
@@ -984,4 +1005,20 @@ void screen_report(const char *str, ...) {
 	va_start(args, str);
     stbsp_vsnprintf(screen_report_text, MAX_SCREEN_REPORT_SIZE, str, args);
 	va_end(args);
+}
+
+const Reflect_Field &get_entity_field(Entity_Type type, u32 index) {
+    switch (type) {
+    case ENTITY_PLAYER:           return REFLECT_FIELD_AT(Player, index);
+    case ENTITY_SKYBOX:           return REFLECT_FIELD_AT(Skybox, index);
+    case ENTITY_STATIC_MESH:      return REFLECT_FIELD_AT(Static_Mesh, index);
+    case ENTITY_DIRECT_LIGHT:     return REFLECT_FIELD_AT(Direct_Light, index);
+    case ENTITY_POINT_LIGHT:      return REFLECT_FIELD_AT(Point_Light, index);
+    case ENTITY_SOUND_EMITTER_2D: return REFLECT_FIELD_AT(Sound_Emitter_2D, index);
+    case ENTITY_SOUND_EMITTER_3D: return REFLECT_FIELD_AT(Sound_Emitter_3D, index);
+    case ENTITY_PORTAL:           return REFLECT_FIELD_AT(Portal, index);
+    }
+
+    // This should never happen, just make compiler happy.
+    return REFLECT_FIELD_AT(Entity, index);
 }
