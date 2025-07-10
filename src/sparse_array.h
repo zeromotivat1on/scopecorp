@@ -41,85 +41,92 @@ struct Sparse_Array {
         Assert(sparse[index] != INVALID_INDEX);
         return items[sparse[index]];
     }
-
-    T *find(s32 index) {
-        if (index < 0 || index >= capacity) return null;
-        
-        const s32 item_index = sparse[index];
-        if (item_index == INVALID_INDEX) return null;
-        
-        return items + item_index;
-    }
-
-    T *find_or_add_default(s32 index) {
-        if (index < 0 || index >= capacity) return null;
-        
-        s32 item_index = sparse[index];
-        if (item_index == INVALID_INDEX) {
-            item_index = sparse[add_default(index)];
-        }
-        
-        return items + item_index;
-    }
-    
-    s32 add(const T &item) {
-        for (s32 i = 0; i < capacity; ++i)
-            if (sparse[i] == INVALID_INDEX)
-                return add(i, item);
-        
-        return INVALID_INDEX;
-    }
-
-    s32 add_default() {
-        for (s32 i = 0; i < capacity; ++i)
-            if (sparse[i] == INVALID_INDEX)
-                return add_default(i);
-        
-        return INVALID_INDEX;
-    }
-
-    s32 add(s32 index, const T &item) {
-        Assert(count < capacity);
-
-        if (find(index)) return INVALID_INDEX;
-
-        sparse[index] = count;
-        dense[count] = index;
-        items[count] = item;
-
-        count++;
-
-        return index;
-    }
-
-    s32 add_default(s32 index) {
-        Assert(count < capacity);
-
-        if (find(index)) return INVALID_INDEX;
-
-        sparse[index] = count;
-        dense[count] = index;
-        items[count] = T();
-        
-        count++;
-
-        return index;
-    }
-    
-    s32 remove(s32 index) {
-        Assert(index >= 0);
-        Assert(index < count);
-
-        if (!find(index)) return INVALID_INDEX;
-
-        count--;
-        
-        sparse[dense[count]] = sparse[index];
-        dense[sparse[index]] = dense[count];
-        
-        items[sparse[index]] = items[count];
-        sparse[index] = INVALID_INDEX;
-        
-        return index;
-    }
 };
+
+template<typename T>
+T *find(const Sparse_Array<T> &array, s32 index) {
+    if (index < 0 || index >= array.capacity) return null;
+        
+    const s32 item_index = array.sparse[index];
+    if (item_index == INVALID_INDEX) return null;
+        
+    return array.items + item_index;
+}
+
+template<typename T>
+T *find_or_add_default(const Sparse_Array<T> &array, s32 index) {
+    if (index < 0 || index >= array.capacity) return null;
+        
+    s32 item_index = array.sparse[index];
+    if (item_index == INVALID_INDEX) {
+        item_index = array.sparse[add_default(index)];
+    }
+        
+    return items + item_index;
+}
+
+template<typename T>
+s32 add(Sparse_Array<T> &array, const T &item) {
+    for (s32 i = 0; i < array.capacity; ++i)
+        if (array.sparse[i] == INVALID_INDEX)
+            return add(array, i, item);
+        
+    return INVALID_INDEX;
+}
+
+template<typename T>
+s32 add_default(Sparse_Array<T> &array) {
+    for (s32 i = 0; i < array.capacity; ++i)
+        if (array.sparse[i] == INVALID_INDEX)
+            return add_default(array, i);
+        
+    return INVALID_INDEX;
+}
+
+template<typename T>
+s32 add(Sparse_Array<T> &array, s32 index, const T &item) {
+    Assert(array.count < array.capacity);
+
+    if (find(array, index)) return INVALID_INDEX;
+
+    array.sparse[index] = count;
+    array.dense[count] = index;
+    array.items[count] = item;
+
+    array.count += 1;
+
+    return index;
+}
+
+template<typename T>
+s32 add_default(Sparse_Array<T> &array, s32 index) {
+    Assert(array.count < array.capacity);
+
+    if (find(array, index)) return INVALID_INDEX;
+
+    array.sparse[index] = array.count;
+    array.dense[array.count] = index;
+    array.items[array.count] = T();
+        
+    array.count += 1;
+
+    return index;
+}
+
+template<typename T>
+s32 remove(Sparse_Array<T> &array, s32 index) {
+    Assert(index >= 0);
+    Assert(index < array.count);
+
+    if (!find(array, index)) return INVALID_INDEX;
+
+    array.count -= 1;
+        
+    array.sparse[array.dense[array.count]] = array.sparse[index];
+    array.dense[array.sparse[index]] = array.dense[array.count];
+        
+    array.items[array.sparse[index]] = array.items[array.count];
+    array.sparse[index] = INVALID_INDEX;
+        
+    return index;
+}

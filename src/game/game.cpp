@@ -536,34 +536,34 @@ Entity *create_entity(World *world, Entity_Type e_type) {
         break;
     }
     case ENTITY_STATIC_MESH: {
-        e = world->static_meshes.find(world->static_meshes.add_default());
+        e = find(world->static_meshes, add_default(world->static_meshes));
         break;
     }
     case ENTITY_DIRECT_LIGHT: {
-        e = world->direct_lights.find(world->direct_lights.add_default());
+        e = find(world->direct_lights, add_default(world->direct_lights));
         break;
     }
     case ENTITY_POINT_LIGHT: {
-        e = world->point_lights.find(world->point_lights.add_default());
+        e = find(world->point_lights, add_default(world->point_lights));
         break;
     }
     case ENTITY_SOUND_EMITTER_2D: {
-        e = world->sound_emitters_2d.find(world->sound_emitters_2d.add_default());
+        e = find(world->sound_emitters_2d, add_default(world->sound_emitters_2d));
         break;
     }
     case ENTITY_SOUND_EMITTER_3D: {
-        e = world->sound_emitters_3d.find(world->sound_emitters_3d.add_default());
+        e = find(world->sound_emitters_3d, add_default(world->sound_emitters_3d));
         break;
     }
     case ENTITY_PORTAL: {
-        e = world->portals.find(world->portals.add_default());
+        e = find(world->portals, add_default(world->portals));
         break;
     }
     }
 
     if (e) {
         e->eid = eid_global_counter;
-        e->aabb_index = world->aabbs.add_default();
+        e->aabb_index = add_default(world->aabbs);
 
         auto &aabb = world->aabbs[e->aabb_index];
         const vec3 half_extent = e->scale * 0.5f;

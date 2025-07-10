@@ -661,7 +661,7 @@ void delete_texture(Texture *texture) {
 }
 
 static For_Each_Result cb_draw_aabb(Entity *e, void *user_data) {
-    auto *aabb = world->aabbs.find(e->aabb_index);
+    auto *aabb = find(world->aabbs, e->aabb_index);
     if (aabb) {
         u32 aabb_color = rgba_black;
         switch (e->type) {
