@@ -188,7 +188,7 @@ s32 main() {
 
 	auto &player = *(Player *)create_entity(world, ENTITY_PLAYER);
 	{
-        const auto &texture = asset_table.textures[texture_sids.player_idle[DIRECTION_BACK]];
+        const auto &texture = asset_table.textures[texture_sids.player_idle[SOUTH]];
         
         const f32 scale_aspect = (f32)texture.width / texture.height;
         const f32 y_scale = 1.0f * scale_aspect;

@@ -77,7 +77,7 @@ struct Player : Entity {
     f32  camera_follow_speed = 16.0f;
     
     vec3 velocity            = vec3_zero;
-    Direction move_direction = DIRECTION_BACK;
+    Direction move_direction = SOUTH;
 
     sid sid_flip_book_move = SID_NONE;
     sid sid_sound_steps = 0;

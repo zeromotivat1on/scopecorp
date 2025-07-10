@@ -72,15 +72,15 @@ void mouse_unpick_entity(World *world) {
     }
 }
 
-static For_Each_Result cb_find_entity_by_aabb(Entity *e, void *user_data) {
+static For_Result cb_find_entity_by_aabb(Entity *e, void *user_data) {
     auto *data = (Find_Entity_By_AABB_Data *)user_data;
 
     if (e->aabb_index == data->aabb_index) {
         data->e = e;
-        return RESULT_BREAK;
+        return BREAK;
     }
     
-    return RESULT_CONTINUE;
+    return CONTINUE;
 };
 
 void on_input_editor(Window_Event *event) {

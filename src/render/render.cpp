@@ -137,30 +137,30 @@ void cache_texture_sids(Texture_Sid_List *list) {
     list->stone  = SID("/data/textures/stone.png");
     list->grass  = SID("/data/textures/grass.png");
 
-    list->player_idle[DIRECTION_BACK]    = SID("/data/textures/player_idle_back.png");
-    list->player_idle[DIRECTION_RIGHT]   = SID("/data/textures/player_idle_right.png");
-    list->player_idle[DIRECTION_LEFT]    = SID("/data/textures/player_idle_left.png");
-    list->player_idle[DIRECTION_FORWARD] = SID("/data/textures/player_idle_forward.png");
+    list->player_idle[SOUTH]    = SID("/data/textures/player_idle_back.png");
+    list->player_idle[EAST]   = SID("/data/textures/player_idle_right.png");
+    list->player_idle[WEST]    = SID("/data/textures/player_idle_left.png");
+    list->player_idle[NORTH] = SID("/data/textures/player_idle_forward.png");
 
-    list->player_move[DIRECTION_BACK][0] = SID("/data/textures/player_move_back_1.png");
-    list->player_move[DIRECTION_BACK][1] = SID("/data/textures/player_move_back_2.png");
-    list->player_move[DIRECTION_BACK][2] = SID("/data/textures/player_move_back_3.png");
-    list->player_move[DIRECTION_BACK][3] = SID("/data/textures/player_move_back_4.png");
+    list->player_move[SOUTH][0] = SID("/data/textures/player_move_back_1.png");
+    list->player_move[SOUTH][1] = SID("/data/textures/player_move_back_2.png");
+    list->player_move[SOUTH][2] = SID("/data/textures/player_move_back_3.png");
+    list->player_move[SOUTH][3] = SID("/data/textures/player_move_back_4.png");
 
-    list->player_move[DIRECTION_RIGHT][0] = SID("/data/textures/player_move_right_1.png");
-    list->player_move[DIRECTION_RIGHT][1] = SID("/data/textures/player_move_right_2.png");
-    list->player_move[DIRECTION_RIGHT][2] = SID("/data/textures/player_move_right_3.png");
-    list->player_move[DIRECTION_RIGHT][3] = SID("/data/textures/player_move_right_4.png");
+    list->player_move[EAST][0] = SID("/data/textures/player_move_right_1.png");
+    list->player_move[EAST][1] = SID("/data/textures/player_move_right_2.png");
+    list->player_move[EAST][2] = SID("/data/textures/player_move_right_3.png");
+    list->player_move[EAST][3] = SID("/data/textures/player_move_right_4.png");
 
-    list->player_move[DIRECTION_LEFT][0] = SID("/data/textures/player_move_left_1.png");
-    list->player_move[DIRECTION_LEFT][1] = SID("/data/textures/player_move_left_2.png");
-    list->player_move[DIRECTION_LEFT][2] = SID("/data/textures/player_move_left_3.png");
-    list->player_move[DIRECTION_LEFT][3] = SID("/data/textures/player_move_left_4.png");
+    list->player_move[WEST][0] = SID("/data/textures/player_move_left_1.png");
+    list->player_move[WEST][1] = SID("/data/textures/player_move_left_2.png");
+    list->player_move[WEST][2] = SID("/data/textures/player_move_left_3.png");
+    list->player_move[WEST][3] = SID("/data/textures/player_move_left_4.png");
 
-    list->player_move[DIRECTION_FORWARD][0] = SID("/data/textures/player_move_forward_1.png");
-    list->player_move[DIRECTION_FORWARD][1] = SID("/data/textures/player_move_forward_2.png");
-    list->player_move[DIRECTION_FORWARD][2] = SID("/data/textures/player_move_forward_3.png");
-    list->player_move[DIRECTION_FORWARD][3] = SID("/data/textures/player_move_forward_4.png");
+    list->player_move[NORTH][0] = SID("/data/textures/player_move_forward_1.png");
+    list->player_move[NORTH][1] = SID("/data/textures/player_move_forward_2.png");
+    list->player_move[NORTH][2] = SID("/data/textures/player_move_forward_3.png");
+    list->player_move[NORTH][3] = SID("/data/textures/player_move_forward_4.png");
 }
 
 void init_render_queue(Render_Queue *queue, s32 capacity) {
@@ -660,7 +660,7 @@ void delete_texture(Texture *texture) {
     texture->rid = RID_NONE;
 }
 
-static For_Each_Result cb_draw_aabb(Entity *e, void *user_data) {
+static For_Result cb_draw_aabb(Entity *e, void *user_data) {
     auto *aabb = find(world->aabbs, e->aabb_index);
     if (aabb) {
         u32 aabb_color = rgba_black;
@@ -689,7 +689,7 @@ static For_Each_Result cb_draw_aabb(Entity *e, void *user_data) {
         geo_draw_aabb(*aabb, aabb_color);
     }
 
-    return RESULT_CONTINUE;
+    return CONTINUE;
 };
 
 void geo_draw_debug() {

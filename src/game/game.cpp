@@ -169,7 +169,7 @@ void save_level(World *world) {
     screen_report("Saved level %s", path);
 }
 
-For_Each_Result cb_init_entity_after_level_load(Entity *e, void *user_data) {
+For_Result cb_init_entity_after_level_load(Entity *e, void *user_data) {
     auto *world = (World *)user_data;
 
     if (e->eid != EID_NONE) {
@@ -185,7 +185,7 @@ For_Each_Result cb_init_entity_after_level_load(Entity *e, void *user_data) {
         eid_global_counter = e->eid + 1;
     }
     
-    return RESULT_CONTINUE;
+    return CONTINUE;
 }
 
 void load_level(World *world, const char *path) {
@@ -355,22 +355,22 @@ void tick_game(f32 dt) {
             if (game_state.player_movement_behavior == MOVE_INDEPENDENT) {
                 if (down(KEY_D)) {
                     velocity.x = speed;
-                    player.move_direction = DIRECTION_RIGHT;
+                    player.move_direction = EAST;
                 }
 
                 if (down(KEY_A)) {
                     velocity.x = -speed;
-                    player.move_direction = DIRECTION_LEFT;
+                    player.move_direction = WEST;
                 }
 
                 if (down(KEY_W)) {
                     velocity.z = speed;
-                    player.move_direction = DIRECTION_FORWARD;
+                    player.move_direction = NORTH;
                 }
 
                 if (down(KEY_S)) {
                     velocity.z = -speed;
-                    player.move_direction = DIRECTION_BACK;
+                    player.move_direction = SOUTH;
                 }
             } else if (game_state.player_movement_behavior == MOVE_RELATIVE_TO_CAMERA) {
                 auto &camera = world->camera;
@@ -379,22 +379,22 @@ void tick_game(f32 dt) {
 
                 if (down(KEY_D)) {
                     velocity += speed * camera_right;
-                    player.move_direction = DIRECTION_RIGHT;
+                    player.move_direction = EAST;
                 }
 
                 if (down(KEY_A)) {
                     velocity -= speed * camera_right;
-                    player.move_direction = DIRECTION_LEFT;
+                    player.move_direction = WEST;
                 }
 
                 if (down(KEY_W)) {
                     velocity += speed * camera_forward;
-                    player.move_direction = DIRECTION_FORWARD;
+                    player.move_direction = NORTH;
                 }
 
                 if (down(KEY_S)) {
                     velocity -= speed * camera_forward;
-                    player.move_direction = DIRECTION_BACK;
+                    player.move_direction = SOUTH;
                 }
             }
 
@@ -423,19 +423,19 @@ void tick_game(f32 dt) {
             }
         } else {
             switch (player.move_direction) {
-            case DIRECTION_LEFT: {
+            case WEST: {
                 player.sid_flip_book_move = SID_FLIP_BOOK_PLAYER_MOVE_LEFT;
                 break;
             }
-            case DIRECTION_RIGHT: {
+            case EAST: {
                 player.sid_flip_book_move = SID_FLIP_BOOK_PLAYER_MOVE_RIGHT;
                 break;
             }
-            case DIRECTION_BACK: {
+            case SOUTH: {
                 player.sid_flip_book_move = SID_FLIP_BOOK_PLAYER_MOVE_BACK;
                 break;
             }
-            case DIRECTION_FORWARD: {
+            case NORTH: {
                 player.sid_flip_book_move = SID_FLIP_BOOK_PLAYER_MOVE_FORWARD;
                 break;
             }
@@ -586,15 +586,15 @@ struct Find_Entity_By_Id_Data {
     eid eid = EID_NONE;
 };
 
-static For_Each_Result cb_find_entity_by_eid(Entity *e, void *user_data) {
+static For_Result cb_find_entity_by_eid(Entity *e, void *user_data) {
     auto *data = (Find_Entity_By_Id_Data *)user_data;
     
     if (e->eid == data->eid) {
         data->e = e;
-        return RESULT_BREAK;
+        return BREAK;
     }
 
-    return RESULT_CONTINUE;
+    return CONTINUE;
  };
 
 Entity *find_entity_by_eid(World* world, eid eid) {
@@ -612,30 +612,30 @@ Entity *find_entity_by_eid(World* world, eid eid) {
 }
 
 void for_each_entity(World *world, For_Each_Entity_Callback callback, void *user_data) {
-    if (callback(&world->player, user_data) == RESULT_BREAK) return;
-    if (callback(&world->skybox, user_data) == RESULT_BREAK) return;
+    if (callback(&world->player, user_data) == BREAK) return;
+    if (callback(&world->skybox, user_data) == BREAK) return;
 
     For (world->static_meshes) {
-        if (callback(&it, user_data) == RESULT_BREAK) return;
+        if (callback(&it, user_data) == BREAK) return;
     }
 
     For (world->direct_lights) {
-        if (callback(&it, user_data) == RESULT_BREAK) return;
+        if (callback(&it, user_data) == BREAK) return;
     }
     
     For (world->point_lights) {
-        if (callback(&it, user_data) == RESULT_BREAK) return;
+        if (callback(&it, user_data) == BREAK) return;
     }
 
     For (world->sound_emitters_2d) {
-        if (callback(&it, user_data) == RESULT_BREAK) return;
+        if (callback(&it, user_data) == BREAK) return;
     }
 
     For (world->sound_emitters_3d) {
-        if (callback(&it, user_data) == RESULT_BREAK) return;
+        if (callback(&it, user_data) == BREAK) return;
     }
 
     For (world->portals) {
-        if (callback(&it, user_data) == RESULT_BREAK) return;
+        if (callback(&it, user_data) == BREAK) return;
     }
 }

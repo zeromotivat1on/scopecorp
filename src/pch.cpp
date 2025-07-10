@@ -24,6 +24,8 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
 
+#define ALLOC_DEBUG 0
+
 static void *vm_base     = null;
 static void *allocl_base = null;
 static void *allocf_base = null;

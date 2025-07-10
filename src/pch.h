@@ -100,7 +100,7 @@ inline constexpr rid RID_NONE = 0;
 #define ASCII_GRAVE_ACCENT    96
 
 #define is_ascii(x)           ((x) >= 0 && (x) <= 127)
-#define is_ascii_ext(x)       ((x) >= 0 && (x) <= 255)
+#define is_ascii_ex(x)        ((x) >= 0 && (x) <= 255)
 #define is_ascii_printable(x) ((x) >= 32 && (x) <= 126)
 
 #define INVALID_INDEX -1
@@ -183,16 +183,16 @@ void read_fence();
 void write_fence();
 void memory_fence();
 
-enum For_Each_Result : u8 {
-    RESULT_CONTINUE,
-    RESULT_BREAK,
+enum For_Result : u8 {
+    CONTINUE,
+    BREAK,
 };
 
 enum Direction : u8 {
-    DIRECTION_BACK,
-    DIRECTION_RIGHT,
-    DIRECTION_LEFT,
-    DIRECTION_FORWARD,
+    SOUTH,
+    EAST,
+    WEST,
+    NORTH,
     DIRECTION_COUNT
 };
 
@@ -202,8 +202,6 @@ enum Direction : u8 {
 // l  - linear allocation, push/pop bytes
 // f  - frame allocation, cleared at the end of every frame
 // lp - linear allocation from given pointer, push/pop bytes
-
-#define ALLOC_DEBUG 0
 
 inline constexpr u64 MAX_ALLOCL_SIZE = MB(64);
 inline constexpr u64 MAX_ALLOCF_SIZE = MB(1);
