@@ -4,6 +4,13 @@
 #include "hash_table.h"
 #include "sparse_array.h"
 
+#define SID_TEXTURE_PLAYER_IDLE_SOUTH SID("/data/textures/player_idle_back.png")
+#define SID_TEXTURE_PLAYER_IDLE_EAST  SID("/data/textures/player_idle_right.png")
+#define SID_TEXTURE_PLAYER_IDLE_WEST  SID("/data/textures/player_idle_left.png")
+#define SID_TEXTURE_PLAYER_IDLE_NORTH SID("/data/textures/player_idle_forward.png")
+
+inline sid sid_texture_player_idle[DIRECTION_COUNT];
+
 #define SID_MATERIAL_GEOMETRY   SID("/data/materials/geometry.mat")
 #define SID_MATERIAL_OUTLINE    SID("/data/materials/outline.mat")
 #define SID_MATERIAL_SKYBOX     SID("/data/materials/skybox.mat")

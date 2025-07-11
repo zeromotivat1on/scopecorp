@@ -77,6 +77,12 @@ s32 main() {
     }
 
     sid_init();
+
+    sid_texture_player_idle[SOUTH] = SID_TEXTURE_PLAYER_IDLE_SOUTH;
+    sid_texture_player_idle[EAST]  = SID_TEXTURE_PLAYER_IDLE_EAST;
+    sid_texture_player_idle[WEST]  = SID_TEXTURE_PLAYER_IDLE_WEST;
+    sid_texture_player_idle[NORTH] = SID_TEXTURE_PLAYER_IDLE_NORTH;
+    
 	init_input_table();
 
     {
@@ -125,8 +131,6 @@ s32 main() {
     os_set_vsync(false);
 
     stbi_set_flip_vertically_on_load(true);
-    
-    cache_texture_sids(&texture_sids);
 
     init_asset_source_table();
     init_asset_table();
@@ -188,7 +192,7 @@ s32 main() {
 
 	auto &player = *(Player *)create_entity(world, ENTITY_PLAYER);
 	{
-        const auto &texture = asset_table.textures[texture_sids.player_idle[SOUTH]];
+        const auto &texture = asset_table.textures[SID_TEXTURE_PLAYER_IDLE_SOUTH];
         
         const f32 scale_aspect = (f32)texture.width / texture.height;
         const f32 y_scale = 1.0f * scale_aspect;

@@ -419,7 +419,7 @@ void tick_game(f32 dt) {
         auto *material = find(asset_table.materials, player.draw_data.sid_material);
         if (player.velocity == vec3_zero) {
             if (material) {
-                material->sid_texture = texture_sids.player_idle[player.move_direction];
+                material->sid_texture = sid_texture_player_idle[player.move_direction];
             }
         } else {
             switch (player.move_direction) {

@@ -132,37 +132,6 @@ void r_fb_submit_end(const Frame_Buffer &frame_buffer) {
     r_draw_frame_buffer(frame_buffer, 0);
 }
 
-void cache_texture_sids(Texture_Sid_List *list) {
-    list->skybox = SID("/data/textures/skybox.png");
-    list->stone  = SID("/data/textures/stone.png");
-    list->grass  = SID("/data/textures/grass.png");
-
-    list->player_idle[SOUTH]    = SID("/data/textures/player_idle_back.png");
-    list->player_idle[EAST]   = SID("/data/textures/player_idle_right.png");
-    list->player_idle[WEST]    = SID("/data/textures/player_idle_left.png");
-    list->player_idle[NORTH] = SID("/data/textures/player_idle_forward.png");
-
-    list->player_move[SOUTH][0] = SID("/data/textures/player_move_back_1.png");
-    list->player_move[SOUTH][1] = SID("/data/textures/player_move_back_2.png");
-    list->player_move[SOUTH][2] = SID("/data/textures/player_move_back_3.png");
-    list->player_move[SOUTH][3] = SID("/data/textures/player_move_back_4.png");
-
-    list->player_move[EAST][0] = SID("/data/textures/player_move_right_1.png");
-    list->player_move[EAST][1] = SID("/data/textures/player_move_right_2.png");
-    list->player_move[EAST][2] = SID("/data/textures/player_move_right_3.png");
-    list->player_move[EAST][3] = SID("/data/textures/player_move_right_4.png");
-
-    list->player_move[WEST][0] = SID("/data/textures/player_move_left_1.png");
-    list->player_move[WEST][1] = SID("/data/textures/player_move_left_2.png");
-    list->player_move[WEST][2] = SID("/data/textures/player_move_left_3.png");
-    list->player_move[WEST][3] = SID("/data/textures/player_move_left_4.png");
-
-    list->player_move[NORTH][0] = SID("/data/textures/player_move_forward_1.png");
-    list->player_move[NORTH][1] = SID("/data/textures/player_move_forward_2.png");
-    list->player_move[NORTH][2] = SID("/data/textures/player_move_forward_3.png");
-    list->player_move[NORTH][3] = SID("/data/textures/player_move_forward_4.png");
-}
-
 void init_render_queue(Render_Queue *queue, s32 capacity) {
     Assert(capacity <= MAX_RENDER_QUEUE_SIZE);
     

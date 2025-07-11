@@ -56,17 +56,6 @@ struct Texture : Asset {
     Texture_Filter_Type filter = TEXTURE_FILTER_NONE;
 };
 
-struct Texture_Sid_List {
-	sid skybox;
-	sid stone;
-	sid grass;
-
-	sid player_idle[DIRECTION_COUNT];
-	sid player_move[DIRECTION_COUNT][4];
-};
-
-inline Texture_Sid_List texture_sids;
-
 rid  r_create_texture(Texture_Type type, Texture_Format_Type format, s32 width, s32 height, void *data = null);
 void r_set_texture_data(rid rid_texture, Texture_Type type, Texture_Format_Type format, s32 width, s32 height, void *data = null);
 void r_delete_texture(rid rid_texture);
@@ -76,7 +65,6 @@ void r_generate_texture_mipmaps(rid rid_texture);
 
 void init_texture_asset(Texture *texture, void *data);
 
-void cache_texture_sids(Texture_Sid_List *list);
 void set_texture_wrap(Texture *texture, Texture_Wrap_Type wrap_type);
 void set_texture_filter(Texture *texture, Texture_Filter_Type filter_type);
 void generate_texture_mipmaps(Texture *texture);
