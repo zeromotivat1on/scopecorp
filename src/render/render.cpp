@@ -429,6 +429,12 @@ void geo_draw_aabb(const AABB &aabb, u32 color) {
     geo_draw_box(points, color);
 }
 
+void geo_draw_ray(const Ray &ray, f32 length, u32 color) {
+    const vec3 start = ray.origin;
+    const vec3 end   = ray.origin + ray.direction * length;
+    geo_draw_line(start, end, color);
+}
+
 void geo_flush() {
     PROFILE_SCOPE(__FUNCTION__);
 
@@ -692,7 +698,7 @@ static For_Result cb_draw_aabb(Entity *e, void *user_data) {
     return CONTINUE;
 };
 
-void geo_draw_debug() {
+void draw_geo_debug() {
     const auto &player = world->player;
 
     if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {

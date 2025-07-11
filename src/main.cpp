@@ -324,7 +324,7 @@ s32 main() {
 	s64 begin_counter = os_perf_counter();
 
     log("Startup took %.2fms", CHECK_SCOPE_TIMER_MS(startup));
-            
+    
 	while (os_window_is_alive(window)) {
         PROFILE_SCOPE("game_frame");
 
@@ -341,9 +341,9 @@ s32 main() {
         tick_editor(delta_time);
                 
         draw_world(world);
-        
+
 #if DEVELOPER
-        geo_draw_debug();
+        draw_geo_debug();
         draw_dev_stats();
         draw_debug_console();
         draw_runtime_profiler();

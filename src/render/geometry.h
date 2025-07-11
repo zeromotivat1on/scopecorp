@@ -5,6 +5,7 @@ inline constexpr u32 MAX_GEOMETRY_VERTEX_COUNT = 2 * MAX_GEOMETRY_LINE_COUNT;
 
 struct vec3;
 struct AABB;
+struct Ray;
 
 struct Geometry_Draw_Buffer {
     vec3 *locations = null;
@@ -24,6 +25,7 @@ void geo_draw_arrow(vec3 start, vec3 end, u32 color);
 void geo_draw_cross(vec3 location, f32 size);
 void geo_draw_box(const vec3 points[8], u32 color);
 void geo_draw_aabb(const AABB &aabb, u32 color);
+void geo_draw_ray(const Ray &ray, f32 length, u32 color);
 void geo_flush();
 
-void geo_draw_debug();
+void draw_geo_debug();

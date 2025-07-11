@@ -33,6 +33,7 @@
 #include "flip_book.h"
 #include "input_stack.h"
 #include "reflection.h"
+#include "collision.h"
 
 #include "stb_image.h"
 #include "stb_sprintf.h"
@@ -144,7 +145,7 @@ void on_input_editor(Window_Event *event) {
             mouse_unpick_entity(world);
         } else if (press && key == MOUSE_LEFT && !window->cursor_locked && ui.id_hot == UIID_NONE) {
             if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
-                const Ray ray = world_ray_from_viewport_location(desired_camera(world), &viewport, input_table.mouse_x, input_table.mouse_y);
+                const Ray ray = ray_from_mouse(&world->ed_camera, &viewport, input_table.mouse_x, input_table.mouse_y);
                 const s32 aabb_index = find_closest_overlapped_aabb(ray, world->aabbs.items, world->aabbs.count);
                 if (aabb_index != INVALID_INDEX) {
                     Find_Entity_By_AABB_Data find_data;
