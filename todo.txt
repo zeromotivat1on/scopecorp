@@ -1,5 +1,3 @@
-- Update reflected fields during runtime if thet were changed somewhere else.
-
 - UI input functions for non-text are basically the same, cleanup.
 
 - Asset save/load/hot-reload code has a lot of duplications, cleanup.
@@ -16,5 +14,3 @@
 
 - Enqueue draw command order is crucial for expected output, we need to add sort/priority
   of submitted draw commands.
-
-- Fix ray overlap from mouse position in case of rotated camera.
