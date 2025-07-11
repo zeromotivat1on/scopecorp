@@ -21,7 +21,7 @@
 #include <shlwapi.h>
 #include <intrin.h>
 
-// Also defined in win32_gl.cpp
+// Also defined in render/win32_gl.cpp
 struct Win32_Window {
 	const char *class_name;
 	ATOM class_atom;

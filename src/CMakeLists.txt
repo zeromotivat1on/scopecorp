@@ -34,7 +34,7 @@ if (WIN32)
    target_link_libraries(${GAME_EXE} PRIVATE ${RUN_TREE_DIR}/openal32.lib shlwapi.lib)
 
    if (GFX_API STREQUAL OPEN_GL)
-      target_sources(${GAME_EXE} PRIVATE os/win32_gl.cpp)
+      target_sources(${GAME_EXE} PRIVATE render/win32_gl.cpp)
       target_link_libraries(${GAME_EXE} PRIVATE opengl32.lib)
    endif()
 endif()

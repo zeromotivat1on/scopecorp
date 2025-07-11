@@ -15,7 +15,7 @@
 #error OpenGL implementation is included, but OPEN_GL macro is not defined
 #endif
 
-// Also defined in win32.cpp
+// Also defined in os/win32.cpp
 struct Win32_Window {
 	const char *class_name;
 	ATOM class_atom;
