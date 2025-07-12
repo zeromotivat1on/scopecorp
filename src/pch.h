@@ -232,3 +232,5 @@ void  freelp(void **ptr, u64 size);
 void set_bytes (void *data, s32 value, u64 size);
 void copy_bytes(void *dst, const void *src, u64 size);
 void move_bytes(void *dst, const void *src, u64 size);
+
+void sort(void* data, u32 count, u32 size, s32 (*compare)(const void*, const void*));

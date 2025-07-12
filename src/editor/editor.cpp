@@ -231,7 +231,8 @@ void tick_editor(f32 dt) {
         {   // Draw entity fields.
             constexpr f32 MARGIN  = 100.0f;
             constexpr f32 PADDING = 16.0f;
-
+            constexpr f32 QUAD_Z = 0.0f;
+            
             const auto &atlas = ui.font_atlases[UI_DEFAULT_FONT_ATLAS_INDEX];
             const f32 ascent  = atlas.font->ascent  * atlas.px_h_scale;
             const f32 descent = atlas.font->descent * atlas.px_h_scale;
@@ -239,15 +240,15 @@ void tick_editor(f32 dt) {
             const u32 field_count = entity_type_field_counts[(u8)e->type];
             const f32 height = (f32)field_count * atlas.line_height;
             
-            const vec2 p0 = vec2(MARGIN, viewport.height - MARGIN);
-            const vec2 p1 = vec2(viewport.width - MARGIN, p0.y - height - 2 * PADDING);
+            const vec3 p0 = vec3(MARGIN, viewport.height - MARGIN, QUAD_Z);
+            const vec3 p1 = vec3(viewport.width - MARGIN, p0.y - height - 2 * PADDING, QUAD_Z);
             const u32 qc = rgba_pack(0, 0, 0, 200);
 
             ui_quad(p0, p1, qc);
 
             // @Todo: correct uiid generation.
             uiid id = { 0, (u16)e->eid, 0 };
-            vec2 pos = vec2(p0.x + PADDING, p0.y - PADDING - ascent);
+            vec3 pos = vec3(p0.x + PADDING, p0.y - PADDING - ascent, QUAD_Z + F32_EPSILON);
             
             for (u32 i = 0; i < field_count; ++i) {
                 const auto &field = get_entity_field(e->type, i);
@@ -257,16 +258,16 @@ void tick_editor(f32 dt) {
                 constexpr u32 tcc = rgba_white;
                 constexpr u32 tch = rgba_white;
                 constexpr u32 tca = rgba_white;
-                constexpr u32 qcc = rgba_pack(16, 16, 16, 200);
-                constexpr u32 qch = 0;
-                constexpr u32 qca = rgba_pack(32, 32, 32, 200);
+                constexpr u32 qcc = rgba_pack(32, 32, 32, 200);
+                constexpr u32 qch = rgba_pack(48, 48, 48, 200);
+                constexpr u32 qca = rgba_pack(64, 64, 64, 200);
                 constexpr u32 ccc = rgba_white;
                 constexpr u32 cch = rgba_white;
                 constexpr u32 cca = rgba_white;
 
                 const s32 offset = atlas.space_advance_width * 40;
                 UI_Input_Style style = {
-                    vec2(pos.x + offset, pos.y),
+                    vec3(pos.x + offset, pos.y, pos.z),
                     vec2_zero,
                     { tcc, tch, tca },
                     { qcc, qch, qca },
@@ -467,7 +468,7 @@ void tick_editor(f32 dt) {
         const uiid combo_id  = { 0, 200, 0 };
         
         const UI_Button_Style button_style = {
-            vec2(100.0f),
+            vec3(100.0f, 100.0f, 0.0f),
             vec2(32.0f, 16.0f),
             { rgba_white, rgba_pack(255, 255, 255, 200), rgba_white },
             { rgba_black, rgba_pack(0, 0, 0, 200),       rgba_black },
@@ -477,7 +478,7 @@ void tick_editor(f32 dt) {
         const f32 width = (f32)get_line_width_px(&atlas, button_text);
     
         const UI_Combo_Style combo_style = {
-            button_style.pos_text + vec2(width + 2 * button_style.padding.x + 4.0f, 0.0f),
+            button_style.pos_text + vec3(width + 2 * button_style.padding.x + 4.0f, 0.0f, 0.0f),
             button_style.padding,
             button_style.color_text,
             button_style.color_quad,
@@ -509,9 +510,11 @@ void tick_editor(f32 dt) {
         }
 
         if (screen_report_text[0] != '\0') {
+            constexpr f32 Z = F32_MAX;
+            
             const auto &atlas = ui.font_atlases[UI_SCREEN_REPORT_FONT_ATLAS_INDEX];
             const s32 width_px = get_line_width_px(&atlas, screen_report_text);
-            const vec2 pos = vec2(viewport.width * 0.5f - width_px * 0.5f, viewport.height * 0.7f);
+            const vec3 pos = vec3(viewport.width * 0.5f - width_px * 0.5f, viewport.height * 0.7f, Z);
 
             const f32 lerp_alpha = Clamp(fade_time / SCREEN_REPORT_FADE_TIME, 0.0f, 1.0f);
             const u32 alpha = (u32)Lerp(255, 0, lerp_alpha);
@@ -739,28 +742,39 @@ void draw_debug_console() {
     const f32 lower_case_height = (atlas.font->ascent + atlas.font->descent) * atlas.px_h_scale;
     
     {   // History quad.
-        const vec2 q0 = vec2(DEBUG_CONSOLE_MARGIN);
-        const vec2 q1 = vec2(viewport.width - DEBUG_CONSOLE_MARGIN, viewport.height - DEBUG_CONSOLE_MARGIN);
+        constexpr f32 Z = 0.0f;
+        
+        const vec3 p0 = vec3(DEBUG_CONSOLE_MARGIN, DEBUG_CONSOLE_MARGIN, Z);
+        const vec3 p1 = vec3(viewport.width - DEBUG_CONSOLE_MARGIN, viewport.height - DEBUG_CONSOLE_MARGIN, Z);
         const u32 color = rgba_pack(0, 0, 0, 200);
-        ui_quad(q0, q1, color);
+        ui_quad(p0, p1, color);
     }
 
     {   // Input quad.
-        const vec2 q0 = vec2(DEBUG_CONSOLE_MARGIN);
-        const vec2 q1 = vec2(viewport.width - DEBUG_CONSOLE_MARGIN, DEBUG_CONSOLE_MARGIN + lower_case_height + 2 * DEBUG_CONSOLE_PADDING);
+        constexpr f32 Z = 0.0f;
+
+        const vec3 q0 = vec3(DEBUG_CONSOLE_MARGIN, DEBUG_CONSOLE_MARGIN, Z);
+        const vec3 q1 = vec3(viewport.width - DEBUG_CONSOLE_MARGIN, DEBUG_CONSOLE_MARGIN + lower_case_height + 2 * DEBUG_CONSOLE_PADDING, Z);
         const u32 color = rgba_pack(0, 0, 0, 200);
         ui_quad(q0, q1, color);
     }
 
     {   // Input text.
-        const vec2 pos = vec2(DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING);
+        constexpr f32 Z = 0.0f;
+
+        const vec3 pos = vec3(DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING,
+                              DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING,
+                              Z);
         const u32 color = rgba_white;
         ui_text(input, input_size, pos, color, UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX);
     }
 
     {   // History text.
-        const vec2 pos = vec2(DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING,
-                              viewport.height - DEBUG_CONSOLE_MARGIN - DEBUG_CONSOLE_PADDING - ascent);
+        constexpr f32 Z = 0.0f;
+
+        const vec3 pos = vec3(DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING,
+                              viewport.height - DEBUG_CONSOLE_MARGIN - DEBUG_CONSOLE_PADDING - ascent,
+                              Z);
         const u32 color = rgba_white;
         
         const f32 max_height = viewport.height - 2 * DEBUG_CONSOLE_MARGIN - 3 * DEBUG_CONSOLE_PADDING;
@@ -798,10 +812,13 @@ void draw_debug_console() {
     }
     
     {   // Cursor quad.
+        constexpr f32 Z = 0.0f;
+
         const s32 width_px = get_line_width_px(&atlas, input, input_size);
-        const vec2 q0 = vec2(DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING + width_px + 1,
-                             DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING + descent);
-        const vec2 q1 = vec2(q0.x + atlas.space_advance_width, q0.y + ascent - descent);
+        const vec3 p0 = vec3(DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING + width_px + 1,
+                             DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING + descent,
+                             Z);
+        const vec3 p1 = vec3(p0.x + atlas.space_advance_width, p0.y + ascent - descent, Z);
         u32 color = rgba_white;
 
         if (cursor_blink_dt > DEBUG_CONSOLE_CURSOR_BLINK_INTERVAL) {
@@ -812,7 +829,7 @@ void draw_debug_console() {
             }
         }
 
-        ui_quad(q0, q1, color);
+        ui_quad(p0, p1, color);
     }
 }
 

@@ -62,7 +62,7 @@ struct UI_Color {
 };
 
 struct UI_Button_Style {
-    vec2 pos_text = vec2_zero;
+    vec3 pos_text = vec3_zero;
     vec2 padding  = vec2_zero;
     UI_Color color_text;
     UI_Color color_quad;
@@ -70,7 +70,7 @@ struct UI_Button_Style {
 };
 
 struct UI_Input_Style {
-    vec2 pos_text = vec2_zero;
+    vec3 pos_text = vec3_zero;
     vec2 padding  = vec2_zero;
     UI_Color color_text;
     UI_Color color_quad;
@@ -79,21 +79,22 @@ struct UI_Input_Style {
 };
 
 struct UI_Combo_Style {
-    vec2 pos_text = vec2_zero;
+    vec3 pos_text = vec3_zero;
     vec2 padding  = vec2_zero;
     UI_Color color_text;
     UI_Color color_quad;
     s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX;
 };
 
-enum UI_Draw_Type {
+enum UI_Draw_Type : u8 {
     UI_DRAW_TEXT,
     UI_DRAW_QUAD,
 };
 
 struct UI_Draw_Command {
     UI_Draw_Type type;
-    s32 element_count = 0;
+    f32 z = 0.0f;
+    s32 instance_count = 0;
     s32 atlas_index = 0; // for text draw command
 };
 
@@ -158,10 +159,10 @@ u8 ui_input_sid(uiid id, sid *v, const UI_Input_Style &style);
 
 u8 ui_combo(uiid, u32 *selected_index, const char **options, u32 option_count, const UI_Combo_Style &style);
 
-void ui_text(const char *text, vec2 pos, u32 color, s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX);
-void ui_text(const char *text, u32 count, vec2 pos, u32 color, s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX);
+void ui_text(const char *text, vec3 pos, u32 color, s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX);
+void ui_text(const char *text, u32 count, vec3 pos, u32 color, s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX);
 
-void ui_text_with_shadow(const char *text, vec2 pos, u32 color, vec2 shadow_offset, u32 shadow_color, s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX);
-void ui_text_with_shadow(const char *text, u32 count, vec2 pos, u32 color, vec2 shadow_offset, u32 shadow_color, s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX);
+void ui_text_with_shadow(const char *text, vec3 pos, u32 color, vec2 shadow_offset, u32 shadow_color, s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX);
+void ui_text_with_shadow(const char *text, u32 count, vec3 pos, u32 color, vec2 shadow_offset, u32 shadow_color, s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX);
 
-void ui_quad(vec2 p0, vec2 p1, u32 color);
+void ui_quad(vec3 p0, vec3 p1, u32 color);

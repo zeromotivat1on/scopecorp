@@ -10,6 +10,8 @@
 #include "game/game.h"
 #include "game/world.h"
 
+#include "stdlib.h"
+
 // @Cleanyp: define stb related macros that allow to override usage of std.
 
 #define STB_SPRINTF_IMPLEMENTATION
@@ -269,4 +271,8 @@ const char *to_string(Entity_Type type) {
     case ENTITY_PORTAL:           return "ENTITY_PORTAL";
     default:                      return "UNKNOWN";
     }
+}
+
+void sort(void *data, u32 count, u32 size, s32 (*compare)(const void*, const void*)) {
+    qsort(data, count, size, compare);
 }

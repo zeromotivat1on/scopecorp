@@ -125,22 +125,25 @@ void draw_runtime_profiler() {
     
     constexpr f32 PROFILER_MARGIN  = 100.0f;
     constexpr f32 PROFILER_PADDING = 16.0f;
-
+    constexpr f32 QUAD_Z = 0.0f;
+    
     const auto &atlas = ui.font_atlases[UI_PROFILER_FONT_ATLAS_INDEX];
     const f32 ascent  = atlas.font->ascent  * atlas.px_h_scale;
     const f32 descent = atlas.font->descent * atlas.px_h_scale;
 
     {   // Profiler quad.
-        const vec2 q0 = vec2(PROFILER_MARGIN,
-                             viewport.height - PROFILER_MARGIN - 2 * PROFILER_PADDING - rp.scope_count * atlas.line_height);
-        const vec2 q1 = vec2(viewport.width - PROFILER_MARGIN,
-                             viewport.height - PROFILER_MARGIN);
+        const vec3 p0 = vec3(PROFILER_MARGIN,
+                             viewport.height - PROFILER_MARGIN - 2 * PROFILER_PADDING - rp.scope_count * atlas.line_height,
+                             QUAD_Z);
+        const vec3 p1 = vec3(viewport.width - PROFILER_MARGIN,
+                             viewport.height - PROFILER_MARGIN,
+                             QUAD_Z);
         const u32 color = rgba_pack(0, 0, 0, 200);
-        ui_quad(q0, q1, color);
+        ui_quad(p0, p1, color);
     }
 
     {   // Profiler scopes.
-        vec2 pos = vec2(PROFILER_MARGIN + PROFILER_PADDING, viewport.height - PROFILER_MARGIN - PROFILER_PADDING - ascent);
+        vec3 pos = vec3(PROFILER_MARGIN + PROFILER_PADDING, viewport.height - PROFILER_MARGIN - PROFILER_PADDING - ascent, QUAD_Z + F32_EPSILON);
         
         const s32 space_width_px = get_char_width_px(&atlas, ASCII_SPACE);
         const f32 column_offset_1 = PROFILER_MARGIN + PROFILER_PADDING;
@@ -211,6 +214,7 @@ void draw_memory_profiler() {
     
     constexpr f32 PROFILER_MARGIN  = 100.0f;
     constexpr f32 PROFILER_PADDING = 16.0f;
+    constexpr f32 QUAD_Z = 0.0f;
     constexpr u8  PROFILER_MAX_LINE_COUNT = 4;
 
     const auto &atlas = ui.font_atlases[UI_PROFILER_FONT_ATLAS_INDEX];
@@ -218,18 +222,20 @@ void draw_memory_profiler() {
     const f32 descent = atlas.font->descent * atlas.px_h_scale;
 
     {   // Profiler quad.
-        const vec2 q0 = vec2(PROFILER_MARGIN,
-                             viewport.height - PROFILER_MARGIN - 2 * PROFILER_PADDING - PROFILER_MAX_LINE_COUNT * atlas.line_height);
-        const vec2 q1 = vec2(viewport.width - PROFILER_MARGIN,
-                             viewport.height - PROFILER_MARGIN);
+        const vec3 p0 = vec3(PROFILER_MARGIN,
+                             viewport.height - PROFILER_MARGIN - 2 * PROFILER_PADDING - PROFILER_MAX_LINE_COUNT * atlas.line_height,
+                             QUAD_Z);
+        const vec3 p1 = vec3(viewport.width - PROFILER_MARGIN,
+                             viewport.height - PROFILER_MARGIN,
+                             QUAD_Z);
         const u32 color = rgba_pack(0, 0, 0, 200);
-        ui_quad(q0, q1, color);
+        ui_quad(p0, p1, color);
     }
 
     {   // Profiler scopes.
         extern u64 allocl_size, allocf_size;
 
-        vec2 pos = vec2(PROFILER_MARGIN + PROFILER_PADDING, viewport.height - PROFILER_MARGIN - PROFILER_PADDING - ascent);
+        vec3 pos = vec3(PROFILER_MARGIN + PROFILER_PADDING, viewport.height - PROFILER_MARGIN - PROFILER_PADDING - ascent, QUAD_Z + F32_EPSILON);
         const u32 color = rgba_white;
     
         char buffer[256];
@@ -295,8 +301,10 @@ void draw_dev_stats() {
 	const f32 padding = atlas.font_size * 0.5f;
 	const vec2 shadow_offset = vec2(atlas.font_size * 0.1f, -atlas.font_size * 0.1f);
 	s32 text_size = 0;
-	vec2 pos;
 
+	vec3 pos;
+    pos.z = 0.0f;
+    
 	{   // Entity.
         pos.x = padding;
 		pos.y = (f32)viewport.height - atlas.line_height;

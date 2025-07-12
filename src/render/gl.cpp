@@ -289,8 +289,6 @@ void r_submit(const Render_Command *command) {
                                    EID_VERTEX_BINDING_INDEX, 1, GL_UNSIGNED_INT, 0);
         glVertexArrayBindingDivisor(command->rid_vertex_array,
                                     EID_VERTEX_BINDING_INDEX, 1);
-
-
 #endif
         
         const s32 render_mode = gl_draw_mode(command->render_mode);

@@ -141,9 +141,21 @@ void ui_init() {
     }
 }
 
+static s32 cb_compare_ui_draw_cmd(const void *a, const void *b) {
+    const auto &ax = *(const UI_Draw_Command *)a;
+    const auto &bx = *(const UI_Draw_Command *)b;
+
+    if (ax.z < bx.z) return -1;
+    if (ax.z > bx.z) return  1;
+
+    return 0;
+}
+
 void ui_flush() {
     PROFILE_SCOPE(__FUNCTION__);
 
+    //sort(ui.draw_queue, ui.draw_queue_size, sizeof(ui.draw_queue[0]), cb_compare_ui_draw_cmd);
+    
     auto &tdb = ui.text_draw_buffer;
     auto &qdb = ui.quad_draw_buffer;
 
@@ -182,7 +194,6 @@ void ui_flush() {
             const auto &ui_cmd = ui.draw_queue[j];
             const auto &atlas  = ui.font_atlases[ui_cmd.atlas_index];
 
-            // UI commands should have the same type and use the same atlas.
             if (ui_cmd.type != ui_draw_type || ui_cmd.atlas_index != atlas_index) {
                 break;
             }
@@ -193,13 +204,13 @@ void ui_flush() {
             case UI_DRAW_TEXT: {
                 r_cmd.rid_vertex_array = tdb.rid_vertex_array;
                 r_cmd.buffer_element_count = 4;
-                r_cmd.instance_count += ui_cmd.element_count;
+                r_cmd.instance_count += ui_cmd.instance_count;
                 r_cmd.instance_offset = char_instance_offset;
 
                 r_cmd.sid_material = tdb.sid_material;
                 r_cmd.rid_override_texture = atlas.rid_texture;
 
-                total_char_instance_offset += ui_cmd.element_count;
+                total_char_instance_offset += ui_cmd.instance_count;
             
                 break;
             }
@@ -212,12 +223,12 @@ void ui_flush() {
                 // elements takes raw positions from vertex buffer unlike text that
                 // takes transform matrix as vertex data and apply it to static quad
                 // vertices.
-                r_cmd.instance_count  = ui_cmd.element_count;
+                r_cmd.instance_count  = ui_cmd.instance_count;
                 r_cmd.instance_offset = quad_instance_offset;
 
                 r_cmd.sid_material = qdb.sid_material;
             
-                total_quad_instance_offset += ui_cmd.element_count;
+                total_quad_instance_offset += ui_cmd.instance_count;
             
                 break;
             }
@@ -239,14 +250,14 @@ u8 ui_button(uiid id, const char *text, const UI_Button_Style &style) {
     const auto &atlas = ui.font_atlases[style.atlas_index];    
     const s32 width = get_line_width_px(&atlas, text);
     const s32 height = atlas.line_height;
-    const vec2 p0 = style.pos_text - style.padding;
-    const vec2 p1 = vec2(p0.x + width + 2 * style.padding.x, p0.y + height + 2 * style.padding.y);
+    const vec3 p0 = style.pos_text - vec3(style.padding.x, style.padding.y, style.pos_text.z);
+    const vec3 p1 = vec3(p0.x + width + 2 * style.padding.x, p0.y + height + 2 * style.padding.y, p0.z);
 
     u8 flags = 0;
     u32 color_text = style.color_text.cold;
     u32 color_quad = style.color_quad.cold;
 
-    if (inside(viewport.mouse_pos, p0, p1)) {
+    if (inside(viewport.mouse_pos, p0.to_vec2(), p1.to_vec2())) {
         if (id != ui.id_hot) {
             flags |= UI_FLAG_HOT;
         }
@@ -282,7 +293,7 @@ u8 ui_button(uiid id, const char *text, const UI_Button_Style &style) {
     }
     
     ui_quad(p0, p1, color_quad);
-    ui_text(text, style.pos_text, color_text, style.atlas_index);
+    ui_text(text, vec3(style.pos_text.x, style.pos_text.y, style.pos_text.z + F32_EPSILON), color_text, style.atlas_index);
     
     return flags;
 }
@@ -294,9 +305,10 @@ u8 ui_input_text(uiid id, char *text, u32 size, const UI_Input_Style &style) {
     const s32 width = atlas.space_advance_width * size;
     const s32 height = atlas.line_height;
 
-    const vec2 p0 = style.pos_text - style.padding;
-    const vec2 p1 = vec2(p0.x + width + 2 * style.padding.x,
-                         p0.y + height + 2 * style.padding.y);
+    const vec3 p0 = style.pos_text - vec3(style.padding.x, style.padding.y, style.pos_text.z);
+    const vec3 p1 = vec3(p0.x + width + 2 * style.padding.x,
+                         p0.y + height + 2 * style.padding.y,
+                         p0.z);
 
     u8 flags = 0;
     u32 color_text = style.color_text.cold;
@@ -305,7 +317,7 @@ u8 ui_input_text(uiid id, char *text, u32 size, const UI_Input_Style &style) {
 
     u32 count = (u32)str_size(text);
     
-    if (inside(viewport.mouse_pos, p0, p1)) {
+    if (inside(viewport.mouse_pos, p0.to_vec2(), p1.to_vec2())) {
         if (id != ui.id_hot) {
             flags |= UI_FLAG_HOT;
         }
@@ -364,12 +376,12 @@ u8 ui_input_text(uiid id, char *text, u32 size, const UI_Input_Style &style) {
     }
 
     ui_quad(p0, p1, color_quad);
-    ui_text(text, style.pos_text, color_text, style.atlas_index);
+    ui_text(text, vec3(style.pos_text.x, style.pos_text.y, style.pos_text.z + F32_EPSILON), color_text, style.atlas_index);
 
     if (id == ui.id_active) {
         const f32 offset = (f32)atlas.space_advance_width * count;
-        const vec2 cp0 = vec2(style.pos_text.x + offset, style.pos_text.y);
-        const vec2 cp1 = vec2(cp0.x + 2.0f, cp0.y + ascent - descent);
+        const vec3 cp0 = vec3(style.pos_text.x + offset, style.pos_text.y, style.pos_text.z + F32_EPSILON);
+        const vec3 cp1 = vec3(cp0.x + 2.0f, cp0.y + ascent - descent, cp0.z);
     
         ui_quad(cp0, cp1, color_cursor);
     }
@@ -576,11 +588,11 @@ u8 ui_combo(uiid id, u32 *selected_index, const char **options, u32 option_count
     return flags;
 }
 
-void ui_text(const char *text, vec2 pos, u32 color, s32 atlas_index) {
+void ui_text(const char *text, vec3 pos, u32 color, s32 atlas_index) {
     ui_text(text, (u32)str_size(text), pos, color, atlas_index);
 }
 
-void ui_text(const char *text, u32 count, vec2 pos, u32 color, s32 atlas_index) {
+void ui_text(const char *text, u32 count, vec3 pos, u32 color, s32 atlas_index) {
     if (rgba_get_a(color) == 0) return;
 
     Assert(atlas_index < MAX_UI_FONT_ATLASES);
@@ -591,7 +603,8 @@ void ui_text(const char *text, u32 count, vec2 pos, u32 color, s32 atlas_index) 
 
     auto &ui_cmd = ui.draw_queue[ui.draw_queue_size];
     ui_cmd.type = UI_DRAW_TEXT;
-    ui_cmd.element_count = 0;
+    ui_cmd.z = pos.z;
+    ui_cmd.instance_count = 0;
     ui_cmd.atlas_index = atlas_index;
     
     ui.draw_queue_size += 1;
@@ -640,7 +653,7 @@ void ui_text(const char *text, u32 count, vec2 pos, u32 color, s32 atlas_index) 
 		tdb.transforms[tdb.char_count] = transform;
         tdb.char_count += 1;
 
-        ui_cmd.element_count += 1;
+        ui_cmd.instance_count += 1;
         
 		x += metric->advance_width;
         if (i < count - 1) {
@@ -649,23 +662,24 @@ void ui_text(const char *text, u32 count, vec2 pos, u32 color, s32 atlas_index) 
 	}
 }
 
-void ui_text_with_shadow(const char *text, vec2 pos, u32 color, vec2 shadow_offset, u32 shadow_color, s32 atlas_index) {
+void ui_text_with_shadow(const char *text, vec3 pos, u32 color, vec2 shadow_offset, u32 shadow_color, s32 atlas_index) {
     ui_text_with_shadow(text, (u32)str_size(text), pos, color, shadow_offset, shadow_color, atlas_index);
 }
 
-void ui_text_with_shadow(const char *text, u32 count, vec2 pos, u32 color, vec2 shadow_offset, u32 shadow_color, s32 atlas_index) {
-	ui_text(text, count, pos + shadow_offset, shadow_color, atlas_index);
+void ui_text_with_shadow(const char *text, u32 count, vec3 pos, u32 color, vec2 shadow_offset, u32 shadow_color, s32 atlas_index) {
+	ui_text(text, count, pos + vec3(shadow_offset.x, shadow_offset.y, 0.0f), shadow_color, atlas_index);
 	ui_text(text, count, pos, color, atlas_index);
 }
 
-void ui_quad(vec2 p0, vec2 p1, u32 color) {
+void ui_quad(vec3 p0, vec3 p1, u32 color) {
     if (rgba_get_a(color) == 0) return;
     
     Assert(ui.draw_queue_size < MAX_UI_DRAW_QUEUE_SIZE);
 
     auto &ui_cmd = ui.draw_queue[ui.draw_queue_size];
     ui_cmd.type = UI_DRAW_QUAD;
-    ui_cmd.element_count = 1;
+    ui_cmd.z = Max(p0.z, p1.z);
+    ui_cmd.instance_count = 1;
 
     ui.draw_queue_size += 1;
 
