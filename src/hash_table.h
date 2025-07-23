@@ -22,9 +22,9 @@ struct Hash_Table {
     Hash_Table() = default;
     Hash_Table(s32 capacity)
         : capacity(capacity),
-          keys  (allocltn(K,   capacity)),
-          values(allocltn(V,   capacity)),
-          hashes(allocltn(u64, capacity)) {
+          keys  (allocpn(K,   capacity)),
+          values(allocpn(V,   capacity)),
+          hashes(allocpn(u64, capacity)) {
         for (s32 i = 0; i < capacity; ++i) {
             hashes[i] = 0;
         }

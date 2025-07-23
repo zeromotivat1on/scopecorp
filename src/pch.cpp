@@ -29,49 +29,56 @@
 #define ALLOC_DEBUG 0
 
 static void *vm_base     = null;
-static void *allocl_base = null;
+static void *allocp_base = null;
+static void *alloct_base = null;
 static void *allocf_base = null;
-u64 allocl_size = 0;
+u64 allocp_size = 0;
+u64 alloct_size = 0;
 u64 allocf_size = 0;
 
 #if DEVELOPER
-void report_assert(const char *condition, Source_Location loc) {
-    error("Assertion %s failed at %s:%d", condition, loc.file, loc.line);
+void report_assert(const char *condition, const char *msg, Source_Location loc) {
+    if (msg) {
+        error("Assertion (%s) failed at %s:%d with message: %s", condition, loc.file, loc.line, msg);
+    } else {
+        error("Assertion (%s) failed at %s:%d", condition, loc.file, loc.line);
+    }
+    
     debug_break();
 }
 
 void debug_break() {
     __debugbreak();
 }
-#endif DEBUG
+#endif
 
-void read_barrier() {
+void asm_read_barrier() {
     _ReadBarrier();
 }
 
-void write_barrier() {
+void asm_write_barrier() {
     _WriteBarrier();
 }
 
-void memory_barrier() {
+void asm_memory_barrier() {
     _ReadWriteBarrier();
 }
 
-void read_fence() {
+void cpu_read_fence() {
     _mm_lfence();
 }
 
-void write_fence() {
+void cpu_write_fence() {
     _mm_sfence();
 }
 
-void memory_fence() {
+void cpu_memory_fence() {
     _mm_mfence();
 }
 
 bool alloc_init() {
-#if DEBUG || DEVELOPER
-	void *vm_address = (void *)TB(2);
+#if DEVELOPER
+	void *vm_address = (void *)TB((u64)2);
 #else
 	void *vm_address = null;
 #endif
@@ -82,16 +89,21 @@ bool alloc_init() {
         return false;
     }
 
-    u8 *commited = (u8 *)os_vm_commit(vm_base, MAX_ALLOCL_SIZE + MAX_ALLOCF_SIZE);
+    constexpr u32 COMMIT_SIZE = MAX_ALLOCP_SIZE + MAX_ALLOCT_SIZE + MAX_ALLOCF_SIZE;
+    u8 *commited = (u8 *)os_vm_commit(vm_base, COMMIT_SIZE);
     if (!commited) {
         error("Failed to commit memory for Linear and Frame allocations");
         return false;
     }
     
-    allocl_base = commited;
-    allocf_base = commited + MAX_ALLOCL_SIZE;
+    allocp_base = commited;
+    alloct_base = commited + MAX_ALLOCP_SIZE;
+    allocf_base = commited + MAX_ALLOCP_SIZE + MAX_ALLOCT_SIZE;
 
-    log("Allocation size: Linear %.2fmb | Frame %.2fmb", (f32)MAX_ALLOCL_SIZE / 1024 / 1024, (f32)MAX_ALLOCF_SIZE / 1024 / 1024);
+    log("Allocation size: Persistent %.2fmb | Temp %.2fmb | Frame %.2fmb",
+        (f32)MAX_ALLOCP_SIZE / 1024 / 1024,
+        (f32)MAX_ALLOCT_SIZE / 1024 / 1024,
+        (f32)MAX_ALLOCF_SIZE / 1024 / 1024);
 
     return true;
 }
@@ -116,24 +128,36 @@ void freeh(void *ptr) {
     free(ptr);
 }
 
-void *allocl(u64 size, Source_Location loc) {
+void *allocp(u64 size, Source_Location loc) {
 #if ALLOC_DEBUG
     log("%s %s:%d %llu", __func__, loc.file, loc.line, size);
 #endif
     
-    Assert(allocl_size + size <= MAX_ALLOCL_SIZE);
-    void *ptr = (u8 *)allocl_base + allocl_size;
-    allocl_size += size;
+    Assert(allocp_size + size <= MAX_ALLOCP_SIZE);
+    void *ptr = (u8 *)allocp_base + allocp_size;
+    allocp_size += size;
     return ptr;
 }
 
-void freel(u64 size, Source_Location loc) {
+void freep(u64 size, Source_Location loc) {
 #if ALLOC_DEBUG
     log("%s %s:%d %llu", __func__, loc.file, loc.line, size);
 #endif
     
-    Assert(allocl_size >= size);
-    allocl_size -= size;
+    Assert(allocp_size >= size);
+    allocp_size -= size;
+}
+
+void *alloct(u64 size) {
+    Assert(alloct_size + size <= MAX_ALLOCT_SIZE);
+    void *ptr = (u8 *)alloct_base + alloct_size;
+    alloct_size += size;
+    return ptr;
+}
+
+void freet(u64 size) {
+    Assert(alloct_size >= size);
+    alloct_size -= size;
 }
 
 void *allocf(u64 size) {
@@ -143,30 +167,34 @@ void *allocf(u64 size) {
     return ptr;
 }
 
+void freef(u64 size) {
+    Assert(allocf_size >= size);
+    allocf_size -= size;
+}
+
 void freef() {
     allocf_size = 0;
 }
 
-void *alloclp(void **ptr, u64 size) {
-    void *ret = *ptr;
-    *ptr = (char *)*ptr + size;
-    return ret;
-}
-
-void freelp(void **ptr, u64 size) {
-    *ptr = (char *)*ptr - size;
-}
-
-void set_bytes(void *data, s32 value, u64 size) {
+void mem_set(void *data, s32 value, u64 size) {
     memset(data, value, size);
 }
 
-void copy_bytes(void *dst, const void *src, u64 size) {
+void mem_copy(void *dst, const void *src, u64 size) {
     memcpy(dst, src, size);
 }
 
-void move_bytes(void *dst, const void *src, u64 size) {
+void mem_move(void *dst, const void *src, u64 size) {
     memmove(dst, src, size);
+}
+
+void mem_swap(void *a, void *b, u64 size) {
+    void *t = alloct(size);
+    defer { freet(size); };
+    
+    mem_copy(t, a, size);
+    mem_copy(a, b, size);
+    mem_copy(b, t, size);
 }
 
 static void log_output_va(Log_Level log_level, const char *format, va_list args) {
@@ -261,14 +289,14 @@ const char *to_string(Player_Movement_Behavior behavior) {
 
 const char *to_string(Entity_Type type) {
     switch (type) {
-    case ENTITY_PLAYER:           return "ENTITY_PLAYER";
-    case ENTITY_SKYBOX:           return "ENTITY_SKYBOX";
-    case ENTITY_STATIC_MESH:      return "ENTITY_STATIC_MESH";
-    case ENTITY_DIRECT_LIGHT:     return "ENTITY_DIRECT_LIGHT";
-    case ENTITY_POINT_LIGHT:      return "ENTITY_POINT_LIGHT";
-    case ENTITY_SOUND_EMITTER_2D: return "ENTITY_SOUND_EMITTER_2D";
-    case ENTITY_SOUND_EMITTER_3D: return "ENTITY_SOUND_EMITTER_3D";
-    case ENTITY_PORTAL:           return "ENTITY_PORTAL";
+    case E_PLAYER:           return "E_PLAYER";
+    case E_SKYBOX:           return "E_SKYBOX";
+    case E_STATIC_MESH:      return "E_STATIC_MESH";
+    case E_DIRECT_LIGHT:     return "E_DIRECT_LIGHT";
+    case E_POINT_LIGHT:      return "E_POINT_LIGHT";
+    case E_SOUND_EMITTER_2D: return "E_SOUND_EMITTER_2D";
+    case E_SOUND_EMITTER_3D: return "E_SOUND_EMITTER_3D";
+    case E_PORTAL:           return "E_PORTAL";
     default:                      return "UNKNOWN";
     }
 }

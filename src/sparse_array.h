@@ -14,9 +14,9 @@ struct Sparse_Array {
     Sparse_Array() = default;
     Sparse_Array(s32 capacity)
         : capacity(capacity),
-          items (allocltn(T,   capacity)),
-          dense (allocltn(s32, capacity)),
-          sparse(allocltn(s32, capacity)) {
+          items (allocpn(T,   capacity)),
+          dense (allocpn(s32, capacity)),
+          sparse(allocpn(s32, capacity)) {
         for (s32 i = 0; i < capacity; ++i) {
             dense[i] = sparse[i] = INVALID_INDEX;
         }
@@ -89,9 +89,9 @@ s32 add(Sparse_Array<T> &array, s32 index, const T &item) {
 
     if (find(array, index)) return INVALID_INDEX;
 
-    array.sparse[index] = count;
-    array.dense[count] = index;
-    array.items[count] = item;
+    array.sparse[index] = array.count;
+    array.dense[array.count] = index;
+    array.items[array.count] = item;
 
     array.count += 1;
 

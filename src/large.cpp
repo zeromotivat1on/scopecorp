@@ -17,11 +17,11 @@ bool check(const u64 *buckets, u16 pos) {
 }
 
 void set_whole(u64 *buckets, u8 count, u8 start) {
-    set_bytes(buckets + start, 0xFF, count * sizeof(u64));
+    mem_set(buckets + start, 0xFF, count * sizeof(u64));
 }
 
 void clear_whole(u64 *buckets, u8 count, u8 start) {
-    set_bytes(buckets + start, 0, count * sizeof(u64));
+    mem_set(buckets + start, 0, count * sizeof(u64));
 }
 
 void and(u64 *res_buckets, const u64 *lbuckets, const u64 *rbuckets, u8 count) {
@@ -49,25 +49,57 @@ void not(u64 *res_buckets, const u64 *buckets, u8 count) {
 }
 
 u256 operator&(const u256 &a, const u256 &b) {
-    u256 res = { 0, 0, 0, 0 };
+    u256 res;
     and(res.buckets, a.buckets, b.buckets, COUNT(res.buckets));
     return res;
 }
 
 u256 operator|(const u256 &a, const u256 &b) {
-    u256 res = { 0, 0, 0, 0 };
+    u256 res;
     or(res.buckets, a.buckets, b.buckets, COUNT(res.buckets));
     return res;
 }
 
 u256 operator^(const u256 &a, const u256 &b) {
-    u256 res = { 0, 0, 0, 0 };
+    u256 res;
     xor(res.buckets, a.buckets, b.buckets, COUNT(res.buckets));
     return res;
 }
 
 u256 operator~(const u256 &a) {
-    u256 res = { 0, 0, 0, 0 };
+    u256 res;
     not(res.buckets, a.buckets, COUNT(res.buckets));
     return res;
+}
+
+bool operator<(const u256 &a, const u256 &b) {
+    for (s32 i = 0; i < 4; ++i) {
+        if (a.buckets[i] < b.buckets[i]) return true;
+        if (a.buckets[i] > b.buckets[i]) return false;
+    }
+    return false;
+}
+
+bool operator>(const u256 &a, const u256 &b) {
+    for (s32 i = 0; i < 4; ++i) {
+        if (a.buckets[i] > b.buckets[i]) return true;
+        if (a.buckets[i] < b.buckets[i]) return false;
+    }
+    return false;
+}
+
+bool operator<(const u512 &a, const u512 &b) {
+    for (s32 i = 0; i < 8; ++i) {
+        if (a.buckets[i] < b.buckets[i]) return true;
+        if (a.buckets[i] > b.buckets[i]) return false;
+    }
+    return false;
+}
+
+bool operator>(const u512 &a, const u512 &b) {
+    for (s32 i = 0; i < 8; ++i) {
+        if (a.buckets[i] > b.buckets[i]) return true;
+        if (a.buckets[i] < b.buckets[i]) return false;
+    }
+    return false;
 }

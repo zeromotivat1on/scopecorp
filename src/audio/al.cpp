@@ -1,7 +1,8 @@
 #include "pch.h"
 #include "audio/al.h"
 #include "audio/alc.h"
-#include "audio/sound.h"
+#include "audio/au_sound.h"
+#include "audio/au_table.h"
 
 #include "math/vector.h"
 
@@ -33,7 +34,7 @@ void au_init_context() {
 	}
 }
 
-static s32 al_audio_format(s32 channel_count, s32 bit_rate) {
+static s32 to_al_audio_format(s32 channel_count, s32 bit_rate) {
 	if (channel_count == 1 && bit_rate == 8)       return AL_FORMAT_MONO8;
 	else if (channel_count == 1 && bit_rate == 16) return AL_FORMAT_MONO16;
 	else if (channel_count == 2 && bit_rate == 8)  return AL_FORMAT_STEREO8;
@@ -44,22 +45,30 @@ static s32 al_audio_format(s32 channel_count, s32 bit_rate) {
 	}
 }
 
-void init_sound_asset(Sound *sound, void *data) {
-    sound->audio_format = al_audio_format(sound->channel_count, sound->bit_rate);
+u16 au_create_sound(u16 ch_count, u16 bit_rate, u16 sample_rate, u32 data_size, void *data, u32 bits) {
+    Au_Sound sn;
+    sn.bits = bits;
+    sn.channel_count = ch_count;
+    sn.bit_rate = sn.bit_rate;
+    sn.sample_rate = sn.sample_rate;
+    sn.data_size = data_size;
+    sn.audio_format = to_al_audio_format(ch_count, bit_rate);
+    
+    // @Cleanup: loading big sounds like this is bad, stream in such case.
+	alGenBuffers(1, &sn.buffer);
+    alBufferData(sn.buffer, sn.audio_format, data, (ALsizei)data_size, sample_rate);
 
-    // @Cleanup: loading big sounds like that is bad, stream in such case.
-	alGenBuffers(1, &sound->buffer);
-    alBufferData(sound->buffer, sound->audio_format, data, (ALsizei)sound->data_size, sound->sample_rate);
-
-    alGenSources(1, &sound->source);
-	alSourcef(sound->source, AL_PITCH, 1);
-	alSourcef(sound->source, AL_GAIN, 1.0f);
-	alSource3f(sound->source, AL_POSITION, 0, 0, 0);
-	alSource3f(sound->source, AL_VELOCITY, 0, 0, 0);
-	alSourcei(sound->source, AL_LOOPING, sound->flags & SOUND_FLAG_LOOP);
-	alSourcei(sound->source, AL_BUFFER, sound->buffer);
+    alGenSources(1, &sn.source);
+	alSourcef(sn.source, AL_PITCH, 1);
+	alSourcef(sn.source, AL_GAIN, 1.0f);
+	alSource3f(sn.source, AL_POSITION, 0, 0, 0);
+	alSource3f(sn.source, AL_VELOCITY, 0, 0, 0);
+	alSourcei(sn.source, AL_LOOPING, bits & AU_LOOP_BIT);
+	alSourcei(sn.source, AL_BUFFER, sn.buffer);
 
     al_check_error();
+    
+    return add(Au_table.sounds, sn);
 }
 
 void au_set_listener_pos(vec3 pos) {
@@ -72,34 +81,34 @@ vec3 au_get_listener_pos() {
     return pos;
 }
 
-void au_play_sound(sid sid) {
-    const auto &sound = asset_table.sounds[sid];
-    alSourcePlay(sound.source);
+void au_play_sound(u16 sound) {
+    const auto &sn = Au_table.sounds[sound];
+    alSourcePlay(sn.source);
     al_check_error();
 }
 
-void au_play_sound_or_continue(sid sid) {
-    const auto &sound = asset_table.sounds[sid];
+void au_play_sound_or_continue(u16 sound) {
+    const auto &sn = Au_table.sounds[sound];
 
     s32 state;
-    alGetSourcei(sound.source, AL_SOURCE_STATE, &state);
+    alGetSourcei(sn.source, AL_SOURCE_STATE, &state);
     if (state != AL_PLAYING) {
-        alSourcePlay(sound.source);
+        alSourcePlay(sn.source);
     }
 
     al_check_error();
 }
 
-void au_play_sound_or_continue(sid sid, vec3 location) {
-    const auto &sound = asset_table.sounds[sid];
-    alSource3f(sound.source, AL_POSITION, location.x, location.y, location.z);
+void au_play_sound_or_continue(u16 sound, vec3 location) {
+    const auto &sn = Au_table.sounds[sound];
+    alSource3f(sn.source, AL_POSITION, location.x, location.y, location.z);
 
-    au_play_sound_or_continue(sid);
+    au_play_sound_or_continue(sound);
 }
 
-void au_stop_sound(sid sid) {
-    const auto &sound = asset_table.sounds[sid];
-    alSourceStop(sound.source);
+void au_stop_sound(u16 sound) {
+    const auto &sn = Au_table.sounds[sound];
+    alSourceStop(sn.source);
 
     al_check_error();
 }

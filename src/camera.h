@@ -33,7 +33,7 @@ struct Camera {
     mat4 view_proj;
 };
 
-struct Viewport;
+struct R_Viewport;
 
-void update_matrices(Camera *camera);
-void on_viewport_resize(Camera *camera, const Viewport *viewport);
+void update_matrices(Camera &camera);
+void on_viewport_resize(Camera &camera, const R_Viewport &viewport);

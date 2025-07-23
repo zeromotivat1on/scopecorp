@@ -6,17 +6,23 @@
 #include "profile.h"
 #include "asset.h"
 
-#include "render/viewport.h"
-#include "render/render_command.h"
-#include "render/render_stats.h"
-#include "render/buffer_storage.h"
-#include "render/geometry.h"
-#include "render/texture.h"
-#include "render/material.h"
-#include "render/uniform.h"
-#include "render/frame_buffer.h"
-#include "render/mesh.h"
+#include "render/render.h"
 #include "render/ui.h"
+#include "render/r_table.h"
+#include "render/r_command.h"
+#include "render/r_target.h"
+#include "render/r_pass.h"
+#include "render/r_stats.h"
+#include "render/r_storage.h"
+#include "render/r_viewport.h"
+#include "render/r_vertex_descriptor.h"
+#include "render/r_geo.h"
+#include "render/r_texture.h"
+#include "render/r_shader.h"
+#include "render/r_material.h"
+#include "render/r_uniform.h"
+#include "render/r_mesh.h"
+#include "render/r_flip_book.h"
 
 #include "editor/editor.h"
 
@@ -30,43 +36,64 @@
 
 #include "math/math_core.h"
 
-static Render_Command frame_buffer_command;
+void r_create_table(R_Table &t) {
+    t.targets   = Sparse_Array<R_Target>(t.MAX_TARGETS);
+    t.passes    = Sparse_Array<R_Pass>(t.MAX_PASSES);
+    t.textures  = Sparse_Array<R_Texture>(t.MAX_TEXTURES);
+    t.shaders   = Sparse_Array<R_Shader>(t.MAX_SHADERS);
+    t.uniforms  = Sparse_Array<R_Uniform>(t.MAX_UNIFORMS);
+    t.materials = Sparse_Array<R_Material>(t.MAX_MATERIALS);
+    t.meshes    = Sparse_Array<R_Mesh>(t.MAX_MESHES);
+    t.vertex_descriptors = Sparse_Array<R_Vertex_Descriptor>(t.MAX_VERTEX_DESCRIPTORS);
+    t.flip_books = Sparse_Array<R_Flip_Book>(t.MAX_FLIP_BOOKS);
+
+    // Add dummies at index 0.
+    add_default(t.targets);
+    add_default(t.passes);
+    add_default(t.textures);
+    add_default(t.shaders);
+    add_default(t.uniforms);
+    add_default(t.materials);
+    add_default(t.meshes);
+    add_default(t.vertex_descriptors);
+    add_default(t.flip_books);
+}
 
 void r_init_global_uniforms() {
     RID_UNIFORM_BUFFER = r_create_uniform_buffer(MAX_UNIFORM_BUFFER_SIZE);
         
-    constexpr s32 MAX_UNIFORM_LIGHTS = 64; // must be the same as in shaders
-    static_assert(MAX_UNIFORM_LIGHTS >= MAX_POINT_LIGHTS + MAX_DIRECT_LIGHTS);
+    constexpr u32 MAX_UNIFORM_LIGHTS = 64; // must be the same as in shaders
+    static_assert(MAX_UNIFORM_LIGHTS >= World.MAX_POINT_LIGHTS + World.MAX_DIRECT_LIGHTS);
 
     const Uniform_Block_Field camera_fields[] = {
-        { UNIFORM_F32_3,   1 },
-        { UNIFORM_F32_4X4, 1 },
-        { UNIFORM_F32_4X4, 1 },
-        { UNIFORM_F32_4X4, 1 },
+        { R_F32_3,   1 },
+        { R_F32_4X4, 1 },
+        { R_F32_4X4, 1 },
+        { R_F32_4X4, 1 },
     };
 
     const Uniform_Block_Field viewport_fields[] = {
-        { UNIFORM_F32_2,   1 },
-        { UNIFORM_F32_4X4, 1 },
+        { R_F32_2,   1 },
+        { R_F32_4X4, 1 },
     };
          
     const Uniform_Block_Field direct_light_fields[] = {
-        { UNIFORM_U32,   1 },
-        { UNIFORM_F32_3, MAX_DIRECT_LIGHTS },
-        { UNIFORM_F32_3, MAX_DIRECT_LIGHTS },
-        { UNIFORM_F32_3, MAX_DIRECT_LIGHTS },
-        { UNIFORM_F32_3, MAX_DIRECT_LIGHTS },
+        { R_U32,   1 },
+        { R_F32_3, World.MAX_DIRECT_LIGHTS },
+        { R_F32_3, World.MAX_DIRECT_LIGHTS },
+        { R_F32_3, World.MAX_DIRECT_LIGHTS },
+        { R_F32_3, World.MAX_DIRECT_LIGHTS },
     };
 
     const Uniform_Block_Field point_light_fields[] = {
-        { UNIFORM_U32,   1 },
-        { UNIFORM_F32_3, MAX_POINT_LIGHTS },
-        { UNIFORM_F32_3, MAX_POINT_LIGHTS },
-        { UNIFORM_F32_3, MAX_POINT_LIGHTS },
-        { UNIFORM_F32_3, MAX_POINT_LIGHTS },
-        { UNIFORM_F32,   MAX_POINT_LIGHTS },
-        { UNIFORM_F32,   MAX_POINT_LIGHTS },
-        { UNIFORM_F32,   MAX_POINT_LIGHTS },
+        { R_U32,   1 },
+        { R_F32_3, World.MAX_POINT_LIGHTS },
+        { R_F32_3, World.MAX_POINT_LIGHTS },
+        { R_F32_3, World.MAX_POINT_LIGHTS },
+        { R_F32_3, World.MAX_POINT_LIGHTS },
+        { R_F32,   World.MAX_POINT_LIGHTS },
+        { R_F32,   World.MAX_POINT_LIGHTS },
+        { R_F32,   World.MAX_POINT_LIGHTS },
     };
 
     r_add_uniform_block(RID_UNIFORM_BUFFER,
@@ -94,179 +121,138 @@ void r_init_global_uniforms() {
                         &uniform_block_point_lights);
 }
 
-void r_fb_submit_begin(const Frame_Buffer &frame_buffer) {
-    frame_buffer_command = {};
-    frame_buffer_command.flags = RENDER_FLAG_VIEWPORT | RENDER_FLAG_SCISSOR;
-    frame_buffer_command.viewport.x = 0;
-    frame_buffer_command.viewport.y = 0;
-    frame_buffer_command.viewport.width  = frame_buffer.width;
-    frame_buffer_command.viewport.height = frame_buffer.height;
-    frame_buffer_command.scissor.x = 0;
-    frame_buffer_command.scissor.y = 0;
-    frame_buffer_command.scissor.width  = frame_buffer.width;
-    frame_buffer_command.scissor.height = frame_buffer.height;
-    frame_buffer_command.rid_frame_buffer = frame_buffer.rid;
-    r_submit(&frame_buffer_command);
-
-    {   // Clear frame buffer.
-        Render_Command command = {};
-        command.flags = RENDER_FLAG_CLEAR;
-        command.clear.color = vec3_white;
-        command.clear.flags = CLEAR_FLAG_COLOR | CLEAR_FLAG_DEPTH | CLEAR_FLAG_STENCIL;
-        r_submit(&command);
-    }
-}
-
-void r_fb_submit_end(const Frame_Buffer &frame_buffer) {
-    frame_buffer_command.flags = RENDER_FLAG_RESET;
-    r_submit(&frame_buffer_command);
-
-    {   // Clear screen.
-        Render_Command command = {};
-        command.flags = RENDER_FLAG_CLEAR;
-        command.clear.color = vec3_black;
-        command.clear.flags = CLEAR_FLAG_COLOR;
-        r_submit(&command);
-    }
-
-    r_draw_frame_buffer(frame_buffer, 0);
-}
-
-void init_render_queue(Render_Queue *queue, s32 capacity) {
-    Assert(capacity <= MAX_RENDER_QUEUE_SIZE);
-    
-	queue->commands = allocltn(Render_Command, capacity);
-	queue->size     = 0;
-	queue->capacity = capacity;
-}
-
-void r_enqueue(Render_Queue *queue, const Render_Command *command) {
-	Assert(queue->size < MAX_RENDER_QUEUE_SIZE);
-    
-	const s32 index = queue->size++;
-	copy_bytes(queue->commands + index, command, sizeof(Render_Command));
-}
-
-void r_flush(Render_Queue *queue) {
-    PROFILE_SCOPE("flush_render_queue");
-    
-    for (s32 i = 0; i < queue->size; ++i) {
-        r_submit(queue->commands + i);
-    }
-
-	queue->size = 0;
-}
-
-void resize_viewport(Viewport *viewport, s16 width, s16 height) {
-	switch (viewport->aspect_type) {
+void r_resize_viewport(R_Viewport &viewport, u16 width, u16 height) {
+	switch (viewport.aspect_type) {
     case VIEWPORT_FILL_WINDOW:
-        viewport->width = width;
-		viewport->height = height;
+        viewport.width = width;
+		viewport.height = height;
         break;
 	case VIEWPORT_4X3:
-		viewport->width = width;
-		viewport->height = height;
+		viewport.width = width;
+		viewport.height = height;
 
 		if (width * 3 > height * 4) {
-			viewport->width = height * 4 / 3;
-			viewport->x = (width - viewport->width) / 2;
+			viewport.width = height * 4 / 3;
+			viewport.x = (width - viewport.width) / 2;
 		} else {
-			viewport->height = width * 3 / 4;
-			viewport->y = (height - viewport->height) / 2;
+			viewport.height = width * 3 / 4;
+			viewport.y = (height - viewport.height) / 2;
 		}
 
 		break;
 	default:
-		error("Failed to resize viewport with unknown aspect type %d", viewport->aspect_type);
+		error("Failed to resize viewport with unknown aspect type %d", viewport.aspect_type);
 		break;
 	}
 
-
-    const s16 fb_width  = (s16)((f32)viewport->width  * viewport->resolution_scale);
-    const s16 fb_height = (s16)((f32)viewport->height * viewport->resolution_scale);
+    const u16 r_width  = (u16)((f32)viewport.width  * viewport.resolution_scale);
+    const u16 r_height = (u16)((f32)viewport.height * viewport.resolution_scale);
     
-    r_recreate_frame_buffer(&viewport->frame_buffer, fb_width, fb_height);
-    log("Recreated viewport frame buffer %dx%d", fb_width, fb_height);
+    r_resize_render_target(viewport.render_target, r_width, r_height);
+    log("Resized viewport %dx%d", r_width, r_height);
 }
 
-void draw_world(const World *world) {
+void draw_world(const Game_World &world) {
     PROFILE_SCOPE(__FUNCTION__);
     
-	draw_entity(&world->skybox);
+	draw_entity(world.skybox);
 
-	For (world->static_meshes) {
-		draw_entity(&it);
+	For (world.static_meshes) {
+		draw_entity(it);
     }
     
-	draw_entity(&world->player);
+	draw_entity(world.player);
 }
 
-void draw_entity(const Entity *e) {
-    if (e->draw_data.sid_material == SID_NONE) return;
-
-    const auto &frame_buffer = viewport.frame_buffer;
-
-    Render_Command command = {};
-    command.flags = RENDER_FLAG_SCISSOR | RENDER_FLAG_BLEND | RENDER_FLAG_DEPTH | RENDER_FLAG_RESET;
-    command.render_mode  = RENDER_TRIANGLES;
-    command.polygon_mode = game_state.polygon_mode;
-    command.scissor.x      = 0;
-    command.scissor.y      = 0;
-    command.scissor.width  = frame_buffer.width;
-    command.scissor.height = frame_buffer.height;
-    command.cull_face.type    = CULL_FACE_BACK;
-    command.cull_face.winding = WINDING_COUNTER_CLOCKWISE;
-    command.blend.source      = BLEND_SOURCE_ALPHA;
-    command.blend.destination = BLEND_ONE_MINUS_SOURCE_ALPHA;
-    command.depth.function = DEPTH_LESS;
-    command.depth.mask     = DEPTH_ENABLE;
-    command.stencil.operation.stencil_failed = STENCIL_KEEP;
-    command.stencil.operation.depth_failed   = STENCIL_KEEP;
-    command.stencil.operation.both_passed    = STENCIL_REPLACE;
-    command.stencil.function.type       = STENCIL_ALWAYS;
-    command.stencil.function.comparator = 1;
-    command.stencil.function.mask       = 0xFF;
-    command.stencil.mask = 0x00;
-
-    const auto *mesh = find(asset_table.meshes, e->draw_data.sid_mesh);
-    if (!mesh) return;
+static R_Sort_Key entity_sort_key(const Entity &e) {
+    R_Sort_Key sort_key;
     
-    command.rid_vertex_array = mesh->rid_vertex_array;
-
-    if (mesh->index_count > 0) {
-        command.flags |= RENDER_FLAG_INDEXED;
-        command.buffer_element_count = mesh->index_count;
-        command.buffer_element_offset = mesh->index_data_offset;
+    if (e.type == E_SKYBOX) {
+        // Draw skybox at the very end.
+        sort_key.depth = U32_MAX;
     } else {
-        command.buffer_element_count = mesh->vertex_count;
-        command.buffer_element_offset = 0;
+        const auto &camera = active_camera(World);
+        const f32 dsqr = (e.location - camera.eye).length_sqr();
+
+        u32 depth = 0;
+        mem_copy(&depth, &dsqr, sizeof(depth));
+
+        sort_key.depth = depth;
+    }
+
+    if (e.type == E_PLAYER) {
+        // @Cleanup @Temp: only player has translucency.
+        sort_key.translucency = R_NORM_TRANSLUCENT;
+    } else {
+        sort_key.translucency = R_OPAQUE;
     }
     
-    const auto *material = find(asset_table.materials, e->draw_data.sid_material);
-    if (!material) return;
+    return sort_key;
+}
+
+void draw_entity(const Entity &e) {
+    if (e.draw_data.sid_material == SID_NONE) return;
+    if (e.draw_data.sid_mesh == SID_NONE)     return;
+
+    const auto *mh = find_mesh(e.draw_data.sid_mesh);
+    const auto *mt = find_material(e.draw_data.sid_material);
+
+    if (mh == null || mt == null) return;
     
-    command.sid_material = e->draw_data.sid_material;
+    // @Todo: outline mouse picked entity as before.
     
+    const bool mouse_picked = e.bits & E_MOUSE_PICKED_BIT;
+    
+    R_Command cmd;
+    cmd.mode = mouse_picked ? R_LINES : R_TRIANGLES;
+    cmd.shader = mt->shader;
+    cmd.texture = mt->texture;
+    cmd.uniform_count = mt->uniform_count;
+    cmd.uniforms = mt->uniforms;
+    cmd.vertex_desc = mh->vertex_descriptor;
+    
+    if (mh->index_count > 0) {
+        cmd.bits |= R_CMD_INDEXED_BIT;
+        cmd.first = mh->first_index;
+        cmd.count = mh->index_count;
+    } else {
+        cmd.first = 0;
+        cmd.count = mh->vertex_count;
+    }
+    
+#if DEVELOPER
+    cmd.eid_offset = e.draw_data.eid_offset;
+#endif
+
+    if (mouse_picked) {
+        r_geo_cross(e.location, 0.5f);
+    }
+
+    r_add(R_command_list, cmd, entity_sort_key(e));
+    
+    /*
     if (e->flags & ENTITY_FLAG_SELECTED_IN_EDITOR) {
         command.flags &= ~RENDER_FLAG_CULL_FACE;
         command.flags |= RENDER_FLAG_STENCIL;
+        command.stencil.operation.stencil_failed = R_KEEP;
+        command.stencil.operation.depth_failed   = R_KEEP;
+        command.stencil.operation.both_passed    = R_REPLACE;
+        command.stencil.function.type       = R_ALWAYS;
+        command.stencil.function.comparator = 1;
+        command.stencil.function.mask       = 0xFF;
         command.stencil.mask = 0xFF;
 
         geo_draw_cross(e->location, 0.5f);
     }
 
-    command.eid_vertex_data_offset = e->draw_data.eid_vertex_data_offset;
-    
-	r_enqueue(&entity_render_queue, &command);
-
     if (e->flags & ENTITY_FLAG_SELECTED_IN_EDITOR) { // draw outline
         command.flags &= ~RENDER_FLAG_DEPTH;
         command.flags &= ~RENDER_FLAG_CULL_FACE;
-        command.stencil.function.type       = STENCIL_NOT_EQUAL;
+        command.stencil.function.type       = R_NEQUAL;
         command.stencil.function.comparator = 1;
         command.stencil.function.mask       = 0xFF;
         command.stencil.mask                = 0x00;
-
+        
         const auto *camera = desired_camera(world);
         const u32 color = rgba_yellow;
         const mat4 mvp = mat4_transform(e->location, e->rotation, e->scale * 1.02f) * camera->view_proj;
@@ -279,39 +265,41 @@ void draw_entity(const Entity *e) {
         
         r_enqueue(&entity_render_queue, &command);
     }
+    */
 }
 
-void geo_init() {    
-    constexpr u32 location_buffer_size = MAX_GEOMETRY_VERTEX_COUNT * sizeof(vec3);
-    constexpr u32 color_buffer_size    = MAX_GEOMETRY_VERTEX_COUNT * sizeof(u32);
+void r_geo_init() {
+    constexpr u32 location_buffer_size = R_geo.MAX_VERTICES * sizeof(vec3);
+    constexpr u32 color_buffer_size    = R_geo.MAX_VERTICES * sizeof(u32);
 
-    const u32 location_buffer_offset  = vertex_buffer_storage.size;
+    const u32 location_buffer_offset  = R_vertex_map_range.offset + R_vertex_map_range.size;
     const u32 color_buffer_offset     = location_buffer_offset + location_buffer_size;
 
-    auto &gdb = geo_draw_buffer;
-    gdb.locations  = (vec3 *)r_allocv(location_buffer_size); 
-    gdb.colors     = (u32  *)r_allocv(color_buffer_size);
-    gdb.vertex_count = 0;
+    R_geo.locations  = (vec3 *)r_alloc(R_vertex_map_range, location_buffer_size).data;
+    R_geo.colors     = (u32  *)r_alloc(R_vertex_map_range, color_buffer_size).data;
+    R_geo.vertex_count = 0;
     
-    Vertex_Array_Binding bindings[2] = {};
+    R_Vertex_Binding bindings[2] = {};
     bindings[0].binding_index = 0;
-    bindings[0].data_offset = location_buffer_offset;
-    bindings[0].layout_size = 1;
-    bindings[0].layout[0] = { VERTEX_F32_3, 0 };
+    bindings[0].offset = location_buffer_offset;
+    bindings[0].component_count = 1;
+    bindings[0].components[0] = { R_F32_3, 0 };
 
     bindings[1].binding_index = 1;
-    bindings[1].data_offset = color_buffer_offset;
-    bindings[1].layout_size = 1;
-    bindings[1].layout[0] = { VERTEX_U32, 0 };
+    bindings[1].offset = color_buffer_offset;
+    bindings[1].component_count = 1;
+    bindings[1].components[0] = { R_U32, 0 };
     
-    gdb.rid_vertex_array = r_create_vertex_array(bindings, COUNT(bindings));
-    gdb.sid_material = SID_MATERIAL_GEOMETRY;
+    R_geo.vertex_descriptor = r_create_vertex_descriptor(COUNT(bindings), bindings);
+    R_geo.sid_material = SID_MATERIAL_GEOMETRY;
+
+    r_create_command_list(R_geo.MAX_COMMANDS, R_geo.command_list);
 }
 
-void geo_draw_line(vec3 start, vec3 end, u32 color) {
-    Assert(geo_draw_buffer.vertex_count + 2 <= MAX_GEOMETRY_VERTEX_COUNT);
+void r_geo_line(vec3 start, vec3 end, u32 color) {
+    Assert(R_geo.vertex_count + 2 <= R_geo.MAX_VERTICES);
 
-    auto &gdb = geo_draw_buffer;
+    auto &gdb = R_geo;
 
     vec3 *vl = gdb.locations + gdb.vertex_count;
     u32  *vc = gdb.colors    + gdb.vertex_count;
@@ -324,7 +312,7 @@ void geo_draw_line(vec3 start, vec3 end, u32 color) {
     gdb.vertex_count += 2;
 }
 
-void geo_draw_arrow(vec3 start, vec3 end, u32 color) {
+void r_geo_arrow(vec3 start, vec3 end, u32 color) {
     static const f32 size = 0.04f;
     static const f32 arrow_step = 30.0f; // In degrees
     static const f32 arrow_sin[45] = {
@@ -340,7 +328,7 @@ void geo_draw_arrow(vec3 start, vec3 end, u32 color) {
         0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f
     };
 
-    geo_draw_line(start, end, color);
+    r_geo_line(start, end, color);
 
     vec3 forward = normalize(end - start);
 	const vec3 right = Abs(forward.y) > 1.0f - F32_EPSILON
@@ -366,26 +354,26 @@ void geo_draw_arrow(vec3 start, vec3 end, u32 color) {
         scale = 0.5f * size * arrow_sin[i + 1];
         v2 += up * scale;
 
-        geo_draw_line(v1, end, color);
-        geo_draw_line(v1, v2,  color);
+        r_geo_line(v1, end, color);
+        r_geo_line(v1, v2,  color);
     }
 }
 
-void geo_draw_cross(vec3 location, f32 size) {
-    geo_draw_arrow(location, location + vec3_up * size,      rgba_blue);
-    geo_draw_arrow(location, location + vec3_right * size,   rgba_green);
-    geo_draw_arrow(location, location + vec3_forward * size, rgba_red);
+void r_geo_cross(vec3 location, f32 size) {
+    r_geo_arrow(location, location + vec3_up * size,      rgba_blue);
+    r_geo_arrow(location, location + vec3_right * size,   rgba_green);
+    r_geo_arrow(location, location + vec3_forward * size, rgba_red);
 }
 
-void geo_draw_box(const vec3 points[8], u32 color) {
+void r_geo_box(const vec3 points[8], u32 color) {
     for (int i = 0; i < 4; ++i) {
-        geo_draw_line(points[i],     points[(i + 1) % 4],       color);
-        geo_draw_line(points[i + 4], points[((i + 1) % 4) + 4], color);
-        geo_draw_line(points[i],     points[i + 4],             color);
+        r_geo_line(points[i],     points[(i + 1) % 4],       color);
+        r_geo_line(points[i + 4], points[((i + 1) % 4) + 4], color);
+        r_geo_line(points[i],     points[i + 4],             color);
     }
 }
 
-void geo_draw_aabb(const AABB &aabb, u32 color) {
+void r_geo_aabb(const AABB &aabb, u32 color) {
     const vec3 bb[2] = { aabb.min, aabb.max };
     vec3 points[8];
 
@@ -395,178 +383,155 @@ void geo_draw_aabb(const AABB &aabb, u32 color) {
         points[i].z = bb[(i >> 2) % 2].z;
     }
 
-    geo_draw_box(points, color);
+    r_geo_box(points, color);
 }
 
-void geo_draw_ray(const Ray &ray, f32 length, u32 color) {
+void r_geo_ray(const Ray &ray, f32 length, u32 color) {
     const vec3 start = ray.origin;
     const vec3 end   = ray.origin + ray.direction * length;
-    geo_draw_line(start, end, color);
+    r_geo_line(start, end, color);
 }
 
-void geo_flush() {
+void r_geo_flush() {
     PROFILE_SCOPE(__FUNCTION__);
 
-    auto &gdb = geo_draw_buffer;
-    
-    if (gdb.vertex_count == 0) return;
+    if (R_geo.vertex_count == 0) return;
 
-    const auto &frame_buffer = viewport.frame_buffer;
-        
-    Render_Command command = {};
-    command.flags = RENDER_FLAG_SCISSOR | RENDER_FLAG_CULL_FACE | RENDER_FLAG_RESET;
-    command.render_mode  = RENDER_LINES;
-    command.polygon_mode = POLYGON_FILL;
-    command.scissor.x      = 0;
-    command.scissor.y      = 0;
-    command.scissor.width  = frame_buffer.width;
-    command.scissor.height = frame_buffer.height;
-    command.cull_face.type    = CULL_FACE_BACK;
-    command.cull_face.winding = WINDING_COUNTER_CLOCKWISE;
-    command.depth.function = DEPTH_LESS;
-    command.depth.mask     = DEPTH_ENABLE;
-
-    command.rid_vertex_array = gdb.rid_vertex_array;
-    command.sid_material = gdb.sid_material;
-    command.buffer_element_count  = gdb.vertex_count;
-    command.buffer_element_offset = 0;
-    command.instance_count  = 1;
-    command.instance_offset = 0;
+    const auto &mt = *find_material(R_geo.sid_material);
     
-    r_submit(&command);
+    R_Command cmd = {};
+    cmd.mode = R_LINES;
+    cmd.shader = mt.shader;
+    cmd.texture = mt.texture;
+    cmd.uniform_count = mt.uniform_count;
+    cmd.uniforms = mt.uniforms;
+    cmd.vertex_desc = R_geo.vertex_descriptor;
+    cmd.first = 0;
+    cmd.count = R_geo.vertex_count;
+    cmd.base_instance  = 0;
+    cmd.instance_count = 1;
     
-    gdb.vertex_count = 0;
+    r_add(R_geo.command_list, cmd);
+    
+    r_submit(R_geo.command_list);
+    
+    R_geo.vertex_count = 0;
 }
 
-void r_init_buffer_storages() {
-    const u32 storage_flags = R_FLAG_STORAGE_DYNAMIC | R_FLAG_MAP_WRITE | R_FLAG_MAP_PERSISTENT | R_FLAG_MAP_COHERENT;
-    const u32 map_flags = R_FLAG_MAP_WRITE | R_FLAG_MAP_PERSISTENT | R_FLAG_MAP_COHERENT;
-    
-    vertex_buffer_storage.rid = r_create_storage(null, MAX_VERTEX_STORAGE_SIZE, storage_flags);
-    vertex_buffer_storage.size = 0;
-    vertex_buffer_storage.capacity = MAX_VERTEX_STORAGE_SIZE;
-    vertex_buffer_storage.mapped_data = r_map_buffer(vertex_buffer_storage.rid, 0, MAX_VERTEX_STORAGE_SIZE, map_flags);
+u16 r_create_mesh(u16 vertex_descriptor, u32 vertex_count, u32 first_index, u32 index_count) {
+    R_Mesh mh;
+    mh.vertex_descriptor = vertex_descriptor;
+    mh.vertex_count = vertex_count;
+    mh.first_index = first_index;
+    mh.index_count = index_count;
 
-    index_buffer_storage.rid = r_create_storage(null, MAX_INDEX_STORAGE_SIZE, storage_flags);
-    index_buffer_storage.size = 0;
-    index_buffer_storage.capacity = MAX_INDEX_STORAGE_SIZE;
-    index_buffer_storage.mapped_data = r_map_buffer(index_buffer_storage.rid, 0, MAX_INDEX_STORAGE_SIZE, map_flags);
-
-#if DEVELOPER
-    EID_VERTEX_DATA_OFFSET = vertex_buffer_storage.size;
-    EID_VERTEX_DATA_SIZE   = 0;
-    EID_VERTEX_DATA = r_allocv(MAX_EID_VERTEX_DATA_SIZE);
-#endif
+    return add(R_table.meshes, mh);
 }
 
-void *r_allocv(u32 size) {
-    auto &vbs = vertex_buffer_storage;
-    
-    void *data = (u8 *)vbs.mapped_data + vbs.size;
-    vbs.size += size;
-    Assert(vbs.size <= MAX_VERTEX_STORAGE_SIZE);
-    
-    return data;
-}
-
-void *r_alloci(u32 size) {
-    auto &ibs = index_buffer_storage;
-    
-    void *data = (u8 *)ibs.mapped_data + ibs.size;
-    ibs.size += size;
-    Assert(ibs.size <= MAX_INDEX_STORAGE_SIZE);
-    
-    return data;
-}
-
-void cache_uniform_value_on_cpu(Uniform *uniform, const void *data, u32 data_size, u32 data_offset) {
-    const u32 max_size = uniform->count * get_uniform_type_size(uniform->type);
-    Assert(data_size + data_offset <= max_size);
+u16 r_create_uniform(sid name, u16 type, u16 count) {
+    R_Uniform un;
+    un.name = name;
+    un.type = type;
+    un.count = count;
+    un.size = count * r_uniform_type_size(type);
 
     auto &cache = uniform_value_cache;
-    Assert(cache.size + data_size + data_offset <= MAX_UNIFORM_VALUE_CACHE_SIZE);
-    
-    if (uniform->value_offset < MAX_UNIFORM_VALUE_CACHE_SIZE) {
-        // Just update specified uniform value part if it was cached before.
-        copy_bytes((u8 *)cache.data + uniform->value_offset + data_offset, data, data_size);
-    } else {
-        // Actually cache uniform value in global uniform value cache.
-        uniform->value_offset = cache.size;
-        copy_bytes((u8 *)cache.data + uniform->value_offset + data_offset, data, data_size);
-        cache.size += data_size + data_offset;
-    }
+    Assert(cache.size + un.size <= MAX_UNIFORM_VALUE_CACHE_SIZE);
+
+    un.offset = cache.size;
+    cache.size += un.size;
+
+    return add(R_table.uniforms, un);
 }
 
-u32 get_uniform_type_size(Uniform_Type type) {
-    switch (type) {
-	case UNIFORM_U32:     return 1  * sizeof(u32);
-	case UNIFORM_F32:     return 1  * sizeof(f32);
-	case UNIFORM_F32_2:   return 2  * sizeof(f32);
-	case UNIFORM_F32_3:   return 3  * sizeof(f32);
-	case UNIFORM_F32_4:   return 4  * sizeof(f32);
-	case UNIFORM_F32_4X4: return 16 * sizeof(f32);
-    default:
-        error("Failed to get uniform size from type %d", type);
-        return 0;
-    }
+void r_set_uniform(u16 uniform, u32 offset, u32 size, const void *data) {
+    auto &un = R_table.uniforms[uniform];
+    Assert(offset + size <= un.size);
+
+    auto &cache = uniform_value_cache;
+    mem_copy((u8 *)cache.data + un.offset + offset, data, size);
 }
 
-u32 get_uniform_type_dimension(Uniform_Type type) {
-    switch (type) {
-	case UNIFORM_U32:     return 1;
-	case UNIFORM_F32:     return 1;
-	case UNIFORM_F32_2:   return 2;
-	case UNIFORM_F32_3:   return 3;
-	case UNIFORM_F32_4:   return 4;
-	case UNIFORM_F32_4X4: return 16;
-    default:
-        error("Failed to get uniform size from type %d", type);
-        return 0;
-    }
+u16 r_create_material(u16 shader, u16 texture, R_Light_Params lparams, u16 ucount, const u16 *uniforms) {
+    Assert(ucount <= R_Material::MAX_UNIFORMS);
+
+    R_Material mt;
+    mt.shader = shader;
+    mt.texture = texture;
+    mt.light_params = lparams;
+    mt.uniform_count = ucount;
+    mem_copy(mt.uniforms, uniforms, ucount * sizeof(uniforms[0]));
+
+    return add(R_table.materials, mt);
 }
 
-u32 get_uniform_block_field_size(const Uniform_Block_Field &field) {
-    return get_uniform_type_size(field.type) * field.count;
-}
-
-void set_material_uniform_value(Material *material, const char *uniform_name, const void *data, u32 size, u32 offset) {
-    Uniform *uniform = null;
-    for (s32 i = 0; i < material->uniform_count; ++i) {
-        auto &u = material->uniforms[i];
-        if (str_cmp(u.name, uniform_name)) {
-            uniform = &u;
+void r_set_material_uniform(u16 material, sid name, u32 offset, u32 size, const void *data) {
+    const auto &mt = R_table.materials[material];
+    for (u16 i = 0; i < mt.uniform_count; ++i) {
+        const u16 uniform = mt.uniforms[i];
+        const auto &un = R_table.uniforms[uniform];
+        if (name == un.name) {
+            r_set_uniform(uniform, offset, size, data);
             break;
         }
-	}
-
-    if (!uniform) return;
-
-    cache_uniform_value_on_cpu(uniform, data, size, offset);
+    }
 }
 
-s32 get_vertex_component_dimension(Vertex_Component_Type type) {
+u32 r_uniform_type_size(u16 type) {
+    switch (type) {
+	case R_U32:     return 1  * sizeof(u32);
+	case R_F32:     return 1  * sizeof(f32);
+	case R_F32_2:   return 2  * sizeof(f32);
+	case R_F32_3:   return 3  * sizeof(f32);
+	case R_F32_4:   return 4  * sizeof(f32);
+	case R_F32_4X4: return 16 * sizeof(f32);
+    default:
+        error("Failed to get uniform size from type %d", type);
+        return 0;
+    }
+}
+
+u32 r_uniform_type_dimension(u16 type) {
+    switch (type) {
+	case R_U32:     return 1;
+	case R_F32:     return 1;
+	case R_F32_2:   return 2;
+	case R_F32_3:   return 3;
+	case R_F32_4:   return 4;
+	case R_F32_4X4: return 16;
+    default:
+        error("Failed to get uniform size from type %d", type);
+        return 0;
+    }
+}
+
+u32 r_uniform_block_field_size(const Uniform_Block_Field &field) {
+    return r_uniform_type_size(field.type) * field.count;
+}
+
+u16 r_vertex_component_dimension(u16 type) {
 	switch (type) {
-	case VERTEX_S32:   return 1;
-	case VERTEX_U32:   return 1;
-	case VERTEX_F32_2: return 2;
-	case VERTEX_F32_3: return 3;
-	case VERTEX_F32_4: return 4;
+	case R_S32:   return 1;
+	case R_U32:   return 1;
+	case R_F32_2: return 2;
+	case R_F32_3: return 3;
+	case R_F32_4: return 4;
 	default:
-		error("Failed to retreive dimension from unknown vertex attribute type %d", type);
-		return -1;
+		error("Failed to get dimension from unknown vertex component type %d", type);
+		return 0;
 	}
 }
 
-s32 get_vertex_component_size(Vertex_Component_Type type) {
+u16 r_vertex_component_size(u16 type) {
 	switch (type) {
-    case VERTEX_S32:   return 1 * sizeof(s32);
-    case VERTEX_U32:   return 1 * sizeof(u32);
-	case VERTEX_F32_2: return 2 * sizeof(f32);
-	case VERTEX_F32_3: return 3 * sizeof(f32);
-	case VERTEX_F32_4: return 4 * sizeof(f32);
+    case R_S32:   return 1 * sizeof(s32);
+    case R_U32:   return 1 * sizeof(u32);
+	case R_F32_2: return 2 * sizeof(f32);
+	case R_F32_3: return 3 * sizeof(f32);
+	case R_F32_4: return 4 * sizeof(f32);
 	default:
-		error("Failed to retreive size from unknown vertex attribute type %d", type);
-		return -1;
+		error("Failed to get size from unknown vertex component type %d", type);
+		return 0;
 	}
 }
 
@@ -595,98 +560,160 @@ void update_render_stats() {
     }
 }
 
-Texture_Format_Type get_texture_format_from_channel_count(s32 channel_count) {
+u32 get_texture_format_from_channel_count(u32 channel_count) {
     switch (channel_count) {
-    case 3: return TEXTURE_FORMAT_RGB_8;
-    case 4: return TEXTURE_FORMAT_RGBA_8;
+    case 3: return R_RGB_8;
+    case 4: return R_RGBA_8;
     default:
-        error("Not really handled case for texture channel count %d, using %d texture format", channel_count, TEXTURE_FORMAT_RGBA_8);
-        return TEXTURE_FORMAT_RGBA_8;
+        constexpr u32 default_format = R_RGBA_8;
+        error("%s: Using default texture format %u as texture channel count = %d", __func__, default_format, channel_count);
+        return default_format;
     }
-}
-
-void init_texture_asset(Texture *texture, void *data) {
-    if (texture->rid == RID_NONE) {
-        texture->rid = r_create_texture(texture->type, texture->format, texture->width, texture->height, data);
-    } else {
-        r_set_texture_data(texture->rid, texture->type, texture->format, texture->width, texture->height, data);
-    }
-}
-
-void set_texture_wrap(Texture *texture, Texture_Wrap_Type wrap) {
-    texture->wrap = wrap;
-    r_set_texture_wrap(texture->rid, wrap);
-}
-
-void set_texture_filter(Texture *texture, Texture_Filter_Type filter) {
-    texture->filter = filter;
-
-    const bool has_mipmaps = texture->flags & TEXTURE_FLAG_HAS_MIPMAPS;
-    r_set_texture_filter(texture->rid, filter, has_mipmaps);
-}
-
-void generate_texture_mipmaps(Texture *texture) {
-    texture->flags |= TEXTURE_FLAG_HAS_MIPMAPS;
-    r_generate_texture_mipmaps(texture->rid);
-}
-
-void delete_texture(Texture *texture) {
-    r_delete_texture(texture->rid);
-    texture->rid = RID_NONE;
 }
 
 static For_Result cb_draw_aabb(Entity *e, void *user_data) {
-    auto *aabb = find(world->aabbs, e->aabb_index);
+    auto *aabb = find(World.aabbs, e->aabb_index);
     if (aabb) {
         u32 aabb_color = rgba_black;
         switch (e->type) {
-        case ENTITY_PLAYER:
-        case ENTITY_STATIC_MESH: {
+        case E_PLAYER:
+        case E_STATIC_MESH: {
             aabb_color = rgba_red;
             break;
         }
-        case ENTITY_SOUND_EMITTER_2D:
-        case ENTITY_SOUND_EMITTER_3D: {
+        case E_SOUND_EMITTER_2D:
+        case E_SOUND_EMITTER_3D: {
             aabb_color = rgba_blue;
             break;
         }
-        case ENTITY_PORTAL: {
+        case E_PORTAL: {
             aabb_color = rgba_purple;
             break;
         }
-        case ENTITY_DIRECT_LIGHT:
-        case ENTITY_POINT_LIGHT: {
+        case E_DIRECT_LIGHT:
+        case E_POINT_LIGHT: {
             aabb_color = rgba_white;
             break;
         }
         }
         
-        geo_draw_aabb(*aabb, aabb_color);
+        r_geo_aabb(*aabb, aabb_color);
     }
 
     return CONTINUE;
 };
 
-void draw_geo_debug() {
-    const auto &player = world->player;
+void r_geo_debug() {
+    const auto &player = World.player;
 
     if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
         const vec3 center = player.location + vec3(0.0f, player.scale.y * 0.5f, 0.0f);
-        geo_draw_arrow(center, center + normalize(player.velocity) * 0.5f, rgba_red);
+        r_geo_arrow(center, center + normalize(player.velocity) * 0.5f, rgba_red);
     }
     
     if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
-        for_each_entity(world, cb_draw_aabb);
+        for_each_entity(World, cb_draw_aabb);
 
-        if (editor.mouse_picked_entity) {
-            const auto *e = editor.mouse_picked_entity;
+        if (Editor.mouse_picked_entity) {
+            const auto *e = Editor.mouse_picked_entity;
             const u32 mouse_picked_color = rgba_yellow;
-            geo_draw_aabb(world->aabbs[e->aabb_index], mouse_picked_color);
+            r_geo_aabb(World.aabbs[e->aabb_index], mouse_picked_color);
         }
         
         if (player.collide_aabb_index != INVALID_INDEX) {
-            geo_draw_aabb(world->aabbs[player.aabb_index],         rgba_green);
-            geo_draw_aabb(world->aabbs[player.collide_aabb_index], rgba_green);
+            r_geo_aabb(World.aabbs[player.aabb_index],         rgba_green);
+            r_geo_aabb(World.aabbs[player.collide_aabb_index], rgba_green);
         }
     }
+}
+
+void r_add(R_Command_List &list, const R_Command &cmd, R_Sort_Key sort_key) {
+    Assert(list.count < list.capacity);
+    
+    list.queued[list.count] = R_Command_List::Queued { sort_key, cmd };
+    list.count += 1;
+}
+
+R_Alloc_Range r_alloc(R_Map_Range &map, u32 size) {
+    Assert(map.size + size <= map.capacity);
+
+    R_Alloc_Range alloc;
+    alloc.map = &map;
+    alloc.offset = map.size;
+    alloc.size = 0;
+    alloc.capacity = size;
+    alloc.data = (u8 *)map.data + map.size;
+
+    map.size += size;
+    
+    return alloc;
+}
+
+void *r_alloc(R_Alloc_Range &alloc, u32 size) {
+    Assert(alloc.size + size <= alloc.capacity);
+
+    void *data = (u8 *)alloc.data + alloc.size;
+    alloc.size += size;
+
+    return data;
+}
+
+u32 head_pointer(R_Alloc_Range &alloc) {
+    return alloc.size + alloc.offset + alloc.map->offset;
+}
+
+u16 r_channel_count_from_format(u16 format) {
+    switch (format) {
+    case R_RED_32: return 1;
+    case R_RGB_8:  return 3;
+    case R_RGBA_8: return 4;
+    default: return 0;
+    }
+}
+
+u16 r_format_from_channel_count(u16 count) {
+    switch (count) {
+    case 1: return R_RED_32;
+    case 3: return R_RGB_8;
+    case 4: return R_RGBA_8;
+    default: return 0;
+    }
+}
+
+u16 r_create_flip_book(u32 count, const u16 *textures, f32 next_frame_time) {
+    R_Flip_Book fp;
+    fp.frame_count = count;
+    fp.next_frame_time = next_frame_time;
+
+    for (u32 i = 0; i < count; ++i) {
+        fp.frames[i] = R_Flip_Book::Frame { textures[i] };
+    }
+
+    return add(R_table.flip_books, fp);
+}
+
+R_Flip_Book::Frame &r_get_current_flip_book_frame(u16 flip_book) {
+    auto &fp = R_table.flip_books[flip_book];
+	Assert(fp.current_frame_index < fp.frame_count);
+	return fp.frames[fp.current_frame_index];
+}
+
+R_Flip_Book::Frame &r_advance_flip_book_frame(u16 flip_book) {
+    auto &fp = R_table.flip_books[flip_book];
+	Assert(fp.current_frame_index < fp.frame_count);
+
+    auto &frame = fp.frames[fp.current_frame_index];
+	fp.current_frame_index = (fp.current_frame_index + 1) % fp.frame_count;
+    
+	return frame;
+}
+
+void r_tick_flip_book(u16 flip_book, f32 dt) {
+    auto &fp = R_table.flip_books[flip_book];
+	fp.frame_time += dt;
+    
+	if (fp.frame_time > fp.next_frame_time) {
+		r_advance_flip_book_frame(flip_book);
+		fp.frame_time = 0.0f;
+	}
 }

@@ -19,7 +19,7 @@ void sid_init() {
     sid_table = Sid_Table(MAX_SID_TABLE_SIZE);
     sid_table.hash_function = &sid_table_hash;
 
-    sid_buffer = (char *)allocl(MAX_SID_BUFFER_SIZE);
+    sid_buffer = (char *)allocp(MAX_SID_BUFFER_SIZE);
 }
 
 sid sid_intern(const char *string) {
@@ -29,7 +29,7 @@ sid sid_intern(const char *string) {
         Assert(size + sid_buffer_size < MAX_SID_BUFFER_SIZE);
 
         char *destination = sid_buffer + sid_buffer_size;
-        copy_bytes(destination, string, size);
+        mem_copy(destination, string, size);
         add(sid_table, hash, (const char *)destination);
         
         sid_buffer_size += size;

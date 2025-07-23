@@ -35,7 +35,7 @@ struct Game_State {
 	Camera_Behavior camera_behavior = FOLLOW_PLAYER;
 	Player_Movement_Behavior player_movement_behavior = MOVE_RELATIVE_TO_CAMERA;
     Property_Change_Type selected_entity_property_to_change = PROPERTY_LOCATION;
-    Polygon_Mode polygon_mode = (Polygon_Mode)0;
+    u32 polygon_mode = R_FILL;
 };
 
 struct Window_Event;
@@ -43,7 +43,7 @@ struct Window_Event;
 inline Game_State game_state;
 
 void on_window_resize(s16 width, s16 height);
-void on_input_game(Window_Event *event);
+void on_input_game(const Window_Event *event);
 void tick_game(f32 dt);
 
 const char *to_string(Game_Mode mode);

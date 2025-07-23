@@ -21,7 +21,7 @@ mat2::mat2(f32 xx, f32 xy, f32 yx, f32 yy) {
 }
 
 mat2::mat2(const f32 src[2][2]) {
-	copy_bytes(mat, src, 2 * 2 * sizeof(f32));
+	mem_copy(mat, src, 2 * 2 * sizeof(f32));
 }
 
 const vec2 &mat2::operator[](s32 index) const {
@@ -120,7 +120,7 @@ bool mat2::equal(const mat2 &a, f32 epsilon) const {
 }
 
 mat2 &mat2::zero() {
-	set_bytes(mat, 0, sizeof(mat2));
+	mem_set(mat, 0, sizeof(mat2));
 	return *this;
 }
 
@@ -152,7 +152,7 @@ mat2 mat2::transpose_copy() const {
 }
 
 mat2 &mat2::transpose() {
-	swap(mat[0][1], mat[1][0]);
+	mem_swap(&mat[0][1], &mat[1][0], sizeof(f32));
 	return *this;
 }
 
@@ -186,7 +186,7 @@ mat3::mat3(f32 xx, f32 xy, f32 xz, f32 yx, f32 yy, f32 yz, f32 zx, f32 zy, f32 z
 }
 
 mat3::mat3(const f32 src[3][3]) {
-	copy_bytes(mat, src, 3 * 3 * sizeof(f32));
+	mem_copy(mat, src, 3 * 3 * sizeof(f32));
 }
 
 const vec3 &mat3::operator[](s32 index) const {
@@ -306,7 +306,7 @@ bool mat3::equal(const mat3 &a, f32 epsilon) const {
 }
 
 mat3 &mat3::zero() {
-	set_bytes(mat, 0, sizeof(mat3));
+	mem_set(mat, 0, sizeof(mat3));
 	return *this;
 }
 
@@ -351,9 +351,9 @@ mat3 mat3::transpose_copy() const {
 }
 
 mat3 &mat3::transpose() {
-	swap(mat[0][1], mat[1][0]);
-	swap(mat[0][2], mat[2][0]);
-	swap(mat[1][2], mat[2][1]);
+	mem_swap(&mat[0][1], &mat[1][0], sizeof(f32));
+    mem_swap(&mat[0][2], &mat[2][0], sizeof(f32));
+    mem_swap(&mat[1][2], &mat[2][1], sizeof(f32));
 	return *this;
 }
 
@@ -421,11 +421,11 @@ mat4::mat4(const mat3 &rotation, const vec3 &translation) {
 }
 
 mat4::mat4(const f32 src[4][4]) {
-	copy_bytes(mat, src, 4 * 4 * sizeof(f32));
+	mem_copy(mat, src, 4 * 4 * sizeof(f32));
 }
 
 mat4::mat4(const f32* src) {
-	copy_bytes(mat, src, 4 * 4 * sizeof(f32));
+	mem_copy(mat, src, 4 * 4 * sizeof(f32));
 }
 
 const vec4 &mat4::operator[](s32 index) const {
@@ -575,7 +575,7 @@ bool mat4::equal(const mat4 &a, f32 epsilon) const {
 }
 
 mat4 &mat4::zero() {
-	set_bytes(mat, 0, sizeof(mat4));
+	mem_set(mat, 0, sizeof(mat4));
 	return *this;
 }
 
@@ -625,7 +625,7 @@ mat4 mat4::transpose_copy() const {
 mat4 &mat4::transpose() {
 	for(s32 i = 0; i < 4; ++i)
 		for(s32 j = i + 1; j < 4; ++j)
-			swap(mat[i][j], mat[j][i]);
+			mem_swap(&mat[i][j], &mat[j][i], sizeof(f32));
 
 	return *this;
 }

@@ -1,11 +1,19 @@
 #include "pch.h"
+#include "audio/au_table.h"
+#include "audio/au_sound.h"
 #include "audio/wav.h"
-#include "audio/sound.h"
 
 #include "log.h"
 #include "sid.h"
 #include "str.h"
 #include "memory_eater.h"
+
+void au_create_table(Au_Table &t) {
+    t.sounds = Sparse_Array<Au_Sound>(t.MAX_SOUNDS);
+
+    // Add dummies at 0 index.
+    add_default(t.sounds);
+}
 
 void *parse_wav(void *data, Wav_Header *header) {
     Wav_Header wavh = *(Wav_Header *)eat(&data, sizeof(Wav_Header));
@@ -33,7 +41,7 @@ void *parse_wav(void *data, Wav_Header *header) {
     // ... it may be possible that we have 'LIST' chunk instead of 'data', so parse it.
     if (str_cmp(wavh.data_id, "LIST", 4)) {
         const u32 list_size = wavh.sampled_data_size;
-        eat(&data, list_size); // 
+        eat(&data, list_size);
 
         const char *data_id = (char *)eat(&data, 4);
         if (str_cmp(data_id, "data", 4)) {

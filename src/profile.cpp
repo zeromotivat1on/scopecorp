@@ -17,9 +17,9 @@
 #include "game/world.h"
 
 #include "render/ui.h"
-#include "render/viewport.h"
-#include "render/render_stats.h"
-#include "render/buffer_storage.h"
+#include "render/r_viewport.h"
+#include "render/r_stats.h"
+#include "render/r_storage.h"
 
 Input_Key KEY_SWITCH_RUNTIME_PROFILER = KEY_F5;
 Input_Key KEY_SWITCH_MEMORY_PROFILER  = KEY_F6;
@@ -28,12 +28,12 @@ Scope_Timer::Scope_Timer(const char *info)
     : info(info), start(os_perf_counter()) {}
 
 Scope_Timer::~Scope_Timer() {
-    const f32 ms = (os_perf_counter() - start) / (f32)os_perf_frequency_ms();
+    const f32 ms = (os_perf_counter() - start) / (f32)os_perf_hz_ms();
     log("%s %.2fms", info, ms);
 }
 
 Profile_Scope::Profile_Scope(const char *scope_name, const char *scope_file_path, u32 scope_line) {
-    Assert(str_size(scope_name) < MAX_PROFILE_SCOPE_NAME_SIZE);
+    Assert(str_size(scope_name) < Runtime_profiler.MAX_NAME_LENGTH);
     
     name      = scope_name;
     file_path = scope_file_path;
@@ -46,7 +46,7 @@ Profile_Scope::~Profile_Scope() {
     end = os_perf_counter();
     diff = end - start;
 
-    auto &rp = runtime_profiler;
+    auto &rp = Runtime_profiler;
     
     Profile_Scope *scope = null;
     for (u32 i = 0; i < rp.scope_count; ++i) {
@@ -57,7 +57,7 @@ Profile_Scope::~Profile_Scope() {
     }
 
     if (!scope) {
-        Assert(rp.scope_count < MAX_PROFILER_SCOPES);
+        Assert(rp.scope_count < rp.MAX_SCOPES);
         scope = rp.scopes + rp.scope_count;
         rp.scope_count += 1;
     }
@@ -66,22 +66,22 @@ Profile_Scope::~Profile_Scope() {
 }
 
 void init_runtime_profiler() {
-    auto &rp = runtime_profiler;
-    rp.scopes      = allocltn(Profile_Scope, MAX_PROFILER_SCOPES);
-    rp.scope_times = allocltn(f32,           MAX_PROFILER_SCOPES);
+    auto &rp = Runtime_profiler;
+    rp.scopes      = allocpn(Profile_Scope, rp.MAX_SCOPES);
+    rp.scope_times = allocpn(f32,           rp.MAX_SCOPES);
 }
 
 void open_runtime_profiler() {
-    auto &rp = runtime_profiler;
+    auto &rp = Runtime_profiler;
     Assert(!rp.is_open);
     
     rp.is_open = true;
 
-    push_input_layer(&input_layer_runtime_profiler);
+    push_input_layer(Input_layer_runtime_profiler);
 }
 
 void close_runtime_profiler() {
-    auto &rp = runtime_profiler;
+    auto &rp = Runtime_profiler;
     Assert(rp.is_open);
 
     rp.is_open = false;
@@ -89,14 +89,14 @@ void close_runtime_profiler() {
     pop_input_layer();
 }
 
-void on_input_runtime_profiler(Window_Event *event) {
+void on_input_runtime_profiler(const Window_Event *event) {
     const bool press = event->key_press;
     const auto key = event->key_code;
         
     switch (event->type) {
     case WINDOW_EVENT_KEYBOARD: {
         if (press && key == KEY_CLOSE_WINDOW) {
-            os_window_close(window);
+            os_close_window(window);
         } else if (press && key == KEY_SWITCH_RUNTIME_PROFILER) {
             close_runtime_profiler();
         }
@@ -109,13 +109,13 @@ void on_input_runtime_profiler(Window_Event *event) {
 void draw_runtime_profiler() {
     PROFILE_SCOPE(__FUNCTION__);
 
-    auto &rp = runtime_profiler;
+    auto &rp = Runtime_profiler;
     rp.scope_time_update_time += delta_time;
 
     if (rp.scope_time_update_time > rp.scope_time_update_interval) {
         for (u32 i = 0; i < rp.scope_count; ++i) {
             const auto &scope = rp.scopes[i];
-            rp.scope_times[i] = scope.diff / (f32)os_perf_frequency_ms();
+            rp.scope_times[i] = scope.diff / (f32)os_perf_hz_ms();
         }
 
         rp.scope_time_update_time = 0.0f;
@@ -123,32 +123,32 @@ void draw_runtime_profiler() {
 
     if (!rp.is_open) return;
     
-    constexpr f32 PROFILER_MARGIN  = 100.0f;
-    constexpr f32 PROFILER_PADDING = 16.0f;
+    constexpr f32 MARGIN  = 100.0f;
+    constexpr f32 PADDING = 16.0f;
     constexpr f32 QUAD_Z = 0.0f;
     
-    const auto &atlas = ui.font_atlases[UI_PROFILER_FONT_ATLAS_INDEX];
+    const auto &atlas = R_ui.font_atlases[UI_PROFILER_FONT_ATLAS_INDEX];
     const f32 ascent  = atlas.font->ascent  * atlas.px_h_scale;
     const f32 descent = atlas.font->descent * atlas.px_h_scale;
 
     {   // Profiler quad.
-        const vec3 p0 = vec3(PROFILER_MARGIN,
-                             viewport.height - PROFILER_MARGIN - 2 * PROFILER_PADDING - rp.scope_count * atlas.line_height,
+        const vec3 p0 = vec3(MARGIN,
+                             R_viewport.height - MARGIN - 2 * PADDING - rp.scope_count * atlas.line_height,
                              QUAD_Z);
-        const vec3 p1 = vec3(viewport.width - PROFILER_MARGIN,
-                             viewport.height - PROFILER_MARGIN,
+        const vec3 p1 = vec3(R_viewport.width - MARGIN,
+                             R_viewport.height - MARGIN,
                              QUAD_Z);
         const u32 color = rgba_pack(0, 0, 0, 200);
         ui_quad(p0, p1, color);
     }
 
     {   // Profiler scopes.
-        vec3 pos = vec3(PROFILER_MARGIN + PROFILER_PADDING, viewport.height - PROFILER_MARGIN - PROFILER_PADDING - ascent, QUAD_Z + F32_EPSILON);
+        vec3 pos = vec3(MARGIN + PADDING, R_viewport.height - MARGIN - PADDING - ascent, QUAD_Z + F32_EPSILON);
         
-        const s32 space_width_px = get_char_width_px(&atlas, ASCII_SPACE);
-        const f32 column_offset_1 = PROFILER_MARGIN + PROFILER_PADDING;
-        const f32 column_offset_2 = column_offset_1 + space_width_px * MAX_PROFILE_SCOPE_NAME_SIZE + 1;
-        const f32 column_offset_3 = column_offset_2 + space_width_px * MAX_PROFILE_SCOPE_NAME_SIZE * 0.5f + 1;
+        const s32 space_width_px = get_char_width_px(atlas, ASCII_SPACE);
+        const f32 column_offset_1 = MARGIN + PADDING;
+        const f32 column_offset_2 = column_offset_1 + space_width_px * rp.MAX_NAME_LENGTH + 1;
+        const f32 column_offset_3 = column_offset_2 + space_width_px * rp.MAX_NAME_LENGTH * 0.5f + 1;
         
         char buffer[256];
         s32 count = 0;
@@ -186,20 +186,20 @@ void draw_runtime_profiler() {
 }
 
 void init_memory_profiler() {
-    auto &mp = memory_profiler;
+    auto &mp = Memory_profiler;
 }
 
 void open_memory_profiler() {
-    auto &mp = memory_profiler;
+    auto &mp = Memory_profiler;
     Assert(!mp.is_open);
     
     mp.is_open = true;
 
-    push_input_layer(&input_layer_memory_profiler);
+    push_input_layer(Input_layer_memory_profiler);
 }
 
 void close_memory_profiler() {
-    auto &mp = memory_profiler;
+    auto &mp = Memory_profiler;
     Assert(mp.is_open);
 
     mp.is_open = false;
@@ -208,79 +208,99 @@ void close_memory_profiler() {
 }
 
 void draw_memory_profiler() {
-    auto &mp = memory_profiler;
+    auto &mp = Memory_profiler;
 
     if (!mp.is_open) return;
     
-    constexpr f32 PROFILER_MARGIN  = 100.0f;
-    constexpr f32 PROFILER_PADDING = 16.0f;
+    constexpr f32 MARGIN  = 100.0f;
+    constexpr f32 PADDING = 16.0f;
     constexpr f32 QUAD_Z = 0.0f;
-    constexpr u8  PROFILER_MAX_LINE_COUNT = 4;
+    constexpr u32 MAX_LINE_COUNT = 5;
 
-    const auto &atlas = ui.font_atlases[UI_PROFILER_FONT_ATLAS_INDEX];
+    const auto &atlas = R_ui.font_atlases[UI_PROFILER_FONT_ATLAS_INDEX];
     const f32 ascent  = atlas.font->ascent  * atlas.px_h_scale;
     const f32 descent = atlas.font->descent * atlas.px_h_scale;
 
     {   // Profiler quad.
-        const vec3 p0 = vec3(PROFILER_MARGIN,
-                             viewport.height - PROFILER_MARGIN - 2 * PROFILER_PADDING - PROFILER_MAX_LINE_COUNT * atlas.line_height,
+        const vec3 p0 = vec3(MARGIN,
+                             R_viewport.height - MARGIN - 2 * PADDING - MAX_LINE_COUNT * atlas.line_height,
                              QUAD_Z);
-        const vec3 p1 = vec3(viewport.width - PROFILER_MARGIN,
-                             viewport.height - PROFILER_MARGIN,
+        const vec3 p1 = vec3(R_viewport.width - MARGIN,
+                             R_viewport.height - MARGIN,
                              QUAD_Z);
         const u32 color = rgba_pack(0, 0, 0, 200);
         ui_quad(p0, p1, color);
     }
 
     {   // Profiler scopes.
-        extern u64 allocl_size, allocf_size;
+        struct Mem_Scope {
+            const char *name = null;
+            u64 size = 0;
+            u64 capacity = 0;
+        };
+        
+        extern u64 allocp_size, alloct_size, allocf_size;
 
-        vec3 pos = vec3(PROFILER_MARGIN + PROFILER_PADDING, viewport.height - PROFILER_MARGIN - PROFILER_PADDING - ascent, QUAD_Z + F32_EPSILON);
-        const u32 color = rgba_white;
-    
-        char buffer[256];
-        s32 count = 0;
+        const Mem_Scope scopes[MAX_LINE_COUNT] = {
+            { "CPU Persistent", allocp_size, MAX_ALLOCP_SIZE },
+            { "CPU Temp",       alloct_size, MAX_ALLOCT_SIZE },
+            { "CPU Frame",      allocf_size, MAX_ALLOCF_SIZE },
+            { "GPU Vertex",     R_vertex_map_range.size, R_vertex_map_range.capacity },
+            { "GPU Index",      R_index_map_range.size,  R_index_map_range.capacity },
+        };
 
-        const f32 allocl_percent = (f32)allocl_size / MAX_ALLOCL_SIZE * 100.0f;
-		count = (s32)stbsp_snprintf(buffer, sizeof(buffer),
-                                    "CPU Linear %.2fmb/%.2fmb (%.2f%%)",
-                                    (f32)allocl_size / 1024 / 1024, (f32)MAX_ALLOCL_SIZE / 1024 / 1024, allocl_percent);
-		ui_text(buffer, count, pos, rgba_white);
-        pos.y -= atlas.line_height;
+        constexpr u32 MAX_NAME_LENGTH = 16;
+        constexpr u32 MAX_USAGE_LENGTH = 32;
+        
+        const u32 space_width_px = get_char_width_px(atlas, ASCII_SPACE);
+        const f32 column_offset_1 = MARGIN + PADDING;
+        const f32 column_offset_2 = column_offset_1 + space_width_px * MAX_NAME_LENGTH + 1;
+        const f32 column_offset_3 = column_offset_2 + space_width_px * MAX_USAGE_LENGTH * 0.5f + 1;
+        
+        vec3 pos = vec3(MARGIN + PADDING, R_viewport.height - MARGIN - PADDING - ascent, QUAD_Z + F32_EPSILON);
+        for (u32 i = 0; i < MAX_LINE_COUNT; ++i) {
+            const auto &scope = scopes[i];
 
-        const f32 allocf_percent = (f32)allocf_size / MAX_ALLOCF_SIZE * 100.0f;
-		count = (s32)stbsp_snprintf(buffer, sizeof(buffer),
-                                    "CPU Frame  %.2fmb/%.2fmb (%.2f%%)",
-                                    (f32)allocf_size / 1024 / 1024, (f32)MAX_ALLOCF_SIZE / 1024 / 1024, allocf_percent);
-		ui_text(buffer, count, pos, rgba_white);
-        pos.y -= atlas.line_height;
+            const f32 alpha = Clamp((f32)scope.size / scope.capacity, 0.0f, 1.0f);
+            const u8 r = (u8)(255 * alpha);
+            const u8 g = (u8)(255 * (1.0f - alpha));
+            
+            const u32 color = rgba_pack(r, g, 0, 255);
+            
+            char buffer[256];
+            u32 count = 0;
 
-        const auto &vbs = vertex_buffer_storage;
-        const f32 rallocv_percent = (f32)vbs.size / vbs.capacity * 100.0f;
-		count = (s32)stbsp_snprintf(buffer, sizeof(buffer),
-                                    "GPU Vertex %.2fmb/%.2fmb (%.2f%%)",
-                                    (f32)vbs.size / 1024 / 1024, (f32)vbs.capacity / 1024 / 1024, rallocv_percent);
-		ui_text(buffer, count, pos, rgba_white);
-        pos.y -= atlas.line_height;
+            pos.x = column_offset_1;
+            count = stbsp_snprintf(buffer, sizeof(buffer),
+                                   "%s", scope.name);
+            ui_text(buffer, count, pos, color, UI_PROFILER_FONT_ATLAS_INDEX);
 
-        const auto &ibs = index_buffer_storage;
-        const f32 ralloci_percent = (f32)ibs.size / ibs.capacity * 100.0f;
-		count = (s32)stbsp_snprintf(buffer, sizeof(buffer),
-                                    "GPU Index  %.2fmb/%.2fmb (%.2f%%)",
-                                    (f32)ibs.size / 1024 / 1024, (f32)ibs.capacity / 1024 / 1024, ralloci_percent);
-		ui_text(buffer, count, pos, rgba_white);
-        pos.y -= atlas.line_height;
+            pos.x = column_offset_2;
+            count = stbsp_snprintf(buffer, sizeof(buffer),
+                                   "%.2fmb/%.2fmb",
+                                   TO_MB((f32)scope.size),
+                                   TO_MB((f32)scope.capacity));
+            ui_text(buffer, count, pos, color, UI_PROFILER_FONT_ATLAS_INDEX);
+
+            const f32 percent = (f32)scope.size / scope.capacity * 100.f;
+            pos.x = column_offset_3;
+            count = stbsp_snprintf(buffer, sizeof(buffer),
+                                   "%.2f%%", percent);
+            ui_text(buffer, count, pos, color, UI_PROFILER_FONT_ATLAS_INDEX);
+
+            pos.y -= atlas.line_height;
+        }
     }
 }
 
-void on_input_memory_profiler(Window_Event *event) {
+void on_input_memory_profiler(const Window_Event *event) {
     const bool press = event->key_press;
     const auto key = event->key_code;
         
     switch (event->type) {
     case WINDOW_EVENT_KEYBOARD: {
         if (press && key == KEY_CLOSE_WINDOW) {
-            os_window_close(window);
+            os_close_window(window);
         } else if (press && key == KEY_SWITCH_MEMORY_PROFILER) {
             close_memory_profiler();
         }
@@ -293,9 +313,9 @@ void on_input_memory_profiler(Window_Event *event) {
 void draw_dev_stats() {
     PROFILE_SCOPE(__FUNCTION__);
     
-    const auto &atlas = ui.font_atlases[UI_DEFAULT_FONT_ATLAS_INDEX];
-	const auto &player = world->player;
-	const auto &camera = *desired_camera(world);
+    const auto &atlas = R_ui.font_atlases[UI_DEFAULT_FONT_ATLAS_INDEX];
+	const auto &player = World.player;
+	const auto &camera = active_camera(World);
 
 	static char text[256];
 	const f32 padding = atlas.font_size * 0.5f;
@@ -307,57 +327,61 @@ void draw_dev_stats() {
     
 	{   // Entity.
         pos.x = padding;
-		pos.y = (f32)viewport.height - atlas.line_height;
+		pos.y = (f32)R_viewport.height - atlas.line_height;
                 
-        if (editor.mouse_picked_entity) {
-            const auto *e = editor.mouse_picked_entity;
+        if (Editor.mouse_picked_entity) {
+            const auto *e = Editor.mouse_picked_entity;
             const auto property_to_change = game_state.selected_entity_property_to_change;
+
+            const char *change_prop_name = null;
+            switch (property_to_change) {
+            case PROPERTY_LOCATION: change_prop_name = "location"; break;
+            case PROPERTY_ROTATION: change_prop_name = "rotation"; break;
+            case PROPERTY_SCALE:    change_prop_name = "scale"; break;
+            }
             
-            text_size = (s32)stbsp_snprintf(text, sizeof(text), "%s %u\n%slocation %s\n%srotation %s\n%sscale %s",
-                                            to_string(e->type), e->eid,
-                                            property_to_change == PROPERTY_LOCATION ? " -> " : "\t", to_string(e->location),
-                                            property_to_change == PROPERTY_ROTATION ? " -> " : "\t", to_string(e->rotation),
-                                            property_to_change == PROPERTY_SCALE ? " -> " : "\t", to_string(e->scale));
+            text_size = (s32)stbsp_snprintf(text, sizeof(text), "%s %u %s",
+                                            to_string(e->type), e->eid, change_prop_name);
             ui_text_with_shadow(text, text_size, pos, rgba_white, shadow_offset, rgba_black);
             pos.y -= 4 * atlas.line_height;
         }
 	}
 
 	{   // Stats & states.
-        pos.y = (f32)viewport.height - atlas.line_height;
+        pos.y = (f32)R_viewport.height - atlas.line_height;
 
         text_size = (s32)stbsp_snprintf(text, sizeof(text),
                                         "%s %s",
-                                        GAME_VERSION, build_type_name);
-		pos.x = viewport.width - get_line_width_px(&atlas, text, text_size) - padding;
+                                        GAME_VERSION, Build_type_name);
+		pos.x = R_viewport.width - get_line_width_px(atlas, text, text_size) - padding;
 		ui_text_with_shadow(text, text_size, pos, rgba_white, shadow_offset, rgba_black);
 		pos.y -= atlas.line_height;
 
 		text_size = (s32)stbsp_snprintf(text, sizeof(text),
                                         "%.2fms %.ffps",
                                         average_dt * 1000.0f, average_fps);
-		pos.x = viewport.width - get_line_width_px(&atlas, text, text_size) - padding;
+		pos.x = R_viewport.width - get_line_width_px(atlas, text, text_size) - padding;
 		ui_text_with_shadow(text, text_size, pos, rgba_white, shadow_offset, rgba_black);
 		pos.y -= atlas.line_height;
         
         text_size = (s32)stbsp_snprintf(text, sizeof(text),
                                         "window %dx%d",
                                         window->width, window->height);
-		pos.x = viewport.width - get_line_width_px(&atlas, text, text_size) - padding;
+		pos.x = R_viewport.width - get_line_width_px(atlas, text, text_size) - padding;
 		ui_text_with_shadow(text, text_size, pos, rgba_white, shadow_offset, rgba_black);
 		pos.y -= atlas.line_height;
 
         text_size = (s32)stbsp_snprintf(text, sizeof(text),
                                         "viewport %dx%d",
-                                        viewport.width, viewport.height);
-		pos.x = viewport.width - get_line_width_px(&atlas, text, text_size) - padding;
+                                        R_viewport.width, R_viewport.height);
+		pos.x = R_viewport.width - get_line_width_px(atlas, text, text_size) - padding;
 		ui_text_with_shadow(text, text_size, pos, rgba_white, shadow_offset, rgba_black);
         pos.y -= atlas.line_height;
 
         text_size = (s32)stbsp_snprintf(text, sizeof(text),
                                         "draw calls %d",
                                         draw_call_count);
-		pos.x = viewport.width - get_line_width_px(&atlas, text, text_size) - padding;
+		pos.x = R_viewport.width - get_line_width_px(atlas, text, text_size) - padding;
 		ui_text_with_shadow(text, text_size, pos, rgba_white, shadow_offset, rgba_black);
 		pos.y -= atlas.line_height;
 	}

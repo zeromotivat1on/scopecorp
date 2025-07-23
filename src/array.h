@@ -1,61 +1,71 @@
 #pragma once
 
-#include "assertion.h"
-#include "memory_storage.h"
-
-// Fixed capacity array allocated in persistent memory block.
 template<typename T>
 struct Array {
     T* items     = null;
-    s32 count    = 0;
-    s32 capacity = 0;
+    u32 count    = 0;
+    u32 capacity = 0;
 
     Array() = default;
-    Array(s32 capacity)
-        : capacity(capacity), items((T*)push(pers, capacity * sizeof(T))) {}
-    
-    T& operator[](s32 idx) {
-        assert(idx < count);
-        return items[idx];
-    }
-
-    const T& operator[](s32 idx) const {
-        assert(idx < count);
-        return items[idx];
-    }
-    
-    s32 add(const T& item) {
-        assert(count < capacity);
-        items[count++] = item;
-        return count - 1;
-    }
-
-    s32 insert(s32 idx, const T& item) {
-        assert(count < capacity);
-        assert(idx < count);
-
-        count++;
-        for (s32 i = count; i > idx; --i)
-            items[i] = items[i - 1];
-
-        items[idx] = item;
-        return idx;
-    }
-
-    s32 remove(s32 idx) {
-        assert(idx < count);
-
-        for (s32 i = idx; i < count; ++i)
-            items[i] = items[i + 1];
+    Array(u32 capacity)
+        : items(allocltn(T, capacity)), capacity(capacity) {}
         
-        count--;
-        return idx;
+    T *begin() { return items; }
+    T *end()   { return items + count; }
+    
+    const T *begin() const { return items; }
+    const T *end()   const { return items + count; }
+    
+    T& operator[](u32 index) {
+        Assert(index < count);
+        return items[index];
     }
 
-    s32 remove_swap_last(s32 idx) {
-        assert(idx < count);
-        swap(items[idx], items[count - 1]);
-        count--;
-        return idx;
+    const T& operator[](u32 index) const {
+        Assert(index < count);
+        return items[index];
     }
 };
+
+template<typename T>
+T &add(Array<T> &array, const T& item) {
+    Assert(array.count < array.capacity);
+    T &v = array.items[array.count] = item;
+    array.count += 1;
+    return v;
+}
+
+template<typename T>
+T &insert(Array<T> &array, u32 index, const T& item) {
+    Assert(array.count < array.capacity);
+    Assert(index < array.count);
+
+    array.count += 1;
+    for (u32 i = array.count; i > index; --i)
+        array.items[i] = array.items[i - 1];
+
+    T &v = array.items[index] = item;
+    return v;
+}
+
+template<typename T>
+void remove(Array<T> &array, u32 index) {
+    Assert(index < array.count);
+
+    for (s32 i = index; i < array.count; ++i) {
+        array.items[i] = array.items[i + 1];
+    }
+    
+    count--;
+}
+
+template<typename T>
+void remove_swap_last(Array<T> &array, u32 index) {
+    Assert(index < array.count);
+
+    T t = array.items[index];
+    array.items[index] = array.items[count - 1];
+    array.items[count - 1] = t;
+
+    array.count -= 1;
+}

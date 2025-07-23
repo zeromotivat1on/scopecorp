@@ -1,7 +1,5 @@
 #pragma once
 
-inline constexpr u32 MAX_INPUT_STACK_LAYERS = 16;
-
 enum Input_Layer_Type : u8 {
     INPUT_LAYER_NONE,
     INPUT_LAYER_GAME,
@@ -11,7 +9,9 @@ enum Input_Layer_Type : u8 {
     INPUT_LAYER_MEMORY_PROFILER,
 };
 
-typedef void(* On_Input)(struct Window_Event *event);
+struct Window_Event;
+
+typedef void(* On_Input)(const Window_Event *event);
 
 struct Input_Layer {
     On_Input on_input = null;
@@ -19,21 +19,23 @@ struct Input_Layer {
 };
 
 struct Input_Stack {
-    Input_Layer *layers[MAX_INPUT_STACK_LAYERS];
+    static constexpr u32 MAX_COUNT = 16;
+    
+    Input_Layer layers[MAX_COUNT];
     u32 layer_count = 0;
 };
 
-inline Input_Stack input_stack;
+inline Input_Stack Input_stack;
 
-inline Input_Layer input_layer_game;
-inline Input_Layer input_layer_editor;
-inline Input_Layer input_layer_debug_console;
-inline Input_Layer input_layer_runtime_profiler;
-inline Input_Layer input_layer_memory_profiler;
+inline Input_Layer Input_layer_game;
+inline Input_Layer Input_layer_editor;
+inline Input_Layer Input_layer_debug_console;
+inline Input_Layer Input_layer_runtime_profiler;
+inline Input_Layer Input_layer_memory_profiler;
 
 inline Input_Layer *get_current_input_layer() {
-    if (input_stack.layer_count > 0) {
-        return input_stack.layers[input_stack.layer_count - 1];
+    if (Input_stack.layer_count > 0) {
+        return &Input_stack.layers[Input_stack.layer_count - 1];
     }
     return null;
 }
@@ -46,15 +48,15 @@ inline Input_Layer_Type get_current_input_layer_type() {
     return INPUT_LAYER_NONE;
 }
 
-inline void push_input_layer(Input_Layer *layer) {
-    Assert(input_stack.layer_count < MAX_INPUT_STACK_LAYERS);
-    input_stack.layers[input_stack.layer_count] = layer;
-    input_stack.layer_count += 1;
+inline void push_input_layer(const Input_Layer &layer) {
+    Assert(Input_stack.layer_count < Input_stack.MAX_COUNT);
+    Input_stack.layers[Input_stack.layer_count] = layer;
+    Input_stack.layer_count += 1;
 }
 
-inline Input_Layer *pop_input_layer() {
-    Assert(input_stack.layer_count > 0);
-    auto *layer = get_current_input_layer();
-    input_stack.layer_count -= 1;
+inline Input_Layer &pop_input_layer() {
+    Assert(Input_stack.layer_count > 0);
+    auto &layer = Input_stack.layers[Input_stack.layer_count - 1];
+    Input_stack.layer_count -= 1;
     return layer;
 }

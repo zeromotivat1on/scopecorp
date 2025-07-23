@@ -41,44 +41,22 @@ inline constexpr u32 MAX_UNIFORM_VALUE_CACHE_SIZE = KB(16);
 inline rid RID_UNIFORM_BUFFER = RID_NONE;
 inline u32 UNIFORM_BUFFER_SIZE = 0;
 
-enum Uniform_Type : u8 {
-	UNIFORM_U32,
-	UNIFORM_F32,
-	UNIFORM_F32_2,
-	UNIFORM_F32_3,
-	UNIFORM_F32_4,
-	UNIFORM_F32_4X4,
-};
-
-struct Uniform_Light {
-    vec3 location;
-    vec3 ambient;
-    vec3 diffuse;
-    vec3 specular;
-};
-
-struct Uniform_Material {
-    vec3 ambient;
-    vec3 diffuse;
-    vec3 specular;
-    f32  shininess;
+struct R_Uniform {
+    sid name = SID_NONE;
+	u16 type = 0;
+	u16 count = 0;
+    u32 size = 0;
+    u32 offset = 0;
 };
 
 struct Uniform {
-	char name[MAX_UNIFORM_NAME_SIZE];
-	Uniform_Type type;
-	s32 count = 1;
-    u32 value_offset = INVALID_INDEX; // in uniform value cache
-};
-
-struct Uniform_Value_Cache {
-    void *data   = null;
-    u32 size     = 0;
-    u32 capacity = 0;
+    sid sid_name = SID_NONE;
+	u16 type = 0;
+	u16 count = 0;
 };
 
 struct Uniform_Block_Field {
-    Uniform_Type type;
+    u16 type = 0;
 	u16 count = 1;
 };
 
@@ -92,6 +70,12 @@ struct Uniform_Block {
     u32 size   = 0; // gpu aligned size
 };
 
+struct Uniform_Value_Cache {
+    void *data   = null;
+    u32 size     = 0;
+    u32 capacity = 0;
+};
+
 inline Uniform_Value_Cache uniform_value_cache;
 
 inline Uniform_Block uniform_block_camera;
@@ -99,19 +83,19 @@ inline Uniform_Block uniform_block_viewport;
 inline Uniform_Block uniform_block_direct_lights;
 inline Uniform_Block uniform_block_point_lights;
 
-void r_set_uniform(rid rid_shader, const Uniform *uniform);
+u16  r_create_uniform(sid name, u16 type, u16 count);
+void r_set_uniform(u16 uniform, u32 offset, u32 size, const void *data);
 
 rid r_create_uniform_buffer(u32 size);
 void r_add_uniform_block(rid rid_uniform_buffer, s32 shader_binding, const char *name, const Uniform_Block_Field *fields, s32 field_count, Uniform_Block *block);
 void r_set_uniform_block_value(Uniform_Block *block, s32 field_index, s32 field_element_index, const void *data, u32 size);
 void r_set_uniform_block_value(Uniform_Block *block, u32 offset, const void *data, u32 size);
 
-void cache_uniform_value_on_cpu(Uniform *uniform, const void *data, u32 data_size, u32 data_offset = 0);
-u32 get_uniform_type_size(Uniform_Type type);
-u32 get_uniform_type_dimension(Uniform_Type type);
-u32 get_uniform_type_alignment(Uniform_Type type);
-u32 get_uniform_type_size_gpu_aligned(Uniform_Type type);
+u32 r_uniform_type_size(u16 type);
+u32 r_uniform_type_dimension(u16 type);
+u32 r_uniform_type_alignment(u16 type);
+u32 r_uniform_type_size_gpu_aligned(u16 type);
 
-u32 get_uniform_block_field_size(const Uniform_Block_Field &field);
-u32 get_uniform_block_field_size_gpu_aligned(const Uniform_Block_Field &field);
-u32 get_uniform_block_field_offset_gpu_aligned(Uniform_Block *block, s32 field_index, s32 field_element_index);
+u32 r_uniform_block_field_size(const Uniform_Block_Field &field);
+u32 r_uniform_block_field_size_gpu_aligned(const Uniform_Block_Field &field);
+u32 r_uniform_block_field_offset_gpu_aligned(Uniform_Block *block, s32 field_index, s32 field_element_index);

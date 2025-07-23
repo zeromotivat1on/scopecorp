@@ -60,7 +60,7 @@ typedef u32 eid; // entity id
 #if OPEN_GL
 typedef u32 rid; // render id, used by underlying gfx api
 #else
-#error "Unsupported gfx api"
+#error "Unsupported graphics api"
 #endif
 
 inline constexpr sid SID_NONE = 0;
@@ -75,10 +75,10 @@ inline constexpr rid RID_NONE = 0;
 #define rgba_set_b(c, b) (((c) & 0xFFFF00FF) | ((u32)(b) << 8))
 #define rgba_set_a(c, a) (((c) & 0xFFFFFF00) | ((u32)(a) << 0))
 
-#define rgba_get_r(c) ((c) & 0xFF000000)
-#define rgba_get_g(c) ((c) & 0x00FF0000)
-#define rgba_get_b(c) ((c) & 0x0000FF00)
-#define rgba_get_a(c) ((c) & 0x000000FF)
+#define rgba_get_r(c) (((c) >> 24) & 0xFF)
+#define rgba_get_g(c) (((c) >> 16) & 0xFF)
+#define rgba_get_b(c) (((c) >> 8)  & 0xFF)
+#define rgba_get_a(c) (((c) >> 0)  & 0xFF)
 
 #define rgba_white  rgba_pack(255, 255, 255, 255)
 #define rgba_black  rgba_pack(  0,   0,   0, 255)
@@ -107,17 +107,22 @@ inline constexpr rid RID_NONE = 0;
 #define MAX_PATH_SIZE 256
 
 #if DEBUG
-inline const char* build_type_name = "DEBUG";
+inline const char* Build_type_name = "DEBUG";
 #elif RELEASE
-inline const char* build_type_name = "RELEASE";
+inline const char* Build_type_name = "RELEASE";
 #else
 #error "Unknown build type"
 #endif
 
-#define KB(n) (n * 1024ui64)
-#define MB(n) (KB(n) * 1024ui64)
-#define GB(n) (MB(n) * 1024ui64)
-#define TB(n) (GB(n) * 1024ui64)
+#define KB(n) (n * 1024)
+#define MB(n) (n * 1024 * 1024)
+#define GB(n) (n * 1024 * 1024 * 1024)
+#define TB(n) (n * 1024 * 1024 * 1024 * 1024)
+
+#define TO_KB(n) (n / 1024)
+#define TO_MB(n) (n / 1024 / 1024)
+#define TO_GB(n) (n / 1024 / 1024 / 1024)
+#define TO_TB(n) (n / 1024 / 1024 / 1024 / 1024)
 
 #define COUNT(a) sizeof(a) / sizeof((a)[0])
 
@@ -165,23 +170,25 @@ struct Source_Location {
 };
 
 #if DEVELOPER
-#define Assert(x) if (x) {} else { report_assert(#x); }
-void report_assert(const char* condition, Source_Location loc = Source_Location::current());
+#define Assert(x)       if (x) {} else { report_assert(#x, null); }
+#define Assertm(x, msg) if (x) {} else { report_assert(#x, msg);  }
+void report_assert(const char* condition, const char *msg, Source_Location loc = Source_Location::current());
 void debug_break();
 #else
 #define Assert(x)
+#define Assertm(x, msg)
 #endif
 
 // Hint compiler to not reorder memory operations, happened before barrier.
 // Basically disable memory read/write concerned optimizations.
-void read_barrier();
-void write_barrier();
-void memory_barrier();
+void asm_read_barrier();
+void asm_write_barrier();
+void asm_memory_barrier();
 
 // Ensure the order of read/write CPU instructions.
-void read_fence();
-void write_fence();
-void memory_fence();
+void cpu_read_fence();
+void cpu_write_fence();
+void cpu_memory_fence();
 
 enum For_Result : u8 {
     CONTINUE,
@@ -199,11 +206,12 @@ enum Direction : u8 {
 // Allocation types:
 // s  - stack allocation, default implementation
 // h  - heap allocation, default implementation
-// l  - linear allocation, push/pop bytes
-// f  - frame allocation, cleared at the end of every frame
-// lp - linear allocation from given pointer, push/pop bytes
+// p  - persistent storage, push/pop
+// t  - temporary storage, push/pop
+// f  - frame storage, cleared at the end of every frame, push/pop
 
-inline constexpr u64 MAX_ALLOCL_SIZE = MB(64);
+inline constexpr u64 MAX_ALLOCP_SIZE = MB(16);
+inline constexpr u64 MAX_ALLOCT_SIZE = MB(64);
 inline constexpr u64 MAX_ALLOCF_SIZE = MB(1);
 
 bool alloc_init();
@@ -212,25 +220,103 @@ void *allocs(u64 size);
 void *alloch(u64 size);
 void *realloch(void *ptr, u64 size);
 void  freeh(void *ptr);
-void *allocl(u64 size, Source_Location loc = Source_Location::current());
-void  freel(u64 size, Source_Location loc = Source_Location::current());
+void *allocp(u64 size, Source_Location loc = Source_Location::current());
+void  freep(u64 size, Source_Location loc = Source_Location::current());
+void *alloct(u64 size);
+void  freet(u64 size);
 void *allocf(u64 size);
+void  freef(u64 size);
 void  freef();
-void *alloclp(void **ptr, u64 size);
-void  freelp(void **ptr, u64 size);
 
-#define allocht(T)     (T *)alloch(sizeof(T))
-#define alloclt(T)     (T *)allocl(sizeof(T))
-#define allocft(T)     (T *)allocf(sizeof(T))
-#define allochtn(T, n) (T *)alloch(sizeof(T) * (n))
-#define allocltn(T, n) (T *)allocl(sizeof(T) * (n))
-#define allocftn(T, n) (T *)allocf(sizeof(T) * (n))
+#define allocsn(T, n) (T *)allocs(sizeof(T) * (n))
+#define allochn(T, n) (T *)alloch(sizeof(T) * (n))
+#define allocpn(T, n) (T *)allocp(sizeof(T) * (n))
+#define alloctn(T, n) (T *)alloct(sizeof(T) * (n))
+#define allocfn(T, n) (T *)allocf(sizeof(T) * (n))
 
-#define freelt(T)     freel(sizeof(T));
-#define freeltn(T, n) freel(sizeof(T) * (n));
+#define freepn(T, n) freep(sizeof(T) * (n));
+#define freetn(T, n) freet(sizeof(T) * (n));
+#define freefn(T, n) freef(sizeof(T) * (n));
 
-void set_bytes (void *data, s32 value, u64 size);
-void copy_bytes(void *dst, const void *src, u64 size);
-void move_bytes(void *dst, const void *src, u64 size);
+void mem_set (void *data, s32 value, u64 size);
+void mem_copy(void *dst, const void *src, u64 size);
+void mem_move(void *dst, const void *src, u64 size);
+void mem_swap(void *a, void *b, u64 size);
 
-void sort(void* data, u32 count, u32 size, s32 (*compare)(const void*, const void*));
+void sort(void *data, u32 count, u32 size, s32 (*compare)(const void *, const void *));
+
+// All R_ defines must NOT exceed u16 range.
+
+#define R_NONE 0
+
+#define R_ENABLE  1
+#define R_DISABLE 2
+
+#define R_TRIANGLES      10
+#define R_TRIANGLE_STRIP 11
+#define R_LINES          12
+
+#define R_FILL  20
+#define R_LINE  21
+#define R_POINT 22
+
+#define R_CW  30
+#define R_CCW 31
+
+#define R_BACK        40
+#define R_FRONT       41
+#define R_FRONT_BACK  42
+
+#define R_SRC_ALPHA           50
+#define R_ONE_MINUS_SRC_ALPHA 51
+
+#define R_LESS    60
+#define R_GREATER 61
+#define R_EQUAL   62
+#define R_NEQUAL  63
+#define R_LEQUAL  64
+#define R_GEQUAL  65
+
+#define R_ALWAYS  66
+#define R_KEEP    67
+#define R_REPLACE 68
+
+#define R_S32     70
+#define R_U32     71
+#define R_F32     72
+#define R_F32_2   73
+#define R_F32_3   74
+#define R_F32_4   75
+#define R_F32_4X4 76
+
+#define R_TEXTURE_2D       100
+#define R_TEXTURE_2D_ARRAY 101
+
+#define R_RED_32             110
+#define R_RGB_8              111
+#define R_RGBA_8             112
+#define R_DEPTH_24_STENCIL_8 113
+
+#define R_REPEAT 120
+#define R_CLAMP  121
+#define R_BORDER 123
+
+#define R_LINEAR                 130
+#define R_NEAREST                131
+#define R_LINEAR_MIPMAP_LINEAR   133
+#define R_LINEAR_MIPMAP_NEAREST  134
+#define R_NEAREST_MIPMAP_LINEAR  135
+#define R_NEAREST_MIPMAP_NEAREST 136
+
+#define R_COLOR_BUFFER_BIT   0x1
+#define R_DEPTH_BUFFER_BIT   0x2
+#define R_STENCIL_BUFFER_BIT 0x4
+
+#define R_DYNAMIC_STORAGE_BIT 0x1
+#define R_CLIENT_STORAGE_BIT  0x2
+// Custom bit. Tells whether storage is already mapped.
+#define R_MAPPED_STORAGE_BIT  0x4
+#define R_MAP_READ_BIT        0x8
+#define R_MAP_WRITE_BIT       0x10
+#define R_MAP_PERSISTENT_BIT  0x20
+#define R_MAP_COHERENT_BIT    0x40

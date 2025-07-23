@@ -3,9 +3,9 @@
 #include "math/vector.h"
 #include "math/quat.h"
 
-struct World;
+struct Game_World;
 struct Camera;
-struct Viewport;
+struct R_Viewport;
 
 struct AABB {
 	vec3 min;
@@ -34,5 +34,5 @@ s32 find_closest_overlapped_aabb(const Ray &ray, AABB *aabbs, s32 count);
 
 vec3 resolve_moving_static(const AABB &a, const AABB &b, const vec3 &velocity_a);
 
-vec3 direction_from_mouse(const Camera *camera, const Viewport *viewport, s16 x, s16 y);
-Ray ray_from_mouse(const Camera *camera, const Viewport *viewport, s16 x, s16 y);
+vec3 direction_from_mouse(const Camera &camera, const R_Viewport &viewport, s16 x, s16 y);
+Ray ray_from_mouse(const Camera &camera, const R_Viewport &viewport, s16 x, s16 y);

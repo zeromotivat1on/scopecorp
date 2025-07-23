@@ -4,6 +4,8 @@
 #include "hash_table.h"
 #include "sparse_array.h"
 
+typedef void *File; // from os/file.h
+
 #define SID_TEXTURE_PLAYER_IDLE_SOUTH SID("/data/textures/player_idle_back.png")
 #define SID_TEXTURE_PLAYER_IDLE_EAST  SID("/data/textures/player_idle_right.png")
 #define SID_TEXTURE_PLAYER_IDLE_WEST  SID("/data/textures/player_idle_left.png")
@@ -11,14 +13,15 @@
 
 inline sid sid_texture_player_idle[DIRECTION_COUNT];
 
-#define SID_MATERIAL_GEOMETRY   SID("/data/materials/geometry.mat")
-#define SID_MATERIAL_OUTLINE    SID("/data/materials/outline.mat")
-#define SID_MATERIAL_SKYBOX     SID("/data/materials/skybox.mat")
-#define SID_MATERIAL_PLAYER     SID("/data/materials/player.mat")
-#define SID_MATERIAL_GROUND     SID("/data/materials/ground.mat")
-#define SID_MATERIAL_CUBE       SID("/data/materials/cube.mat")
-#define SID_MATERIAL_UI_TEXT    SID("/data/materials/ui_text.mat")
-#define SID_MATERIAL_UI_ELEMENT SID("/data/materials/ui_element.mat")
+#define SID_MATERIAL_GEOMETRY     SID("/data/materials/geometry.mat")
+#define SID_MATERIAL_OUTLINE      SID("/data/materials/outline.mat")
+#define SID_MATERIAL_SKYBOX       SID("/data/materials/skybox.mat")
+#define SID_MATERIAL_PLAYER       SID("/data/materials/player.mat")
+#define SID_MATERIAL_GROUND       SID("/data/materials/ground.mat")
+#define SID_MATERIAL_CUBE         SID("/data/materials/cube.mat")
+#define SID_MATERIAL_UI_TEXT      SID("/data/materials/ui_text.mat")
+#define SID_MATERIAL_UI_ELEMENT   SID("/data/materials/ui_element.mat")
+#define SID_MATERIAL_FRAME_BUFFER SID("/data/materials/frame_buffer.mat")
 
 #define SID_MESH_PLAYER SID("/data/meshes/player.mesh")
 #define SID_MESH_SKYBOX SID("/data/meshes/skybox.mesh")
@@ -36,31 +39,24 @@ inline sid sid_texture_player_idle[DIRECTION_COUNT];
 #define SID_FLIP_BOOK_PLAYER_MOVE_BACK    SID("/data/flip_books/player_move_back.fb")
 #define SID_FLIP_BOOK_PLAYER_MOVE_FORWARD SID("/data/flip_books/player_move_forward.fb")
 
-#define ASSET_PACK_EXTENSION_NAME ".pak"
-#define GAME_ASSET_PACK_PATH   PATH_PACK(GAME_NAME ASSET_PACK_EXTENSION_NAME)
-#define ASSET_PACK_MAGIC_VALUE U32_PACK('c', 'o', 'r', 'p')
-#define ASSET_PACK_VERSION     0
+#define GAME_PAK_PATH PATH_PACK(GAME_NAME ".pak")
+#define ASSET_PAK_MAGIC U32_PACK('c', 'o', 'r', 'p')
+#define ASSET_PAK_VERSION 0
 
-inline constexpr s32 MAX_ASSET_SOURCES = 256;
-
-inline constexpr s32 MAX_SHADER_INCLUDES = 16;
-inline constexpr s32 MAX_SHADERS         = 64;
-inline constexpr s32 MAX_TEXTURES        = 64;
-inline constexpr s32 MAX_MATERIALS       = 64;
-inline constexpr s32 MAX_MESHES          = 64;
-inline constexpr s32 MAX_SOUNDS          = 64;
-inline constexpr s32 MAX_FONTS           = 8;
-inline constexpr s32 MAX_FLIP_BOOKS      = 64;
+// @Todo: fix (de)serialization for: mesh, font.
 
 enum Asset_Type : u8 {
-    ASSET_SHADER_INCLUDE,    
+    // @Note: order of enum declarations is crucial for asset pak (de)serialization.
+    // Assets that reference other assets (e.g: material, flip book etc.) should appear
+    // after more basic ones (e.g: shader, texture etc.).
+    
     ASSET_SHADER,
     ASSET_TEXTURE,
     ASSET_MATERIAL,
     ASSET_MESH,
-    ASSET_SOUND,
     ASSET_FONT,
     ASSET_FLIP_BOOK,
+    ASSET_SOUND,
 
     ASSET_TYPE_COUNT,
     
@@ -68,13 +64,14 @@ enum Asset_Type : u8 {
 };
 
 struct Asset {
-    Asset_Type asset_type = ASSET_NONE;
-    sid sid_path = SID_NONE; // sid to relative path ofc
+    Asset_Type type = ASSET_NONE;
+    u16 index = 0; // to appropriate table with actual data
     
-    u64 data_offset = 0;
-    u64 data_size   = 0;
-    u64 path_offset = 0;
-    u64 path_size   = 0; // includes null termination character
+    sid path = SID_NONE;
+
+    u32 pak_meta_size   = 0;
+    u32 pak_data_size   = 0;
+    u64 pak_blob_offset = 0;
 };
 
 struct Asset_Source {
@@ -84,47 +81,54 @@ struct Asset_Source {
     sid sid_relative_path = SID_NONE; // e.g: "/data/shaders/main.glsl"
 };
 
-// Structure of asset pack file is the following:
+// Structure of asset pak file is the following:
 // - Header
 // - Asset description data
 // - Asset binary data
 
-struct Asset_Pack_Header {
-    u32 magic_value;
-    u32 version;
-    s32 count_by_type [ASSET_TYPE_COUNT];
-    u64 offset_by_type[ASSET_TYPE_COUNT];
-    u64 data_offset;
+struct Asset_Pak_Header {
+    u32 magic   = 0;
+    u32 version = 0;
+    u32 counts [ASSET_TYPE_COUNT] = { 0 };
+    u64 offsets[ASSET_TYPE_COUNT] = { 0 };
 };
 
 // Relative asset path sids are used to get either Asset_Source or specific Asset.
 
 struct Asset_Source_Table {
+    static constexpr u32 MAX_COUNT = 256;
+    
     Hash_Table<sid, Asset_Source> table;
-    s32 count_by_type[ASSET_TYPE_COUNT];
+    u32 count_by_type[ASSET_TYPE_COUNT];
 };
 
-struct Asset_Table {
-    Hash_Table<sid, struct Shader_Include> shader_includes;
-    Hash_Table<sid, struct Shader>         shaders;
-    Hash_Table<sid, struct Texture>        textures;
-    Hash_Table<sid, struct Material>       materials;
-    Hash_Table<sid, struct Mesh>           meshes;
-    Hash_Table<sid, struct Sound>          sounds;
-    Hash_Table<sid, struct Font>           fonts;
-    Hash_Table<sid, struct Flip_Book>      flip_books;
-};
+inline Asset_Source_Table Asset_source_table;
 
-inline Asset_Table asset_table;
-inline Asset_Source_Table asset_source_table;
+typedef Hash_Table<sid, Asset> Asset_Table;
+inline Asset_Table Asset_table;
+
+struct R_Shader;
+struct R_Texture;
+struct R_Material;
+struct R_Mesh;
 
 void init_asset_source_table();
 void init_asset_table();
 
+u32 get_asset_max_file_size(Asset_Type type);
+u32 get_asset_meta_size(Asset_Type type);
+
+Asset     *find_asset(sid path);
+R_Shader   *find_shader(sid path);
+R_Texture  *find_texture(sid path);
+R_Material *find_material(sid path);
+R_Mesh     *find_mesh(sid path);
+
+void serialize  (File file, Asset &asset);
+void deserialize(File file, Asset &asset);
+
 void save_asset_pack(const char *path);
 void load_asset_pack(const char *path);
 
-void convert_to_relative_asset_path(char *relative_path, const char *full_path);
-void convert_to_full_asset_path(char *full_path, const char *relative_path);
-
-u32 get_asset_type_size(Asset_Type type);
+void to_relative_asset_path(char *relative_path, const char *full_path);
+void to_full_asset_path(char *full_path, const char *relative_path);

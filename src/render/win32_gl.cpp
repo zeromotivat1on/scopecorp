@@ -174,6 +174,10 @@ static void gl_debug_message_callback(GLenum source, GLenum type, GLuint id, GLe
     const char *type_string     = gl_debug_message_type_string(type);
     const char *severity_string = gl_debug_message_severity_string(severity);
 
+	if (severity == GL_DEBUG_SEVERITY_HIGH) {
+		volatile int a = 0;
+	}
+
     const auto log_level = get_log_level_from_gl_debug_message_severity(severity);
     print(log_level, "GL debug message %d | %s | %s | %s\n  %.*s", id, source_string, type_string, severity_string, length, message);    
 }
@@ -235,7 +239,13 @@ bool r_init_context(Window *window) {
     glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS); 
     glDebugMessageCallback(gl_debug_message_callback, null);
     glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, null, GL_TRUE);
-    
+
+    glEnable(GL_SCISSOR_TEST);
+    glEnable(GL_CULL_FACE);
+    glEnable(GL_BLEND);
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_STENCIL_TEST);
+
 	ShowWindow(window->win32->hwnd, SW_NORMAL);
 
     return true;
@@ -245,7 +255,7 @@ void os_set_vsync(bool enable) {
 	wglSwapIntervalEXT(enable);
 }
 
-void os_window_swap_buffers(Window *window) {
+void os_swap_window_buffers(Window *window) {
     PROFILE_SCOPE(__FUNCTION__);
 	SwapBuffers(window->win32->hdc);
 

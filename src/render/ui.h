@@ -1,13 +1,10 @@
 #pragma once
 
 #include "font.h"
+
 #include "math/vector.h"
 
-inline constexpr u8  MAX_UI_FONT_ATLASES = 32;
-inline constexpr u16 MAX_UI_DRAW_QUEUE_SIZE = 1024;
-inline constexpr u16 MAX_UI_TEXT_DRAW_BUFFERS = 8;
-inline constexpr u16 MAX_UI_TEXT_DRAW_BUFFER_CHARS = 4096;
-inline constexpr u16 MAX_UI_QUAD_DRAW_BUFFER_QUADS = 512;
+#include "render/r_command.h"
 
 inline constexpr s32 UI_DEFAULT_FONT_ATLAS_INDEX       = 0;
 inline constexpr s32 UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX = 1;
@@ -99,6 +96,8 @@ struct UI_Draw_Command {
 };
 
 struct UI_Text_Draw_Buffer {
+    static constexpr u16 MAX_CHARS = 4096;
+
     f32  *positions  = null;
     u32  *colors     = null;
     u32  *charmap    = null;
@@ -106,36 +105,39 @@ struct UI_Text_Draw_Buffer {
 
     u16 char_count = 0;
 
-    rid rid_vertex_array = RID_NONE;
-    sid sid_material = SID_NONE;
+    u16 vertex_desc = 0;
+    u16 material = 0;
 };
 
 struct UI_Quad_Draw_Buffer {
+    static constexpr u16 MAX_QUADS = 512;
+    
     vec2 *positions = null;
     u32  *colors    = null;
 
     u16 quad_count = 0;
 
-    rid rid_vertex_array = RID_NONE;
-    sid sid_material = SID_NONE;
+    u16 vertex_desc = 0;
+    u16 material = 0;
 };
 
-struct UI {
-    Font_Atlas font_atlases[MAX_UI_FONT_ATLASES];
-    UI_Draw_Command draw_queue[MAX_UI_DRAW_QUEUE_SIZE];
+struct R_UI {
+    static constexpr u32 MAX_COMMANDS = 512;
+    static constexpr u32 MAX_FONT_ATLASES = 32;
 
-    u8  font_atlas_count = 0;
-    u16 draw_queue_size  = 0;
+    uiid id_hot;
+    uiid id_active;
+    
+    u16 font_atlas_count = 0;
+    Font_Atlas font_atlases[MAX_FONT_ATLASES];
 
     UI_Text_Draw_Buffer text_draw_buffer;
     UI_Quad_Draw_Buffer quad_draw_buffer;
 
-    uiid id_hot;
-    uiid id_active;
+    R_Command_List command_list;
 };
 
-inline UI ui;
-inline Font_Info ui_default_font;
+inline R_UI R_ui;
 
 void ui_init();
 void ui_flush();

@@ -1,5 +1,5 @@
 #include "pch.h"
-#include "render/shader.h"
+#include "render/r_shader.h"
 
 #include "log.h"
 #include "str.h"
@@ -63,16 +63,29 @@ static bool parse_shader_region(const char *in, char *out, Shader_Region_Type ty
 
     *out = '\0';
 
-    cin = str_char(begin, '\n') + 1; // move to first character of actual shader source
-    begin = cin;
+    cin = str_char(begin, '\n') + 1;
+    str_glue(out, cin, end - cin);
     
-    const char *include = str_sub(cin, DECL_INCLUDE);
-    if (include && include < end) { // copy shader source before first include
-        str_glue(out, cin, include - cin);
-    }
+    return true;
+}
 
+void parse_shader_includes(char *in) {
+    char *out = alloctn(char, R_Shader::MAX_FILE_SIZE);
+    defer { freetn(char, R_Shader::MAX_FILE_SIZE); };
+        
+    out[0] = '\0';
+
+    const char *cin = in;
+
+    const char *include = str_sub(cin, DECL_INCLUDE);
+
+    char *include_data = alloctn(char, R_Shader::MAX_FILE_SIZE);
+    defer { freetn(char, R_Shader::MAX_FILE_SIZE); };
+    
     // @Todo: handle recursive includes.
-    while (include && include < end) { // include files contents
+    while (include) { // include files contents
+        str_glue(out, cin, include - cin);
+
         const char *na = str_char(include, '"') + 1;
         const char *nb = str_char(na,      '"') + 0;
 
@@ -80,11 +93,10 @@ static bool parse_shader_region(const char *in, char *out, Shader_Region_Type ty
         str_copy(path, DIR_SHADERS);
         str_glue(path, na, nb - na);
 
-        char relative_path[MAX_PATH_SIZE];
-        convert_to_relative_asset_path(relative_path, path);
+        u64 include_data_size = 0;
+        os_read_file(path, include_data, R_Shader::MAX_FILE_SIZE, &include_data_size);
         
-        const auto &shader_include = asset_table.shader_includes[sid_intern(relative_path)];
-        str_glue(out, (char *)shader_include.data, shader_include.data_size);
+        str_glue(out, include_data, include_data_size);
 
         // @Robustness: this may lead to undesired behavior if several
         // include statements will be on same line.
@@ -92,11 +104,12 @@ static bool parse_shader_region(const char *in, char *out, Shader_Region_Type ty
         include = str_sub(cin, DECL_INCLUDE);
     }
 
-    str_glue(out, cin, end - cin); // rest of shader code
-    return true;
+    str_glue(out, cin); // rest of shader code
+
+    str_copy(in, out); // copy back
 }
 
-bool parse_shader(const char *source, char *out_vertex, char *out_fragment) {
+bool parse_shader_regions(const char *source, char *out_vertex, char *out_fragment) {
     if (!parse_shader_region(source, out_vertex, REGION_VERTEX)) {
         error("Failed to parse vertex shader region");
         return false;

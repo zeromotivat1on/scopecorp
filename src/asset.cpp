@@ -5,7 +5,6 @@
 #include "str.h"
 #include "profile.h"
 #include "font.h"
-#include "flip_book.h"
 
 #include "stb_image.h"
 #include "tiny_obj_loader.h"
@@ -13,15 +12,20 @@
 #include "os/file.h"
 #include "os/time.h"
 
+#include "audio/au_table.h"
+#include "audio/au_sound.h"
 #include "audio/wav.h"
-#include "audio/sound.h"
 
-#include "render/buffer_storage.h"
-#include "render/shader.h"
-#include "render/texture.h"
-#include "render/material.h"
-#include "render/uniform.h"
-#include "render/mesh.h"
+#include "render/render.h"
+#include "render/r_table.h"
+#include "render/r_storage.h"
+#include "render/r_shader.h"
+#include "render/r_texture.h"
+#include "render/r_material.h"
+#include "render/r_uniform.h"
+#include "render/r_mesh.h"
+#include "render/r_vertex_descriptor.h"
+#include "render/r_flip_book.h"
 
 #include "math/matrix.h"
 
@@ -41,8 +45,7 @@ static void init_asset_source_callback(const File_Callback_Data *data) {
     auto *ascd = (Asset_Source_Callback_Data *)data->user_data;
     const char *ext = str_char_from_end(data->path, '.');
     
-    if (ascd->filter_ext && str_cmp(ascd->filter_ext, ext) == false) {      
-        //log("File path from callback %s is not accepted due to extension filter fail %s", data->path, ascd->filter_ext);
+    if (ascd->filter_ext && str_cmp(ascd->filter_ext, ext) == false) {
         return;
     }
 
@@ -51,7 +54,7 @@ static void init_asset_source_callback(const File_Callback_Data *data) {
     fix_directory_delimiters(full_path);
 
     char relative_path[MAX_PATH_SIZE];
-    convert_to_relative_asset_path(relative_path, full_path);
+    to_relative_asset_path(relative_path, full_path);
 
     const sid sid_relative_path = sid_intern(relative_path);
     
@@ -61,7 +64,7 @@ static void init_asset_source_callback(const File_Callback_Data *data) {
     source.sid_full_path = sid_intern(full_path);
     source.sid_relative_path = sid_relative_path;
     
-    auto &ast = asset_source_table;
+    auto &ast = Asset_source_table;
     add(ast.table, sid_relative_path, source);
     ast.count_by_type[source.asset_type] += 1;
 }
@@ -79,17 +82,18 @@ static u64 asset_source_table_hash(const sid &a) {
 }
 
 void init_asset_source_table() {
+    constexpr f32 SCALE = 2.0f - MAX_HASH_TABLE_LOAD_FACTOR;
+    constexpr u32 COUNT = (u32)(Asset_source_table.MAX_COUNT * SCALE);
+
     START_SCOPE_TIMER(init);
 
-    auto &ast = asset_source_table;
+    auto &ast = Asset_source_table;
     
-    ast.table = Hash_Table<sid, Asset_Source>(MAX_ASSET_SOURCES);
+    ast.table = Hash_Table<sid, Asset_Source>(COUNT);
     ast.table.hash_function = &asset_source_table_hash;
-    set_bytes(ast.count_by_type, 0, sizeof(ast.count_by_type));
+    mem_set(ast.count_by_type, 0, sizeof(ast.count_by_type));
     
-    // @Fix: we can't control order of values in hash table like this.
-    init_asset_sources(DIR_SHADERS,    ASSET_SHADER_INCLUDE, ".h");
-    init_asset_sources(DIR_SHADERS,    ASSET_SHADER, get_desired_shader_file_extension());
+    init_asset_sources(DIR_SHADERS,    ASSET_SHADER, SHADER_FILE_EXT);
     init_asset_sources(DIR_TEXTURES,   ASSET_TEXTURE);
     init_asset_sources(DIR_MATERIALS,  ASSET_MATERIAL);
     init_asset_sources(DIR_MESHES,     ASSET_MESH);
@@ -105,575 +109,293 @@ static u64 asset_table_hash(const sid &a) {
 }
 
 void init_asset_table() {
-    constexpr f32 scale = 2.0f - MAX_HASH_TABLE_LOAD_FACTOR;
-
-    auto &table = asset_table;
-
-    table.shader_includes = Hash_Table<sid, Shader_Include>((s32)(MAX_SHADER_INCLUDES * scale));
-    table.shader_includes.hash_function = &asset_table_hash;
-    
-    table.shaders = Hash_Table<sid, Shader>((s32)(MAX_SHADERS * scale));
-    table.shaders.hash_function = &asset_table_hash;
-
-    table.textures = Hash_Table<sid, Texture>((s32)(MAX_TEXTURES * scale));
-    table.textures.hash_function = &asset_table_hash;
-
-    table.materials = Hash_Table<sid, Material>((s32)(MAX_MATERIALS * scale));
-    table.materials.hash_function = &asset_table_hash;
-
-    table.meshes = Hash_Table<sid, Mesh>((s32)(MAX_MESHES * scale));
-    table.meshes.hash_function = &asset_table_hash;
-
-    table.sounds = Hash_Table<sid, Sound>((s32)(MAX_SOUNDS * scale));
-    table.sounds.hash_function = &asset_table_hash;
-
-    table.fonts = Hash_Table<sid, Font>((s32)(MAX_FONTS * scale));
-    table.fonts.hash_function = &asset_table_hash;
-
-    table.flip_books = Hash_Table<sid, Flip_Book>((s32)(MAX_FLIP_BOOKS * scale));
-    table.flip_books.hash_function = &asset_table_hash;
-}
-
-void save_asset_pack(const char *path) {
-    START_SCOPE_TIMER(save);
-
-    File file = os_file_open(path, FILE_OPEN_EXISTING, FILE_FLAG_WRITE);
-    defer { os_file_close(file); };
-    
-    if (file == INVALID_FILE) {
-        log("Asset pack %s does not exist, creating new one", path);
-        file = os_file_open(path, FILE_OPEN_NEW, FILE_FLAG_WRITE);
-        if (file == INVALID_FILE) {
-            error("Failed to create new asset pack %s", path);
-            return;
-        }
-    }
-    
-    auto &ast = asset_source_table;
-
-    Asset_Pack_Header header;
-    header.magic_value = ASSET_PACK_MAGIC_VALUE;
-    header.version     = ASSET_PACK_VERSION;
-    copy_bytes(header.count_by_type, ast.count_by_type, sizeof(header.count_by_type));
-
-    u64 offset_by_type[ASSET_TYPE_COUNT];
-    u64 offset = sizeof(Asset_Pack_Header);
-    for (u8 i = 0; i < ASSET_TYPE_COUNT; ++i) {
-        offset_by_type[i] = offset;
-        offset += get_asset_type_size((Asset_Type)i) * ast.count_by_type[i];
-    }
-
-    copy_bytes(header.offset_by_type, offset_by_type, sizeof(header.offset_by_type));
-
-    header.data_offset = offset;
-    
-    os_file_write(file, &header, sizeof(Asset_Pack_Header));
-
-    For (ast.table) {
-        const char *path      = sid_str(it.value.sid_relative_path);
-        const char *full_path = sid_str(it.value.sid_full_path);
+    constexpr f32 SCALE = 2.0f - MAX_HASH_TABLE_LOAD_FACTOR;
+    constexpr u32 COUNT = (u32)(Asset_source_table.MAX_COUNT * SCALE);
         
-        const auto asset_type = it.value.asset_type;
-        Assert(asset_type >= 0 && asset_type < ASSET_TYPE_COUNT);
+    Asset_table = Asset_Table(COUNT);
+    Asset_table.hash_function = &asset_table_hash;
+}
 
-        const u32 asset_size = get_asset_type_size(asset_type);
-        const u64 asset_offset = offset_by_type[asset_type];
-        offset_by_type[asset_type] += asset_size;
+Asset *find_asset(sid path) {
+    return find(Asset_table, path);
+}
+
+R_Shader *find_shader(sid path) {
+    auto *asset = find_asset(path);
+    if (asset == null) return null;
+    return &R_table.shaders[asset->index];
+}
+
+R_Texture *find_texture(sid path) {
+    auto *asset = find_asset(path);
+    if (asset == null) return null;
+    return &R_table.textures[asset->index];
+}
+
+R_Material *find_material(sid path) {
+    auto *asset = find_asset(path);
+    if (asset == null) return null;
+    return &R_table.materials[asset->index];
+}
+
+R_Mesh *find_mesh(sid path) {
+    auto *asset = find_asset(path);
+    if (asset == null) return null;
+    return &R_table.meshes[asset->index];
+}
+
+static void parse_asset_file_data(const void *data, R_Material::Meta &meta) {
+    // @Todo: parse material data - ideally text for editor and binary for release.
         
-        os_file_set_pointer_position(file, asset_offset);
+    enum Declaration_Type {
+        DECL_NONE,
+        DECL_SHADER,
+        DECL_TEXTURE,
+        DECL_AMBIENT,
+        DECL_DIFFUSE,
+        DECL_SPECULAR,
+        DECL_UNIFORM,
+    };
+
+    constexpr u32 MAX_LINE_BUFFER_SIZE = 256;
+
+    const char *DECL_NAME_SHADER   = "s";
+    const char *DECL_NAME_TEXTURE  = "t";
+    const char *DECL_NAME_AMBIENT  = "la";
+    const char *DECL_NAME_DIFFUSE  = "ld";
+    const char *DECL_NAME_SPECULAR = "ls";
+    const char *DECL_NAME_UNIFORM  = "u";
+
+    const char *DELIMITERS = " ";
+
+    meta.uniform_count = 0;
+    
+    const char *p = (const char *)data;
+
+    char line_buffer[MAX_LINE_BUFFER_SIZE];
+    const char *new_line = str_char(p, ASCII_NEW_LINE);
+    
+    while (new_line) {
+        const s64 line_size = new_line - p;
+        Assert(line_size < MAX_LINE_BUFFER_SIZE);
+        str_copy(line_buffer, p, line_size);
+        line_buffer[line_size] = '\0';
         
-        switch (asset_type) {
-        case ASSET_SHADER_INCLUDE: {
-            Shader_Include include = {};
+        char *line = str_trim(line_buffer);
+        if (str_size(line) > 0) {
+            char *token = str_token(line, DELIMITERS);
+            Declaration_Type decl_type = DECL_NONE;
 
-            void *buffer = allocl(MAX_SHADER_SIZE);
-            defer { freel(MAX_SHADER_SIZE); };
+            if (str_cmp(token, DECL_NAME_SHADER)) {
+                decl_type = DECL_SHADER;
+            } else if (str_cmp(token, DECL_NAME_TEXTURE)) {
+                decl_type = DECL_TEXTURE;
+            } else if (str_cmp(token, DECL_NAME_AMBIENT)) {
+                decl_type = DECL_AMBIENT;
+            } else if (str_cmp(token, DECL_NAME_DIFFUSE)) {
+                decl_type = DECL_DIFFUSE;
+            } else if (str_cmp(token, DECL_NAME_SPECULAR)) {
+                decl_type = DECL_SPECULAR;
+            } else if (str_cmp(token, DECL_NAME_UNIFORM)) {
+                decl_type = DECL_UNIFORM;
+            } else {
+                error("Unknown material token declaration '%s'", token);
+                continue;
+            }
 
-            u64 bytes_read = 0;
-            os_file_read(full_path, buffer, MAX_SHADER_SIZE, &bytes_read);
+            switch (decl_type) {
+            case DECL_SHADER: {
+                char *sv = str_token(null, DELIMITERS);
+                meta.shader = sid_intern(sv);
+                break;
+            }
+            case DECL_TEXTURE: {
+                char *sv = str_token(null, DELIMITERS);
+                meta.texture = sid_intern(sv);
+                break;
+            }
+            case DECL_AMBIENT: {
+                vec3 v;
+                for (s32 i = 0; i < 3; ++i) {
+                    char *sv = str_token(null, DELIMITERS);
+                    if (!sv) break;
+                    v[i] = str_to_f32(sv);
+                }
 
-            include.data_offset = offset;
-            include.data_size = bytes_read;
-            offset += include.data_size;
+                meta.light_params.ambient = v;
+                break;
+            }
+            case DECL_DIFFUSE: {
+                vec3 v;
+                for (s32 i = 0; i < 3; ++i) {
+                    char *sv = str_token(null, DELIMITERS);
+                    if (!sv) break;
+                    v[i] = str_to_f32(sv);
+                }
 
-            include.path_offset = offset;
-            include.path_size = str_size(path) + 1;
-            offset += include.path_size;
+                meta.light_params.diffuse = v;
+                break;
+            }
+            case DECL_SPECULAR: {
+                vec3 v;
+                for (s32 i = 0; i < 3; ++i) {
+                    char *sv = str_token(null, DELIMITERS);
+                    if (!sv) break;
+                    v[i] = str_to_f32(sv);
+                }
 
-            os_file_write(file, &include, asset_size);
+                meta.light_params.specular = v;
+                break;
+            }
+            case DECL_UNIFORM: {
+                Assert(meta.uniform_count < MAX_MATERIAL_UNIFORMS);
 
-            os_file_set_pointer_position(file, include.data_offset);
-            os_file_write(file, buffer, include.data_size);
+                auto &uniform = meta.uniforms[meta.uniform_count];
+                uniform.count = 1;
 
-            os_file_set_pointer_position(file, include.path_offset);
-            os_file_write(file, path, include.path_size);
+                char *su_name = str_token(null, DELIMITERS);
+                uniform.sid_name = sid_intern(su_name);
 
-            break;
+                char *su_type = str_token(null, DELIMITERS);
+                if (str_cmp(su_type, TYPE_NAME_U32)) {
+                    uniform.type = R_U32;
+
+                    u32 v = 0;
+                    char *sv = str_token(null, DELIMITERS);
+                    if (sv) {
+                        v = str_to_u32(sv);
+                    }
+                } else if (str_cmp(su_type, TYPE_NAME_F32)) {
+                    uniform.type = R_F32;
+
+                    f32 v = 0.0f;
+                    char *sv = str_token(null, DELIMITERS);
+                    if (sv) {
+                        v = str_to_f32(sv);
+                    }
+                } else if (str_cmp(su_type, TYPE_NAME_VEC2)) {
+                    uniform.type = R_F32_2;
+
+                    vec2 v;
+                    for (s32 i = 0; i < 2; ++i) {
+                        char *sv = str_token(null, DELIMITERS);
+                        if (!sv) break;
+                        v[i] = str_to_f32(sv);
+                    }
+                } else if (str_cmp(su_type, TYPE_NAME_VEC3)) {
+                    uniform.type = R_F32_3;
+
+                    vec3 v;
+                    for (s32 i = 0; i < 3; ++i) {
+                        char *sv = str_token(null, DELIMITERS);
+                        if (!sv) break;
+                        v[i] = str_to_f32(sv);
+                    }
+                } else if (str_cmp(su_type, TYPE_NAME_VEC4)) {
+                    uniform.type = R_F32_4;
+
+                    vec4 v;
+                    for (s32 i = 0; i < 4; ++i) {
+                        char *sv = str_token(null, DELIMITERS);
+                        if (!sv) break;
+                        v[i] = str_to_f32(sv);
+                    }
+                } else if (str_cmp(su_type, TYPE_NAME_MAT4)) {
+                    uniform.type = R_F32_4X4;
+
+                    mat4 v = mat4_identity();
+                    for (s32 i = 0; i < 16; ++i) {
+                        char *sv = str_token(null, DELIMITERS);
+                        if (!sv) break;
+                        v[i % 4][i / 4] = str_to_f32(sv);
+                    }
+                } else {
+                    error("Unknown uniform type declaration '%s'", su_type);
+                    continue;
+                }
+
+                meta.uniform_count += 1;
+
+                break;
+            }
+            }
         }
-        case ASSET_SHADER: {
-            Shader shader = {};
-
-            void *buffer = allocl(MAX_SHADER_SIZE);
-            defer { freel(MAX_SHADER_SIZE); };
-
-            u64 bytes_read = 0;
-            os_file_read(full_path, buffer, MAX_SHADER_SIZE, &bytes_read);
-
-            shader.data_offset = offset;
-            shader.data_size = bytes_read;
-            offset += shader.data_size;
-
-            shader.path_offset = offset;
-            shader.path_size = str_size(path) + 1;
-            offset += shader.path_size;
-
-            os_file_write(file, &shader, asset_size);
-
-            os_file_set_pointer_position(file, shader.data_offset);
-            os_file_write(file, buffer, shader.data_size);
-
-            os_file_set_pointer_position(file, shader.path_offset);
-            os_file_write(file, path, shader.path_size);
-            
-            break;
-        }
-        case ASSET_TEXTURE: {
-            Texture texture = {};
-
-            void *buffer = allocl(MAX_TEXTURE_SIZE);
-            defer { freel(MAX_TEXTURE_SIZE); };
-
-            u64 bytes_read = 0;
-            os_file_read(full_path, buffer, MAX_TEXTURE_SIZE, &bytes_read);
-
-            void *data = stbi_load_from_memory((u8 *)buffer, (s32)bytes_read, &texture.width, &texture.height, &texture.channel_count, 0);
-            defer { stbi_image_free(data); };
-
-            texture.type = TEXTURE_TYPE_2D; // @Cleanup: detect texture type.
-            texture.format = get_texture_format_from_channel_count(texture.channel_count);
-
-            texture.data_offset = offset;
-            texture.data_size = texture.width * texture.height * texture.channel_count;
-            offset += texture.data_size;
-
-            texture.path_offset = offset;
-            texture.path_size = str_size(path) + 1;
-            offset += texture.path_size;
-
-            os_file_write(file, &texture, asset_size);
-
-            os_file_set_pointer_position(file, texture.data_offset);
-            os_file_write(file, data, texture.data_size);
-            
-            os_file_set_pointer_position(file, texture.path_offset);
-            os_file_write(file, path, texture.path_size);
-            
-            break;
-        }
-        case ASSET_MATERIAL: {
-            Material material = {};
-
-            void *buffer = allocl(MAX_MATERIAL_SIZE);
-            defer { freel(MAX_MATERIAL_SIZE); };
-
-            u64 bytes_read = 0;
-            os_file_read(full_path, buffer, MAX_MATERIAL_SIZE, &bytes_read);
-
-            material.data_offset = offset;
-            material.data_size = bytes_read;
-            offset += material.data_size;
-
-            material.path_offset = offset;
-            material.path_size = str_size(path) + 1;
-            offset += material.path_size;
-
-            os_file_write(file, &material, asset_size);
-
-            os_file_set_pointer_position(file, material.data_offset);
-            os_file_write(file, buffer, material.data_size);
-
-            os_file_set_pointer_position(file, material.path_offset);
-            os_file_write(file, path, material.path_size);
-            
-            break;
-        }
-        case ASSET_MESH: {
-            Mesh mesh = {};
-
-            void *buffer = allocl(MAX_MESH_SIZE);
-            defer { freel(MAX_MESH_SIZE); };
-
-            u64 bytes_read = 0;
-            os_file_read(full_path, buffer, MAX_MESH_SIZE, &bytes_read);
-
-            mesh.data_offset = offset;
-            mesh.data_size = bytes_read;
-            offset += mesh.data_size;
-
-            mesh.path_offset = offset;
-            mesh.path_size = str_size(path) + 1;
-            offset += mesh.path_size;
-            
-            os_file_write(file, &mesh, asset_size);
-
-            os_file_set_pointer_position(file, mesh.data_offset);
-            os_file_write(file, buffer, mesh.data_size);
-            
-            os_file_set_pointer_position(file, mesh.path_offset);
-            os_file_write(file, path, mesh.path_size);
-            
-            break;
-        }
-        case ASSET_SOUND: {
-            Sound sound = {};
-
-            void *buffer = allocl(MAX_SOUND_SIZE);
-            defer { freel(MAX_SOUND_SIZE); };
-
-            u64 bytes_read = 0;
-            os_file_read(full_path, buffer, MAX_SOUND_SIZE, &bytes_read);
-
-            Wav_Header wav;
-            void *sampled_data = parse_wav(buffer, &wav);
-
-            sound.channel_count = wav.channel_count;
-            sound.sample_rate = wav.samples_per_second;
-            sound.bit_rate = wav.bits_per_sample;
-
-            sound.data_offset = offset;
-            sound.data_size = wav.sampled_data_size;
-            offset += sound.data_size;
-
-            sound.path_offset = offset;
-            sound.path_size = str_size(path) + 1;
-            offset += sound.path_size;
-            
-            os_file_write(file, &sound, asset_size);
-
-            os_file_set_pointer_position(file, sound.data_offset);
-            os_file_write(file, buffer, sound.data_size);
-                        
-            os_file_set_pointer_position(file, sound.path_offset);
-            os_file_write(file, path, sound.path_size);
-                        
-            break;
-        }
-        case ASSET_FONT: {
-            Font font = {};
-
-            void *buffer = allocl(MAX_FONT_SIZE);
-            defer { freel(MAX_FONT_SIZE); };
-
-            u64 bytes_read = 0;
-            os_file_read(full_path, buffer, MAX_FONT_SIZE, &bytes_read);
-
-            font.data_offset = offset;
-            font.data_size = bytes_read;
-            offset += font.data_size;
-
-            font.path_offset = offset;
-            font.path_size = str_size(path) + 1;
-            offset += font.path_size;
-                        
-            os_file_write(file, &font, asset_size);
-
-            os_file_set_pointer_position(file, font.data_offset);
-            os_file_write(file, buffer, font.data_size);
-
-            os_file_set_pointer_position(file, font.path_offset);
-            os_file_write(file, path, font.path_size);
-            
-            break;
-        }
-        case ASSET_FLIP_BOOK: {
-            Flip_Book flip_book = {};
-
-            void *buffer = allocl(MAX_FLIP_BOOK_SIZE);
-            defer { freel(MAX_FLIP_BOOK_SIZE); };
-
-            u64 bytes_read = 0;
-            os_file_read(full_path, buffer, MAX_FONT_SIZE, &bytes_read);
-
-            flip_book.data_offset = offset;
-            flip_book.data_size = bytes_read;
-            offset += flip_book.data_size;
-
-            flip_book.path_offset = offset;
-            flip_book.path_size = str_size(path) + 1;
-            offset += flip_book.path_size;
-            
-            os_file_write(file, &flip_book, asset_size);
-
-            os_file_set_pointer_position(file, flip_book.data_offset);
-            os_file_write(file, buffer, flip_book.data_size);
-            
-            os_file_set_pointer_position(file, flip_book.path_offset);
-            os_file_write(file, path, flip_book.path_size);
-            
-            break;
-        }
-        }
+        
+        p += line_size + 1;
+        new_line = str_char(p, ASCII_NEW_LINE);
     }
-
-    log("Saved asset pack %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(save));
 }
 
-void load_asset_pack(const char *path) {
-    START_SCOPE_TIMER(load);
+static void parse_asset_file_data(const void *data, R_Flip_Book::Meta &meta) {
+    enum Declaration_Type {
+        DECL_NONE,
+        DECL_TEXTURE,
+        DECL_FRAME_TIME,
+    };
 
-    File file = os_file_open(path, FILE_OPEN_EXISTING, FILE_FLAG_READ);
-    defer { os_file_close(file); };
+    constexpr u32 MAX_LINE_BUFFER_SIZE = 256;
+
+    const char *DECL_NAME_TEXTURE = "t";
+    const char *DECL_NAME_FRAME_TIME = "ft";
+
+    const char *DELIMITERS = " ";
     
-    if (file == INVALID_FILE) {
-        error("Failed to open asset pack for load %s", path);
-        return;
-    }
-
-    Asset_Pack_Header header;
-    os_file_read(file, &header, sizeof(Asset_Pack_Header));
-
-    if (header.magic_value != ASSET_PACK_MAGIC_VALUE) {
-        error("Wrong asset pack %s magic value %d", path, header.magic_value);
-        return;
-    }
-
-    if (header.version != ASSET_PACK_VERSION) {
-        error("Wrong asset pack %s version %d", path, header.version);
-        return;
-    }
+    meta.count = 0;
     
-    // This buffer is temp allocated for all shader include headers that will
-    // be used/reused during shader creation and freed at the end of asset pack load,
-    // which obviously indicated that we are done loading game assets.
-    //
-    // So, this is very important that all shader includes should come before shader
-    // sources (or at least those who use them) in asset pack file.
-    const u64 MAX_SHADER_INCLUDE_BUFFER_SIZE = header.count_by_type[ASSET_SHADER_INCLUDE] * MAX_SHADER_SIZE;
-    u64 shader_include_buffer_size = 0;
-    void *shader_include_buffer = allocl(MAX_SHADER_INCLUDE_BUFFER_SIZE);
+    const char *p = (const char *)data;
+    
+    char line_buffer[MAX_LINE_BUFFER_SIZE];
+    const char *new_line = str_char(p, ASCII_NEW_LINE);
+    
+    while (new_line) {
+        const s64 line_size = new_line - p;
+        Assert(line_size < MAX_LINE_BUFFER_SIZE);
+        str_copy(line_buffer, p, line_size);
+        line_buffer[line_size] = '\0';
+        
+        char *line = str_trim(line_buffer);
+        if (str_size(line) > 0) {
+            char *token = str_token(line, DELIMITERS);
+            Declaration_Type decl_type = DECL_NONE;
 
-#if DEVELOPER
-    // Clear buffer only in game build without hot reload feature.
-    defer { freel(MAX_SHADER_INCLUDE_BUFFER_SIZE); };
-#endif
+            if (str_cmp(token, DECL_NAME_TEXTURE)) {
+                decl_type = DECL_TEXTURE;
+            } else if (str_cmp(token, DECL_NAME_FRAME_TIME)) {
+                decl_type = DECL_FRAME_TIME;
+            } else {
+                error("Unknown flip book token declaration '%s'", token);
+                continue;
+            }
 
-    for (u8 i = 0; i < ASSET_TYPE_COUNT; ++i) {
-        char path[MAX_PATH_SIZE];
-            
-        const auto asset_type  = (Asset_Type)i;
-        const s32 asset_count  = header.count_by_type[i];
-        const u64 asset_offset = header.offset_by_type[i];
-        const u32 asset_size   = get_asset_type_size(asset_type);
+            switch (decl_type) {
+            case DECL_TEXTURE: {
+                const char *sv = str_token(null, DELIMITERS);
 
-        for (s32 j = 0; j < asset_count; ++j) {
-            os_file_set_pointer_position(file, asset_offset + asset_size * j);
-
-            switch (asset_type) {
-            case ASSET_SHADER_INCLUDE: {
-                Shader_Include include = {};
-                os_file_read(file, &include, asset_size);
-
-                os_file_set_pointer_position(file, include.path_offset);
-                os_file_read(file, path, include.path_size);
-                include.sid_path = sid_intern(path);
-                
-                void *data = alloclp(&shader_include_buffer, include.data_size);
-                shader_include_buffer_size += include.data_size;
-                Assert(shader_include_buffer_size <= MAX_SHADER_INCLUDE_BUFFER_SIZE);
-
-                os_file_set_pointer_position(file, include.data_offset);
-                os_file_read(file, data, include.data_size);
-
-                include.data = data;
-
-                add(asset_table.shader_includes, include.sid_path, include);
+                Assert(meta.count < R_Flip_Book::MAX_FRAMES);
+                meta.textures[meta.count] = sid_intern(sv);
+                meta.count += 1;
                 
                 break;
             }
-            case ASSET_SHADER: {                
-                Shader shader = {};
-                os_file_read(file, &shader, asset_size);
-
-                os_file_set_pointer_position(file, shader.path_offset);
-                os_file_read(file, path, shader.path_size);
-                shader.sid_path = sid_intern(path);
+            case DECL_FRAME_TIME: {
+                const char *sv = str_token(null, DELIMITERS);
+                const f32 v = str_to_f32(sv);
+                meta.next_frame_time = v;
                 
-                void *data = allocl(shader.data_size);
-                defer { freel(shader.data_size); };
-
-                os_file_set_pointer_position(file, shader.data_offset);
-                os_file_read(file, data, shader.data_size);
-
-                init_shader_asset(&shader, data);
-
-                add(asset_table.shaders, shader.sid_path, shader);
-                
-                break;
-            }
-            case ASSET_TEXTURE: {
-                Texture texture = {};
-                os_file_read(file, &texture, asset_size);
-
-                os_file_set_pointer_position(file, texture.path_offset);
-                os_file_read(file, path, texture.path_size);
-                texture.sid_path = sid_intern(path);
-                
-                void *data = allocl(texture.data_size);
-                defer { freel(texture.data_size); };
-                
-                os_file_set_pointer_position(file, texture.data_offset);
-                os_file_read(file, data, texture.data_size);
-                
-                init_texture_asset(&texture, data);
-
-                // @Cleanup: hardcoded!
-                generate_texture_mipmaps(&texture);
-                set_texture_wrap(&texture, TEXTURE_WRAP_REPEAT);
-                set_texture_filter(&texture, TEXTURE_FILTER_NEAREST);
-
-                add(asset_table.textures, texture.sid_path, texture);
-
-                break;
-            }
-            case ASSET_MATERIAL: {
-                Material material = {};
-                os_file_read(file, &material, asset_size);
-
-                os_file_set_pointer_position(file, material.path_offset);
-                os_file_read(file, path, material.path_size);
-                material.sid_path = sid_intern(path);
-                
-                void *data = allocl(material.data_size);
-                defer { freel(material.data_size); };
-
-                os_file_set_pointer_position(file, material.data_offset);
-                os_file_read(file, data, material.data_size);
-
-                init_material_asset(&material, data);
-                
-                add(asset_table.materials, material.sid_path, material);
-
-                break;
-            }
-            case ASSET_MESH: {
-                Mesh mesh = {};
-                os_file_read(file, &mesh, asset_size);
-
-                os_file_set_pointer_position(file, mesh.path_offset);
-                os_file_read(file, path, mesh.path_size);
-                mesh.sid_path = sid_intern(path);
-                
-                void *data = allocl(mesh.data_size);
-                defer { freel(mesh.data_size); };
-
-                os_file_set_pointer_position(file, mesh.data_offset);
-                os_file_read(file, data, mesh.data_size);
-
-                init_mesh_asset(&mesh, data);
-                
-                add(asset_table.meshes, mesh.sid_path, mesh);
-
-                break;
-            }
-            case ASSET_SOUND: {
-                Sound sound = {};
-                os_file_read(file, &sound, asset_size);
-
-                os_file_set_pointer_position(file, sound.path_offset);
-                os_file_read(file, path, sound.path_size);
-                sound.sid_path = sid_intern(path);
-                
-                void *data = allocl(sound.data_size);
-                defer { freel(sound.data_size); };
-
-                os_file_set_pointer_position(file, sound.data_offset);
-                os_file_read(file, data, sound.data_size);
-
-                init_sound_asset(&sound, data);
-                
-                add(asset_table.sounds, sound.sid_path, sound);
-
-                break;
-            }
-            case ASSET_FONT: {
-                Font font = {};
-                os_file_read(file, &font, asset_size);
-
-                os_file_set_pointer_position(file, font.path_offset);
-                os_file_read(file, path, font.path_size);
-                font.sid_path = sid_intern(path);
-                
-                void *data = allocl(font.data_size);
-
-                os_file_set_pointer_position(file, font.data_offset);
-                os_file_read(file, data, font.data_size);
-
-                font.data = data;
-
-                add(asset_table.fonts, font.sid_path, font);
-
-                break;
-            }
-            case ASSET_FLIP_BOOK: {
-                Flip_Book flip_book = {};
-                os_file_read(file, &flip_book, asset_size);
-
-                os_file_set_pointer_position(file, flip_book.path_offset);
-                os_file_read(file, path, flip_book.path_size);
-                flip_book.sid_path = sid_intern(path);
-                
-                void *data = allocl(flip_book.data_size);
-                defer { freel(flip_book.data_size); };
-
-                os_file_set_pointer_position(file, flip_book.data_offset);
-                os_file_read(file, data, flip_book.data_size);
-
-                init_flip_book_asset(&flip_book, data);
-                
-                add(asset_table.flip_books, flip_book.sid_path, flip_book);
-
                 break;
             }
             }
         }
-    }
-
-    log("Loaded asset pack %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(load));
-}
-
-void convert_to_relative_asset_path(char *relative_path, const char *full_path) {
-    const char *data = str_sub(full_path, "\\data");
-    if (!data) data = str_sub(full_path, "/data");
-    if (!data) return;
-
-    str_copy(relative_path, data);
-    fix_directory_delimiters(relative_path);
-}
-
-void convert_to_full_asset_path(char *full_path, const char *relative_path) {
-    str_copy(full_path, DIR_RUN_TREE);
-    str_glue(full_path, relative_path);
-    fix_directory_delimiters(full_path);
-}
-
-u32 get_asset_type_size(Asset_Type type) {
-    switch (type) {
-    case ASSET_SHADER_INCLUDE: return sizeof(Shader_Include);
-    case ASSET_SHADER:         return sizeof(Shader);
-    case ASSET_TEXTURE:        return sizeof(Texture);
-    case ASSET_MATERIAL:       return sizeof(Material);
-    case ASSET_MESH:           return sizeof(Mesh);
-    case ASSET_SOUND:          return sizeof(Sound);
-    case ASSET_FONT:           return sizeof(Font);
-    case ASSET_FLIP_BOOK:      return sizeof(Flip_Book);
-    default:
-        error("Failed to get asset size from type %d", type);
-        return 0;
+        
+        p += line_size + 1;
+        new_line = str_char(p, ASCII_NEW_LINE);
     }
 }
 
-
-static void init_mesh_asset_mesh(Mesh *mesh, void *data) {
+static void parse_asset_file_data_mesh(const void *data, R_Mesh::Meta &meta,
+                                       u16 components_count, u16 *components,
+                                       u32 vertices_size, void *vertices,
+                                       u32 indices_size, void *indices)  {
     constexpr u32 MAX_LINE_BUFFER_SIZE = 256;
     
     enum Declaration_Type {
@@ -700,24 +422,25 @@ static void init_mesh_asset_mesh(Mesh *mesh, void *data) {
     const char *DECL_NAME_INDEX = "i";
     
     const char *DELIMITERS = " ";
-    
-    mesh->vertex_layout_size = 0;
-    
-    char *p = (char *)data;
-    p[mesh->data_size] = '\0';
 
-    u8 *r_vertex_data = (u8 *)vertex_buffer_storage.mapped_data;
-    u8 *r_index_data  = (u8 *)index_buffer_storage.mapped_data;
+    meta = {};
+        
+    const char *p = (const char *)data;
+
+    u8 *vertex_data = (u8 *)vertices;
+    u8 *index_data  = (u8 *)indices;
     
-    u32 vertex_offsets[MAX_MESH_VERTEX_COMPONENTS];
+    u32 vertex_offsets[R_Vertex_Descriptor::MAX_BINDINGS];
 
     s32 decl_to_vertex_layout_index[DECL_COUNT];
-    Vertex_Component_Type decl_to_vct[DECL_COUNT];
+    u16 decl_to_vct[DECL_COUNT];
 
     u32 index_data_offset = 0;
 
     char line_buffer[MAX_LINE_BUFFER_SIZE];
-    char *new_line = str_char(p, ASCII_NEW_LINE);
+    const char *new_line = str_char(p, ASCII_NEW_LINE);
+    
+    u16 vertex_layout_size = 0;
     
     while (new_line) {
         const s64 line_size = new_line - p;
@@ -754,25 +477,25 @@ static void init_mesh_asset_mesh(Mesh *mesh, void *data) {
             switch (decl_type) {
             case DECL_VERTEX_COUNT: {
                 char *sv = str_token(null, DELIMITERS);
-                mesh->vertex_count = str_to_u32(sv);
+                meta.vertex_count = str_to_u32(sv);
                 break;
             }
             case DECL_INDEX_COUNT: {
                 char *sv = str_token(null, DELIMITERS);
-                mesh->index_count = str_to_u32(sv);
+                meta.index_count = str_to_u32(sv);
                 break;
             }
             case DECL_VERTEX_COMPONENT: {
                 char *sdecl = str_token(null, DELIMITERS);
                 char *stype = str_token(null, DELIMITERS);
 
-                Vertex_Component_Type vct;
+                u16 vct;
                 if (str_cmp(stype, TYPE_NAME_VEC2)) {
-                    vct = VERTEX_F32_2;
+                    vct = R_F32_2;
                 } else if (str_cmp(stype, TYPE_NAME_VEC3)) {
-                    vct = VERTEX_F32_3;                    
+                    vct = R_F32_3;
                 } else if (str_cmp(stype, TYPE_NAME_VEC4)) {
-                    vct = VERTEX_F32_4;
+                    vct = R_F32_4;
                 } else {
                     error("Unknown mesh token vertex component type declaration '%s'", token);
                     continue;
@@ -791,55 +514,33 @@ static void init_mesh_asset_mesh(Mesh *mesh, void *data) {
                 }
 
                 decl_to_vct[decl_vertex_type] = vct;
-                decl_to_vertex_layout_index[decl_vertex_type] = mesh->vertex_layout_size;
+                decl_to_vertex_layout_index[decl_vertex_type] = vertex_layout_size;
 
-                Assert(mesh->vertex_layout_size < MAX_MESH_VERTEX_COMPONENTS);
-                mesh->vertex_layout[mesh->vertex_layout_size] = vct;
-                mesh->vertex_layout_size += 1;
+                Assert(vertex_layout_size < components_count);
+                components[vertex_layout_size] = vct;
+                vertex_layout_size += 1;
                 
                 break;
             }
             case DECL_DATA_GO: {
-                Assert(mesh->vertex_layout_size <= MAX_VERTEX_ARRAY_BINDINGS);
-
-                mesh->vertex_size = 0;
-
-                u32 offset = vertex_buffer_storage.size;
-                Vertex_Array_Binding bindings[MAX_VERTEX_ARRAY_BINDINGS];
-                s32 binding_count = 0;
-
-                for (s32 i = 0; i < mesh->vertex_layout_size; ++i) {
-                    const s32 vcs = get_vertex_component_size(mesh->vertex_layout[i]); 
-                    mesh->vertex_size += vcs;
-
-                    auto &binding = bindings[i];
-                    binding.binding_index = i;
-                    binding.data_offset = offset;
-                    binding.layout_size = 1;
-                    binding.layout[0] = { mesh->vertex_layout[i], 0 };
-                    binding_count += 1;
+                meta.vertex_component_count = vertex_layout_size;
+                
+                u32 offset = 0;
+                for (u32 i = 0; i < vertex_layout_size; ++i) {
+                    const u16 vcs = r_vertex_component_size(components[i]); 
+                    meta.vertex_size += vcs;
                     
                     vertex_offsets[i] = offset;
 
-                    const u32 size = vcs * mesh->vertex_count;
+                    const u32 size = vcs * meta.vertex_count;
                     offset += size;
                 }
-
-                mesh->rid_vertex_array = r_create_vertex_array(bindings, binding_count);
                 
-                mesh->vertex_data_size   = mesh->vertex_size * mesh->vertex_count;
-                mesh->vertex_data_offset = vertex_buffer_storage.size;
-
-                vertex_buffer_storage.size += mesh->vertex_data_size;
-                Assert(vertex_buffer_storage.size <= MAX_VERTEX_STORAGE_SIZE);
-
-                mesh->index_data_size   = mesh->index_count  * sizeof(u32);
-                mesh->index_data_offset = index_buffer_storage.size;
-
-                index_buffer_storage.size += mesh->index_data_size;
-                Assert(index_buffer_storage.size <= MAX_INDEX_STORAGE_SIZE);
-
-                index_data_offset = mesh->index_data_offset;
+                const u32 vertex_data_size = meta.vertex_count * meta.vertex_size;
+                Assert(vertex_data_size <= vertices_size);
+                
+                const u32 index_data_size = meta.index_count * sizeof(u32);
+                Assert(index_data_size <= indices_size);
                 
                 break;
             }
@@ -854,7 +555,7 @@ static void init_mesh_asset_mesh(Mesh *mesh, void *data) {
                 }
 
                 switch (vct) {
-                case VERTEX_F32_2: {
+                case R_F32_2: {
                     vec2 v;
                     for (s32 i = 0; i < 2; ++i) {
                         char *sv = str_token(null, DELIMITERS);
@@ -862,12 +563,12 @@ static void init_mesh_asset_mesh(Mesh *mesh, void *data) {
                     }
 
                     u32 offset = vertex_offsets[vli];
-                    copy_bytes(r_vertex_data + offset, &v, sizeof(v));
+                    mem_copy(vertex_data + offset, &v, sizeof(v));
                     vertex_offsets[vli] += sizeof(v);
                     
                     break;
                 }
-                case VERTEX_F32_3: {
+                case R_F32_3: {
                     vec3 v;
                     for (s32 i = 0; i < 3; ++i) {
                         char *sv = str_token(null, DELIMITERS);
@@ -875,12 +576,12 @@ static void init_mesh_asset_mesh(Mesh *mesh, void *data) {
                     }
 
                     u32 offset = vertex_offsets[vli];
-                    copy_bytes(r_vertex_data + offset, &v, sizeof(v));
+                    mem_copy(vertex_data + offset, &v, sizeof(v));
                     vertex_offsets[vli] += sizeof(v);
                     
                     break;
                 }
-                case VERTEX_F32_4: {
+                case R_F32_4: {
                     vec4 v;
                     for (s32 i = 0; i < 4; ++i) {
                         char *sv = str_token(null, DELIMITERS);
@@ -888,7 +589,7 @@ static void init_mesh_asset_mesh(Mesh *mesh, void *data) {
                     }
 
                     u32 offset = vertex_offsets[vli];
-                    copy_bytes(r_vertex_data + offset, &v, sizeof(v));
+                    mem_copy(vertex_data + offset, &v, sizeof(v));
                     vertex_offsets[vli] += sizeof(v);
                     
                     break;
@@ -901,7 +602,7 @@ static void init_mesh_asset_mesh(Mesh *mesh, void *data) {
                 char *sv = str_token(null, DELIMITERS);
 
                 const u32 v = str_to_u32(sv);
-                copy_bytes(r_index_data + index_data_offset, &v, sizeof(v));
+                mem_copy(index_data + index_data_offset, &v, sizeof(v));
                 
                 index_data_offset += sizeof(v);
                 
@@ -917,8 +618,11 @@ static void init_mesh_asset_mesh(Mesh *mesh, void *data) {
 
 #include <sstream>
 
-static void init_mesh_asset_obj(Mesh *mesh, void *data) {
-    const auto sdata = std::string((char *)data, mesh->data_size);
+static void parse_asset_file_data_obj(const void *data, R_Mesh::Meta &meta,
+                                      u16 components_count, u16 *components,
+                                      u32 vertices_size, void *vertices,
+                                      u32 indices_size, void *indices) {
+    const auto sdata = std::string((char *)data);
     std::istringstream sstream(sdata);
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
@@ -940,67 +644,56 @@ static void init_mesh_asset_obj(Mesh *mesh, void *data) {
     }
 
     if (!ret) {
-        error("Failed to load mesh %s", sid_str(mesh->sid_path));
+        error("Failed to load mesh");
         return;
     }
 
-    mesh->vertex_layout_size = 0;
-    
+    meta = {};
+        
     if (attrib.vertices.size() > 0) {
-        mesh->vertex_layout[mesh->vertex_layout_size] = VERTEX_F32_3;
-        mesh->vertex_layout_size += 1;
+        Assert(meta.vertex_component_count < components_count);
+        components[meta.vertex_component_count] = R_F32_3;
+        meta.vertex_component_count += 1;
     }
 
     if (attrib.normals.size() > 0) {
-        mesh->vertex_layout[mesh->vertex_layout_size] = VERTEX_F32_3;
-        mesh->vertex_layout_size += 1;
+        Assert(meta.vertex_component_count < components_count);
+        components[meta.vertex_component_count] = R_F32_3;
+        meta.vertex_component_count += 1;
     }
 
     if (attrib.texcoords.size() > 0) {
-        mesh->vertex_layout[mesh->vertex_layout_size] = VERTEX_F32_2;
-        mesh->vertex_layout_size += 1;
+        Assert(meta.vertex_component_count < components_count);
+        components[meta.vertex_component_count] = R_F32_2;
+        meta.vertex_component_count += 1;
     }
-
-    mesh->vertex_count = 0;
+                
     for (u32 s = 0; s < shapes.size(); s++) {
         for (u32 f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
-            mesh->vertex_count += (u32)shapes[s].mesh.num_face_vertices[f];
+            meta.vertex_count += (u32)shapes[s].mesh.num_face_vertices[f];
         }
     }
 
-    u8 *r_vertex_data = (u8 *)vertex_buffer_storage.mapped_data;
-
-    u32 vertex_offsets[MAX_MESH_VERTEX_COMPONENTS];
-    u32 offset = vertex_buffer_storage.size;
+    u32 offset = 0;
+    u32 vertex_offsets[R_Vertex_Descriptor::MAX_BINDINGS];
     
-    Vertex_Array_Binding bindings[MAX_VERTEX_ARRAY_BINDINGS];
-    s32 binding_count = 0;
-
-    for (s32 i = 0; i < mesh->vertex_layout_size; ++i) {
-        const s32 vcs = get_vertex_component_size(mesh->vertex_layout[i]); 
-        mesh->vertex_size += vcs;
-
-        auto &binding = bindings[i];
-        binding.binding_index = i;
-        binding.data_offset = offset;
-        binding.layout_size = 1;
-        binding.layout[0] = { mesh->vertex_layout[i], 0 };
-        binding_count += 1;
+    for (u16 i = 0; i < meta.vertex_component_count; ++i) {
+        const u16 vcs = r_vertex_component_size(components[i]); 
+        meta.vertex_size += vcs;
                     
         vertex_offsets[i] = offset;
 
-        const u32 size = vcs * mesh->vertex_count;
+        const u32 size = vcs * meta.vertex_count;
         offset += size;
     }
-                
-    mesh->rid_vertex_array = r_create_vertex_array(bindings, binding_count);
-                
-    mesh->vertex_data_size   = mesh->vertex_size * mesh->vertex_count;
-    mesh->vertex_data_offset = vertex_buffer_storage.size;
 
-    vertex_buffer_storage.size += mesh->vertex_data_size;
-    Assert(vertex_buffer_storage.size <= MAX_VERTEX_STORAGE_SIZE);
+    const u32 vertex_data_size = meta.vertex_size * meta.vertex_count;
+    Assert(vertex_data_size <= vertices_size);
+    
+    u8 *vertex_data = (u8 *)vertices;
 
+    // @Todo: parse indices as well, as now all vertices are collected which is a bit dumb.
+    
     for (u32 s = 0; s < shapes.size(); s++) {
         u32 index_offset = 0;
         for (u32 f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
@@ -1015,7 +708,7 @@ static void init_mesh_asset_obj(Mesh *mesh, void *data) {
                     const f32 vz = attrib.vertices[3 * idx.vertex_index + 2];
 
                     const vec3 pos = vec3(vx, vy, vz);
-                    copy_bytes(r_vertex_data + vertex_offsets[0], &pos, sizeof(pos));
+                    mem_copy(vertex_data + vertex_offsets[0], &pos, sizeof(pos));
                     vertex_offsets[0] += sizeof(pos);
                 }
                 
@@ -1025,7 +718,7 @@ static void init_mesh_asset_obj(Mesh *mesh, void *data) {
                     const f32 nz = attrib.normals[3 * idx.normal_index + 2];
 
                     const vec3 n = vec3(nx, ny, nz);
-                    copy_bytes(r_vertex_data + vertex_offsets[1], &n, sizeof(n));
+                    mem_copy(vertex_data + vertex_offsets[1], &n, sizeof(n));
                     vertex_offsets[1] += sizeof(n);
                 }
 
@@ -1034,7 +727,7 @@ static void init_mesh_asset_obj(Mesh *mesh, void *data) {
                     const f32 ty = attrib.texcoords[2 * idx.texcoord_index + 1];
 
                     const vec2 uv = vec2(tx, ty);
-                    copy_bytes(r_vertex_data + vertex_offsets[2], &uv, sizeof(uv));
+                    mem_copy(vertex_data + vertex_offsets[2], &uv, sizeof(uv));
                     vertex_offsets[2] += sizeof(uv);
                 }
                 
@@ -1052,213 +745,421 @@ static void init_mesh_asset_obj(Mesh *mesh, void *data) {
     }
 }
 
-void init_mesh_asset(Mesh *mesh, void *data) {
-    // @Todo: parse mesh data - ideally text for editor and binary for release.
-
-    const char *mesh_path = sid_str(mesh->sid_path);
-    const char *extension = str_char_from_end(mesh_path, '.');
-    if (str_cmp(extension, ".mesh")) {
-        init_mesh_asset_mesh(mesh, data);
-        return;
-    } else if (str_cmp(extension, ".obj")) {
-        init_mesh_asset_obj(mesh, data);
-        return;
+u32 get_asset_max_file_size(Asset_Type type) {
+    switch (type) {
+    case ASSET_SHADER:    return R_Shader::MAX_FILE_SIZE;
+    case ASSET_TEXTURE:   return R_Texture::MAX_FILE_SIZE;
+    case ASSET_MATERIAL:  return R_Material::MAX_FILE_SIZE;
+    case ASSET_MESH:      return R_Mesh::MAX_FILE_SIZE;
+    case ASSET_FONT:      return Font_Info::MAX_FILE_SIZE;
+    case ASSET_FLIP_BOOK: return R_Flip_Book::MAX_FILE_SIZE;
+    case ASSET_SOUND:     return Au_Sound::MAX_FILE_SIZE;
+    default: return 0;
     }
-
-    warn("Skipping mesh with unsupported format %s", mesh_path);
 }
 
-void init_material_asset(Material *material, void *data) {
-    // @Todo: parse material data - ideally text for editor and binary for release.
-        
-    enum Declaration_Type {
-        DECL_NONE,
-        DECL_SHADER,
-        DECL_TEXTURE,
-        DECL_AMBIENT,
-        DECL_DIFFUSE,
-        DECL_SPECULAR,
-        DECL_UNIFORM,
-    };
+u32 get_asset_meta_size(Asset_Type type) {
+    switch (type) {
+    case ASSET_SHADER:    return 0;
+    case ASSET_TEXTURE:   return sizeof(R_Texture::Meta);
+    case ASSET_MATERIAL:  return sizeof(R_Material::Meta);
+    case ASSET_MESH:      return sizeof(R_Mesh::Meta);
+    case ASSET_FONT:      return 0;
+    case ASSET_FLIP_BOOK: return sizeof(R_Flip_Book::Meta);
+    case ASSET_SOUND:     return sizeof(Au_Sound::Meta);
+    default: return 0;
+    }
+}
 
-    constexpr u32 MAX_LINE_BUFFER_SIZE = 256;
+static void *get_asset_meta(Asset_Type type) {
+    switch (type) {
+    case ASSET_SHADER: return null;
+    case ASSET_TEXTURE: {
+        static R_Texture::Meta meta;
+        return &meta;
+    }
+    case ASSET_MATERIAL: {
+        static R_Material::Meta meta;
+        return &meta;
+    }
+    case ASSET_MESH: {
+        static R_Mesh::Meta meta;
+        return &meta;
+    }
+    case ASSET_FLIP_BOOK: {
+        static R_Flip_Book::Meta meta;
+        return &meta;
+    } 
+    case ASSET_SOUND: {
+        static Au_Sound::Meta meta;
+        return &meta;
+    }
+    default: return null;
+    }
+}
 
-    const char *DECL_NAME_SHADER   = "s";
-    const char *DECL_NAME_TEXTURE  = "t";
-    const char *DECL_NAME_AMBIENT  = "la";
-    const char *DECL_NAME_DIFFUSE  = "ld";
-    const char *DECL_NAME_SPECULAR = "ls";
-    const char *DECL_NAME_UNIFORM  = "u";
-
-    const char *DELIMITERS = " ";
-
-    material->uniform_count = 0;
+void serialize(File file, Asset &asset) {
+    u32 meta_size = get_asset_meta_size(asset.type);
+    void *meta = get_asset_meta(asset.type);
     
-    char *p = (char *)data;
-    p[material->data_size] = '\0';
-
-    char line_buffer[MAX_LINE_BUFFER_SIZE];
-    char *new_line = str_char(p, ASCII_NEW_LINE);
+    char path[MAX_PATH_SIZE];
+    to_full_asset_path(path, sid_str(asset.path));
     
-    while (new_line) {
-        const s64 line_size = new_line - p;
-        Assert(line_size < MAX_LINE_BUFFER_SIZE);
-        str_copy(line_buffer, p, line_size);
-        line_buffer[line_size] = '\0';
+    const u32 max_data_size = get_asset_max_file_size(asset.type);
+    void *data = alloct(max_data_size);
+    defer { freet(max_data_size); };
+
+    u64 data_size = 0;
+    os_read_file(path, data, max_data_size, &data_size);
+
+    ((char *)data)[data_size] = '\0';
+    
+    switch (asset.type) {
+    case ASSET_SHADER: {
+        char *src = (char *)data;
+            
+        // @Todo: this is super risky, make it safe.
+        parse_shader_includes(src);
         
-        char *line = str_trim(line_buffer);
-        if (str_size(line) > 0) {
-            char *token = str_token(line, DELIMITERS);
-            Declaration_Type decl_type = DECL_NONE;
+        data_size = str_size(src);
+        
+        break;
+    }
+    case ASSET_TEXTURE: {
+        auto &tmeta = *(R_Texture::Meta *)meta;
 
-            if (str_cmp(token, DECL_NAME_SHADER)) {
-                decl_type = DECL_SHADER;
-            } else if (str_cmp(token, DECL_NAME_TEXTURE)) {
-                decl_type = DECL_TEXTURE;
-            } else if (str_cmp(token, DECL_NAME_AMBIENT)) {
-                decl_type = DECL_AMBIENT;
-            } else if (str_cmp(token, DECL_NAME_DIFFUSE)) {
-                decl_type = DECL_DIFFUSE;
-            } else if (str_cmp(token, DECL_NAME_SPECULAR)) {
-                decl_type = DECL_SPECULAR;
-            } else if (str_cmp(token, DECL_NAME_UNIFORM)) {
-                decl_type = DECL_UNIFORM;
-            } else {
-                error("Unknown material token declaration '%s'", token);
-                continue;
-            }
+        s32 w, h, cc;
+        data = stbi_load_from_memory((u8 *)data, (s32)data_size, &w, &h, &cc, 0);
 
-            switch (decl_type) {
-            case DECL_SHADER: {
-                char *sv = str_token(null, DELIMITERS);
-                material->sid_shader = sid_intern(sv);
-                break;
-            }
-            case DECL_TEXTURE: {
-                char *sv = str_token(null, DELIMITERS);
-                material->sid_texture = sid_intern(sv);
-                break;
-            }
-            case DECL_AMBIENT: {
-                vec3 v;
-                for (s32 i = 0; i < 3; ++i) {
-                    char *sv = str_token(null, DELIMITERS);
-                    if (!sv) break;
-                    v[i] = str_to_f32(sv);
-                }
+        tmeta.width  = w;
+        tmeta.height = h;
+        tmeta.format = r_format_from_channel_count(cc);
 
-                material->ambient = v;
-                break;
-            }
-            case DECL_DIFFUSE: {
-                vec3 v;
-                for (s32 i = 0; i < 3; ++i) {
-                    char *sv = str_token(null, DELIMITERS);
-                    if (!sv) break;
-                    v[i] = str_to_f32(sv);
-                }
+        // @Cleanup: default values, not really fine.
+        tmeta.type = R_TEXTURE_2D;
+        tmeta.wrap = R_REPEAT;
+        tmeta.min_filter = R_NEAREST_MIPMAP_LINEAR;
+        tmeta.mag_filter = R_NEAREST;
 
-                material->diffuse = v;
-                break;
-            }
-            case DECL_SPECULAR: {
-                vec3 v;
-                for (s32 i = 0; i < 3; ++i) {
-                    char *sv = str_token(null, DELIMITERS);
-                    if (!sv) break;
-                    v[i] = str_to_f32(sv);
-                }
+        data_size = w * h * cc;
+        
+        break;
+    }
+    case ASSET_MATERIAL: {
+        data_size = 0;
+        
+        auto &mmeta = *(R_Material::Meta *)meta;
+        parse_asset_file_data(data, mmeta);
 
-                material->specular = v;
-                break;
-            }
-            case DECL_UNIFORM: {
-                Assert(material->uniform_count < MAX_MATERIAL_UNIFORMS);
+        break;
+    }
+    case ASSET_MESH: {
+        constexpr u32 VERTICES_SIZE = MB(16);
+        constexpr u32 INDICES_SIZE  = MB(4);
+        
+        auto &mmeta = *(R_Mesh::Meta *)meta;
 
-                auto &uniform = material->uniforms[material->uniform_count];
-                uniform.count = 1;
+        u16 components[R_Vertex_Binding::MAX_COMPONENTS];
+        void *vertices = alloct(VERTICES_SIZE);
+        void *indices  = alloct(INDICES_SIZE);
 
-                char *su_name = str_token(null, DELIMITERS);
-                str_copy(uniform.name, su_name);
+        defer { freet(INDICES_SIZE); };
+        defer { freet(VERTICES_SIZE); };
+        
+        const char *extension = str_char_from_end(path, '.');
+        if (str_cmp(extension, ".mesh")) {
+            parse_asset_file_data_mesh(data, mmeta,
+                                       COUNT(components), components,
+                                       VERTICES_SIZE, vertices,
+                                       INDICES_SIZE, indices);
+        } else if (str_cmp(extension, ".obj")) {
+            parse_asset_file_data_obj(data, mmeta,
+                                      COUNT(components), components,
+                                      VERTICES_SIZE, vertices,
+                                      INDICES_SIZE, indices);
+        }
 
-                char *su_type = str_token(null, DELIMITERS);
-                if (str_cmp(su_type, TYPE_NAME_U32)) {
-                    uniform.type = UNIFORM_U32;
+        const u32 comps_size    = mmeta.vertex_component_count * sizeof(components[0]);
+        const u32 vertices_size = mmeta.vertex_count * mmeta.vertex_size;
+        const u32 indices_size  = mmeta.index_count  * sizeof(u32);
 
-                    u32 v = 0;
-                    char *sv = str_token(null, DELIMITERS);
-                    if (sv) {
-                        v = str_to_u32(sv);
-                    }
-                    
-                    cache_uniform_value_on_cpu(&uniform, &v, sizeof(v));
-                } else if (str_cmp(su_type, TYPE_NAME_F32)) {
-                    uniform.type = UNIFORM_F32;
+        u8 *dst = (u8 *)data;
+        u32 write_size = 0;
+        
+        mem_copy(dst + write_size, components, comps_size);    write_size += comps_size;
+        mem_copy(dst + write_size, vertices,   vertices_size); write_size += vertices_size;
+        mem_copy(dst + write_size, indices,    indices_size);  write_size += indices_size;
+        
+        data_size = write_size;
+        
+        break;
+    }
+    case ASSET_FLIP_BOOK: {
+        data_size = 0;
 
-                    f32 v = 0.0f;
-                    char *sv = str_token(null, DELIMITERS);
-                    if (sv) {
-                        v = str_to_f32(sv);
-                    }
-                    
-                    cache_uniform_value_on_cpu(&uniform, &v, sizeof(v));
-                } else if (str_cmp(su_type, TYPE_NAME_VEC2)) {
-                    uniform.type = UNIFORM_F32_2;
+        auto &mmeta = *(R_Flip_Book::Meta *)meta;
+        parse_asset_file_data(data, mmeta);
 
-                    vec2 v;
-                    for (s32 i = 0; i < 2; ++i) {
-                        char *sv = str_token(null, DELIMITERS);
-                        if (!sv) break;
-                        v[i] = str_to_f32(sv);
-                    }
-                     
-                    cache_uniform_value_on_cpu(&uniform, &v, sizeof(v));
-                } else if (str_cmp(su_type, TYPE_NAME_VEC3)) {
-                    uniform.type = UNIFORM_F32_3;
+        break;
+    }
+    case ASSET_SOUND: {
+        auto &smeta = *(Au_Sound::Meta *)meta;
 
-                    vec3 v;
-                    for (s32 i = 0; i < 3; ++i) {
-                        char *sv = str_token(null, DELIMITERS);
-                        if (!sv) break;
-                        v[i] = str_to_f32(sv);
-                    }
+        Wav_Header wav;
+        data = parse_wav(data, &wav);
 
-                    cache_uniform_value_on_cpu(&uniform, &v, sizeof(v));
-                } else if (str_cmp(su_type, TYPE_NAME_VEC4)) {
-                    uniform.type = UNIFORM_F32_4;
+        smeta.channel_count = wav.channel_count;
+        smeta.sample_rate   = wav.samples_per_second;
+        smeta.bit_rate      = wav.bits_per_sample;
 
-                    vec4 v;
-                    for (s32 i = 0; i < 4; ++i) {
-                        char *sv = str_token(null, DELIMITERS);
-                        if (!sv) break;
-                        v[i] = str_to_f32(sv);
-                    }
+        data_size = wav.sampled_data_size;
 
-                    cache_uniform_value_on_cpu(&uniform, &v, sizeof(v));
-                } else if (str_cmp(su_type, TYPE_NAME_MAT4)) {
-                    uniform.type = UNIFORM_F32_4X4;
+        break;
+    }
+    }
+    
+    asset.index = 0;
+    asset.pak_meta_size = meta_size;
+    asset.pak_data_size = (u32)data_size;
+    
+    os_write_file(file, &asset, sizeof(asset));
 
-                    mat4 v = mat4_identity();
-                    for (s32 i = 0; i < 16; ++i) {
-                        char *sv = str_token(null, DELIMITERS);
-                        if (!sv) break;
-                        v[i % 4][i / 4] = str_to_f32(sv);
-                    }
+    os_set_file_ptr(file, asset.pak_blob_offset);
+    os_write_file(file, meta, meta_size);
+    os_write_file(file, data, data_size);
+}
 
-                    cache_uniform_value_on_cpu(&uniform, &v, sizeof(v));
-                } else {
-                    error("Unknown uniform type declaration '%s'", su_type);
-                    continue;
-                }
+void deserialize(File file, Asset &asset) {
+    os_read_file(file, &asset, sizeof(asset));
 
-                material->uniform_count += 1;
+    os_set_file_ptr(file, asset.pak_blob_offset);
 
-                break;
-            }
-            }
+    void *meta = alloct(asset.pak_meta_size);
+    void *data = alloct(asset.pak_data_size);
+
+    defer { freet(asset.pak_data_size); };
+    defer { freet(asset.pak_meta_size); };
+
+    os_read_file(file, meta, asset.pak_meta_size);
+    os_read_file(file, data, asset.pak_data_size);
+
+    // @Safety: a bit unsafe.
+    ((char *)data)[asset.pak_data_size] = '\0';
+
+    switch (asset.type) {
+    case ASSET_SHADER: {
+        char *src = (char *)data;        
+        asset.index = r_create_shader(src);
+        break;
+    }
+    case ASSET_TEXTURE: {
+        const auto &tmeta = *(R_Texture::Meta *)meta;
+        asset.index = r_create_texture(tmeta.type, tmeta.format, tmeta.width, tmeta.height,
+                                       tmeta.wrap, tmeta.min_filter, tmeta.mag_filter, data);
+        break;
+    }
+    case ASSET_MATERIAL: {
+        const auto &mmeta = *(R_Material::Meta *)meta;
+
+        const auto shader  = Asset_table[mmeta.shader].index;
+        const auto texture = Asset_table[mmeta.texture].index;
+
+        u16 uniforms[R_Material::MAX_UNIFORMS] = { 0 };
+        for (u16 i = 0; i < mmeta.uniform_count; ++i) {
+            const auto &u = mmeta.uniforms[i];
+            uniforms[i] = r_create_uniform(u.sid_name, u.type, u.count);
         }
         
-        p += line_size + 1;
-        new_line = str_char(p, ASCII_NEW_LINE);
+        asset.index = r_create_material(shader, texture, mmeta.light_params,
+                                        mmeta.uniform_count, uniforms);
+
+        break;
     }
+    case ASSET_MESH: {
+        const auto &mmeta = *(R_Mesh::Meta *)meta;
+        Assert(mmeta.vertex_component_count <= R_Vertex_Binding::MAX_COMPONENTS);
+
+        const u32 vertex_components_size = mmeta.vertex_component_count * sizeof(u16);
+        const u32 vertices_size = mmeta.vertex_count * mmeta.vertex_size;
+        const u32 indices_size = mmeta.index_count * sizeof(u32);
+
+        const u16 *vertex_components = (u16 *)data;
+        const void *vertices = (u8 *)data + vertex_components_size; 
+        const void *indices = (u8 *)data + vertex_components_size + vertices_size; 
+        
+        u32 vertices_offset = 0;
+
+        R_Vertex_Binding bindings[R_Vertex_Descriptor::MAX_BINDINGS];
+        u32 binding_count = 0;
+
+        for (u32 i = 0; i < mmeta.vertex_component_count; ++i) {
+            const u16 vcs = r_vertex_component_size(vertex_components[i]); 
+            const u32 size = vcs * mmeta.vertex_count;
+            const auto alloc = r_alloc(R_vertex_map_range, size);
+
+            mem_copy(alloc.data, (u8 *)vertices + vertices_offset, size);
+            vertices_offset += size;
+                        
+            auto &binding = bindings[i];
+            binding.binding_index = i;
+            binding.offset = alloc.map->offset + alloc.offset;
+            binding.component_count = 1;
+            binding.components[0] = { vertex_components[i], 0 };
+
+            binding_count += 1;
+        }
+
+        const auto ialloc = r_alloc(R_index_map_range, indices_size);
+        mem_copy(ialloc.data, indices, indices_size);
+        
+        const u16 vertex_desc = r_create_vertex_descriptor(binding_count, bindings);
+        const u32 first_index = (ialloc.map->offset + ialloc.offset) / sizeof(u32);
+        asset.index = r_create_mesh(vertex_desc, mmeta.vertex_count,
+                                    first_index, mmeta.index_count);
+        
+        break;
+    }
+    case ASSET_FONT: {
+        auto &font_info = Font_infos[Font_info_count];
+
+        void *font_data = allocp(asset.pak_data_size);
+        mem_copy(font_data, data, asset.pak_data_size);
+        
+        init_font(font_data, font_info);
+
+        asset.index = Font_info_count;
+        Font_info_count += 1;
+
+        break;
+    }
+    case ASSET_FLIP_BOOK: {
+        const auto &fmeta = *(R_Flip_Book::Meta *)meta;
+
+        u16 textures[R_Flip_Book::MAX_FRAMES];
+        for (u32 i = 0; i < fmeta.count; ++i) {
+            textures[i] = find_asset(fmeta.textures[i])->index;
+        }
+        
+        asset.index = r_create_flip_book(fmeta.count, textures, fmeta.next_frame_time);
+
+        break;
+    }
+    case ASSET_SOUND: {
+        auto &smeta = *(Au_Sound::Meta *)meta;
+        asset.index = au_create_sound(smeta.channel_count, smeta.bit_rate,
+                                      smeta.sample_rate, asset.pak_data_size, data, 0);
+        break;
+    }
+    }
+}
+
+static inline u32 get_asset_blob_size(const Asset &asset) {
+    return asset.pak_meta_size + asset.pak_data_size;
+}
+
+void save_asset_pack(const char *path) {
+    START_SCOPE_TIMER(save);
+
+    File file = os_open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_WRITE);
+    defer { os_close_file(file); };
+    
+    if (file == INVALID_FILE) {
+        log("Asset pak %s does not exist, creating new one", path);
+        file = os_open_file(path, FILE_OPEN_NEW, FILE_FLAG_WRITE);
+        if (file == INVALID_FILE) {
+            error("Failed to create new asset pak %s", path);
+            return;
+        }
+    }
+
+    auto &ast = Asset_source_table;
+
+    Asset_Pak_Header header;
+    header.magic   = ASSET_PAK_MAGIC;
+    header.version = ASSET_PAK_VERSION;
+
+    u64 offsets[ASSET_TYPE_COUNT];
+    u64 offset = sizeof(header);
+    
+    for (u8 i = 0; i < ASSET_TYPE_COUNT; ++i) {
+        offsets[i] = offset;
+        header.counts[i]  = ast.count_by_type[i];
+        header.offsets[i] = offset;
+        offset += sizeof(Asset) * ast.count_by_type[i];
+    }
+
+    os_write_file(file, &header, sizeof(header));
+
+    For (ast.table) {
+        Asset asset;
+        asset.type = it.value.asset_type;
+        asset.path = it.value.sid_relative_path;
+        asset.pak_blob_offset = offset;
+
+        os_set_file_ptr(file, offsets[asset.type]);
+        serialize(file, asset);
+
+        offsets[asset.type] += sizeof(Asset);
+        offset += get_asset_blob_size(asset);
+    }
+    
+    log("Saved asset pack %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(save));
+}
+
+void load_asset_pack(const char *path) {
+    START_SCOPE_TIMER(load);
+
+    File file = os_open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_READ);
+    defer { os_close_file(file); };
+    
+    if (file == INVALID_FILE) {
+        error("Failed to open asset pack for load %s", path);
+        return;
+    }
+
+    Asset_Pak_Header header;
+    os_read_file(file, &header, sizeof(header));
+
+    if (header.magic != ASSET_PAK_MAGIC) {
+        error("Wrong asset pak %s magic %u", path, header.magic);
+        return;
+    }
+
+    if (header.version != ASSET_PAK_VERSION) {
+        error("Wrong asset pak %s version %d", path, header.version);
+        return;
+    }
+
+    for (u8 i = 0; i < ASSET_TYPE_COUNT; ++i) {            
+        const auto type  = (Asset_Type)i;
+        const u32 count  = header.counts[i];
+        const u64 offset = header.offsets[i];
+        const u32 size   = sizeof(Asset);
+
+        for (u32 j = 0; j < count; ++j) {
+            os_set_file_ptr(file, offset + size * j);
+
+            Asset asset;
+            deserialize(file, asset);
+
+            add(Asset_table, asset.path, asset);
+        }
+    }
+    
+    log("Loaded asset pack %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(load));
+}
+
+void to_relative_asset_path(char *relative_path, const char *full_path) {
+    const char *data = str_sub(full_path, "\\data");
+    if (!data) data = str_sub(full_path, "/data");
+    if (!data) return;
+
+    str_copy(relative_path, data);
+    fix_directory_delimiters(relative_path);
+}
+
+void to_full_asset_path(char *full_path, const char *relative_path) {
+    str_copy(full_path, DIR_RUN_TREE);
+    str_glue(full_path, relative_path);
+    fix_directory_delimiters(full_path);
 }

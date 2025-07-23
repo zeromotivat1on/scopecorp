@@ -53,14 +53,14 @@ inline constexpr s32 MAX_WINDOW_EVENT_QUEUE_SIZE = 32; // max window events per 
 inline Window_Event window_event_queue[MAX_WINDOW_EVENT_QUEUE_SIZE];
 inline s32 window_event_queue_size = 0;
 
-Window *os_window_create(s32 w, s32 h, const char *name, s32 x, s32 y, void *user_data = null);
-void os_window_register_event_callback(Window *window, Window_Event_Callback callback);
-void os_window_destroy(Window *window);
-void os_window_poll_events(Window *window);
-void os_window_close(Window *window);
-bool os_window_is_alive(Window *window);
-bool os_window_set_title(Window *window, const char *title);
-void os_window_lock_cursor(Window *window, bool lock);
-void os_window_swap_buffers(Window *window);
+Window *os_create_window(s32 w, s32 h, const char *name, s32 x, s32 y, void *user_data = null);
+void os_register_window_callback(Window *window, Window_Event_Callback callback);
+void os_destroy_window(Window *window);
+void os_poll_window_events(Window *window);
+void os_close_window(Window *window);
+bool os_window_alive(Window *window);
+bool os_set_window_title(Window *window, const char *title);
+void os_lock_window_cursor(Window *window, bool lock);
+void os_swap_window_buffers(Window *window);
 
 void os_set_vsync(bool enable);

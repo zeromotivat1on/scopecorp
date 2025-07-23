@@ -9,33 +9,33 @@
 inline eid eid_global_counter = 1;
 
 enum Entity_Type : u8 {
-    ENTITY_PLAYER,
-    ENTITY_SKYBOX,
-    ENTITY_STATIC_MESH,
-    ENTITY_DIRECT_LIGHT,
-    ENTITY_POINT_LIGHT,
-    ENTITY_SOUND_EMITTER_2D,
-    ENTITY_SOUND_EMITTER_3D,
-    ENTITY_PORTAL,
+    E_PLAYER,
+    E_SKYBOX,
+    E_STATIC_MESH,
+    E_DIRECT_LIGHT,
+    E_POINT_LIGHT,
+    E_SOUND_EMITTER_2D,
+    E_SOUND_EMITTER_3D,
+    E_PORTAL,
     
-    ENTITY_TYPE_COUNT
+    E_COUNT
 };
 
-enum Entity_FLag : u32 {
-    ENTITY_FLAG_SELECTED_IN_EDITOR = 0x1,
+enum Entity_Bits : u32 {
+    E_MOUSE_PICKED_BIT = 0x1,
 };
 
 struct Entity_Draw_Data {
     sid sid_mesh     = SID_NONE;
     sid sid_material = SID_NONE;
-
-    u32 eid_vertex_data_offset = 0;
+    
+    u32 eid_offset = 0;
 };
 
 struct Entity {
     eid eid = EID_NONE;
     Entity_Type type;
-    u32 flags = 0;
+    u32 bits = 0;
     
     vec3 location;
     quat rotation;
@@ -50,22 +50,22 @@ struct Entity {
 #define REFLECT_ENTITY_FIELDS                                           \
     REFLECT_FIELD(Entity, eid,        FIELD_U32)                        \
     REFLECT_FIELD(Entity, type,       FIELD_U8)                         \
-    REFLECT_FIELD(Entity, flags,      FIELD_U32)                        \
+    REFLECT_FIELD(Entity, bits,       FIELD_U32)                        \
     REFLECT_FIELD(Entity, location,   FIELD_VEC3)                       \
     REFLECT_FIELD(Entity, rotation,   FIELD_QUAT)                       \
     REFLECT_FIELD(Entity, scale,      FIELD_VEC3)                       \
     REFLECT_FIELD(Entity, uv_scale,   FIELD_VEC2)                       \
     REFLECT_FIELD(Entity, aabb_index, FIELD_S32)                        \
-    REFLECT_FIELD(Entity, draw_data.sid_mesh,               FIELD_SID)  \
-    REFLECT_FIELD(Entity, draw_data.sid_material,           FIELD_SID)  \
-    REFLECT_FIELD(Entity, draw_data.eid_vertex_data_offset, FIELD_U32)  \
+    REFLECT_FIELD(Entity, draw_data.sid_mesh,     FIELD_SID)            \
+    REFLECT_FIELD(Entity, draw_data.sid_material, FIELD_SID)            \
+    REFLECT_FIELD(Entity, draw_data.eid_offset,   FIELD_U32)            \
 
 REFLECT_BEGIN(Entity)
 REFLECT_ENTITY_FIELDS
 REFLECT_END(Entity)
 
 struct Player : Entity {
-    Player() { type = ENTITY_PLAYER; }
+    Player() { type = E_PLAYER; }
     
     f32 move_speed      = 3.0f;
     f32 ed_camera_speed = 4.0f;
@@ -101,7 +101,7 @@ REFLECT_FIELD(Player, collide_aabb_index, FIELD_S32)
 REFLECT_END(Player)
 
 struct Static_Mesh : Entity {
-    Static_Mesh() { type = ENTITY_STATIC_MESH; }
+    Static_Mesh() { type = E_STATIC_MESH; }
 };
 
 REFLECT_BEGIN(Static_Mesh)
@@ -109,7 +109,7 @@ REFLECT_ENTITY_FIELDS
 REFLECT_END(Static_Mesh)
 
 struct Skybox : Entity {
-    Skybox() { type = ENTITY_SKYBOX; }
+    Skybox() { type = E_SKYBOX; }
 
     vec3 uv_offset = vec3_zero;
 };
@@ -120,7 +120,7 @@ REFLECT_FIELD(Skybox, uv_offset, FIELD_VEC2)
 REFLECT_END(Skybox)
 
 struct Direct_Light : Entity {
-    Direct_Light() { type = ENTITY_DIRECT_LIGHT; }
+    Direct_Light() { type = E_DIRECT_LIGHT; }
 
     vec3 ambient  = vec3_white;
     vec3 diffuse  = vec3_white;
@@ -144,7 +144,7 @@ struct Light_Attenuation {
 };
 
 struct Point_Light : Entity {
-    Point_Light() { type = ENTITY_POINT_LIGHT; }
+    Point_Light() { type = E_POINT_LIGHT; }
     
     vec3 ambient  = vec3_white;
     vec3 diffuse  = vec3_white;
@@ -167,7 +167,7 @@ REFLECT_FIELD(Point_Light, u_light_index, FIELD_S32)
 REFLECT_END(Point_Light)
 
 struct Sound_Emitter_2D : Entity {
-    Sound_Emitter_2D() { type = ENTITY_SOUND_EMITTER_2D; }
+    Sound_Emitter_2D() { type = E_SOUND_EMITTER_2D; }
 
     sid sid_sound = SID_NONE;
 };
@@ -178,7 +178,7 @@ REFLECT_FIELD(Sound_Emitter_2D, sid_sound, FIELD_SID)
 REFLECT_END(Sound_Emitter_2D)
 
 struct Sound_Emitter_3D : Entity {
-    Sound_Emitter_3D() { type = ENTITY_SOUND_EMITTER_3D; }
+    Sound_Emitter_3D() { type = E_SOUND_EMITTER_3D; }
 
     sid sid_sound = SID_NONE;
 };
@@ -189,7 +189,7 @@ REFLECT_FIELD(Sound_Emitter_3D, sid_sound, FIELD_SID)
 REFLECT_END(Sound_Emitter_3D)
 
 struct Portal : Entity {
-    Portal() { type = ENTITY_PORTAL; }
+    Portal() { type = E_PORTAL; }
 
     vec3 destination_location = vec3_zero;
 };
@@ -199,7 +199,7 @@ REFLECT_ENTITY_FIELDS
 REFLECT_FIELD(Portal, destination_location, FIELD_VEC3)
 REFLECT_END(Portal)
 
-inline const char *entity_type_names[ENTITY_TYPE_COUNT] = {
+inline const char *entity_type_names[E_COUNT] = {
     "Player",
     "Skybox",
     "Static Mesh",
@@ -210,7 +210,7 @@ inline const char *entity_type_names[ENTITY_TYPE_COUNT] = {
     "Portal",
 };
 
-inline u32 entity_type_field_counts[ENTITY_TYPE_COUNT] = {
+inline u32 entity_type_field_counts[E_COUNT] = {
     REFLECT_FIELD_COUNT(Player),
     REFLECT_FIELD_COUNT(Skybox),
     REFLECT_FIELD_COUNT(Static_Mesh),

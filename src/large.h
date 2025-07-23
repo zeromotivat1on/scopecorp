@@ -1,15 +1,15 @@
 #pragma once
 
 struct u128 {
-    u64 buckets[2];
+    u64 buckets[2] = { 0, 0 };
 };
 
 struct u256 {
-    u64 buckets[4];
+    u64 buckets[4] = { 0, 0, 0, 0 };
 };
 
 struct u512 {
-    u64 buckets[8];
+    u64 buckets[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 };
 
 void set(u64 *buckets, u16 pos);
@@ -27,3 +27,8 @@ u256 operator&(const u256 &a, const u256 &b);
 u256 operator|(const u256 &a, const u256 &b);
 u256 operator^(const u256 &a, const u256 &b);
 u256 operator~(const u256 &a);
+bool operator<(const u256 &a, const u256 &b);
+bool operator>(const u256 &a, const u256 &b);
+
+bool operator<(const u512 &a, const u512 &b);
+bool operator>(const u512 &a, const u512 &b);

@@ -6,7 +6,6 @@
 #include "log.h"
 #include "profile.h"
 #include "input_stack.h"
-#include "flip_book.h"
 #include "asset.h"
 
 #include "math/math_core.h"
@@ -18,40 +17,46 @@
 #include "editor/editor.h"
 #include "editor/debug_console.h"
 
+#include "render/render.h"
 #include "render/ui.h"
-#include "render/viewport.h"
-#include "render/uniform.h"
-#include "render/material.h"
-#include "render/texture.h"
-#include "render/buffer_storage.h"
-#include "render/render_command.h"
+#include "render/r_table.h"
+#include "render/r_target.h"
+#include "render/r_pass.h"
+#include "render/r_viewport.h"
+#include "render/r_uniform.h"
+#include "render/r_material.h"
+#include "render/r_texture.h"
+#include "render/r_storage.h"
+#include "render/r_flip_book.h"
 
-#include "audio/sound.h"
+#include "audio/audio.h"
+#include "audio/au_sound.h"
 
 void on_window_resize(s16 width, s16 height) {
-    resize_viewport(&viewport, width, height);
-    viewport.orthographic_projection = mat4_orthographic(0, viewport.width, 0, viewport.height, -1, 1);
+    r_resize_viewport(R_viewport, width, height);
+    R_viewport.orthographic_projection = mat4_orthographic(0, R_viewport.width, 0, R_viewport.height, -1, 1);
 
-    const vec2 viewport_resolution = vec2(viewport.width, viewport.height);
-    r_set_uniform_block_value(&uniform_block_viewport, 0, 0, &viewport_resolution, get_uniform_type_size_gpu_aligned(UNIFORM_F32_2));        
-    r_set_uniform_block_value(&uniform_block_viewport, 1, 0, &viewport.orthographic_projection, get_uniform_type_size_gpu_aligned(UNIFORM_F32_4X4));        
+    const vec2 viewport_resolution = vec2(R_viewport.width, R_viewport.height);
+    r_set_uniform_block_value(&uniform_block_viewport, 0, 0, &viewport_resolution, r_uniform_type_size_gpu_aligned(R_F32_2));        
+    r_set_uniform_block_value(&uniform_block_viewport, 1, 0, &R_viewport.orthographic_projection, r_uniform_type_size_gpu_aligned(R_F32_4X4));        
         
-    on_viewport_resize(&world->camera, &viewport);
-    world->ed_camera.aspect = world->camera.aspect;
-    world->ed_camera.left   = world->camera.left;
-    world->ed_camera.right  = world->camera.right;
-    world->ed_camera.bottom = world->camera.bottom;
-    world->ed_camera.top    = world->camera.top;
+    on_viewport_resize(World.camera, R_viewport);
+    World.ed_camera.aspect = World.camera.aspect;
+    World.ed_camera.left   = World.camera.left;
+    World.ed_camera.right  = World.camera.right;
+    World.ed_camera.bottom = World.camera.bottom;
+    World.ed_camera.top    = World.camera.top;
 
-    on_viewport_resize_debug_console(viewport.width, viewport.height);
+    on_viewport_resize_debug_console(R_viewport.width, R_viewport.height);
 
-    auto &frame_buffer = viewport.frame_buffer;
-    auto &material = asset_table.materials[frame_buffer.sid_material];
-    const vec2 frame_buffer_resolution = vec2(frame_buffer.width, frame_buffer.height);
-    set_material_uniform_value(&material, "u_resolution", &frame_buffer_resolution, sizeof(frame_buffer_resolution));
+    const auto &rt = R_table.targets[R_viewport.render_target];
+    const auto &mta = *find_asset(SID_MATERIAL_FRAME_BUFFER);
+    const vec2 resolution = vec2(rt.width, rt.height);
+    r_set_material_uniform(mta.index, SID("u_resolution"),
+                           0, sizeof(resolution), &resolution);
 }
 
-void on_input_game(Window_Event *event) {
+void on_input_game(const Window_Event *event) {
     const bool press = event->key_press;
     const bool ctrl = event->with_ctrl;
     const bool alt  = event->with_alt;
@@ -60,7 +65,7 @@ void on_input_game(Window_Event *event) {
     switch (event->type) {
 	case WINDOW_EVENT_KEYBOARD: {
         if (press && key == KEY_CLOSE_WINDOW) {
-            os_window_close(window);
+            os_close_window(window);
         } else if (press && key == KEY_SWITCH_DEBUG_CONSOLE) {
             open_debug_console();
         } else if (press && key == KEY_SWITCH_RUNTIME_PROFILER) {
@@ -69,13 +74,13 @@ void on_input_game(Window_Event *event) {
             open_memory_profiler();
         } else if (press && key == KEY_SWITCH_EDITOR_MODE) {
             game_state.mode = MODE_EDITOR;
-            push_input_layer(&input_layer_editor);
-            screen_report("Editor");
+            push_input_layer(Input_layer_editor);
+            editor_report("Game_Editor");
         }  else if (press && key == KEY_SWITCH_POLYGON_MODE) {
-            if (game_state.polygon_mode == POLYGON_FILL) {
-                game_state.polygon_mode = POLYGON_LINE;
+            if (game_state.polygon_mode == R_FILL) {
+                game_state.polygon_mode = R_LINE;
             } else {
-                game_state.polygon_mode = POLYGON_FILL;
+                game_state.polygon_mode = R_FILL;
             }
         } else if (press && key == KEY_SWITCH_COLLISION_VIEW) {
             if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
@@ -94,91 +99,87 @@ void on_input_game(Window_Event *event) {
     }
 }
 
-void init_world(World *world) {
-	*world = World();
+void create_world(Game_World &w) {
+	w = {};
 
-	world->static_meshes  = Sparse_Array<Static_Mesh>(MAX_STATIC_MESHES);
-    world->point_lights   = Sparse_Array<Point_Light>(MAX_POINT_LIGHTS);
-    world->direct_lights  = Sparse_Array<Direct_Light>(MAX_DIRECT_LIGHTS);
-    world->sound_emitters_2d = Sparse_Array<Sound_Emitter_2D>(MAX_SOUND_EMITTERS_2D);
-    world->sound_emitters_3d = Sparse_Array<Sound_Emitter_3D>(MAX_SOUND_EMITTERS_3D);
-    world->portals        = Sparse_Array<Portal>(MAX_PORTALS);
+	w.static_meshes  = Sparse_Array<Static_Mesh>(w.MAX_STATIC_MESHES);
+    w.point_lights   = Sparse_Array<Point_Light>(w.MAX_POINT_LIGHTS);
+    w.direct_lights  = Sparse_Array<Direct_Light>(w.MAX_DIRECT_LIGHTS);
+    w.sound_emitters_2d = Sparse_Array<Sound_Emitter_2D>(w.MAX_SOUND_EMITTERS_2D);
+    w.sound_emitters_3d = Sparse_Array<Sound_Emitter_3D>(w.MAX_SOUND_EMITTERS_3D);
+    w.portals        = Sparse_Array<Portal>(w.MAX_PORTALS);
 
-    world->aabbs = Sparse_Array<AABB>(MAX_AABBS);
+    w.aabbs = Sparse_Array<AABB>(w.MAX_AABBS);
 }
 
 template <typename T>
 static void read_sparse_array(File file, Sparse_Array<T> *array) {
     // @Cleanup: read sparse array directly with replace or add read data to existing one?
 
-    os_file_read(file, &array->count, sizeof(array->count));
+    os_read_file(file, &array->count, sizeof(array->count));
 
     s32 capacity = 0;
-    os_file_read(file, &capacity, sizeof(capacity));
+    os_read_file(file, &capacity, sizeof(capacity));
     Assert(capacity <= array->capacity);
 
-    os_file_read(file, array->items,  capacity * sizeof(T));
-    os_file_read(file, array->dense,  capacity * sizeof(s32));
-    os_file_read(file, array->sparse, capacity * sizeof(s32));
+    os_read_file(file, array->items,  capacity * sizeof(T));
+    os_read_file(file, array->dense,  capacity * sizeof(s32));
+    os_read_file(file, array->sparse, capacity * sizeof(s32));
 }
 
 template <typename T>
 static void write_sparse_array(File file, Sparse_Array<T> *array) {
-    os_file_write(file, &array->count,    sizeof(array->count));
-    os_file_write(file, &array->capacity, sizeof(array->capacity));
-    os_file_write(file, array->items,    array->capacity * sizeof(T));
-    os_file_write(file, array->dense,    array->capacity * sizeof(s32));
-    os_file_write(file, array->sparse,   array->capacity * sizeof(s32));
+    os_write_file(file, &array->count,    sizeof(array->count));
+    os_write_file(file, &array->capacity, sizeof(array->capacity));
+    os_write_file(file, array->items,    array->capacity * sizeof(T));
+    os_write_file(file, array->dense,    array->capacity * sizeof(s32));
+    os_write_file(file, array->sparse,   array->capacity * sizeof(s32));
 }
 
-void save_level(World *world) {
+void save_level(Game_World &world) {
     START_SCOPE_TIMER(save);
 
     char path[MAX_PATH_SIZE];
     str_copy(path, DIR_LEVELS);
-    str_glue(path, world->name);
+    str_glue(path, world.name);
     
-    File file = os_file_open(path, FILE_OPEN_EXISTING, FILE_FLAG_WRITE);
-    defer { os_file_close(file); };
+    File file = os_open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_WRITE);
+    defer { os_close_file(file); };
     
     if (file == INVALID_FILE) {
         log("Level %s does not exist, creating new one", path);
-        file = os_file_open(path, FILE_OPEN_NEW, FILE_FLAG_WRITE);
+        file = os_open_file(path, FILE_OPEN_NEW, FILE_FLAG_WRITE);
         if (file == INVALID_FILE) {
             error("Failed to create new level %s", path);
             return;
         }
     }
 
-    os_file_write(file, &world->name, MAX_WORLD_NAME_SIZE);
+    os_write_file(file, &world.name, world.MAX_NAME_SIZE);
     
-    os_file_write(file, &world->player,    sizeof(world->player));
-    os_file_write(file, &world->camera,    sizeof(world->camera));
-    os_file_write(file, &world->ed_camera, sizeof(world->ed_camera));
-    os_file_write(file, &world->skybox,    sizeof(world->skybox));
+    os_write_file(file, &world.player,    sizeof(world.player));
+    os_write_file(file, &world.camera,    sizeof(world.camera));
+    os_write_file(file, &world.ed_camera, sizeof(world.ed_camera));
+    os_write_file(file, &world.skybox,    sizeof(world.skybox));
 
-    write_sparse_array(file, &world->static_meshes);
-    write_sparse_array(file, &world->point_lights);
-    write_sparse_array(file, &world->direct_lights);
-    write_sparse_array(file, &world->sound_emitters_2d);
-    write_sparse_array(file, &world->sound_emitters_3d);
-    write_sparse_array(file, &world->portals);
-    write_sparse_array(file, &world->aabbs);
+    write_sparse_array(file, &world.static_meshes);
+    write_sparse_array(file, &world.point_lights);
+    write_sparse_array(file, &world.direct_lights);
+    write_sparse_array(file, &world.sound_emitters_2d);
+    write_sparse_array(file, &world.sound_emitters_3d);
+    write_sparse_array(file, &world.portals);
+    write_sparse_array(file, &world.aabbs);
     
     log("Saved level %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(save));
-    screen_report("Saved level %s", path);
+    editor_report("Saved level %s", path);
 }
 
 For_Result cb_init_entity_after_level_load(Entity *e, void *user_data) {
-    auto *world = (World *)user_data;
+    auto *world = (Game_World *)user_data;
 
-    if (e->eid != EID_NONE) {
-        Assert(EID_VERTEX_DATA_SIZE < MAX_EID_VERTEX_DATA_SIZE);
-        
-        e->draw_data.eid_vertex_data_offset = EID_VERTEX_DATA_SIZE;
-
-        *(eid *)((u8 *)EID_VERTEX_DATA + EID_VERTEX_DATA_SIZE) = e->eid;
-        EID_VERTEX_DATA_SIZE += sizeof(u32);
+    if (e->eid != EID_NONE) {        
+        e->draw_data.eid_offset = head_pointer(R_eid_alloc_range);
+        *(eid *)r_alloc(R_eid_alloc_range, sizeof(eid)) = e->eid;
     }
 
     if (e->eid > eid_global_counter) {
@@ -188,82 +189,87 @@ For_Result cb_init_entity_after_level_load(Entity *e, void *user_data) {
     return CONTINUE;
 }
 
-void load_level(World *world, const char *path) {
+void load_level(Game_World &world, const char *path) {
     START_SCOPE_TIMER(load);
 
-    File file = os_file_open(path, FILE_OPEN_EXISTING, FILE_FLAG_READ);
-    defer { os_file_close(file); };
+    File file = os_open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_READ);
+    defer { os_close_file(file); };
     
     if (file == INVALID_FILE) {
         error("Failed to open level %s", path);
         return;
     }
 
-    os_file_read(file, &world->name, MAX_WORLD_NAME_SIZE);
+    os_read_file(file, &world.name, world.MAX_NAME_SIZE);
     
-    os_file_read(file, &world->player,    sizeof(world->player));
-    os_file_read(file, &world->camera,    sizeof(world->camera));
-    os_file_read(file, &world->ed_camera, sizeof(world->ed_camera));
-    os_file_read(file, &world->skybox,    sizeof(world->skybox));
+    os_read_file(file, &world.player,    sizeof(world.player));
+    os_read_file(file, &world.camera,    sizeof(world.camera));
+    os_read_file(file, &world.ed_camera, sizeof(world.ed_camera));
+    os_read_file(file, &world.skybox,    sizeof(world.skybox));
 
-    read_sparse_array(file, &world->static_meshes);
-    read_sparse_array(file, &world->point_lights);
-    read_sparse_array(file, &world->direct_lights);
-    read_sparse_array(file, &world->sound_emitters_2d);
-    read_sparse_array(file, &world->sound_emitters_3d);
-    read_sparse_array(file, &world->portals);
-    read_sparse_array(file, &world->aabbs);
+    read_sparse_array(file, &world.static_meshes);
+    read_sparse_array(file, &world.point_lights);
+    read_sparse_array(file, &world.direct_lights);
+    read_sparse_array(file, &world.sound_emitters_2d);
+    read_sparse_array(file, &world.sound_emitters_3d);
+    read_sparse_array(file, &world.portals);
+    read_sparse_array(file, &world.aabbs);
 
-    for_each_entity(world, cb_init_entity_after_level_load, world);
+    for_each_entity(world, cb_init_entity_after_level_load, &world);
     
     log("Loaded level %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(load));
-    screen_report("Loaded level %s", path);
+    editor_report("Loaded level %s", path);
 }
 
 void tick_game(f32 dt) {
     PROFILE_SCOPE(__FUNCTION__);
-    
+
+    // @Cleanup: looks more like a hack.
     const auto *input_layer = get_current_input_layer();
     if (!input_layer) {
-        push_input_layer(&input_layer_game);
+        push_input_layer(Input_layer_game);
         input_layer = get_current_input_layer();
     }
     
-    auto *camera = desired_camera(world);
-    auto &player = world->player;
-    auto &skybox = world->skybox;
+    auto &camera = active_camera(World);
+    auto &player = World.player;
+    auto &skybox = World.skybox;
     
-	world->dt = dt;
+	World.dt = dt;
 
     au_set_listener_pos(player.location);
-    au_play_sound_or_continue(SID_SOUND_WIND_AMBIENCE, player.location);
+
+    const auto &sna = *find_asset(SID_SOUND_WIND_AMBIENCE);
+    au_play_sound_or_continue(sna.index, player.location);
 
     update_matrices(camera);
 
-    r_set_uniform_block_value(&uniform_block_camera, 0, 0, &camera->eye,       get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
-    r_set_uniform_block_value(&uniform_block_camera, 1, 0, &camera->view,      get_uniform_type_size_gpu_aligned(UNIFORM_F32_4X4));
-    r_set_uniform_block_value(&uniform_block_camera, 2, 0, &camera->proj,      get_uniform_type_size_gpu_aligned(UNIFORM_F32_4X4));
-    r_set_uniform_block_value(&uniform_block_camera, 3, 0, &camera->view_proj, get_uniform_type_size_gpu_aligned(UNIFORM_F32_4X4));
+    r_set_uniform_block_value(&uniform_block_camera, 0, 0, &camera.eye,       r_uniform_type_size_gpu_aligned(R_F32_3));
+    r_set_uniform_block_value(&uniform_block_camera, 1, 0, &camera.view,      r_uniform_type_size_gpu_aligned(R_F32_4X4));
+    r_set_uniform_block_value(&uniform_block_camera, 2, 0, &camera.proj,      r_uniform_type_size_gpu_aligned(R_F32_4X4));
+    r_set_uniform_block_value(&uniform_block_camera, 3, 0, &camera.view_proj, r_uniform_type_size_gpu_aligned(R_F32_4X4));
 
     {   // Update skybox.
-        auto &aabb = world->aabbs[skybox.aabb_index];
+        auto &aabb = World.aabbs[skybox.aabb_index];
         const vec3 half_extent = (aabb.max - aabb.min) * 0.5f;
         aabb.min = skybox.location - half_extent;
         aabb.max = skybox.location + half_extent;
         
-        auto *material = find(asset_table.materials, skybox.draw_data.sid_material);
-        if (material) {
-            skybox.uv_offset = camera->eye;
-            set_material_uniform_value(material, "u_uv_scale", &skybox.uv_scale, sizeof(skybox.uv_scale));
-            set_material_uniform_value(material, "u_uv_offset", &skybox.uv_offset, sizeof(skybox.uv_offset));
+        auto *mta = find_asset(skybox.draw_data.sid_material);
+        if (mta) {
+            skybox.uv_offset = camera.eye;
+            r_set_material_uniform(mta->index, SID("u_uv_scale"), 0,
+                                   sizeof(skybox.uv_scale), &skybox.uv_scale);
+            r_set_material_uniform(mta->index, SID("u_uv_offset"), 0,
+                                   sizeof(skybox.uv_offset), &skybox.uv_offset);
         }
     }
 
-    r_set_uniform_block_value(&uniform_block_direct_lights, 0, 0, &world->direct_lights.count, get_uniform_type_size_gpu_aligned(UNIFORM_U32));
-    r_set_uniform_block_value(&uniform_block_point_lights, 0, 0, &world->point_lights.count, get_uniform_type_size_gpu_aligned(UNIFORM_U32));
+    r_set_uniform_block_value(&uniform_block_direct_lights, 0, 0, &World.direct_lights.count, r_uniform_type_size_gpu_aligned(R_U32));
+    r_set_uniform_block_value(&uniform_block_point_lights, 0, 0, &World.point_lights.count, r_uniform_type_size_gpu_aligned(R_U32));
 
-    For (world->direct_lights) {
-        auto &aabb = world->aabbs[it.aabb_index];
+    For (World.direct_lights) {
+        auto &aabb = World.aabbs[it.aabb_index];
         const vec3 half_extent = (aabb.max - aabb.min) * 0.5f;
         aabb.min = it.location - half_extent;
         aabb.max = it.location + half_extent;
@@ -273,14 +279,14 @@ void tick_game(f32 dt) {
         // @Speed: its a bit painful to see several set calls instead of just one.
         // @Cleanup: figure out to make it cleaner, maybe get rid of field index parameters;
         // 0 field index is light count, so skipped.
-        r_set_uniform_block_value(&uniform_block_direct_lights, 1, it.u_light_index, &light_direction, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
-        r_set_uniform_block_value(&uniform_block_direct_lights, 2, it.u_light_index, &it.ambient, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
-        r_set_uniform_block_value(&uniform_block_direct_lights, 3, it.u_light_index, &it.diffuse, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
-        r_set_uniform_block_value(&uniform_block_direct_lights, 4, it.u_light_index, &it.specular, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
+        r_set_uniform_block_value(&uniform_block_direct_lights, 1, it.u_light_index, &light_direction, r_uniform_type_size_gpu_aligned(R_F32_3));
+        r_set_uniform_block_value(&uniform_block_direct_lights, 2, it.u_light_index, &it.ambient, r_uniform_type_size_gpu_aligned(R_F32_3));
+        r_set_uniform_block_value(&uniform_block_direct_lights, 3, it.u_light_index, &it.diffuse, r_uniform_type_size_gpu_aligned(R_F32_3));
+        r_set_uniform_block_value(&uniform_block_direct_lights, 4, it.u_light_index, &it.specular, r_uniform_type_size_gpu_aligned(R_F32_3));
     }
     
-    For (world->point_lights) {
-        auto &aabb = world->aabbs[it.aabb_index];
+    For (World.point_lights) {
+        auto &aabb = World.aabbs[it.aabb_index];
         const vec3 half_extent = (aabb.max - aabb.min) * 0.5f;
         aabb.min = it.location - half_extent;
         aabb.max = it.location + half_extent;
@@ -290,58 +296,69 @@ void tick_game(f32 dt) {
         // @Speed: its a bit painful to see several set calls instead of just one.
         // @Cleanup: figure out to make it cleaner, maybe get rid of field index parameters;
         // 0 field index is light count, so skipped.
-        r_set_uniform_block_value(&uniform_block_point_lights, 1, it.u_light_index, &it.location, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
+        r_set_uniform_block_value(&uniform_block_point_lights, 1, it.u_light_index, &it.location, r_uniform_type_size_gpu_aligned(R_F32_3));
 
-        r_set_uniform_block_value(&uniform_block_point_lights, 2, it.u_light_index, &it.ambient, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
-        r_set_uniform_block_value(&uniform_block_point_lights, 3, it.u_light_index, &it.diffuse, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
-        r_set_uniform_block_value(&uniform_block_point_lights, 4, it.u_light_index, &it.specular, get_uniform_type_size_gpu_aligned(UNIFORM_F32_3));
+        r_set_uniform_block_value(&uniform_block_point_lights, 2, it.u_light_index, &it.ambient, r_uniform_type_size_gpu_aligned(R_F32_3));
+        r_set_uniform_block_value(&uniform_block_point_lights, 3, it.u_light_index, &it.diffuse, r_uniform_type_size_gpu_aligned(R_F32_3));
+        r_set_uniform_block_value(&uniform_block_point_lights, 4, it.u_light_index, &it.specular, r_uniform_type_size_gpu_aligned(R_F32_3));
 
-        r_set_uniform_block_value(&uniform_block_point_lights, 5, it.u_light_index, &it.attenuation.constant, get_uniform_type_size_gpu_aligned(UNIFORM_F32));
-        r_set_uniform_block_value(&uniform_block_point_lights, 6, it.u_light_index, &it.attenuation.linear, get_uniform_type_size_gpu_aligned(UNIFORM_F32));
-        r_set_uniform_block_value(&uniform_block_point_lights, 7, it.u_light_index, &it.attenuation.quadratic, get_uniform_type_size_gpu_aligned(UNIFORM_F32));
+        r_set_uniform_block_value(&uniform_block_point_lights, 5, it.u_light_index, &it.attenuation.constant, r_uniform_type_size_gpu_aligned(R_F32));
+        r_set_uniform_block_value(&uniform_block_point_lights, 6, it.u_light_index, &it.attenuation.linear, r_uniform_type_size_gpu_aligned(R_F32));
+        r_set_uniform_block_value(&uniform_block_point_lights, 7, it.u_light_index, &it.attenuation.quadratic, r_uniform_type_size_gpu_aligned(R_F32));
     }
     
-	For (world->static_meshes) {
+	For (World.static_meshes) {
         // @Todo: take into account rotation and scale.
-        auto &aabb = world->aabbs[it.aabb_index];
+        auto &aabb = World.aabbs[it.aabb_index];
         const vec3 half_extent = (aabb.max - aabb.min) * 0.5f;
         aabb.min = it.location - half_extent;
         aabb.max = it.location + half_extent;
 
         if (it.draw_data.sid_material == SID_NONE) continue;
         
-        auto *material = find(asset_table.materials, it.draw_data.sid_material);
-        if (!material) continue;
-        
+        auto *mta = find_asset(it.draw_data.sid_material);
+        if (!mta) continue;
+
+        const auto &mt = R_table.materials[mta->index];
         const mat4 model = mat4_transform(it.location, it.rotation, it.scale);
-		set_material_uniform_value(material, "u_model", &model, sizeof(model));
 
-        set_material_uniform_value(material, "u_uv_scale", &it.uv_scale, sizeof(it.uv_scale));
+#define _size_ref(x) sizeof(x), &x
 
-        set_material_uniform_value(material, "u_material.ambient",   &material->ambient, sizeof(material->ambient));
-        set_material_uniform_value(material, "u_material.diffuse",   &material->diffuse, sizeof(material->diffuse));
-        set_material_uniform_value(material, "u_material.specular",  &material->specular, sizeof(material->specular));
-        set_material_uniform_value(material, "u_material.shininess", &material->shininess, sizeof(material->shininess));
+		r_set_material_uniform(mta->index, SID("u_model"),    0, _size_ref(model));
+        r_set_material_uniform(mta->index, SID("u_uv_scale"), 0, _size_ref(it.uv_scale));
+
+        r_set_material_uniform(mta->index, SID("u_material.ambient"),
+                               0, _size_ref(mt.light_params.ambient));
+        r_set_material_uniform(mta->index, SID("u_material.diffuse"),
+                               0, _size_ref(mt.light_params.diffuse));
+        r_set_material_uniform(mta->index, SID("u_material.specular"),
+                               0, _size_ref(mt.light_params.specular));
+        r_set_material_uniform(mta->index, SID("u_material.shininess"),
+                               0, _size_ref(mt.light_params.shininess));
+
+#undef _size_ref
 	}
 
     // @Todo: fine-tuned sound play.
     
-    For (world->sound_emitters_2d) {
-        auto &aabb = world->aabbs[it.aabb_index];
+    For (World.sound_emitters_2d) {
+        auto &aabb = World.aabbs[it.aabb_index];
         const vec3 half_extent = (aabb.max - aabb.min) * 0.5f;
         aabb.min = it.location - half_extent;
         aabb.max = it.location + half_extent;
-        
-        au_play_sound_or_continue(it.sid_sound, au_get_listener_pos());
+
+        const auto &sna = *find_asset(it.sid_sound);
+        au_play_sound_or_continue(sna.index, au_get_listener_pos());
     }
 
-    For (world->sound_emitters_3d) {
-        auto &aabb = world->aabbs[it.aabb_index];
+    For (World.sound_emitters_3d) {
+        auto &aabb = World.aabbs[it.aabb_index];
         const vec3 half_extent = (aabb.max - aabb.min) * 0.5f;
         aabb.min = it.location - half_extent;
         aabb.max = it.location + half_extent;
-        
-        au_play_sound_or_continue(it.sid_sound, it.location);
+
+        const auto &sna = *find_asset(it.sid_sound);
+        au_play_sound_or_continue(sna.index, it.location);
     }
     
     {   // Tick player.
@@ -373,7 +390,7 @@ void tick_game(f32 dt) {
                     player.move_direction = SOUTH;
                 }
             } else if (game_state.player_movement_behavior == MOVE_RELATIVE_TO_CAMERA) {
-                auto &camera = world->camera;
+                auto &camera = World.camera;
                 const vec3 camera_forward = forward(camera.yaw, camera.pitch);
                 const vec3 camera_right = camera.up.cross(camera_forward).normalize();
 
@@ -402,12 +419,12 @@ void tick_game(f32 dt) {
         }
 
         player.collide_aabb_index = INVALID_INDEX;
-        auto &player_aabb = world->aabbs[player.aabb_index];
+        auto &player_aabb = World.aabbs[player.aabb_index];
         
-        for (s32 i = 0; i < world->aabbs.count; ++i) {
+        for (s32 i = 0; i < World.aabbs.count; ++i) {
             if (i == player.aabb_index) continue;
 
-            const auto &aabb = world->aabbs[i];
+            const auto &aabb = World.aabbs[i];
             const vec3 resolved_velocity = resolve_moving_static(player_aabb, aabb, player.velocity);
             if (resolved_velocity != player.velocity) {
                 player.velocity = resolved_velocity;
@@ -416,10 +433,12 @@ void tick_game(f32 dt) {
             }
         }
         
-        auto *material = find(asset_table.materials, player.draw_data.sid_material);
+        auto *mta = find_asset(player.draw_data.sid_material);
+        auto *mt  = find(R_table.materials, mta->index);
         if (player.velocity == vec3_zero) {
-            if (material) {
-                material->sid_texture = sid_texture_player_idle[player.move_direction];
+            if (mt) {
+                const auto &txa = *find_asset(sid_texture_player_idle[player.move_direction]);
+                mt->texture = txa.index;
             }
         } else {
             switch (player.move_direction) {
@@ -441,11 +460,12 @@ void tick_game(f32 dt) {
             }
             }
 
-            auto &flip_book = asset_table.flip_books[player.sid_flip_book_move];
-            tick(&flip_book, dt);
+            const auto &fpa = *find_asset(player.sid_flip_book_move);
+            r_tick_flip_book(fpa.index, dt);
 
-            if (material) {
-                material->sid_texture = get_current_frame(&flip_book);
+            if (mt) {
+                const auto &frame = r_get_current_flip_book_frame(fpa.index);
+                mt->texture = frame.texture;
             }
         }
             
@@ -455,33 +475,43 @@ void tick_game(f32 dt) {
         player_aabb.min = player.location - aabb_offset;
         player_aabb.max = player.location + aabb_offset + vec3(0.0f, player.scale.y, 0.0f);
 
+        const auto &sna = *find_asset(player.sid_sound_steps);
         if (player.velocity == vec3_zero) {
-            au_stop_sound(player.sid_sound_steps);
+            au_stop_sound(sna.index);
         } else {
-            au_play_sound_or_continue(player.sid_sound_steps);
+            au_play_sound_or_continue(sna.index);
         }
 
-        if (material) {
-            set_material_uniform_value(material, "u_uv_scale", &player.uv_scale, sizeof(player.uv_scale));
-
+        if (mt) {
             const mat4 model = mat4_transform(player.location, player.rotation, player.scale);
-            set_material_uniform_value(material, "u_model", &model, sizeof(model));
 
-            set_material_uniform_value(material, "u_material.ambient",   &material->ambient, sizeof(material->ambient));
-            set_material_uniform_value(material, "u_material.diffuse",   &material->diffuse, sizeof(material->diffuse));
-            set_material_uniform_value(material, "u_material.specular",  &material->specular, sizeof(material->specular));
-            set_material_uniform_value(material, "u_material.shininess", &material->shininess, sizeof(material->shininess));
+#define _size_ref(x) sizeof(x), &x
+
+            r_set_material_uniform(mta->index, SID("u_model"), 0, _size_ref(model));
+            r_set_material_uniform(mta->index, SID("u_uv_scale"),
+                                   0, _size_ref(player.uv_scale));
+
+            r_set_material_uniform(mta->index, SID("u_material.ambient"),
+                                   0, _size_ref(mt->light_params.ambient));
+            r_set_material_uniform(mta->index, SID("u_material.diffuse"),
+                                   0, _size_ref(mt->light_params.diffuse));
+            r_set_material_uniform(mta->index, SID("u_material.specular"),
+                                   0, _size_ref(mt->light_params.specular));
+            r_set_material_uniform(mta->index, SID("u_material.shininess"),
+                                   0, _size_ref(mt->light_params.shininess));
         }
+
+#undef _size_ref
     }
 
     {   // Tick camera.
         if (game_state.mode == MODE_GAME) {
             if (game_state.camera_behavior == STICK_TO_PLAYER) {
-                auto &camera = world->camera;
+                auto &camera = World.camera;
                 camera.eye = player.location + player.camera_offset;
                 camera.at = camera.eye + forward(camera.yaw, camera.pitch);
             } else if (game_state.camera_behavior == FOLLOW_PLAYER) {
-                auto &camera = world->camera;
+                auto &camera = World.camera;
                 const vec3 camera_dead_zone = player.camera_dead_zone;
                 const vec3 dead_zone_min = camera.eye - camera_dead_zone * 0.5f;
                 const vec3 dead_zone_max = camera.eye + camera_dead_zone * 0.5f;
@@ -516,64 +546,62 @@ void tick_game(f32 dt) {
     }
 }
 
-Camera *desired_camera(World *world) {
-	if (game_state.mode == MODE_GAME)   return &world->camera;
-	if (game_state.mode == MODE_EDITOR) return &world->ed_camera;
+Camera &active_camera(Game_World &world) {
+	if (game_state.mode == MODE_GAME)   return world.camera;
+	if (game_state.mode == MODE_EDITOR) return world.ed_camera;
 
-	error("Failed to get desired camera from world in unknown game mode %d", game_state.mode);
-	return null;
+	error("Unknown game mode %d, returning game camera", game_state.mode);
+	return world.camera;
 }
 
-Entity *create_entity(World *world, Entity_Type e_type) {
+Entity *create_entity(Game_World &world, Entity_Type e_type) {
     Entity *e = null;
     switch (e_type) {
-    case ENTITY_PLAYER: {
-        e = &world->player;
+    case E_PLAYER: {
+        e = &world.player;
         break;
     }
-    case ENTITY_SKYBOX: {
-        e = &world->skybox;
+    case E_SKYBOX: {
+        e = &world.skybox;
         break;
     }
-    case ENTITY_STATIC_MESH: {
-        e = find(world->static_meshes, add_default(world->static_meshes));
+    case E_STATIC_MESH: {
+        e = find(world.static_meshes, add_default(world.static_meshes));
         break;
     }
-    case ENTITY_DIRECT_LIGHT: {
-        e = find(world->direct_lights, add_default(world->direct_lights));
+    case E_DIRECT_LIGHT: {
+        e = find(world.direct_lights, add_default(world.direct_lights));
         break;
     }
-    case ENTITY_POINT_LIGHT: {
-        e = find(world->point_lights, add_default(world->point_lights));
+    case E_POINT_LIGHT: {
+        e = find(world.point_lights, add_default(world.point_lights));
         break;
     }
-    case ENTITY_SOUND_EMITTER_2D: {
-        e = find(world->sound_emitters_2d, add_default(world->sound_emitters_2d));
+    case E_SOUND_EMITTER_2D: {
+        e = find(world.sound_emitters_2d, add_default(world.sound_emitters_2d));
         break;
     }
-    case ENTITY_SOUND_EMITTER_3D: {
-        e = find(world->sound_emitters_3d, add_default(world->sound_emitters_3d));
+    case E_SOUND_EMITTER_3D: {
+        e = find(world.sound_emitters_3d, add_default(world.sound_emitters_3d));
         break;
     }
-    case ENTITY_PORTAL: {
-        e = find(world->portals, add_default(world->portals));
+    case E_PORTAL: {
+        e = find(world.portals, add_default(world.portals));
         break;
     }
     }
 
     if (e) {
         e->eid = eid_global_counter;
-        e->aabb_index = add_default(world->aabbs);
+        e->aabb_index = add_default(world.aabbs);
 
-        auto &aabb = world->aabbs[e->aabb_index];
+        auto &aabb = world.aabbs[e->aabb_index];
         const vec3 half_extent = e->scale * 0.5f;
         aabb.min = e->location - half_extent;
         aabb.max = e->location + half_extent;
 
-        Assert(EID_VERTEX_DATA_SIZE < MAX_EID_VERTEX_DATA_SIZE);
-        e->draw_data.eid_vertex_data_offset = EID_VERTEX_DATA_SIZE;
-        *(eid *)((u8 *)EID_VERTEX_DATA + EID_VERTEX_DATA_SIZE) = e->eid;
-        EID_VERTEX_DATA_SIZE += sizeof(e->eid);
+        e->draw_data.eid_offset = head_pointer(R_eid_alloc_range);
+        *(eid *)r_alloc(R_eid_alloc_range, sizeof(eid)) = e->eid;
          
         eid_global_counter += 1;
     }
@@ -597,7 +625,7 @@ static For_Result cb_find_entity_by_eid(Entity *e, void *user_data) {
     return CONTINUE;
  };
 
-Entity *find_entity_by_eid(World* world, eid eid) {
+Entity *find_entity_by_eid(Game_World &world, eid eid) {
     Find_Entity_By_Id_Data find_data;
     find_data.e  = null;
     find_data.eid = eid;
@@ -605,37 +633,37 @@ Entity *find_entity_by_eid(World* world, eid eid) {
     for_each_entity(world, cb_find_entity_by_eid, &find_data);
 
     if (!find_data.e) {
-        warn("Haven't found entity in world by eid %u", eid);
+        warn("Haven't found entity in World by eid %u", eid);
     }
     
     return find_data.e;
 }
 
-void for_each_entity(World *world, For_Each_Entity_Callback callback, void *user_data) {
-    if (callback(&world->player, user_data) == BREAK) return;
-    if (callback(&world->skybox, user_data) == BREAK) return;
+void for_each_entity(Game_World &world, For_Each_Entity_Callback callback, void *user_data) {
+    if (callback(&world.player, user_data) == BREAK) return;
+    if (callback(&world.skybox, user_data) == BREAK) return;
 
-    For (world->static_meshes) {
+    For (world.static_meshes) {
         if (callback(&it, user_data) == BREAK) return;
     }
 
-    For (world->direct_lights) {
+    For (world.direct_lights) {
         if (callback(&it, user_data) == BREAK) return;
     }
     
-    For (world->point_lights) {
+    For (world.point_lights) {
         if (callback(&it, user_data) == BREAK) return;
     }
 
-    For (world->sound_emitters_2d) {
+    For (world.sound_emitters_2d) {
         if (callback(&it, user_data) == BREAK) return;
     }
 
-    For (world->sound_emitters_3d) {
+    For (world.sound_emitters_3d) {
         if (callback(&it, user_data) == BREAK) return;
     }
 
-    For (world->portals) {
+    For (world.portals) {
         if (callback(&it, user_data) == BREAK) return;
     }
 }

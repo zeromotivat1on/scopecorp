@@ -78,5 +78,7 @@ void main() {
     }
     
     out_color = color;
+    //out_color = texture(u_sampler, f_uv);
+    //out_color = vec4(1, 0, 0, 1);
 }
 #end fragment

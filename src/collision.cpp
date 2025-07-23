@@ -5,7 +5,7 @@
 
 #include "math/math_core.h"
 
-#include "render/viewport.h"
+#include "render/r_viewport.h"
 
 #include "game/world.h"
 
@@ -97,24 +97,24 @@ vec3 resolve_moving_static(const AABB &a, const AABB &b, const vec3 &velocity_a)
     return resolved_velocity;
 }
 
-vec3 direction_from_mouse(const Camera *camera, const Viewport *viewport, s16 x, s16 y) {
+vec3 direction_from_mouse(const Camera &camera, const R_Viewport &viewport, s16 x, s16 y) {
     vec3 ray_nds;
-    ray_nds.x = (2.0f * (x - viewport->x)) / viewport->width - 1.0f;
-    ray_nds.y = -1.0f + (2.0f * (y - viewport->y)) / viewport->height;
+    ray_nds.x = (2.0f * (x - viewport.x)) / viewport.width - 1.0f;
+    ray_nds.y = -1.0f + (2.0f * (y - viewport.y)) / viewport.height;
     ray_nds.z = 1.0f;
 
     const vec4 ray_clip = vec4(ray_nds.x, ray_nds.y, -1.0f, 1.0f);
-    vec4 ray_eye = inverse(camera->proj) * ray_clip;
+    vec4 ray_eye = inverse(camera.proj) * ray_clip;
     ray_eye.z = -1.0f;
     ray_eye.w =  0.0f;
 
-    const vec4 ray_world = inverse(camera->view) * ray_eye;
+    const vec4 ray_world = inverse(camera.view) * ray_eye;
     return normalize(ray_world.to_vec3());
 }
 
-Ray ray_from_mouse(const Camera *camera, const Viewport *viewport, s16 x, s16 y) {
+Ray ray_from_mouse(const Camera &camera, const R_Viewport &viewport, s16 x, s16 y) {
     Ray ray;
-    ray.origin = camera->eye;
+    ray.origin = camera.eye;
     ray.direction = direction_from_mouse(camera, viewport, x, y);    
     return ray;
 }
