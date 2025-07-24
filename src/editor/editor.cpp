@@ -517,7 +517,7 @@ void tick_editor(f32 dt) {
         }
 
         if (screen_report_text[0] != '\0') {
-            constexpr f32 Z = F32_MAX;
+            constexpr f32 Z = UI_MAX_Z;
             
             const auto &atlas = R_ui.font_atlases[UI_SCREEN_REPORT_FONT_ATLAS_INDEX];
             const s32 width_px = get_line_width_px(atlas, screen_report_text);

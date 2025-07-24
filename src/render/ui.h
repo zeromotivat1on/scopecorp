@@ -6,6 +6,8 @@
 
 #include "render/r_command.h"
 
+inline constexpr f32 UI_MAX_Z = 1000.0f;
+
 inline constexpr s32 UI_DEFAULT_FONT_ATLAS_INDEX       = 0;
 inline constexpr s32 UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX = 1;
 inline constexpr s32 UI_PROFILER_FONT_ATLAS_INDEX      = 2;

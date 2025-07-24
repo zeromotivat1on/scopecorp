@@ -9,6 +9,8 @@
 #include "os/input.h"
 #include "os/window.h"
 
+#include "game/world.h"
+
 #include "math/vector.h"
 #include "math/matrix.h"
 
@@ -32,11 +34,18 @@ static char *ui_input_buffer = null; // storage for input buffers
 static u32 ui_input_buffer_size = 0;
 
 static R_Sort_Key ui_sort_key(f32 z) {
-    u32 depth = 0;
-    mem_copy(&depth, &z, sizeof(z));
-
+    Assert(z <= UI_MAX_Z);
+    
     R_Sort_Key sort_key;
-    sort_key.depth = depth;
+        
+    const auto &camera = active_camera(World);
+    const f32 norm = z / UI_MAX_Z;
+
+    Assert(norm >= 0.0f);
+    Assert(norm <= 1.0f);
+        
+    const u32 bits = *(u32 *)&norm;
+    sort_key.depth = bits >> 8;
 
     return sort_key;
 }
