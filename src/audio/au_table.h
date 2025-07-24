@@ -1,13 +1,13 @@
 #pragma once
 
-#include "sparse_array.h"
+#include "sparse.h"
 
 struct Au_Sound;
 
 struct Au_Table {
     static constexpr u32 MAX_SOUNDS = 32;
     
-    Sparse_Array<Au_Sound> sounds;
+    Sparse<Au_Sound> sounds;
 };
 
 inline Au_Table Au_table;

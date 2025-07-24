@@ -138,7 +138,7 @@ s64 os_file_ptr(File handle) {
     LARGE_INTEGER move_distance = {0};
     if (SetFilePointerEx(handle, move_distance, &position, FILE_CURRENT))
         return position.QuadPart;
-    return INVALID_INDEX;
+    return INDEX_NONE;
 }
 
 void *os_vm_reserve(void *addr, u64 size) {
@@ -363,12 +363,12 @@ static LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam, L
 		window->width = LOWORD(lparam);
 		window->height = HIWORD(lparam);
 
-		s32 resized_event_index = INVALID_INDEX;
+		s32 resized_event_index = INDEX_NONE;
 		for (s32 i = 0; i < window_event_queue_size; ++i)
 			if (window_event_queue[i].type == WINDOW_EVENT_RESIZE)
 				resized_event_index = i;
 
-		if (resized_event_index == INVALID_INDEX) {
+		if (resized_event_index == INDEX_NONE) {
 			Assert(window_event_queue_size < MAX_WINDOW_EVENT_QUEUE_SIZE);
 			window_event_queue[window_event_queue_size++] = event;
 		} else {
@@ -387,12 +387,12 @@ static LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam, L
         Assert(event.key_code > 0);
         set(input_table.keys.buckets, event.key_code);
 
-        s32 key_down_event_index = INVALID_INDEX;
+        s32 key_down_event_index = INDEX_NONE;
 		for (s32 i = 0; i < window_event_queue_size; ++i)
 			if (event.type == WINDOW_EVENT_KEYBOARD && window_event_queue[i].key_code == event.key_code)
 				key_down_event_index = i;
 
-        if (key_down_event_index == INVALID_INDEX) {
+        if (key_down_event_index == INDEX_NONE) {
 			Assert(window_event_queue_size < MAX_WINDOW_EVENT_QUEUE_SIZE);
 			window_event_queue[window_event_queue_size++] = event;
 		} else {
@@ -490,7 +490,7 @@ static LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam, L
         break;
     }
     case WM_DROPFILES: {
-        static char paths[MAX_WINDOW_DROP_COUNT * MAX_PATH_SIZE];
+        static char paths[MAX_WINDOW_DROP_COUNT * MAX_PATH_LENGTH];
         
         event.type = WINDOW_EVENT_FILE_DROP;
 
@@ -503,7 +503,7 @@ static LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam, L
         }
         
         for (u32 i = 0; i < drop_count; ++i) {
-            DragQueryFile(hdrop, i, paths + (i * MAX_PATH_SIZE), MAX_PATH_SIZE);
+            DragQueryFile(hdrop, i, paths + (i * MAX_PATH_LENGTH), MAX_PATH_LENGTH);
         }
 
         event.file_drops = paths;

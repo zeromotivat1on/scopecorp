@@ -2,7 +2,7 @@
 
 #include "sid.h"
 #include "hash_table.h"
-#include "sparse_array.h"
+#include "sparse.h"
 
 typedef void *File; // from os/file.h
 

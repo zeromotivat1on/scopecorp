@@ -5,7 +5,7 @@
 struct R_Vertex_Binding {
     static constexpr u32 MAX_COMPONENTS = 8;
     
-    s32 binding_index = INVALID_INDEX;
+    s32 binding_index = INDEX_NONE;
     u32 offset = 0; // storage global offset
     
     u32 component_count = 0;

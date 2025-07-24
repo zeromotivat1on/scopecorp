@@ -64,7 +64,7 @@ struct Hash_Table {
         struct Return_Value { K &key; V &value; };
         
         Hash_Table *table = null;
-        s32 index         = INVALID_INDEX;
+        s32 index         = INDEX_NONE;
       
         Iterator(Hash_Table *table, s32 index)
             : table(table), index(index) {
@@ -107,7 +107,7 @@ struct Hash_Table {
         struct Return_Value { const K &key; const V &value; };
         
         const Hash_Table *table = null;
-        s32 index               = INVALID_INDEX;
+        s32 index               = INDEX_NONE;
       
         Const_Iterator(const Hash_Table *table, s32 index)
             : table(table), index(index) {

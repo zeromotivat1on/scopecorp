@@ -8,7 +8,7 @@
 #include "input_stack.h"
 #include "asset.h"
 
-#include "math/math_core.h"
+#include "math/math_basic.h"
 
 #include "os/file.h"
 #include "os/input.h"
@@ -102,18 +102,18 @@ void on_input_game(const Window_Event *event) {
 void create_world(Game_World &w) {
 	w = {};
 
-	w.static_meshes  = Sparse_Array<Static_Mesh>(w.MAX_STATIC_MESHES);
-    w.point_lights   = Sparse_Array<Point_Light>(w.MAX_POINT_LIGHTS);
-    w.direct_lights  = Sparse_Array<Direct_Light>(w.MAX_DIRECT_LIGHTS);
-    w.sound_emitters_2d = Sparse_Array<Sound_Emitter_2D>(w.MAX_SOUND_EMITTERS_2D);
-    w.sound_emitters_3d = Sparse_Array<Sound_Emitter_3D>(w.MAX_SOUND_EMITTERS_3D);
-    w.portals        = Sparse_Array<Portal>(w.MAX_PORTALS);
+	w.static_meshes  = Sparse<Static_Mesh>(w.MAX_STATIC_MESHES);
+    w.point_lights   = Sparse<Point_Light>(w.MAX_POINT_LIGHTS);
+    w.direct_lights  = Sparse<Direct_Light>(w.MAX_DIRECT_LIGHTS);
+    w.sound_emitters_2d = Sparse<Sound_Emitter_2D>(w.MAX_SOUND_EMITTERS_2D);
+    w.sound_emitters_3d = Sparse<Sound_Emitter_3D>(w.MAX_SOUND_EMITTERS_3D);
+    w.portals        = Sparse<Portal>(w.MAX_PORTALS);
 
-    w.aabbs = Sparse_Array<AABB>(w.MAX_AABBS);
+    w.aabbs = Sparse<AABB>(w.MAX_AABBS);
 }
 
 template <typename T>
-static void read_sparse_array(File file, Sparse_Array<T> *array) {
+static void read_sparse_array(File file, Sparse<T> *array) {
     // @Cleanup: read sparse array directly with replace or add read data to existing one?
 
     os_read_file(file, &array->count, sizeof(array->count));
@@ -128,7 +128,7 @@ static void read_sparse_array(File file, Sparse_Array<T> *array) {
 }
 
 template <typename T>
-static void write_sparse_array(File file, Sparse_Array<T> *array) {
+static void write_sparse_array(File file, Sparse<T> *array) {
     os_write_file(file, &array->count,    sizeof(array->count));
     os_write_file(file, &array->capacity, sizeof(array->capacity));
     os_write_file(file, array->items,    array->capacity * sizeof(T));
@@ -139,7 +139,7 @@ static void write_sparse_array(File file, Sparse_Array<T> *array) {
 void save_level(Game_World &world) {
     START_SCOPE_TIMER(save);
 
-    char path[MAX_PATH_SIZE];
+    char path[MAX_PATH_LENGTH];
     str_copy(path, DIR_LEVELS);
     str_glue(path, world.name);
     
@@ -418,7 +418,7 @@ void tick_game(f32 dt) {
             player.velocity = velocity.truncate(speed);
         }
 
-        player.collide_aabb_index = INVALID_INDEX;
+        player.collide_aabb_index = INDEX_NONE;
         auto &player_aabb = World.aabbs[player.aabb_index];
         
         for (s32 i = 0; i < World.aabbs.count; ++i) {

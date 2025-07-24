@@ -89,7 +89,7 @@ void parse_shader_includes(char *in) {
         const char *na = str_char(include, '"') + 1;
         const char *nb = str_char(na,      '"') + 0;
 
-        char path[MAX_PATH_SIZE];
+        char path[MAX_PATH_LENGTH];
         str_copy(path, DIR_SHADERS);
         str_glue(path, na, nb - na);
 

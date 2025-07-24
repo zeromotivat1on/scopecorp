@@ -23,7 +23,7 @@
 #include "render/r_mesh.h"
 #include "render/r_flip_book.h"
 
-#include "math/math_core.h"
+#include "math/math_basic.h"
 #include "math/vector.h"
 #include "math/matrix.h"
 
@@ -53,7 +53,7 @@ static f32 screen_report_time = 0.0f;
 
 struct Find_Entity_By_AABB_Data {
     Entity *e = null;
-    s32 aabb_index = INVALID_INDEX;
+    s32 aabb_index = INDEX_NONE;
 };
 
 void mouse_pick_entity(Entity *e) {
@@ -121,7 +121,7 @@ void on_input_editor(const Window_Event *event) {
         } else if (press && ctrl && key == KEY_S) {
             save_level(World);
         } else if (press && ctrl && key == KEY_R) {
-            char path[MAX_PATH_SIZE] = {'\0'};
+            char path[MAX_PATH_LENGTH] = {'\0'};
             str_glue(path, DIR_LEVELS);
             str_glue(path, World.name);
             load_level(World, path);
@@ -148,7 +148,7 @@ void on_input_editor(const Window_Event *event) {
             if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
                 const Ray ray = ray_from_mouse(World.ed_camera, R_viewport, input_table.mouse_x, input_table.mouse_y);
                 const s32 aabb_index = find_closest_overlapped_aabb(ray, World.aabbs.items, World.aabbs.count);
-                if (aabb_index != INVALID_INDEX) {
+                if (aabb_index != INDEX_NONE) {
                     Find_Entity_By_AABB_Data find_data;
                     find_data.e = null;
                     find_data.aabb_index = aabb_index;
@@ -536,7 +536,7 @@ void tick_editor(f32 dt) {
 }
 
 static void cb_queue_for_hot_reload(const File_Callback_Data *callback_data) {
-    char relative_path[MAX_PATH_SIZE];
+    char relative_path[MAX_PATH_LENGTH];
     to_relative_asset_path(relative_path, callback_data->path);
 
     auto &ast = Asset_source_table;
@@ -598,7 +598,7 @@ void check_hot_reload(Hot_Reload_List &list) {
         const auto &sid = list.hot_reload_paths[i];
         const auto &asset = *find_asset(sid);
 
-        char path[MAX_PATH_SIZE];
+        char path[MAX_PATH_LENGTH];
         to_full_asset_path(path, sid_str(sid));
 
         const u32 max_data_size = get_asset_max_file_size(asset.type);
@@ -971,7 +971,7 @@ void on_input_debug_console(const Window_Event *event) {
                     } else if (str_cmp(token, DEBUG_CONSOLE_COMMAND_LEVEL)) {
                         const char *name = str_token(null, DELIMITERS);
                         if (name) {
-                            char path[MAX_PATH_SIZE] = { '\0' };
+                            char path[MAX_PATH_LENGTH] = { '\0' };
                             str_glue(path, DIR_LEVELS);
                             str_glue(path, name);
                         

@@ -22,7 +22,7 @@ bool os_read_file(const char *path, void *buffer, u64 size, u64 *bytes_read, boo
 s64 os_file_size(const char *path) {
     File file = os_open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_READ);
 	if (file == INVALID_FILE) {
-		return INVALID_INDEX;
+		return INDEX_NONE;
 	}
 
     defer { os_close_file(file); };

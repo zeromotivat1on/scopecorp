@@ -42,7 +42,7 @@ struct Entity {
     vec3 scale = vec3(1.0f);
     vec2 uv_scale = vec2(1.0f);
     
-    s32 aabb_index = INVALID_INDEX;
+    s32 aabb_index = INDEX_NONE;
     
     Entity_Draw_Data draw_data;
 };
@@ -82,7 +82,7 @@ struct Player : Entity {
     sid sid_flip_book_move = SID_NONE;
     sid sid_sound_steps = 0;
     
-    s32 collide_aabb_index = INVALID_INDEX;
+    s32 collide_aabb_index = INDEX_NONE;
 };
 
 REFLECT_BEGIN(Player)
@@ -126,7 +126,7 @@ struct Direct_Light : Entity {
     vec3 diffuse  = vec3_white;
     vec3 specular = vec3_white;
 
-    s32 u_light_index = INVALID_INDEX; // index in Direct_Lights uniform block
+    s32 u_light_index = INDEX_NONE; // index in Direct_Lights uniform block
 };
 
 REFLECT_BEGIN(Direct_Light)
@@ -152,7 +152,7 @@ struct Point_Light : Entity {
 
     Light_Attenuation attenuation;
     
-    s32 u_light_index = INVALID_INDEX; // index in Point_Lights uniform block
+    s32 u_light_index = INDEX_NONE; // index in Point_Lights uniform block
 };
 
 REFLECT_BEGIN(Point_Light)

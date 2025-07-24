@@ -1,7 +1,7 @@
 #pragma once
 
 #include "camera.h"
-#include "sparse_array.h"
+#include "sparse.h"
 #include "collision.h"
 #include "game/entity.h"
 
@@ -28,14 +28,14 @@ struct Game_World {
 
 	Skybox skybox;
 
-	Sparse_Array<Static_Mesh>      static_meshes;
-	Sparse_Array<Point_Light>      point_lights;
-	Sparse_Array<Direct_Light>     direct_lights;
-	Sparse_Array<Sound_Emitter_2D> sound_emitters_2d;
-	Sparse_Array<Sound_Emitter_3D> sound_emitters_3d;
-	Sparse_Array<Portal>           portals;
+	Sparse<Static_Mesh>      static_meshes;
+	Sparse<Point_Light>      point_lights;
+	Sparse<Direct_Light>     direct_lights;
+	Sparse<Sound_Emitter_2D> sound_emitters_2d;
+	Sparse<Sound_Emitter_3D> sound_emitters_3d;
+	Sparse<Portal>           portals;
     
-	Sparse_Array<AABB> aabbs;
+	Sparse<AABB> aabbs;
 };
 
 inline Game_World World;

@@ -3,7 +3,7 @@
 #include "profile.h"
 #include "camera.h"
 
-#include "math/math_core.h"
+#include "math/math_basic.h"
 
 #include "render/r_viewport.h"
 
@@ -71,7 +71,7 @@ bool inside(const vec2 &point, const vec2 &p0, const vec2 &p1) {
 s32 find_closest_overlapped_aabb(const Ray &ray, AABB *aabbs, s32 count) {
     PROFILE_SCOPE(__FUNCTION__);
     
-    s32 closest_aabb_index = INVALID_INDEX;
+    s32 closest_aabb_index = INDEX_NONE;
     f32 min_distance = F32_MAX;
     for (s32 i = 0; i < count; ++i) {
         f32 near = 0.0f;

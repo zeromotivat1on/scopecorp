@@ -13,13 +13,3 @@ f32 Deg(f32 r);
 f32 Cos(f32 r);
 f32 Sin(f32 r);
 f32 Tan(f32 r);
-
-template<typename T>
-T square(const T &n) {
-	return n * n;
-}
-
-template<typename T>
-T cube(const T &n) {
-	return n * n * n;
-}

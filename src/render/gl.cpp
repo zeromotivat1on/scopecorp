@@ -17,7 +17,7 @@
 
 #include "os/file.h"
 
-#include "math/math_core.h"
+#include "math/math_basic.h"
 
 #include "log.h"
 #include "str.h"
@@ -662,7 +662,7 @@ static u32 gl_create_shader(GLenum type, const char *src) {
 		char info_log[512];
 		glGetShaderInfoLog(shader, sizeof(info_log), null, info_log);
 		error("Failed to compile %s shader, gl reason %s", shader_name, info_log);
-		return INVALID_INDEX;
+		return INDEX_NONE;
 	}
 
 	return shader;
@@ -681,7 +681,7 @@ static u32 gl_link_program(u32 vertex_shader, u32 fragment_shader) {
 		char info_log[512];
 		glGetProgramInfoLog(program, sizeof(info_log), null, info_log);        
 		error("Failed to link shader program, gl reason %s", info_log);
-		return INVALID_INDEX;
+		return INDEX_NONE;
 	}
 
 	glDeleteShader(vertex_shader);

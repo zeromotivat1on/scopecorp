@@ -65,7 +65,7 @@ struct Uniform_Block {
 	const char *name = null;
     Uniform_Block_Field fields[MAX_UNIFORM_BLOCK_FIELDS];
     s32 field_count = 0;
-    s32 shader_binding = INVALID_INDEX; // must be unique for each block
+    s32 shader_binding = INDEX_NONE; // must be unique for each block
     u32 offset = 0; // gpu aligned offset in uniform buffer
     u32 size   = 0; // gpu aligned size
 };

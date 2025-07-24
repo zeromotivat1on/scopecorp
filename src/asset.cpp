@@ -49,11 +49,11 @@ static void init_asset_source_callback(const File_Callback_Data *data) {
         return;
     }
 
-    char full_path[MAX_PATH_SIZE];
+    char full_path[MAX_PATH_LENGTH];
     str_copy(full_path, data->path);
     fix_directory_delimiters(full_path);
 
-    char relative_path[MAX_PATH_SIZE];
+    char relative_path[MAX_PATH_LENGTH];
     to_relative_asset_path(relative_path, full_path);
 
     const sid sid_relative_path = sid_intern(relative_path);
@@ -803,7 +803,7 @@ void serialize(File file, Asset &asset) {
     u32 meta_size = get_asset_meta_size(asset.type);
     void *meta = get_asset_meta(asset.type);
     
-    char path[MAX_PATH_SIZE];
+    char path[MAX_PATH_LENGTH];
     to_full_asset_path(path, sid_str(asset.path));
     
     const u32 max_data_size = get_asset_max_file_size(asset.type);

@@ -34,18 +34,18 @@
 #include "os/atomic.h"
 #include "os/window.h"
 
-#include "math/math_core.h"
+#include "math/math_basic.h"
 
 void r_create_table(R_Table &t) {
-    t.targets   = Sparse_Array<R_Target>(t.MAX_TARGETS);
-    t.passes    = Sparse_Array<R_Pass>(t.MAX_PASSES);
-    t.textures  = Sparse_Array<R_Texture>(t.MAX_TEXTURES);
-    t.shaders   = Sparse_Array<R_Shader>(t.MAX_SHADERS);
-    t.uniforms  = Sparse_Array<R_Uniform>(t.MAX_UNIFORMS);
-    t.materials = Sparse_Array<R_Material>(t.MAX_MATERIALS);
-    t.meshes    = Sparse_Array<R_Mesh>(t.MAX_MESHES);
-    t.vertex_descriptors = Sparse_Array<R_Vertex_Descriptor>(t.MAX_VERTEX_DESCRIPTORS);
-    t.flip_books = Sparse_Array<R_Flip_Book>(t.MAX_FLIP_BOOKS);
+    t.targets   = Sparse<R_Target>(t.MAX_TARGETS);
+    t.passes    = Sparse<R_Pass>(t.MAX_PASSES);
+    t.textures  = Sparse<R_Texture>(t.MAX_TEXTURES);
+    t.shaders   = Sparse<R_Shader>(t.MAX_SHADERS);
+    t.uniforms  = Sparse<R_Uniform>(t.MAX_UNIFORMS);
+    t.materials = Sparse<R_Material>(t.MAX_MATERIALS);
+    t.meshes    = Sparse<R_Mesh>(t.MAX_MESHES);
+    t.vertex_descriptors = Sparse<R_Vertex_Descriptor>(t.MAX_VERTEX_DESCRIPTORS);
+    t.flip_books = Sparse<R_Flip_Book>(t.MAX_FLIP_BOOKS);
 
     // Add dummies at index 0.
     add_default(t.targets);
@@ -622,7 +622,7 @@ void r_geo_debug() {
             r_geo_aabb(World.aabbs[e->aabb_index], mouse_picked_color);
         }
         
-        if (player.collide_aabb_index != INVALID_INDEX) {
+        if (player.collide_aabb_index != INDEX_NONE) {
             r_geo_aabb(World.aabbs[player.aabb_index],         rgba_green);
             r_geo_aabb(World.aabbs[player.collide_aabb_index], rgba_green);
         }

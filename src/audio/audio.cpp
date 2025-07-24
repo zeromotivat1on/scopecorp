@@ -9,7 +9,7 @@
 #include "memory_eater.h"
 
 void au_create_table(Au_Table &t) {
-    t.sounds = Sparse_Array<Au_Sound>(t.MAX_SOUNDS);
+    t.sounds = Sparse<Au_Sound>(t.MAX_SOUNDS);
 
     // Add dummies at 0 index.
     add_default(t.sounds);

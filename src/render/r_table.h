@@ -1,6 +1,6 @@
 #pragma once
 
-#include "sparse_array.h"
+#include "sparse.h"
 
 struct R_Target;
 struct R_Pass;
@@ -24,16 +24,16 @@ struct R_Table {
     static constexpr u16 MAX_VERTEX_DESCRIPTORS = 128;
     static constexpr u16 MAX_FLIP_BOOKS = 64;
 
-    Sparse_Array<R_Target>   targets;
-    Sparse_Array<R_Pass>     passes;
-    Sparse_Array<R_Texture>  textures;
-    Sparse_Array<R_Shader>   shaders;
-    Sparse_Array<R_Uniform>  uniforms;
-    Sparse_Array<R_Material> materials;
-    Sparse_Array<R_Mesh>     meshes;
-    Sparse_Array<R_Vertex_Descriptor> vertex_descriptors;
+    Sparse<R_Target>   targets;
+    Sparse<R_Pass>     passes;
+    Sparse<R_Texture>  textures;
+    Sparse<R_Shader>   shaders;
+    Sparse<R_Uniform>  uniforms;
+    Sparse<R_Material> materials;
+    Sparse<R_Mesh>     meshes;
+    Sparse<R_Vertex_Descriptor> vertex_descriptors;
 
-    Sparse_Array<R_Flip_Book> flip_books;
+    Sparse<R_Flip_Book> flip_books;
 };
 
 inline R_Table R_table;

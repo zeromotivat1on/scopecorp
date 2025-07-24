@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "math/matrix.h"
 #include "math/quat.h"
-#include "math/math_core.h"
+#include "math/math_basic.h"
 
 #include "log.h"
 

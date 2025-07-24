@@ -2,7 +2,7 @@
 #include "camera.h"
 #include "log.h"
 
-#include "math/math_core.h"
+#include "math/math_basic.h"
 #include "math/matrix.h"
 
 #include "render/r_viewport.h"

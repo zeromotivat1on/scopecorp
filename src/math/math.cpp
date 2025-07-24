@@ -1,5 +1,5 @@
 #include "pch.h"
-#include "math/math_core.h"
+#include "math/math_basic.h"
 #include <math.h>
 
 s32 Abs(s32 n) {

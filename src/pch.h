@@ -68,6 +68,9 @@ inline constexpr eid EID_NONE = 0;
 inline constexpr eid EID_MAX  = U32_MAX;
 inline constexpr rid RID_NONE = 0;
 
+#define INDEX_NONE -1
+#define MAX_PATH_LENGTH 256
+
 #define rgba_pack(r, g, b, a) (u32)((r) << 24  | (g) << 16  | (b) << 8 | (a) << 0)
 
 #define rgba_set_r(c, r) (((c) & 0x00FFFFFF) | ((u32)(r) << 24))
@@ -102,9 +105,6 @@ inline constexpr rid RID_NONE = 0;
 #define is_ascii(x)           ((x) >= 0 && (x) <= 127)
 #define is_ascii_ex(x)        ((x) >= 0 && (x) <= 255)
 #define is_ascii_printable(x) ((x) >= 32 && (x) <= 126)
-
-#define INVALID_INDEX -1
-#define MAX_PATH_SIZE 256
 
 #if DEBUG
 inline const char* Build_type_name = "DEBUG";

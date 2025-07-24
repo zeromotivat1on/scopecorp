@@ -17,7 +17,7 @@
 #include "os/time.h"
 #include "os/file.h"
 
-#include "math/math_core.h"
+#include "math/math_basic.h"
 
 #include "render/render.h"
 #include "render/ui.h"
