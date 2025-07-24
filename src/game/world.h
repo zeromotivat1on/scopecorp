@@ -43,7 +43,7 @@ inline Game_World World;
 void create_world(Game_World &world);
 void save_level(Game_World &world);
 void load_level(Game_World &world, const char *path);
-void tick(Game_World &world, f32 dt);
+
 Camera &active_camera(Game_World &world);
 
 Entity *create_entity(Game_World &world, Entity_Type e_type);
