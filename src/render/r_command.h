@@ -11,21 +11,23 @@
 #define R_SUB_TRANSLUCENT  3
 
 union R_Sort_Key {
+    u64 _u64 = 0;
+    
     // @Cleanup: we assume we are running on little-endian, handle endianness?
     // Or just avoid bitfields.
     struct {
-        u64 padd         : 2;  // 64
+        u64 padd         : 12; // 64
 
-        u64 material     : 16; // 62
-        u64 depth        : 32; // 46
-        u64 translucency : 2;  // 14
-        u64 target_layer : 4;  // 12
-        u64 target       : 5;  // 8
-        u64 screen_layer : 3;  // 3
+        u64 material     : 16; // 52
+        u64 depth        : 24; // 36
+        u64 translucency : 2;  // 12
+        u64 target_layer : 2;  // 10
+        u64 target       : 6;  // 8
+        u64 screen_layer : 2;  // 2
     };
-
-    u64 _u64 = 0;
 };
+
+static_assert(sizeof(R_Sort_Key) == sizeof(u64));
 
 struct R_Command {    
     u32 bits = 0;

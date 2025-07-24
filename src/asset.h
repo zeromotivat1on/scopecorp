@@ -43,7 +43,7 @@ inline sid sid_texture_player_idle[DIRECTION_COUNT];
 #define ASSET_PAK_MAGIC U32_PACK('c', 'o', 'r', 'p')
 #define ASSET_PAK_VERSION 0
 
-// @Todo: fix (de)serialization for: mesh, font.
+// @Todo: fix (de)serialization for: font.
 
 enum Asset_Type : u8 {
     // @Note: order of enum declarations is crucial for asset pak (de)serialization.
@@ -118,7 +118,7 @@ void init_asset_table();
 u32 get_asset_max_file_size(Asset_Type type);
 u32 get_asset_meta_size(Asset_Type type);
 
-Asset     *find_asset(sid path);
+Asset      *find_asset(sid path);
 R_Shader   *find_shader(sid path);
 R_Texture  *find_texture(sid path);
 R_Material *find_material(sid path);

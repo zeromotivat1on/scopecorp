@@ -169,15 +169,17 @@ static R_Sort_Key entity_sort_key(const Entity &e) {
     
     if (e.type == E_SKYBOX) {
         // Draw skybox at the very end.
-        sort_key.depth = U32_MAX;
+        sort_key.depth = 0x00FFFFFF;
     } else {
         const auto &camera = active_camera(World);
         const f32 dsqr = (e.location - camera.eye).length_sqr();
+        const f32 norm = dsqr / (camera.far * camera.far);
 
-        u32 depth = 0;
-        mem_copy(&depth, &dsqr, sizeof(depth));
-
-        sort_key.depth = depth;
+        Assert(norm >= 0.0f);
+        Assert(norm <= 1.0f);
+        
+        const u32 bits = *(u32 *)&norm;
+        sort_key.depth = bits >> 8;
     }
 
     if (e.type == E_PLAYER) {
