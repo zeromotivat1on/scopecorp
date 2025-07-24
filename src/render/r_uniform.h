@@ -47,12 +47,12 @@ struct R_Uniform {
 	u16 count = 0;
     u32 size = 0;
     u32 offset = 0;
-};
 
-struct Uniform {
-    sid sid_name = SID_NONE;
-	u16 type = 0;
-	u16 count = 0;
+    struct Meta {
+        sid name = SID_NONE;
+        u16 type = 0;
+        u16 count = 0;
+    };
 };
 
 struct Uniform_Block_Field {

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "math/vector.h"
-#include "render/r_uniform.h"
 
 inline constexpr u32 MAX_MATERIAL_SIZE     = KB(4);
 inline constexpr s32 MAX_MATERIAL_UNIFORMS = 16;
@@ -32,7 +31,8 @@ struct R_Material {
         R_Light_Params light_params;
 
         u16 uniform_count = 0;
-        Uniform uniforms[MAX_UNIFORMS] = { 0 }; // @Cleanup: extra memory is written to pak.
+
+        // After this meta go uniform metas in asset pak data segment.
     };
 };
 

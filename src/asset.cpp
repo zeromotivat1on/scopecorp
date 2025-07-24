@@ -144,7 +144,8 @@ R_Mesh *find_mesh(sid path) {
     return &R_table.meshes[asset->index];
 }
 
-static void parse_asset_file_data(const void *data, R_Material::Meta &meta) {
+static void parse_asset_file_data(const void *data, R_Material::Meta &meta,
+                                  u16 umeta_count, R_Uniform::Meta *umetas) {
     // @Todo: parse material data - ideally text for editor and binary for release.
         
     enum Declaration_Type {
@@ -248,17 +249,17 @@ static void parse_asset_file_data(const void *data, R_Material::Meta &meta) {
                 break;
             }
             case DECL_UNIFORM: {
-                Assert(meta.uniform_count < MAX_MATERIAL_UNIFORMS);
+                Assert(meta.uniform_count < umeta_count);
 
-                auto &uniform = meta.uniforms[meta.uniform_count];
-                uniform.count = 1;
+                auto &umeta = umetas[meta.uniform_count];
+                umeta.count = 1;
 
                 char *su_name = str_token(null, DELIMITERS);
-                uniform.sid_name = sid_intern(su_name);
+                umeta.name = sid_intern(su_name);
 
                 char *su_type = str_token(null, DELIMITERS);
                 if (str_cmp(su_type, TYPE_NAME_U32)) {
-                    uniform.type = R_U32;
+                    umeta.type = R_U32;
 
                     u32 v = 0;
                     char *sv = str_token(null, DELIMITERS);
@@ -266,7 +267,7 @@ static void parse_asset_file_data(const void *data, R_Material::Meta &meta) {
                         v = str_to_u32(sv);
                     }
                 } else if (str_cmp(su_type, TYPE_NAME_F32)) {
-                    uniform.type = R_F32;
+                    umeta.type = R_F32;
 
                     f32 v = 0.0f;
                     char *sv = str_token(null, DELIMITERS);
@@ -274,7 +275,7 @@ static void parse_asset_file_data(const void *data, R_Material::Meta &meta) {
                         v = str_to_f32(sv);
                     }
                 } else if (str_cmp(su_type, TYPE_NAME_VEC2)) {
-                    uniform.type = R_F32_2;
+                    umeta.type = R_F32_2;
 
                     vec2 v;
                     for (s32 i = 0; i < 2; ++i) {
@@ -283,7 +284,7 @@ static void parse_asset_file_data(const void *data, R_Material::Meta &meta) {
                         v[i] = str_to_f32(sv);
                     }
                 } else if (str_cmp(su_type, TYPE_NAME_VEC3)) {
-                    uniform.type = R_F32_3;
+                    umeta.type = R_F32_3;
 
                     vec3 v;
                     for (s32 i = 0; i < 3; ++i) {
@@ -292,7 +293,7 @@ static void parse_asset_file_data(const void *data, R_Material::Meta &meta) {
                         v[i] = str_to_f32(sv);
                     }
                 } else if (str_cmp(su_type, TYPE_NAME_VEC4)) {
-                    uniform.type = R_F32_4;
+                    umeta.type = R_F32_4;
 
                     vec4 v;
                     for (s32 i = 0; i < 4; ++i) {
@@ -301,7 +302,7 @@ static void parse_asset_file_data(const void *data, R_Material::Meta &meta) {
                         v[i] = str_to_f32(sv);
                     }
                 } else if (str_cmp(su_type, TYPE_NAME_MAT4)) {
-                    uniform.type = R_F32_4X4;
+                    umeta.type = R_F32_4X4;
 
                     mat4 v = mat4_identity();
                     for (s32 i = 0; i < 16; ++i) {
@@ -846,11 +847,13 @@ void serialize(File file, Asset &asset) {
         break;
     }
     case ASSET_MATERIAL: {
-        data_size = 0;
-        
         auto &mmeta = *(R_Material::Meta *)meta;
-        parse_asset_file_data(data, mmeta);
+        R_Uniform::Meta umetas[R_Material::MAX_UNIFORMS] = { 0 };
+        parse_asset_file_data(data, mmeta, COUNT(umetas), umetas);
 
+        data_size = mmeta.uniform_count * sizeof(umetas[0]);
+        mem_copy(data, umetas, data_size);
+        
         break;
     }
     case ASSET_MESH: {
@@ -964,10 +967,12 @@ void deserialize(File file, Asset &asset) {
         const auto shader  = Asset_table[mmeta.shader].index;
         const auto texture = Asset_table[mmeta.texture].index;
 
+        const auto *umetas = (R_Uniform::Meta *)data;
+        
         u16 uniforms[R_Material::MAX_UNIFORMS] = { 0 };
         for (u16 i = 0; i < mmeta.uniform_count; ++i) {
-            const auto &u = mmeta.uniforms[i];
-            uniforms[i] = r_create_uniform(u.sid_name, u.type, u.count);
+            const auto &umeta = umetas[i];
+            uniforms[i] = r_create_uniform(umeta.name, umeta.type, umeta.count);
         }
         
         asset.index = r_create_material(shader, texture, mmeta.light_params,
