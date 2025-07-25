@@ -29,20 +29,22 @@ PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB = null;
 PFNWGLCHOOSEPIXELFORMATARBPROC    wglChoosePixelFormatARB = null;
 PFNWGLSWAPINTERVALEXTPROC         wglSwapIntervalEXT = null;
 
-static Win32_Window wgl_create_dummy_window(Window *window) {
-	Win32_Window win32;
-	win32.class_name = window->win32->class_name;
-	win32.hinstance = window->win32->hinstance;
+static Win32_Window wgl_create_dummy_window(Window &w) {
+    auto &win32 = *w.win32;
+    
+	Win32_Window dummy_win32;
+	dummy_win32.class_name = win32.class_name;
+	dummy_win32.hinstance  = win32.hinstance;
 
-	win32.hwnd = CreateWindowEx(0, win32.class_name, "dummy window",
-		                        WS_OVERLAPPEDWINDOW, 0, 0, 1, 1,
-		                        NULL, NULL, win32.hinstance, NULL);
+	dummy_win32.hwnd = CreateWindowEx(0, dummy_win32.class_name, "dummy window",
+                                      WS_OVERLAPPEDWINDOW, 0, 0, 1, 1,
+                                      NULL, NULL, dummy_win32.hinstance, NULL);
 
-	return win32;
+	return dummy_win32;
 }
 
-static void wgl_create_dummy_context(Win32_Window *window) {
-	window->hdc = GetDC(window->hwnd);
+static void wgl_create_dummy_context(Win32_Window &win32) {
+	win32.hdc = GetDC(win32.hwnd);
 
 	PIXELFORMATDESCRIPTOR pfd = {0};
 	pfd.nSize = sizeof(pfd);
@@ -53,34 +55,34 @@ static void wgl_create_dummy_context(Win32_Window *window) {
 	pfd.cDepthBits = 8;
 	pfd.iLayerType = PFD_MAIN_PLANE;
 
-	const s32 pf = ChoosePixelFormat(window->hdc, &pfd);
+	const s32 pf = ChoosePixelFormat(win32.hdc, &pfd);
 	if (pf == 0) {
 		error("Failed to choose dummy pixel format");
 		return;
 	}
 
-	if (SetPixelFormat(window->hdc, pf, &pfd) == FALSE) {
+	if (SetPixelFormat(win32.hdc, pf, &pfd) == FALSE) {
 		error("Failed to set dummy pixel format");
 		return;
 	}
 
-	window->hglrc = wglCreateContext(window->hdc);
-	if (wglMakeCurrent(window->hdc, window->hglrc) == FALSE) {
+	win32.hglrc = wglCreateContext(win32.hdc);
+	if (wglMakeCurrent(win32.hdc, win32.hglrc) == FALSE) {
 		error("Failed to make dummy context current");
 		return;
 	}
 }
 
-static void wgl_destroy_dummy_window(Win32_Window *window) {
-	wglMakeCurrent(window->hdc, NULL);
-	wglDeleteContext(window->hglrc);
-	ReleaseDC(window->hwnd, window->hdc);
-	DestroyWindow(window->hwnd);
+static void wgl_destroy_dummy_window(Win32_Window &win32) {
+	wglMakeCurrent(win32.hdc, NULL);
+	wglDeleteContext(win32.hglrc);
+	ReleaseDC(win32.hwnd, win32.hdc);
+	DestroyWindow(win32.hwnd);
 
-	*window = {0};
+	win32 = {};
 }
 
-static s32 wgl_choose_pixel_format(Win32_Window *window) {
+static s32 wgl_choose_pixel_format(Win32_Window &win32) {
 	const s32 attributes[] = {
 		WGL_DRAW_TO_WINDOW_ARB, GL_TRUE,
 		WGL_ACCELERATION_ARB, WGL_FULL_ACCELERATION_ARB,
@@ -97,7 +99,7 @@ static s32 wgl_choose_pixel_format(Win32_Window *window) {
 
 	s32 pixel_format = 0;
 	UINT num_formats = 0;
-	BOOL status = wglChoosePixelFormatARB(window->hdc, attributes, 0, 1, &pixel_format, &num_formats);
+	BOOL status = wglChoosePixelFormatARB(win32.hdc, attributes, 0, 1, &pixel_format, &num_formats);
 
 	if (status == FALSE || num_formats == 0) return 0;
 	return pixel_format;
@@ -182,29 +184,31 @@ static void gl_debug_message_callback(GLenum source, GLenum type, GLuint id, GLe
     print(log_level, "GL debug message %d | %s | %s | %s\n  %.*s", id, source_string, type_string, severity_string, length, message);    
 }
 
-bool r_init_context(Window *window) {
+bool r_init_context(Window &w) {
+    auto &win32 = *w.win32;
+
     log("Platform: Windows | OpenGL");
     
-	Win32_Window dummy_window = wgl_create_dummy_window(window);
-	wgl_create_dummy_context(&dummy_window);
+	Win32_Window dummy_win32 = wgl_create_dummy_window(w);
+	wgl_create_dummy_context(dummy_win32);
 
-	if (dummy_window.hglrc == NULL) {
+	if (dummy_win32.hglrc == NULL) {
 		error("Failed to create dummy OpenGL context");
 		return false;
 	}
 
 	wgl_load_procs();
 
-	const s32 pf = wgl_choose_pixel_format(&dummy_window);
+	const s32 pf = wgl_choose_pixel_format(dummy_win32);
 	if (pf == 0) {
 		error("Failed to choose pixel format");
 		return false;
 	}
 
-	wgl_destroy_dummy_window(&dummy_window);
+	wgl_destroy_dummy_window(dummy_win32);
 
 	PIXELFORMATDESCRIPTOR pfd = {0};
-	if (SetPixelFormat(window->win32->hdc, pf, &pfd) == FALSE) {
+	if (SetPixelFormat(win32.hdc, pf, &pfd) == FALSE) {
 		error("Failed to set pixel format");
 		return false;
 	}
@@ -217,13 +221,13 @@ bool r_init_context(Window *window) {
 		0
 	};
 
-	window->win32->hglrc = wglCreateContextAttribsARB(window->win32->hdc, 0, context_attributes);
-	if (window->win32->hglrc == NULL) {
+	win32.hglrc = wglCreateContextAttribsARB(win32.hdc, 0, context_attributes);
+	if (win32.hglrc == NULL) {
 		error("Failed to create OpenGL context");
 		return false;
 	}
 
-	if (wglMakeCurrent(window->win32->hdc, window->win32->hglrc) == FALSE) {
+	if (wglMakeCurrent(win32.hdc, win32.hglrc) == FALSE) {
 		error("Failed to make context current");
 		return false;
 	}
@@ -246,18 +250,21 @@ bool r_init_context(Window *window) {
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_STENCIL_TEST);
 
-	ShowWindow(window->win32->hwnd, SW_NORMAL);
+	ShowWindow(win32.hwnd, SW_NORMAL);
 
     return true;
 }
 
-void os_set_vsync(bool enable) {
+void os_set_window_vsync(Window &w, bool enable) {
+    w.vsync = enable;
 	wglSwapIntervalEXT(enable);
 }
 
-void os_swap_window_buffers(Window *window) {
+void os_swap_window_buffers(Window &w) {
+    auto &win32 = *w.win32;
+
     PROFILE_SCOPE(__FUNCTION__);
-	SwapBuffers(window->win32->hdc);
+	SwapBuffers(win32.hdc);
 
     // Clear event queue. It was moved here from poll_events as now we need to know what
     // events were passed this frame during main loop.

@@ -333,8 +333,10 @@ s64 os_perf_hz_ms() {
 
 static LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam, LPARAM lparam) {
 	auto *window = (Window *)GetProp(hwnd, window_prop_name);
-	if (!window) return DefWindowProc(hwnd, umsg, wparam, lparam);
+	if (window == null) return DefWindowProc(hwnd, umsg, wparam, lparam);
 
+    auto &w = *window;
+    
 	Window_Event event = {};
     event.with_ctrl  = check(input_table.keys.buckets, KEY_CTRL);
     event.with_shift = check(input_table.keys.buckets, KEY_SHIFT);
@@ -342,26 +344,26 @@ static LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam, L
         
 	switch (umsg) {
     case WM_SETFOCUS: {
-        window->focused = true;
-        window->cursor_locked = window->last_cursor_locked;
+        w.focused = true;
+        w.cursor_locked = w.last_cursor_locked;
         break;
     }
     case WM_KILLFOCUS: {
         clear(input_table.keys.buckets, KEY_ALT);
         
-        window->focused = false;
-        window->last_cursor_locked = window->cursor_locked;
-        window->cursor_locked = false;
+        w.focused = false;
+        w.last_cursor_locked = w.cursor_locked;
+        w.cursor_locked = false;
         
         break;
     }
 	case WM_SIZE: {
         event.type = WINDOW_EVENT_RESIZE;
-        event.prev_width  = window->width;
-        event.prev_height = window->height;
+        event.prev_width  = w.width;
+        event.prev_height = w.height;
         
-		window->width = LOWORD(lparam);
-		window->height = HIWORD(lparam);
+		w.width = LOWORD(lparam);
+		w.height = HIWORD(lparam);
 
 		s32 resized_event_index = INDEX_NONE;
 		for (s32 i = 0; i < window_event_queue_size; ++i)
@@ -477,7 +479,7 @@ static LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam, L
 	}
 	case WM_MOUSEMOVE: {
 		input_table.mouse_x = GET_X_LPARAM(lparam);
-		input_table.mouse_y = window->height - GET_Y_LPARAM(lparam) - 1;
+		input_table.mouse_y = w.height - GET_Y_LPARAM(lparam) - 1;
 		break;
 	}
     case WM_MOUSEWHEEL: {
@@ -539,67 +541,83 @@ static RECT get_window_border_rect() {
 	return rect;
 }
 
-Window *os_create_window(s32 w, s32 h, const char *name, s32 x, s32 y, void *user_data) {
-	Window *window = allocpn(Window, 1);
-    window->user_data = user_data;
-	window->win32 = allocpn(Win32_Window, 1);
-	window->win32->class_name = "win32_window";
+bool os_create_window(u16 width, u16 height, const char *name, s16 x, s16 y, Window &w) {
+    Assert(w.win32 == null);
+    
+	w.win32 = allocpn(Win32_Window, 1);
+
+    auto &win32 = *w.win32;
+	win32.class_name = "win32_window";
 
 	WNDCLASSEX wclass = {0};
 	wclass.cbSize = sizeof(wclass);
 	wclass.style = CS_HREDRAW | CS_VREDRAW;
 	wclass.lpfnWndProc = win32_window_proc;
-	wclass.hInstance = window->win32->hinstance;
+	wclass.hInstance = win32.hinstance;
 	wclass.hIcon = LoadIcon(NULL, IDI_APPLICATION);
 	wclass.hCursor = LoadCursor(NULL, IDC_ARROW);
-	wclass.lpszClassName = window->win32->class_name;
+	wclass.lpszClassName = win32.class_name;
 
-	window->win32->class_atom = RegisterClassEx(&wclass);
-	window->win32->hinstance = (HINSTANCE)&__ImageBase;
+	win32.class_atom = RegisterClassEx(&wclass);
+	win32.hinstance = (HINSTANCE)&__ImageBase;
 
 	const RECT border_rect = get_window_border_rect();
-	x += border_rect.left;
+	x += (s16)border_rect.left;
 	//y += border_rect.top;
-	w += border_rect.right - border_rect.left;
-	h += border_rect.bottom - border_rect.top;
+	width  += (u16)border_rect.right - (u16)border_rect.left;
+	height += (u16)border_rect.bottom - (u16)border_rect.top;
 
-	window->win32->hwnd = CreateWindowEx(0, window->win32->class_name, name,
-		WS_OVERLAPPEDWINDOW, x, y, w, h,
-		NULL, NULL, window->win32->hinstance, NULL);
+    w.width  = width;
+    w.height = height;
+    
+	win32.hwnd = CreateWindowEx(0, win32.class_name, name,
+                                WS_OVERLAPPEDWINDOW, x, y, width, height,
+                                NULL, NULL, win32.hinstance, NULL);
 
-	if (window->win32->hwnd == NULL) {
+	if (win32.hwnd == NULL) {
         error("Failed to create window, win32 error 0x%X", GetLastError());
-        return null;
+        return false;
     }
 
-	window->win32->hdc = GetDC(window->win32->hwnd);
-	if (window->win32->hdc == NULL) {
+	win32.hdc = GetDC(win32.hwnd);
+	if (win32.hdc == NULL) {
         error("Failed to get device context, win32 error 0x%X", GetLastError());
-        return null;
+        return false;
     }
 
-	SetProp(window->win32->hwnd, window_prop_name, window);
-    DragAcceptFiles(window->win32->hwnd, TRUE);
- 
-	return window;
+	SetProp(win32.hwnd, window_prop_name, &w);
+
+#if DEVELOPER
+    DragAcceptFiles(win32.hwnd, TRUE);
+#endif
+    
+	return true;
 }
 
-void os_register_window_callback(Window *window, Window_Event_Callback callback) {
-	window->event_callback = callback;
+void os_set_window_user_data(Window &w, void *user_data) {
+    w.user_data = user_data;
 }
 
-void os_destroy_window(Window *window) {
-	ReleaseDC(window->win32->hwnd, window->win32->hdc);
-	DestroyWindow(window->win32->hwnd);
-	UnregisterClass(window->win32->class_name, window->win32->hinstance);
+void os_register_window_callback(Window &w, Window_Event_Callback callback) {
+	w.event_callback = callback;
 }
 
-void os_poll_window_events(Window *window) {
+void os_destroy_window(Window &w) {
+    auto &win32 = *w.win32;
+
+    ReleaseDC(win32.hwnd, win32.hdc);
+	DestroyWindow(win32.hwnd);
+	UnregisterClass(win32.class_name, win32.hinstance);
+}
+
+void os_poll_window_events(Window &w) {
+    auto &win32 = *w.win32;
+
 	input_table.mouse_offset_x = 0;
 	input_table.mouse_offset_y = 0;
     
 	MSG msg = {0};
-	msg.hwnd = window->win32->hwnd;
+	msg.hwnd = win32.hwnd;
 
 	while (PeekMessage(&msg, 0, 0, 0, PM_REMOVE)) {
 		TranslateMessage(&msg);
@@ -617,12 +635,12 @@ void os_poll_window_events(Window *window) {
 	input_table.mouse_offset_x = input_table.mouse_x - input_table.mouse_last_x;
 	input_table.mouse_offset_y = input_table.mouse_y - input_table.mouse_last_y;
 
-	if (window->cursor_locked) {
+	if (w.cursor_locked) {
 		POINT point;
-		point.x = input_table.mouse_last_x = window->width / 2;
-		point.y = input_table.mouse_last_y = window->height / 2;
+		point.x = input_table.mouse_last_x = w.width / 2;
+		point.y = input_table.mouse_last_y = w.height / 2;
 
-		ClientToScreen(window->win32->hwnd, &point);
+		ClientToScreen(win32.hwnd, &point);
 		SetCursorPos(point.x, point.y);
 	} else {
 		input_table.mouse_last_x = input_table.mouse_x;
@@ -630,37 +648,41 @@ void os_poll_window_events(Window *window) {
 	}
 
 	for (s32 i = 0; i < window_event_queue_size; ++i) {
-		window->event_callback(window, window_event_queue + i);
+		w.event_callback(w, window_event_queue[i]);
     }
 }
 
-void os_close_window(Window *window) {
-	PostMessage(window->win32->hwnd, WM_CLOSE, 0, 0);
+void os_close_window(Window &w) {
+    auto &win32 = *w.win32;
+	PostMessage(win32.hwnd, WM_CLOSE, 0, 0);
 }
 
-bool os_window_alive(Window *window) {
-	return IsWindow(window->win32->hwnd);
+bool os_window_alive(Window &w) {
+    auto &win32 = *w.win32;
+	return IsWindow(win32.hwnd);
 }
 
-bool os_set_window_title(Window *window, const char *title) {
-    return SetWindowText(window->win32->hwnd, title);
+bool os_set_window_title(Window &w, const char *title) {
+    auto &win32 = *w.win32;
+    return SetWindowText(win32.hwnd, title);
 }
 
-void os_lock_window_cursor(Window *window, bool lock) {
-    if (window->cursor_locked == lock) return;
+void os_lock_window_cursor(Window &w, bool lock) {
+    auto &win32 = *w.win32;
+    if (w.cursor_locked == lock) return;
     
-	window->cursor_locked = lock;
+	w.cursor_locked = lock;
 
 	if (lock) {
 		RECT rect;
-		if (GetWindowRect(window->win32->hwnd, &rect)) ClipCursor(&rect);
+		if (GetWindowRect(win32.hwnd, &rect)) ClipCursor(&rect);
 		ShowCursor(false);
 
         POINT point;
-		point.x = input_table.mouse_x = input_table.mouse_last_x = window->width / 2;
-		point.y = input_table.mouse_y = input_table.mouse_last_y = window->height / 2;
+		point.x = input_table.mouse_x = input_table.mouse_last_x = w.width / 2;
+		point.y = input_table.mouse_y = input_table.mouse_last_y = w.height / 2;
 
-		ClientToScreen(window->win32->hwnd, &point);
+		ClientToScreen(win32.hwnd, &point);
 		SetCursorPos(point.x, point.y);
 
         input_table.mouse_offset_x = 0;

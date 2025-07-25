@@ -112,10 +112,6 @@ void alloc_shutdown() {
 	os_vm_release(vm_base);
 }
 
-void *allocs(u64 size) {
-    return alloca(size);
-}
-
 void *alloch(u64 size) {
     return malloc(size);
 }
@@ -297,7 +293,7 @@ const char *to_string(Entity_Type type) {
     case E_SOUND_EMITTER_2D: return "E_SOUND_EMITTER_2D";
     case E_SOUND_EMITTER_3D: return "E_SOUND_EMITTER_3D";
     case E_PORTAL:           return "E_PORTAL";
-    default:                      return "UNKNOWN";
+    default:                 return "UNKNOWN";
     }
 }
 

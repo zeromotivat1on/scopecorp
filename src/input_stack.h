@@ -11,7 +11,7 @@ enum Input_Layer_Type : u8 {
 
 struct Window_Event;
 
-typedef void(* On_Input)(const Window_Event *event);
+typedef void(* On_Input)(const Window_Event &event);
 
 struct Input_Layer {
     On_Input on_input = null;

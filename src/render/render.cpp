@@ -420,6 +420,62 @@ void r_geo_flush() {
     R_geo.vertex_count = 0;
 }
 
+static For_Result cb_draw_aabb(Entity *e, void *user_data) {
+    auto *aabb = find(World.aabbs, e->aabb_index);
+    if (aabb) {
+        u32 aabb_color = rgba_black;
+        switch (e->type) {
+        case E_PLAYER:
+        case E_STATIC_MESH: {
+            aabb_color = rgba_red;
+            break;
+        }
+        case E_SOUND_EMITTER_2D:
+        case E_SOUND_EMITTER_3D: {
+            aabb_color = rgba_blue;
+            break;
+        }
+        case E_PORTAL: {
+            aabb_color = rgba_purple;
+            break;
+        }
+        case E_DIRECT_LIGHT:
+        case E_POINT_LIGHT: {
+            aabb_color = rgba_white;
+            break;
+        }
+        }
+        
+        r_geo_aabb(*aabb, aabb_color);
+    }
+
+    return CONTINUE;
+};
+
+void r_geo_debug() {
+    const auto &player = World.player;
+
+    if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
+        const vec3 center = player.location + vec3(0.0f, player.scale.y * 0.5f, 0.0f);
+        r_geo_arrow(center, center + normalize(player.velocity) * 0.5f, rgba_red);
+    }
+    
+    if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
+        for_each_entity(World, cb_draw_aabb);
+
+        if (Editor.mouse_picked_entity) {
+            const auto *e = Editor.mouse_picked_entity;
+            const u32 mouse_picked_color = rgba_yellow;
+            r_geo_aabb(World.aabbs[e->aabb_index], mouse_picked_color);
+        }
+        
+        if (player.collide_aabb_index != INDEX_NONE) {
+            r_geo_aabb(World.aabbs[player.aabb_index],         rgba_green);
+            r_geo_aabb(World.aabbs[player.collide_aabb_index], rgba_green);
+        }
+    }
+}
+
 u16 r_create_mesh(u16 vertex_descriptor, u32 vertex_count, u32 first_index, u32 index_count) {
     R_Mesh mh;
     mh.vertex_descriptor = vertex_descriptor;
@@ -570,62 +626,6 @@ u32 get_texture_format_from_channel_count(u32 channel_count) {
         constexpr u32 default_format = R_RGBA_8;
         error("%s: Using default texture format %u as texture channel count = %d", __func__, default_format, channel_count);
         return default_format;
-    }
-}
-
-static For_Result cb_draw_aabb(Entity *e, void *user_data) {
-    auto *aabb = find(World.aabbs, e->aabb_index);
-    if (aabb) {
-        u32 aabb_color = rgba_black;
-        switch (e->type) {
-        case E_PLAYER:
-        case E_STATIC_MESH: {
-            aabb_color = rgba_red;
-            break;
-        }
-        case E_SOUND_EMITTER_2D:
-        case E_SOUND_EMITTER_3D: {
-            aabb_color = rgba_blue;
-            break;
-        }
-        case E_PORTAL: {
-            aabb_color = rgba_purple;
-            break;
-        }
-        case E_DIRECT_LIGHT:
-        case E_POINT_LIGHT: {
-            aabb_color = rgba_white;
-            break;
-        }
-        }
-        
-        r_geo_aabb(*aabb, aabb_color);
-    }
-
-    return CONTINUE;
-};
-
-void r_geo_debug() {
-    const auto &player = World.player;
-
-    if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
-        const vec3 center = player.location + vec3(0.0f, player.scale.y * 0.5f, 0.0f);
-        r_geo_arrow(center, center + normalize(player.velocity) * 0.5f, rgba_red);
-    }
-    
-    if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
-        for_each_entity(World, cb_draw_aabb);
-
-        if (Editor.mouse_picked_entity) {
-            const auto *e = Editor.mouse_picked_entity;
-            const u32 mouse_picked_color = rgba_yellow;
-            r_geo_aabb(World.aabbs[e->aabb_index], mouse_picked_color);
-        }
-        
-        if (player.collide_aabb_index != INDEX_NONE) {
-            r_geo_aabb(World.aabbs[player.aabb_index],         rgba_green);
-            r_geo_aabb(World.aabbs[player.collide_aabb_index], rgba_green);
-        }
     }
 }
 

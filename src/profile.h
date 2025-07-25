@@ -62,12 +62,12 @@ void init_runtime_profiler();
 void open_runtime_profiler();
 void close_runtime_profiler();
 void draw_runtime_profiler();
-void on_input_runtime_profiler(const Window_Event *event);
+void on_input_runtime_profiler(const Window_Event &event);
 
 void init_memory_profiler();
 void open_memory_profiler();
 void close_memory_profiler();
 void draw_memory_profiler();
-void on_input_memory_profiler(const Window_Event *event);
+void on_input_memory_profiler(const Window_Event &event);
 
 void draw_dev_stats();

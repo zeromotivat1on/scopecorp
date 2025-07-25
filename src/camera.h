@@ -35,5 +35,8 @@ struct Camera {
 
 struct R_Viewport;
 
-void update_matrices(Camera &camera);
-void on_viewport_resize(Camera &camera, const R_Viewport &viewport);
+void update_matrices(Camera &c);
+void on_viewport_resize(Camera &c, const R_Viewport &vp);
+
+vec2 world_to_screen(const Rect &rect, const mat4 &view_proj, vec3 loc, bool report = false);
+vec3 screen_to_world(const Rect &rect, const mat4 &inv_view, const mat4 &inv_proj, vec2 pos);

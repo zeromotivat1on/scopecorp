@@ -47,10 +47,10 @@
 #include "editor/hot_reload.h"
 #include "editor/debug_console.h"
 
-void on_window_event(Window *window, Window_Event *event) {
-    switch (event->type) {
+void on_window_event(const Window &window, const Window_Event &event) {
+    switch (event.type) {
 	case WINDOW_EVENT_RESIZE: {
-        on_window_resize(window->width, window->height);
+        on_window_resize(window.width, window.height);
         break;
 	}
     case WINDOW_EVENT_KEYBOARD:
@@ -67,7 +67,7 @@ void on_window_event(Window *window, Window_Event *event) {
         break;
 	}
     default: {
-        error("Unhandled window event %d", event->type);
+        error("Unhandled window event %d", event.type);
         break;
     }
     }
@@ -76,7 +76,7 @@ void on_window_event(Window *window, Window_Event *event) {
 s32 main() {    
     START_SCOPE_TIMER(startup);
     
-    if (!alloc_init()) {
+    if (alloc_init() == false) {
         error("Failed to initialize allocation");
         return 1;
     }
@@ -109,15 +109,14 @@ s32 main() {
         push_input_layer(Input_layer_editor);
     }
     
-	window = os_create_window(1920, 1080, GAME_NAME, 0, 0);
-	if (!window) {
+	if (os_create_window(1920, 1080, GAME_NAME, 0, 0, window) == false) {
 		error("Failed to create window");
 		return 1;
 	}
 
 	os_register_window_callback(window, on_window_event);
 
-    if (!r_init_context(window)) {
+    if (r_init_context(window) == false) {
         error("Failed to initialize render context");
         return 1;
     }
@@ -152,7 +151,7 @@ s32 main() {
     au_create_table(Au_table);
     
     os_lock_window_cursor(window, true);
-    os_set_vsync(false);
+    os_set_window_vsync(window, false);
 
     stbi_set_flip_vertically_on_load(true);
 
@@ -169,7 +168,7 @@ s32 main() {
     R_viewport.quantize_color_count = 32;
 
     const u16 cformats[] = { R_RGB_8, R_RED_32 };
-    R_viewport.render_target = r_create_render_target(window->width, window->height,
+    R_viewport.render_target = r_create_render_target(window.width, window.height,
                                                     COUNT(cformats), cformats,
                                                     R_DEPTH_24_STENCIL_8);
     
@@ -183,7 +182,7 @@ s32 main() {
     R_viewport.scanline_intensity          = 0.95f;
 #endif
     
-    r_resize_viewport(R_viewport, window->width, window->height);
+    r_resize_viewport(R_viewport, window.width, window.height);
 
     ui_init();
     r_geo_init();
@@ -335,9 +334,9 @@ s32 main() {
 	camera.near = 0.001f;
 	camera.far = 1000.0f;
 	camera.left = 0.0f;
-	camera.right = (f32)window->width;
+	camera.right = (f32)window.width;
 	camera.bottom = 0.0f;
-	camera.top = (f32)window->height;
+	camera.top = (f32)window.height;
 
 	World.ed_camera = camera;
 
@@ -368,6 +367,10 @@ s32 main() {
         tick_editor(delta_time);
         
         draw_world(World);
+        
+        ui_world_line(World.player.location,
+                      World.player.location + normalize(World.player.velocity) * 1.0f,
+                      rgba_red);
 
 #if DEVELOPER
         r_geo_debug();

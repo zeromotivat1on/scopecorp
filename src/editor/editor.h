@@ -17,9 +17,6 @@ struct Game_Editor {
 
 inline Game_Editor Editor;
 
-void on_input_editor(const Window_Event *event);
+void on_input_editor(const Window_Event &event);
 void tick_editor(f32 dt);
 void editor_report(const char *str, ...);
-
-void mouse_pick_entity(Game_World *world, Entity *e);
-void mouse_unpick_entity(Game_World *world);

@@ -2,7 +2,10 @@
 
 inline constexpr u32 MAX_WINDOW_DROP_COUNT = 64;
 
-typedef void(*Window_Event_Callback)(struct Window *window, struct Window_Event *event);
+struct Window;
+struct Window_Event;
+
+typedef void(*Window_Event_Callback)(const Window &window, const Window_Event &event);
 
 enum Window_Event_Type : u8 {
 	WINDOW_EVENT_UNKNOWN,
@@ -24,43 +27,45 @@ struct Window_Event {
     bool with_alt;
 	s16 key_code;
     char *file_drops;
-    s16 file_drop_count;
+    u16 file_drop_count;
     s16 scroll_delta;
 	u32 character;
-    s16 prev_width;
-    s16 prev_height;
+    u16 prev_width;
+    u16 prev_height;
 };
 
 struct Window {
-    void *user_data;
-	Window_Event_Callback event_callback;
+    void *user_data = null;
+	Window_Event_Callback event_callback = null;
 
-	s16 width;
-	s16 height;
+	u16 width  = 0;
+	u16 height = 0;
 
-    bool focused;
-	bool cursor_locked;
-	bool last_cursor_locked;
+    bool vsync = false;
+    bool focused = false;
+	bool cursor_locked = false;
+	bool last_cursor_locked = false;
 
 #if WIN32
-	struct Win32_Window *win32;
+	struct Win32_Window *win32 = null;
 #endif
 };
 
-inline Window *window = null;
+inline Window window;
 
 inline constexpr s32 MAX_WINDOW_EVENT_QUEUE_SIZE = 32; // max window events per frame
 inline Window_Event window_event_queue[MAX_WINDOW_EVENT_QUEUE_SIZE];
 inline s32 window_event_queue_size = 0;
 
-Window *os_create_window(s32 w, s32 h, const char *name, s32 x, s32 y, void *user_data = null);
-void os_register_window_callback(Window *window, Window_Event_Callback callback);
-void os_destroy_window(Window *window);
-void os_poll_window_events(Window *window);
-void os_close_window(Window *window);
-bool os_window_alive(Window *window);
-bool os_set_window_title(Window *window, const char *title);
-void os_lock_window_cursor(Window *window, bool lock);
-void os_swap_window_buffers(Window *window);
+bool os_create_window(u16 width, u16 height, const char *name, s16 x, s16 y, Window &w);
+void os_set_window_user_data(Window &w, void *user_data);
+void os_register_window_callback(Window &w, Window_Event_Callback callback);
+void os_destroy_window(Window &w);
+void os_poll_window_events(Window &w);
+void os_close_window(Window &w);
+bool os_window_alive(Window &w);
+bool os_set_window_title(Window &w, const char *title);
+void os_lock_window_cursor(Window &w, bool lock);
+void os_swap_window_buffers(Window &w);
 
-void os_set_vsync(bool enable);
+void os_set_window_vsync(Window &w, bool enable);

@@ -203,8 +203,14 @@ enum Direction : u8 {
     DIRECTION_COUNT
 };
 
+struct Rect {
+    f32 x = 0.0f;
+    f32 y = 0.0f;
+    f32 w = 0.0f;
+    f32 h = 0.0f;
+};
+
 // Allocation types:
-// s  - stack allocation, default implementation
 // h  - heap allocation, default implementation
 // p  - persistent storage, push/pop
 // t  - temporary storage, push/pop
@@ -216,7 +222,6 @@ inline constexpr u64 MAX_ALLOCF_SIZE = MB(1);
 
 bool alloc_init();
 void alloc_shutdown();
-void *allocs(u64 size);
 void *alloch(u64 size);
 void *realloch(void *ptr, u64 size);
 void  freeh(void *ptr);

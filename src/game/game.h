@@ -42,8 +42,8 @@ struct Window_Event;
 
 inline Game_State game_state;
 
-void on_window_resize(s16 width, s16 height);
-void on_input_game(const Window_Event *event);
+void on_window_resize(u16 width, u16 height);
+void on_input_game(const Window_Event &event);
 void tick_game(f32 dt);
 
 const char *to_string(Game_Mode mode);

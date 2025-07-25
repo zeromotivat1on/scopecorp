@@ -32,7 +32,7 @@
 #include "audio/audio.h"
 #include "audio/au_sound.h"
 
-void on_window_resize(s16 width, s16 height) {
+void on_window_resize(u16 width, u16 height) {
     r_resize_viewport(R_viewport, width, height);
     R_viewport.orthographic_projection = mat4_orthographic(0, R_viewport.width, 0, R_viewport.height, -1, 1);
 
@@ -56,13 +56,13 @@ void on_window_resize(s16 width, s16 height) {
                            0, sizeof(resolution), &resolution);
 }
 
-void on_input_game(const Window_Event *event) {
-    const bool press = event->key_press;
-    const bool ctrl = event->with_ctrl;
-    const bool alt  = event->with_alt;
-    const auto key = event->key_code;
+void on_input_game(const Window_Event &event) {
+    const bool press = event.key_press;
+    const bool ctrl = event.with_ctrl;
+    const bool alt  = event.with_alt;
+    const auto key = event.key_code;
         
-    switch (event->type) {
+    switch (event.type) {
 	case WINDOW_EVENT_KEYBOARD: {
         if (press && key == KEY_CLOSE_WINDOW) {
             os_close_window(window);

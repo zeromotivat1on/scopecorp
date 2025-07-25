@@ -85,12 +85,13 @@ static For_Result cb_find_entity_by_aabb(Entity *e, void *user_data) {
     return CONTINUE;
 };
 
-void on_input_editor(const Window_Event *event) {
-    const bool press = event->key_press;
-    const bool ctrl  = event->with_ctrl;
-    const auto key = event->key_code;
+void on_input_editor(const Window_Event &event) {
+    const bool press = event.key_press;
+    const bool ctrl = event.with_ctrl;
+    const bool alt  = event.with_alt;
+    const auto key = event.key_code;
         
-    switch (event->type) {
+    switch (event.type) {
     case WINDOW_EVENT_KEYBOARD: {
         if (press && key == KEY_CLOSE_WINDOW) {
             os_close_window(window);
@@ -125,6 +126,8 @@ void on_input_editor(const Window_Event *event) {
             str_glue(path, DIR_LEVELS);
             str_glue(path, World.name);
             load_level(World, path);
+        } else if (press && alt && key == KEY_V) {
+            os_set_window_vsync(window, !window.vsync);
         }
 
         if (Editor.mouse_picked_entity) {
@@ -141,12 +144,13 @@ void on_input_editor(const Window_Event *event) {
     }
     case WINDOW_EVENT_MOUSE: {
         if (press && key == MOUSE_MIDDLE) {
-            os_lock_window_cursor(window, !window->cursor_locked);
-        } else if (press && key == MOUSE_RIGHT && !window->cursor_locked) {
+            os_lock_window_cursor(window, !window.cursor_locked);
+        } else if (press && key == MOUSE_RIGHT && !window.cursor_locked) {
             mouse_unpick_entity();
-        } else if (press && key == MOUSE_LEFT && !window->cursor_locked && R_ui.id_hot == UIID_NONE) {
+        } else if (press && key == MOUSE_LEFT && !window.cursor_locked && R_ui.id_hot == UIID_NONE) {
             if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
-                const Ray ray = ray_from_mouse(World.ed_camera, R_viewport, input_table.mouse_x, input_table.mouse_y);
+                const Ray ray = ray_from_mouse(World.ed_camera, R_viewport,
+                                               input_table.mouse_x, input_table.mouse_y);
                 const s32 aabb_index = find_closest_overlapped_aabb(ray, World.aabbs.items, World.aabbs.count);
                 if (aabb_index != INDEX_NONE) {
                     Find_Entity_By_AABB_Data find_data;
@@ -196,7 +200,7 @@ void tick_editor(f32 dt) {
             const f32 mouse_sensitivity = player.mouse_sensitivity;
             auto &camera = World.ed_camera;
 
-            if (window->cursor_locked) {   
+            if (window.cursor_locked) {   
                 camera.yaw -= input_table.mouse_offset_x * mouse_sensitivity * dt;
                 camera.pitch += input_table.mouse_offset_y * mouse_sensitivity * dt;
                 camera.pitch = Clamp(camera.pitch, -89.0f, 89.0f);
@@ -247,15 +251,15 @@ void tick_editor(f32 dt) {
             const u32 field_count = entity_type_field_counts[(u8)e->type];
             const f32 height = (f32)field_count * atlas.line_height;
             
-            const vec3 p0 = vec3(MARGIN, R_viewport.height - MARGIN, QUAD_Z);
-            const vec3 p1 = vec3(R_viewport.width - MARGIN, p0.y - height - 2 * PADDING, QUAD_Z);
+            const vec2 p0 = vec2(MARGIN, R_viewport.height - MARGIN);
+            const vec2 p1 = vec2(R_viewport.width - MARGIN, p0.y - height - 2 * PADDING);
             const u32 qc = rgba_pack(0, 0, 0, 200);
 
-            ui_quad(p0, p1, qc);
+            ui_quad(p0, p1, qc, QUAD_Z);
 
             // @Todo: correct uiid generation.
             uiid id = { 0, (u16)e->eid, 0 };
-            vec3 pos = vec3(p0.x + PADDING, p0.y - PADDING - ascent, QUAD_Z + F32_EPSILON);
+            vec2 pos = vec2(p0.x + PADDING, p0.y - PADDING - ascent);
             
             for (u32 i = 0; i < field_count; ++i) {
                 const auto &field = get_entity_field(e->type, i);
@@ -274,14 +278,15 @@ void tick_editor(f32 dt) {
 
                 const s32 offset = atlas.space_advance_width * 40;
                 UI_Input_Style style = {
-                    vec3(pos.x + offset, pos.y, pos.z),
+                    QUAD_Z,
+                    vec2(pos.x + offset, pos.y),
                     vec2_zero,
                     { tcc, tch, tca },
                     { qcc, qch, qca },
                     { ccc, cch, cca },
                 };
 
-                ui_text(field.name, pos, rgba_white);
+                ui_text(field.name, pos, rgba_white, QUAD_Z + F32_EPSILON);
 
                 switch (field.type) {
                 case FIELD_S8: {
@@ -468,14 +473,17 @@ void tick_editor(f32 dt) {
     }
 
     // Create specific entity.
-    if (game_state.mode == MODE_EDITOR && !window->cursor_locked) {
+    if (game_state.mode == MODE_EDITOR && !window.cursor_locked) {
+        constexpr f32 Z = 0.0f;
+        
         const char *button_text = "Add";
 
         const uiid button_id = { 0, 100, 0 };
         const uiid combo_id  = { 0, 200, 0 };
         
         const UI_Button_Style button_style = {
-            vec3(100.0f, 100.0f, 0.0f),
+            Z,
+            vec2(100.0f, 100.0f),
             vec2(32.0f, 16.0f),
             { rgba_white, rgba_pack(255, 255, 255, 200), rgba_white },
             { rgba_black, rgba_pack(0, 0, 0, 200),       rgba_black },
@@ -485,20 +493,21 @@ void tick_editor(f32 dt) {
         const f32 width = (f32)get_line_width_px(atlas, button_text);
     
         const UI_Combo_Style combo_style = {
-            button_style.pos_text + vec3(width + 2 * button_style.padding.x + 4.0f, 0.0f, 0.0f),
+            Z,
+            button_style.pos_text + vec2(width + 2 * button_style.padding.x + 4.0f, 0.0f),
             button_style.padding,
             button_style.color_text,
             button_style.color_quad,
             button_style.atlas_index,
         };
 
-        const u8 button_flags = ui_button(button_id, button_text, button_style);
+        const auto button_bits = ui_button(button_id, button_text, button_style);
 
         constexpr u32 selection_offset = 2;
         static u32 selected_entity_type = 0;
         ui_combo(combo_id, &selected_entity_type, entity_type_names + selection_offset, COUNT(entity_type_names) - selection_offset, combo_style);
         
-        if (button_flags & UI_FLAG_FINISHED) {
+        if (button_bits & UI_FINISHED_BIT) {
             create_entity(World, (Entity_Type)(selected_entity_type + selection_offset));
         }
     }
@@ -518,10 +527,12 @@ void tick_editor(f32 dt) {
 
         if (screen_report_text[0] != '\0') {
             constexpr f32 Z = UI_MAX_Z;
+            const auto atlas_index = UI_SCREEN_REPORT_FONT_ATLAS_INDEX;
             
             const auto &atlas = R_ui.font_atlases[UI_SCREEN_REPORT_FONT_ATLAS_INDEX];
             const s32 width_px = get_line_width_px(atlas, screen_report_text);
-            const vec3 pos = vec3(R_viewport.width * 0.5f - width_px * 0.5f, R_viewport.height * 0.7f, Z);
+            const vec2 pos = vec2(R_viewport.width * 0.5f - width_px * 0.5f,
+                                  R_viewport.height * 0.7f);
 
             const f32 lerp_alpha = Clamp(fade_time / SCREEN_REPORT_FADE_TIME, 0.0f, 1.0f);
             const u32 alpha = (u32)Lerp(255, 0, lerp_alpha);
@@ -530,7 +541,7 @@ void tick_editor(f32 dt) {
             const vec2 shadow_offset = vec2(atlas.font_size * 0.1f, -atlas.font_size * 0.1f);
             const u32 shadow_color = rgba_pack(0, 0, 0, alpha);
             
-            ui_text_with_shadow(screen_report_text, pos, color, shadow_offset, shadow_color, UI_SCREEN_REPORT_FONT_ATLAS_INDEX);
+            ui_text_with_shadow(screen_report_text, pos, color, shadow_offset, shadow_color, Z, atlas_index);
         }
     }
 }
@@ -757,41 +768,37 @@ void draw_debug_console() {
     const f32 descent = atlas.font->descent * atlas.px_h_scale;
     // @Cleanup: probably not ideal solution to get lower-case glyph height.
     const f32 lower_case_height = (atlas.font->ascent + atlas.font->descent) * atlas.px_h_scale;
-    
+
+    constexpr f32 QUAD_Z = 0.0f;
+    const auto atlas_index = UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX;
+
     {   // History quad.
-        constexpr f32 Z = 0.0f;
         
-        const vec3 p0 = vec3(DEBUG_CONSOLE_MARGIN, DEBUG_CONSOLE_MARGIN, Z);
-        const vec3 p1 = vec3(R_viewport.width - DEBUG_CONSOLE_MARGIN, R_viewport.height - DEBUG_CONSOLE_MARGIN, Z);
+        const vec2 p0 = vec2(DEBUG_CONSOLE_MARGIN, DEBUG_CONSOLE_MARGIN);
+        const vec2 p1 = vec2(R_viewport.width - DEBUG_CONSOLE_MARGIN,
+                             R_viewport.height - DEBUG_CONSOLE_MARGIN);
         const u32 color = rgba_pack(0, 0, 0, 200);
-        ui_quad(p0, p1, color);
+        ui_quad(p0, p1, color, QUAD_Z);
     }
 
     {   // Input quad.
-        constexpr f32 Z = 0.0f;
-
-        const vec3 q0 = vec3(DEBUG_CONSOLE_MARGIN, DEBUG_CONSOLE_MARGIN, Z);
-        const vec3 q1 = vec3(R_viewport.width - DEBUG_CONSOLE_MARGIN, DEBUG_CONSOLE_MARGIN + lower_case_height + 2 * DEBUG_CONSOLE_PADDING, Z);
+        const vec2 q0 = vec2(DEBUG_CONSOLE_MARGIN, DEBUG_CONSOLE_MARGIN);
+        const vec2 q1 = vec2(R_viewport.width - DEBUG_CONSOLE_MARGIN,
+                             DEBUG_CONSOLE_MARGIN + lower_case_height + 2 * DEBUG_CONSOLE_PADDING);
         const u32 color = rgba_pack(0, 0, 0, 200);
-        ui_quad(q0, q1, color);
+        ui_quad(q0, q1, color, QUAD_Z);
     }
 
     {   // Input text.
-        constexpr f32 Z = 0.0f;
-
-        const vec3 pos = vec3(DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING,
-                              DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING,
-                              Z);
+        const vec2 pos = vec2(DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING,
+                              DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING);
         const u32 color = rgba_white;
-        ui_text(input, input_size, pos, color, UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX);
+        ui_text(input, input_size, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
     }
 
     {   // History text.
-        constexpr f32 Z = 0.0f;
-
-        const vec3 pos = vec3(DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING,
-                              R_viewport.height - DEBUG_CONSOLE_MARGIN - DEBUG_CONSOLE_PADDING - ascent,
-                              Z);
+        const vec2 pos = vec2(DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING,
+                              R_viewport.height - DEBUG_CONSOLE_MARGIN - DEBUG_CONSOLE_PADDING - ascent);
         const u32 color = rgba_white;
         
         const f32 max_height = R_viewport.height - 2 * DEBUG_CONSOLE_MARGIN - 3 * DEBUG_CONSOLE_PADDING;
@@ -825,17 +832,14 @@ void draw_debug_console() {
             }
         }
 
-        ui_text(start, draw_count, pos, color, UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX);
+        ui_text(start, draw_count, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
     }
     
     {   // Cursor quad.
-        constexpr f32 Z = 0.0f;
-
         const s32 width_px = get_line_width_px(atlas, input, input_size);
-        const vec3 p0 = vec3(DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING + width_px + 1,
-                             DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING + descent,
-                             Z);
-        const vec3 p1 = vec3(p0.x + atlas.space_advance_width, p0.y + ascent - descent, Z);
+        const vec2 p0 = vec2(DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING + width_px + 1,
+                             DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING + descent);
+        const vec2 p1 = vec2(p0.x + atlas.space_advance_width, p0.y + ascent - descent);
         u32 color = rgba_white;
 
         if (cursor_blink_dt > DEBUG_CONSOLE_CURSOR_BLINK_INTERVAL) {
@@ -846,7 +850,7 @@ void draw_debug_console() {
             }
         }
 
-        ui_quad(p0, p1, color);
+        ui_quad(p0, p1, color, QUAD_Z + F32_EPSILON);
     }
 }
 
@@ -905,13 +909,13 @@ static void scroll_debug_console(s32 delta) {
     history_y = Clamp(history_y, history_min_y, history_min_y + history_height);
 }
 
-void on_input_debug_console(const Window_Event *event) {
-    const bool press = event->key_press;
-    const bool repeat = event->key_repeat;
-    const auto key = event->key_code;
-    const u32 character = event->character;
+void on_input_debug_console(const Window_Event &event) {
+    const bool press = event.key_press;
+    const bool repeat = event.key_repeat;
+    const auto key = event.key_code;
+    const u32 character = event.character;
 
-    switch (event->type) {
+    switch (event.type) {
     case WINDOW_EVENT_KEYBOARD: {
         if (press && key == KEY_CLOSE_WINDOW) {
             os_close_window(window);
@@ -1015,7 +1019,7 @@ void on_input_debug_console(const Window_Event *event) {
         break;
     }
     case WINDOW_EVENT_MOUSE: {
-        const s32 delta = Sign(event->scroll_delta);
+        const s32 delta = Sign(event.scroll_delta);
         scroll_debug_console(delta);
         break;
     }
