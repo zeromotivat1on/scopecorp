@@ -317,8 +317,8 @@ u16 ui_input_text(uiid id, char *text, u32 size, const UI_Input_Style &style) {
         color_quad = style.color_quad.active;
         color_cursor = style.color_cursor.active;
 
-        for (s32 i = 0; i < window_event_queue_size; ++i) {
-            const auto &e = window_event_queue[i];
+        for (s32 i = 0; i < Main_window.event_count; ++i) {
+            const auto &e = Main_window.events[i];
             if (e.type == WINDOW_EVENT_TEXT_INPUT) {
                 if (count < size && is_ascii_printable(e.character)) {
                     text[count + 0] = e.character;

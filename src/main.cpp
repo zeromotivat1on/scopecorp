@@ -109,14 +109,14 @@ s32 main() {
         push_input_layer(Input_layer_editor);
     }
     
-	if (os_create_window(1920, 1080, GAME_NAME, 0, 0, window) == false) {
+	if (os_create_window(1920, 1080, GAME_NAME, 0, 0, Main_window) == false) {
 		error("Failed to create window");
 		return 1;
 	}
 
-	os_register_window_callback(window, on_window_event);
+	os_register_window_callback(Main_window, on_window_event);
 
-    if (r_init_context(window) == false) {
+    if (r_init_context(Main_window) == false) {
         error("Failed to initialize render context");
         return 1;
     }
@@ -150,8 +150,8 @@ s32 main() {
     au_init_context();
     au_create_table(Au_table);
     
-    os_lock_window_cursor(window, true);
-    os_set_window_vsync(window, false);
+    os_lock_window_cursor(Main_window, true);
+    os_set_window_vsync(Main_window, false);
 
     stbi_set_flip_vertically_on_load(true);
 
@@ -168,9 +168,9 @@ s32 main() {
     R_viewport.quantize_color_count = 32;
 
     const u16 cformats[] = { R_RGB_8, R_RED_32 };
-    R_viewport.render_target = r_create_render_target(window.width, window.height,
-                                                    COUNT(cformats), cformats,
-                                                    R_DEPTH_24_STENCIL_8);
+    R_viewport.render_target = r_create_render_target(Main_window.width, Main_window.height,
+                                                      COUNT(cformats), cformats,
+                                                      R_DEPTH_24_STENCIL_8);
     
 #if 0
     R_viewport.pixel_size                  = 1.0f;
@@ -182,7 +182,7 @@ s32 main() {
     R_viewport.scanline_intensity          = 0.95f;
 #endif
     
-    r_resize_viewport(R_viewport, window.width, window.height);
+    r_resize_viewport(R_viewport, Main_window.width, Main_window.height);
 
     ui_init();
     r_geo_init();
@@ -334,9 +334,9 @@ s32 main() {
 	camera.near = 0.001f;
 	camera.far = 1000.0f;
 	camera.left = 0.0f;
-	camera.right = (f32)window.width;
+	camera.right = (f32)Main_window.width;
 	camera.bottom = 0.0f;
-	camera.top = (f32)window.height;
+	camera.top = (f32)Main_window.height;
 
 	World.ed_camera = camera;
 
@@ -351,12 +351,12 @@ s32 main() {
 
     log("Startup took %.2fms", CHECK_SCOPE_TIMER_MS(startup));
     
-	while (os_window_alive(window)) {
+	while (os_window_alive(Main_window)) {
         PROFILE_SCOPE("game_frame");
 
         // @Note: event queue is NOT cleared after this call as some parts of the code
         // want to know which events were polled. The queue is cleared during buffer swap.
-		os_poll_window_events(window);
+		os_poll_window_events(Main_window);
 
         R_viewport.mouse_pos = vec2(Clamp((f32)input_table.mouse_x - R_viewport.x, 0.0f, R_viewport.width),
                                   Clamp((f32)input_table.mouse_y - R_viewport.y, 0.0f, R_viewport.height));
@@ -521,7 +521,7 @@ s32 main() {
             ui_flush(); // ui is drawn directly to screen
         }
             
-		os_swap_window_buffers(window);
+		os_swap_window_buffers(Main_window);
         update_render_stats();
 
         freef(); // clear frame allocation
@@ -539,7 +539,7 @@ s32 main() {
 	}
 
     os_terminate_thread(hot_reload_thread);
-	os_destroy_window(window);
+	os_destroy_window(Main_window);
     alloc_shutdown();
     
 	return 0;

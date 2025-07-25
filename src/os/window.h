@@ -35,6 +35,8 @@ struct Window_Event {
 };
 
 struct Window {
+    static constexpr u16 MAX_EVENTS = 32; // per frame
+    
     void *user_data = null;
 	Window_Event_Callback event_callback = null;
 
@@ -46,16 +48,15 @@ struct Window {
 	bool cursor_locked = false;
 	bool last_cursor_locked = false;
 
+    u16 event_count = 0;
+    Window_Event events[MAX_EVENTS];
+    
 #if WIN32
 	struct Win32_Window *win32 = null;
 #endif
 };
 
-inline Window window;
-
-inline constexpr s32 MAX_WINDOW_EVENT_QUEUE_SIZE = 32; // max window events per frame
-inline Window_Event window_event_queue[MAX_WINDOW_EVENT_QUEUE_SIZE];
-inline s32 window_event_queue_size = 0;
+inline Window Main_window;
 
 bool os_create_window(u16 width, u16 height, const char *name, s16 x, s16 y, Window &w);
 void os_set_window_user_data(Window &w, void *user_data);

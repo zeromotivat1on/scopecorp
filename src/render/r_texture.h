@@ -47,7 +47,11 @@ struct R_Texture {
     };
 };
 
-u16 r_create_texture(u16 type, u16 format, u16 w, u16 h, u16 wrap, u16 min_filter, u16 mag_filter, void *data = null);
+u16  r_create_texture(u16 type, u16 format, u16 w, u16 h, u16 wrap,
+                      u16 min_filter, u16 mag_filter, void *data = null);
+void r_recreate_texture(u16 texture, u16 type, u16 format, u16 w, u16 h, u16 wrap,
+                        u16 min_filter, u16 mag_filter, void *data = null);
 void r_delete_texture(u16 texture);
+
 u16 r_channel_count_from_format(u16 format);
 u16 r_format_from_channel_count(u16 count);

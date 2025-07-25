@@ -96,7 +96,7 @@ void on_input_runtime_profiler(const Window_Event &event) {
     switch (event.type) {
     case WINDOW_EVENT_KEYBOARD: {
         if (press && key == KEY_CLOSE_WINDOW) {
-            os_close_window(window);
+            os_close_window(Main_window);
         } else if (press && key == KEY_SWITCH_RUNTIME_PROFILER) {
             close_runtime_profiler();
         }
@@ -300,7 +300,7 @@ void on_input_memory_profiler(const Window_Event &event) {
     switch (event.type) {
     case WINDOW_EVENT_KEYBOARD: {
         if (press && key == KEY_CLOSE_WINDOW) {
-            os_close_window(window);
+            os_close_window(Main_window);
         } else if (press && key == KEY_SWITCH_MEMORY_PROFILER) {
             close_memory_profiler();
         }
@@ -367,7 +367,7 @@ void draw_dev_stats() {
         
         count = stbsp_snprintf(text, sizeof(text),
                                "window %dx%d",
-                               window.width, window.height);
+                               Main_window.width, Main_window.height);
 		pos.x = R_viewport.width - get_line_width_px(atlas, text, count) - padding;
 		ui_text_with_shadow(text, count, pos, rgba_white, shadow_offset, rgba_black, Z);
 		pos.y -= atlas.line_height;

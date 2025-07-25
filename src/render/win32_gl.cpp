@@ -268,5 +268,5 @@ void os_swap_window_buffers(Window &w) {
 
     // Clear event queue. It was moved here from poll_events as now we need to know what
     // events were passed this frame during main loop.
-    window_event_queue_size = 0;
+    w.event_count = 0;
 }

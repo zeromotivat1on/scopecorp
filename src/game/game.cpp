@@ -65,7 +65,7 @@ void on_input_game(const Window_Event &event) {
     switch (event.type) {
 	case WINDOW_EVENT_KEYBOARD: {
         if (press && key == KEY_CLOSE_WINDOW) {
-            os_close_window(window);
+            os_close_window(Main_window);
         } else if (press && key == KEY_SWITCH_DEBUG_CONSOLE) {
             open_debug_console();
         } else if (press && key == KEY_SWITCH_RUNTIME_PROFILER) {

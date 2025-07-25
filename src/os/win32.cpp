@@ -362,19 +362,20 @@ static LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam, L
         event.prev_width  = w.width;
         event.prev_height = w.height;
         
-		w.width = LOWORD(lparam);
+		w.width  = LOWORD(lparam);
 		w.height = HIWORD(lparam);
 
 		s32 resized_event_index = INDEX_NONE;
-		for (s32 i = 0; i < window_event_queue_size; ++i)
-			if (window_event_queue[i].type == WINDOW_EVENT_RESIZE)
+		for (s32 i = 0; i < w.event_count; ++i)
+			if (w.events[i].type == WINDOW_EVENT_RESIZE)
 				resized_event_index = i;
 
 		if (resized_event_index == INDEX_NONE) {
-			Assert(window_event_queue_size < MAX_WINDOW_EVENT_QUEUE_SIZE);
-			window_event_queue[window_event_queue_size++] = event;
+			Assert(w.event_count < w.MAX_EVENTS);
+			w.events[w.event_count] = event;
+            w.event_count += 1;
 		} else {
-			window_event_queue[resized_event_index] = event;
+			w.events[resized_event_index] = event;
 		}
 
 		break;
@@ -390,15 +391,15 @@ static LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam, L
         set(input_table.keys.buckets, event.key_code);
 
         s32 key_down_event_index = INDEX_NONE;
-		for (s32 i = 0; i < window_event_queue_size; ++i)
-			if (event.type == WINDOW_EVENT_KEYBOARD && window_event_queue[i].key_code == event.key_code)
+		for (s32 i = 0; i < w.event_count; ++i)
+			if (event.type == WINDOW_EVENT_KEYBOARD && w.events[i].key_code == event.key_code)
 				key_down_event_index = i;
 
         if (key_down_event_index == INDEX_NONE) {
-			Assert(window_event_queue_size < MAX_WINDOW_EVENT_QUEUE_SIZE);
-			window_event_queue[window_event_queue_size++] = event;
+			Assert(w.event_count < w.MAX_EVENTS);
+			w.events[w.event_count++] = event;
 		} else {
-			window_event_queue[key_down_event_index] = event;
+			w.events[key_down_event_index] = event;
 		}
 
 		break;
@@ -412,8 +413,8 @@ static LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam, L
 		Assert(event.key_code > 0);
         clear(input_table.keys.buckets, event.key_code);
 
-		Assert(window_event_queue_size < MAX_WINDOW_EVENT_QUEUE_SIZE);
-		window_event_queue[window_event_queue_size++] = event;
+		Assert(w.event_count < w.MAX_EVENTS);
+		w.events[w.event_count++] = event;
 
 		break;
 	}
@@ -421,8 +422,8 @@ static LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam, L
 		event.type = WINDOW_EVENT_TEXT_INPUT;
 		event.character = (u32)wparam;
 
-		Assert(window_event_queue_size < MAX_WINDOW_EVENT_QUEUE_SIZE);
-		window_event_queue[window_event_queue_size++] = event;
+		Assert(w.event_count < w.MAX_EVENTS);
+		w.events[w.event_count++] = event;
 
 		break;
 	}
@@ -438,8 +439,8 @@ static LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam, L
             clear(input_table.keys.buckets, event.key_code);
         }
         
-		Assert(window_event_queue_size < MAX_WINDOW_EVENT_QUEUE_SIZE);
-		window_event_queue[window_event_queue_size++] = event;
+		Assert(w.event_count < w.MAX_EVENTS);
+		w.events[w.event_count++] = event;
 
 		break;
 	}
@@ -455,8 +456,8 @@ static LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam, L
             clear(input_table.keys.buckets, event.key_code);
         }
         
-		Assert(window_event_queue_size < MAX_WINDOW_EVENT_QUEUE_SIZE);
-		window_event_queue[window_event_queue_size++] = event;
+		Assert(w.event_count < w.MAX_EVENTS);
+		w.events[w.event_count++] = event;
 
 		break;
 	}
@@ -472,8 +473,8 @@ static LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam, L
             clear(input_table.keys.buckets, event.key_code);
         }
         
-		Assert(window_event_queue_size < MAX_WINDOW_EVENT_QUEUE_SIZE);
-		window_event_queue[window_event_queue_size++] = event;
+		Assert(w.event_count < w.MAX_EVENTS);
+		w.events[w.event_count++] = event;
 
 		break;
 	}
@@ -486,8 +487,8 @@ static LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam, L
         event.type = WINDOW_EVENT_MOUSE;
         event.scroll_delta = GET_WHEEL_DELTA_WPARAM(wparam);
         
-        Assert(window_event_queue_size < MAX_WINDOW_EVENT_QUEUE_SIZE);
-        window_event_queue[window_event_queue_size++] = event;
+        Assert(w.event_count < w.MAX_EVENTS);
+        w.events[w.event_count++] = event;
         
         break;
     }
@@ -513,16 +514,16 @@ static LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam, L
         
         DragFinish(hdrop);
 
-		Assert(window_event_queue_size < MAX_WINDOW_EVENT_QUEUE_SIZE);
-		window_event_queue[window_event_queue_size++] = event;
+		Assert(w.event_count < w.MAX_EVENTS);
+		w.events[w.event_count++] = event;
 
         break;
     }
 	case WM_QUIT:
 	case WM_CLOSE: {
 		event.type = WINDOW_EVENT_QUIT;
-		Assert(window_event_queue_size < MAX_WINDOW_EVENT_QUEUE_SIZE);
-		window_event_queue[window_event_queue_size++] = event;
+		Assert(w.event_count < w.MAX_EVENTS);
+		w.events[w.event_count++] = event;
 		return DefWindowProc(hwnd, umsg, wparam, lparam);
 	}
 	default:
@@ -647,8 +648,8 @@ void os_poll_window_events(Window &w) {
 		input_table.mouse_last_y = input_table.mouse_y;
 	}
 
-	for (s32 i = 0; i < window_event_queue_size; ++i) {
-		w.event_callback(w, window_event_queue[i]);
+	for (s32 i = 0; i < w.event_count; ++i) {
+		w.event_callback(w, w.events[i]);
     }
 }
 

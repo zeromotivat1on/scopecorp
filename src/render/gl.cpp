@@ -901,20 +901,15 @@ static s32 to_gl_data_type(u32 format) {
     }
 }
 
-u16 r_create_texture(u16 type, u16 format, u16 w, u16 h, u16 wrap, u16 min_filter, u16 mag_filter, void *data) {
-    R_Texture tex;
-    tex.width  = w;
-    tex.height = h;
-    tex.type   = type;
-    tex.format = format;
-    tex.wrap   = wrap;
-    tex.min_filter = min_filter;
-    tex.mag_filter = mag_filter;
-
+static rid gl_create_texture(u16 type, u16 format, u16 w, u16 h, u16 wrap,
+                             u16 min_filter, u16 mag_filter, void *data) {
+    rid tx_rid = RID_NONE;
     const s32 gl_type = GL_VALUE(type);
-    glCreateTextures(gl_type, 1, &tex.rid);
+    glCreateTextures(gl_type, 1, &tx_rid);
 
-    glBindTexture(gl_type, tex.rid);
+    if (tx_rid == RID_NONE) return RID_NONE;
+    
+    glBindTexture(gl_type, tx_rid);
     // @Todo: properly set data based on texture type.
     glTexImage2D(gl_type, 0,
                  GL_VALUE(format),
@@ -925,21 +920,58 @@ u16 r_create_texture(u16 type, u16 format, u16 w, u16 h, u16 wrap, u16 min_filte
     glBindTexture(gl_type, 0);
 
     const s32 gl_wrap = GL_VALUE(wrap);
-    glTextureParameteri(tex.rid, GL_TEXTURE_WRAP_S, gl_wrap);
-    glTextureParameteri(tex.rid, GL_TEXTURE_WRAP_T, gl_wrap);
+    glTextureParameteri(tx_rid, GL_TEXTURE_WRAP_S, gl_wrap);
+    glTextureParameteri(tx_rid, GL_TEXTURE_WRAP_T, gl_wrap);
 
-    glTextureParameteri(tex.rid, GL_TEXTURE_MIN_FILTER, GL_VALUE(min_filter));
-    glTextureParameteri(tex.rid, GL_TEXTURE_MAG_FILTER, GL_VALUE(mag_filter));
+    glTextureParameteri(tx_rid, GL_TEXTURE_MIN_FILTER, GL_VALUE(min_filter));
+    glTextureParameteri(tx_rid, GL_TEXTURE_MAG_FILTER, GL_VALUE(mag_filter));
 
-    glGenerateTextureMipmap(tex.rid);
-    
-    return add(R_table.textures, tex);
+    glGenerateTextureMipmap(tx_rid);
+
+    return tx_rid;
+}
+
+static void r_create_gl_texture(u16 type, u16 format, u16 w, u16 h, u16 wrap,
+                                u16 min_filter, u16 mag_filter, void *data, R_Texture &tx) {
+    const rid tx_rid = gl_create_texture(type, format, w, h, wrap,
+                                         min_filter, mag_filter, data);
+    if (tx_rid != RID_NONE) {
+        if (tx.rid != RID_NONE) {
+            glDeleteTextures(1, &tx.rid);
+        }
+
+        tx.rid = tx_rid;
+        
+        tx.width  = w;
+        tx.height = h;
+        tx.type   = type;
+        tx.format = format;
+        tx.wrap   = wrap;
+        tx.min_filter = min_filter;
+        tx.mag_filter = mag_filter;
+    }
+}
+
+u16 r_create_texture(u16 type, u16 format, u16 w, u16 h, u16 wrap,
+                     u16 min_filter, u16 mag_filter, void *data) {
+    R_Texture tx;
+    r_create_gl_texture(type, format, w, h, wrap, min_filter, mag_filter, data, tx);
+
+    return add(R_table.textures, tx);
+}
+
+void r_recreate_texture(u16 texture, u16 type, u16 format, u16 w, u16 h, u16 wrap,
+                        u16 min_filter, u16 mag_filter, void *data) {
+    auto &tx = R_table.textures[texture];
+    r_create_gl_texture(type, format, w, h, wrap, min_filter, mag_filter, data, tx);
 }
 
 void r_delete_texture(u16 texture) {
-    auto &tex = R_table.textures[texture];
-    glDeleteTextures(1, &tex.rid);
-    tex = {};
+    auto &tx = R_table.textures[texture];
+    glDeleteTextures(1, &tx.rid);
+
+    tx = {};
+    remove(R_table.textures, texture);
 }
 
 void rescale_font_atlas(Font_Atlas &atlas, s16 font_size) {

@@ -14,6 +14,7 @@
 #include "os/thread.h"
 
 #include "render/ui.h"
+#include "render/r_table.h"
 #include "render/r_viewport.h"
 #include "render/r_stats.h"
 #include "render/r_target.h"
@@ -94,7 +95,7 @@ void on_input_editor(const Window_Event &event) {
     switch (event.type) {
     case WINDOW_EVENT_KEYBOARD: {
         if (press && key == KEY_CLOSE_WINDOW) {
-            os_close_window(window);
+            os_close_window(Main_window);
         } else if (press && key == KEY_SWITCH_DEBUG_CONSOLE) {
             open_debug_console();
         } else if (press && key == KEY_SWITCH_RUNTIME_PROFILER) {
@@ -103,7 +104,7 @@ void on_input_editor(const Window_Event &event) {
             open_memory_profiler();
         } else if (press && key == KEY_SWITCH_EDITOR_MODE) {
             game_state.mode = MODE_GAME;
-            os_lock_window_cursor(window, true);
+            os_lock_window_cursor(Main_window, true);
             pop_input_layer();
             editor_report("Game");
             mouse_unpick_entity();
@@ -127,7 +128,7 @@ void on_input_editor(const Window_Event &event) {
             str_glue(path, World.name);
             load_level(World, path);
         } else if (press && alt && key == KEY_V) {
-            os_set_window_vsync(window, !window.vsync);
+            os_set_window_vsync(Main_window, !Main_window.vsync);
         }
 
         if (Editor.mouse_picked_entity) {
@@ -144,10 +145,10 @@ void on_input_editor(const Window_Event &event) {
     }
     case WINDOW_EVENT_MOUSE: {
         if (press && key == MOUSE_MIDDLE) {
-            os_lock_window_cursor(window, !window.cursor_locked);
-        } else if (press && key == MOUSE_RIGHT && !window.cursor_locked) {
+            os_lock_window_cursor(Main_window, !Main_window.cursor_locked);
+        } else if (press && key == MOUSE_RIGHT && !Main_window.cursor_locked) {
             mouse_unpick_entity();
-        } else if (press && key == MOUSE_LEFT && !window.cursor_locked && R_ui.id_hot == UIID_NONE) {
+        } else if (press && key == MOUSE_LEFT && !Main_window.cursor_locked && R_ui.id_hot == UIID_NONE) {
             if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
                 const Ray ray = ray_from_mouse(World.ed_camera, R_viewport,
                                                input_table.mouse_x, input_table.mouse_y);
@@ -200,7 +201,7 @@ void tick_editor(f32 dt) {
             const f32 mouse_sensitivity = player.mouse_sensitivity;
             auto &camera = World.ed_camera;
 
-            if (window.cursor_locked) {   
+            if (Main_window.cursor_locked) {   
                 camera.yaw -= input_table.mouse_offset_x * mouse_sensitivity * dt;
                 camera.pitch += input_table.mouse_offset_y * mouse_sensitivity * dt;
                 camera.pitch = Clamp(camera.pitch, -89.0f, 89.0f);
@@ -473,7 +474,7 @@ void tick_editor(f32 dt) {
     }
 
     // Create specific entity.
-    if (game_state.mode == MODE_EDITOR && !window.cursor_locked) {
+    if (game_state.mode == MODE_EDITOR && !Main_window.cursor_locked) {
         constexpr f32 Z = 0.0f;
         
         const char *button_text = "Add";
@@ -621,6 +622,7 @@ void check_hot_reload(Hot_Reload_List &list) {
 
         ((char *)data)[data_size] = '\0';
 
+        bool hot_reloaded = true;
         switch (asset.type) {
         case ASSET_SHADER: {
             char *source = (char *)data;
@@ -630,34 +632,21 @@ void check_hot_reload(Hot_Reload_List &list) {
             
             break;
         }
-        /*
         case ASSET_TEXTURE: {
-            auto &texture = asset_table.textures[hot_reload_asset.sid];
-            const char *relative_path = sid_str(texture.sid_path);
-            convert_to_full_asset_path(path, relative_path);
+            const auto &tx = R_table.textures[asset.index];
             
-            void *buffer = allocp(MAX_TEXTURE_SIZE);
-            defer { freel(MAX_TEXTURE_SIZE); };
+            s32 w, h, cc;
+            data = stbi_load_from_memory((u8 *)data, (s32)data_size, &w, &h, &cc, 0);
 
-            u64 bytes_read = 0;
-            if (os_file_read(path, buffer, MAX_TEXTURE_SIZE, &bytes_read)) {
-                s32 w, h, cc;
-                void *data = stbi_load_from_memory((u8 *)buffer, (s32)bytes_read, &w, &h, &cc, 0);
-                defer { stbi_image_free(data); };
-                
-                texture.width  = w;
-                texture.height = h;
-                texture.channel_count = cc;
-                
-                texture.format = get_texture_format_from_channel_count(texture.channel_count);
-                texture.data_size = texture.width * texture.height * texture.channel_count;
-                init_texture_asset(&texture, data);
+            const u16 format = r_format_from_channel_count(cc);
 
-                log("Hot reloaded texture %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(asset));
-            }
+            // @Cleanup: some values are default, not really fine.
+            r_recreate_texture(asset.index, R_TEXTURE_2D, format, w, h,
+                               tx.wrap, tx.min_filter, tx.mag_filter, data);
             
             break;
         }
+        /*
         case ASSET_MATERIAL: {
             auto &material = asset_table.materials[hot_reload_asset.sid];
             const char *relative_path = sid_str(material.sid_path);
@@ -706,8 +695,16 @@ void check_hot_reload(Hot_Reload_List &list) {
             
             break;
         }
-            */
+        */
+        default: {
+            error("Unhandled hot reload asset type %d", asset.type);
+            hot_reloaded = false;
+            break;
+        }
+        }
 
+        if (hot_reloaded) {
+            log("Hot reloaded %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(asset));
         }
     }
     
@@ -918,7 +915,7 @@ void on_input_debug_console(const Window_Event &event) {
     switch (event.type) {
     case WINDOW_EVENT_KEYBOARD: {
         if (press && key == KEY_CLOSE_WINDOW) {
-            os_close_window(window);
+            os_close_window(Main_window);
         } else if (press && key == KEY_SWITCH_DEBUG_CONSOLE) {
             close_debug_console();
         } else if ((press || repeat) && key == KEY_UP) {
