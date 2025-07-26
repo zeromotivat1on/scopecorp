@@ -11,6 +11,3 @@
 - Use structs in shaders for light data.
 
 - Synchronize logging.
-
-- Enqueue draw command order is crucial for expected output, we need to add sort/priority
-  of submitted draw commands.

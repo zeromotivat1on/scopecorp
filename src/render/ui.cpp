@@ -46,7 +46,8 @@ static R_Sort_Key ui_sort_key(f32 z) {
     Assert(z <= UI_MAX_Z);
     
     R_Sort_Key sort_key;
-        
+    sort_key.screen_layer = R_HUD_LAYER;
+    
     const auto &camera = active_camera(World);
     const f32 norm = z / UI_MAX_Z;
 

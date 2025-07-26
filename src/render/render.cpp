@@ -166,6 +166,7 @@ void draw_world(const Game_World &world) {
 
 static R_Sort_Key entity_sort_key(const Entity &e) {
     R_Sort_Key sort_key;
+    sort_key.screen_layer = R_GAME_LAYER;
     
     if (e.type == E_SKYBOX) {
         // Draw skybox at the very end.
@@ -188,6 +189,8 @@ static R_Sort_Key entity_sort_key(const Entity &e) {
     } else {
         sort_key.translucency = R_OPAQUE;
     }
+
+    // @Todo: invert depth to sort (back-to-front) translucenct entites.
     
     return sort_key;
 }
