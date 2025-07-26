@@ -244,12 +244,6 @@ bool r_init_context(Window &w) {
     glDebugMessageCallback(gl_debug_message_callback, null);
     glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, null, GL_TRUE);
 
-    glEnable(GL_SCISSOR_TEST);
-    glEnable(GL_CULL_FACE);
-    glEnable(GL_BLEND);
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_STENCIL_TEST);
-
 	ShowWindow(win32.hwnd, SW_NORMAL);
 
     return true;

@@ -121,6 +121,17 @@ s32 main() {
         return 1;
     }
 
+    {
+        R_Pass pass;
+        pass.scissor.test = R_ENABLE;
+        pass.cull.test = R_ENABLE;
+        pass.blend.test = R_ENABLE;
+        pass.depth.test = R_ENABLE;
+        pass.stencil.test = R_ENABLE;
+
+        r_submit(pass);
+    }
+    
     r_detect_capabilities();
     r_create_table(R_table);
     
@@ -267,14 +278,15 @@ s32 main() {
     
 	{
         auto &model = *(Static_Mesh *)create_entity(World, E_STATIC_MESH);
-		model.location = vec3(0.0f, 0.0f, 10.0f);
-        model.rotation = quat_from_axis_angle(vec3_right, -90.0f);
+		model.location = vec3(-2.0f, 0.0f, 2.0f);
+        //model.rotation = quat_from_axis_angle(vec3_right, -90.0f);
+        model.scale = vec3(3.0f);
         
         auto &aabb = World.aabbs[model.aabb_index];
 		aabb.min = model.location - model.scale * 0.5f;
 		aabb.max = aabb.min + model.scale;
 
-		model.draw_data.sid_mesh     = SID("/data/meshes/tower.obj");
+		model.draw_data.sid_mesh     = SID("/data/meshes/stanford-bunny.obj");
 		model.draw_data.sid_material = SID("/data/materials/tower.mat");
 	}
 
@@ -400,6 +412,9 @@ s32 main() {
             pass_game.scissor.y = 0;
             pass_game.scissor.w = rt.width;
             pass_game.scissor.h = rt.height;
+            // @Note: we disable cull face test for now as some models use other winding or
+            // partially invisibile due to their parts have other winding.
+            pass_game.cull.test    = R_DISABLE;
             pass_game.cull.face    = R_BACK;
             pass_game.cull.winding = R_CCW;
             pass_game.blend.src = R_SRC_ALPHA;
@@ -434,6 +449,8 @@ s32 main() {
             pass_viewport.scissor.y = R_viewport.y;
             pass_viewport.scissor.w = R_viewport.width;
             pass_viewport.scissor.h = R_viewport.height;
+            pass_viewport.cull.face    = R_BACK;
+            pass_viewport.cull.winding = R_CCW;
             pass_viewport.clear.color = rgba_black;
             pass_viewport.clear.bits  = R_COLOR_BUFFER_BIT | R_DEPTH_BUFFER_BIT | R_STENCIL_BUFFER_BIT;
 

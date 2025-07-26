@@ -159,8 +159,20 @@ void r_submit(const R_Pass &pass) {
         glViewport(pass.viewport.x, pass.viewport.y, pass.viewport.w, pass.viewport.h);
     }
 
+    if (pass.scissor.test == R_ENABLE) {
+        glEnable(GL_SCISSOR_TEST);
+    } else if (pass.scissor.test == R_DISABLE) {
+        glDisable(GL_SCISSOR_TEST);
+    }
+
     if (pass.scissor.w > 0 && pass.scissor.h > 0) {
         glScissor(pass.scissor.x, pass.scissor.y, pass.scissor.w, pass.scissor.h);
+    }
+    
+    if (pass.cull.test == R_ENABLE) {
+        glEnable(GL_CULL_FACE);
+    } else if (pass.cull.test == R_DISABLE) {
+        glDisable(GL_CULL_FACE);
     }
 
     if (pass.cull.face != R_NONE) {
@@ -170,10 +182,22 @@ void r_submit(const R_Pass &pass) {
     if (pass.cull.winding != R_NONE) {
         glFrontFace(GL_VALUE(pass.cull.winding));
     }
+        
+    if (pass.blend.test == R_ENABLE) {
+        glEnable(GL_BLEND);
+    } else if (pass.blend.test == R_DISABLE) {
+        glDisable(GL_BLEND);
+    }
 
     if (pass.blend.src != R_NONE && pass.blend.dst != R_NONE) {
         glBlendFunc(GL_VALUE(pass.blend.src),
                     GL_VALUE(pass.blend.dst));
+    }
+            
+    if (pass.depth.test == R_ENABLE) {
+        glEnable(GL_DEPTH_TEST);
+    } else if (pass.depth.test == R_DISABLE) {
+        glDisable(GL_DEPTH_TEST);
     }
 
     if (pass.depth.func != R_NONE) {
@@ -183,7 +207,15 @@ void r_submit(const R_Pass &pass) {
     if (pass.depth.mask != R_NONE) {
         glDepthMask(GL_VALUE(pass.depth.mask));
     }
-
+        
+    if (pass.stencil.test == R_ENABLE) {
+        glEnable(GL_STENCIL_TEST);
+        glStencilMask(pass.stencil.mask);
+    } else if (pass.stencil.test == R_DISABLE) {
+        glStencilMask(pass.stencil.mask);
+        glDisable(GL_STENCIL_TEST);    
+    }
+    
     if (pass.stencil.op.stencil_failed != R_NONE
         && pass.stencil.op.depth_failed != R_NONE
         && pass.stencil.op.passed != R_NONE) {
@@ -197,16 +229,14 @@ void r_submit(const R_Pass &pass) {
                       pass.stencil.func.comparator,
                       pass.stencil.func.mask);
     }
-
+        
     if (pass.clear.bits != R_NONE) {
         glClearColor(rgba_get_r(pass.clear.color) / 255.0f,
                      rgba_get_g(pass.clear.color) / 255.0f,
                      rgba_get_b(pass.clear.color) / 255.0f,
                      rgba_get_a(pass.clear.color) / 255.0f);
         glClear(GL_CLEAR_BITS(pass.clear.bits));
-    }
-        
-    glStencilMask(pass.stencil.mask);
+    }        
 }
 
 static void r_write_uniform_to_gpu(rid shader, const char *name, u16 type, u32 count, const void *data) {

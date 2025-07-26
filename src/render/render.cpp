@@ -209,7 +209,7 @@ void draw_entity(const Entity &e) {
     const bool mouse_picked = e.bits & E_MOUSE_PICKED_BIT;
     
     R_Command cmd;
-    cmd.mode = mouse_picked ? R_LINES : R_TRIANGLES;
+    cmd.mode = R_TRIANGLES;
     cmd.shader = mt->shader;
     cmd.texture = mt->texture;
     cmd.uniform_count = mt->uniform_count;
