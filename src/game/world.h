@@ -17,6 +17,8 @@ struct Game_World {
     static constexpr u32 MAX_SOUND_EMITTERS_3D = 128;
     static constexpr u32 MAX_PORTALS           = 128;
     static constexpr u32 MAX_AABBS = 2048;
+
+    Arena arena;
     
     char name[MAX_NAME_SIZE];
 
@@ -42,7 +44,7 @@ inline Game_World World;
 
 void create_world(Game_World &world);
 void save_level(Game_World &world);
-void load_level(Game_World &world, const char *path);
+void load_level(Game_World &world, String path);
 
 Camera &active_camera(Game_World &world);
 

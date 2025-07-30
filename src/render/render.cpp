@@ -1,6 +1,5 @@
 #include "pch.h"
 #include "log.h"
-#include "sid.h"
 #include "str.h"
 #include "font.h"
 #include "profile.h"
@@ -37,26 +36,33 @@
 #include "math/math_basic.h"
 
 void r_create_table(R_Table &t) {
-    t.targets   = Sparse<R_Target>(t.MAX_TARGETS);
-    t.passes    = Sparse<R_Pass>(t.MAX_PASSES);
-    t.textures  = Sparse<R_Texture>(t.MAX_TEXTURES);
-    t.shaders   = Sparse<R_Shader>(t.MAX_SHADERS);
-    t.uniforms  = Sparse<R_Uniform>(t.MAX_UNIFORMS);
-    t.materials = Sparse<R_Material>(t.MAX_MATERIALS);
-    t.meshes    = Sparse<R_Mesh>(t.MAX_MESHES);
-    t.vertex_descriptors = Sparse<R_Vertex_Descriptor>(t.MAX_VERTEX_DESCRIPTORS);
-    t.flip_books = Sparse<R_Flip_Book>(t.MAX_FLIP_BOOKS);
-
+    reserve(t.arena, MB(4));
+    
+    sparse_reserve(t.arena, t.targets,    t.MAX_TARGETS);
+    sparse_reserve(t.arena, t.passes,     t.MAX_PASSES);
+    sparse_reserve(t.arena, t.textures,   t.MAX_TEXTURES);
+    sparse_reserve(t.arena, t.shaders,    t.MAX_SHADERS);
+    sparse_reserve(t.arena, t.uniforms,   t.MAX_UNIFORMS);
+    sparse_reserve(t.arena, t.materials,  t.MAX_MATERIALS);
+    sparse_reserve(t.arena, t.meshes,     t.MAX_MESHES);
+    sparse_reserve(t.arena, t.flip_books, t.MAX_FLIP_BOOKS);
+    sparse_reserve(t.arena, t.vertex_descriptors, t.MAX_VERTEX_DESCRIPTORS);
+    
     // Add dummies at index 0.
-    add_default(t.targets);
-    add_default(t.passes);
-    add_default(t.textures);
-    add_default(t.shaders);
-    add_default(t.uniforms);
-    add_default(t.materials);
-    add_default(t.meshes);
-    add_default(t.vertex_descriptors);
-    add_default(t.flip_books);
+    sparse_push(t.targets);
+    sparse_push(t.passes);
+    sparse_push(t.textures);
+    sparse_push(t.shaders);
+    sparse_push(t.uniforms);
+    sparse_push(t.materials);
+    sparse_push(t.meshes);
+    sparse_push(t.vertex_descriptors);
+    sparse_push(t.flip_books);
+}
+
+void r_destroy_table(R_Table &t) {
+    release(t.arena);
+    t = {};
 }
 
 void r_init_global_uniforms() {
@@ -173,7 +179,7 @@ static R_Sort_Key entity_sort_key(const Entity &e) {
         sort_key.depth = 0x00FFFFFF;
     } else {
         const auto &camera = active_camera(World);
-        const f32 dsqr = (e.location - camera.eye).length_sqr();
+        const f32 dsqr = length_sqr(e.location - camera.eye);
         const f32 norm = dsqr / (camera.far * camera.far);
 
         Assert(norm >= 0.0f);
@@ -337,9 +343,9 @@ void r_geo_arrow(vec3 start, vec3 end, u32 color) {
 
     vec3 forward = normalize(end - start);
 	const vec3 right = Abs(forward.y) > 1.0f - F32_EPSILON
-        ? normalize(vec3_right.cross(forward))
-        : normalize(vec3_up.cross(forward));
-	const vec3 up = forward.cross(right);
+        ? normalize(cross(vec3_right, forward))
+        : normalize(cross(vec3_up, forward));
+	const vec3 up = cross(forward, right);
     forward *= size;
     
     f32 degrees = 0.0f;
@@ -424,7 +430,7 @@ void r_geo_flush() {
 }
 
 static For_Result cb_draw_aabb(Entity *e, void *user_data) {
-    auto *aabb = find(World.aabbs, e->aabb_index);
+    auto *aabb = sparse_find(World.aabbs, e->aabb_index);
     if (aabb) {
         u32 aabb_color = rgba_black;
         switch (e->type) {
@@ -486,7 +492,7 @@ u16 r_create_mesh(u16 vertex_descriptor, u32 vertex_count, u32 first_index, u32 
     mh.first_index = first_index;
     mh.index_count = index_count;
 
-    return add(R_table.meshes, mh);
+    return sparse_push(R_table.meshes, mh);
 }
 
 u16 r_create_uniform(sid name, u16 type, u16 count) {
@@ -502,7 +508,7 @@ u16 r_create_uniform(sid name, u16 type, u16 count) {
     un.offset = cache.size;
     cache.size += un.size;
 
-    return add(R_table.uniforms, un);
+    return sparse_push(R_table.uniforms, un);
 }
 
 void r_set_uniform(u16 uniform, u32 offset, u32 size, const void *data) {
@@ -523,7 +529,7 @@ u16 r_create_material(u16 shader, u16 texture, R_Light_Params lparams, u16 ucoun
     mt.uniform_count = ucount;
     mem_copy(mt.uniforms, uniforms, ucount * sizeof(uniforms[0]));
 
-    return add(R_table.materials, mt);
+    return sparse_push(R_table.materials, mt);
 }
 
 void r_set_material_uniform(u16 material, sid name, u32 offset, u32 size, const void *data) {
@@ -694,7 +700,7 @@ u16 r_create_flip_book(u32 count, const u16 *textures, f32 next_frame_time) {
         fp.frames[i] = R_Flip_Book::Frame { textures[i] };
     }
 
-    return add(R_table.flip_books, fp);
+    return sparse_push(R_table.flip_books, fp);
 }
 
 R_Flip_Book::Frame &r_get_current_flip_book_frame(u16 flip_book) {

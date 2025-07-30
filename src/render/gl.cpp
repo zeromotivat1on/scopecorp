@@ -277,7 +277,10 @@ bool operator<(const R_Command_List::Queued &a, const R_Command_List::Queued &b)
 
 #include <algorithm>
 
-void r_submit(R_Command_List &list) {    
+void r_submit(R_Command_List &list) {
+    Scratch scratch = local_scratch();
+    defer { release(scratch); };
+    
     //sort(list.queued, list.count, sizeof(list.queued[0]), cb_compare_command_list_queued);
 
     // @Todo: implement stable sort.
@@ -286,12 +289,9 @@ void r_submit(R_Command_List &list) {
     u32 indirect_count = 0;
     u32 indexed_indirect_count = 0;
     
-    auto *indirects         = allocfn(GL_Indirect_Command,         list.capacity);
-    auto *indexed_indirects = allocfn(GL_Indirect_Command_Indexed, list.capacity);
+    auto *indirects = arena_push_array(scratch.arena, list.capacity, GL_Indirect_Command);
+    auto *indexed_indirects = arena_push_array(scratch.arena, list.capacity, GL_Indirect_Command_Indexed);
 
-    defer { freefn(GL_Indirect_Command_Indexed, list.capacity); };
-    defer { freefn(GL_Indirect_Command,         list.capacity); };
-    
     for (u32 i = 0; i < list.count; ++i) {
         const auto &cmd = list.queued[i].command;
 
@@ -348,18 +348,13 @@ void r_submit(R_Command_List &list) {
  
 #if DEVELOPER
         // Add extra binding for entity id.
-        glVertexArrayVertexBuffer(gl_vd,
-                                  EID_VERTEX_BINDING_INDEX,
+        glVertexArrayVertexBuffer(gl_vd, EID_VERTEX_BINDING_INDEX,
                                   R_vertex_map_range.storage->rid,
-                                  cmd.eid_offset,
-                                  sizeof(u32));
+                                  cmd.eid_offset, sizeof(u32));
         glEnableVertexArrayAttrib(gl_vd, EID_VERTEX_BINDING_INDEX);
-        glVertexArrayAttribBinding(gl_vd,
-                                   EID_VERTEX_BINDING_INDEX, EID_VERTEX_BINDING_INDEX);
-        glVertexArrayAttribIFormat(gl_vd,
-                                   EID_VERTEX_BINDING_INDEX, 1, GL_UNSIGNED_INT, 0);
-        glVertexArrayBindingDivisor(gl_vd,
-                                    EID_VERTEX_BINDING_INDEX, 1);
+        glVertexArrayAttribBinding(gl_vd, EID_VERTEX_BINDING_INDEX, EID_VERTEX_BINDING_INDEX);
+        glVertexArrayAttribIFormat(gl_vd, EID_VERTEX_BINDING_INDEX, 1, GL_UNSIGNED_INT, 0);
+        glVertexArrayBindingDivisor(gl_vd, EID_VERTEX_BINDING_INDEX, 1);
 #endif
 
         render_count = 0;
@@ -380,10 +375,10 @@ void r_submit(R_Command_List &list) {
         // @Todo: this will NOT work in case of actual multidraw with count > 1.
         for (u32 j = 0; j < cmd.uniform_count; ++j) {
             const auto &u = R_table.uniforms[cmd.uniforms[j]];
-            const char *name = sid_str(u.name);
+            const String name = sid_str(u.name);
             const void *data = (u8 *)uniform_value_cache.data + u.offset;
             
-            r_write_uniform_to_gpu(gl_shader, name, u.type, u.count, data);
+            r_write_uniform_to_gpu(gl_shader, name.value, u.type, u.count, data);
         }
         
         if (cmd.bits & R_CMD_INDEXED_BIT) {
@@ -415,8 +410,9 @@ void r_create_command_list(u32 capacity, R_Command_List &list) {
     Assert(list.queued == null);
     Assert(list.command_buffer == RID_NONE);
     Assert(list.command_buffer_indexed == RID_NONE);
-    
-    list.queued = allocpn(R_Command_List::Queued, capacity);
+
+    // @Cleanup: use own arena?
+    list.queued = arena_push_array(M_global, capacity, R_Command_List::Queued);
     list.count = 0;
     list.capacity = capacity;
 
@@ -454,7 +450,7 @@ u16 r_create_render_target(u16 w, u16 h, u16 count, const u16 *cformats, u16 dfo
     rt.depth_attachment.texture = 0;
     rt.depth_attachment.format  = dformat;
 
-    const u16 target = add(R_table.targets, rt);
+    const u16 target = sparse_push(R_table.targets, rt);
     r_resize_render_target(target, w, h);
 
     return target;
@@ -674,7 +670,7 @@ u16 r_create_vertex_descriptor(u32 count, const R_Vertex_Binding *bindings) {
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, R_index_map_range.storage->rid);
     glBindVertexArray(0);
     
-    return add(R_table.vertex_descriptors, vd);
+    return sparse_push(R_table.vertex_descriptors, vd);
 }
 
 static u32 gl_create_shader(GLenum type, const char *src) {
@@ -720,15 +716,15 @@ static u32 gl_link_program(u32 vertex_shader, u32 fragment_shader) {
 	return program;
 }
 
-static void r_create_gl_shader(const char *source, R_Shader &sh) {
-    char *vertex   = alloctn(char, R_Shader::MAX_FILE_SIZE);
-	char *fragment = alloctn(char, R_Shader::MAX_FILE_SIZE);
-
-    defer { freetn(char, R_Shader::MAX_FILE_SIZE); };
-    defer { freetn(char, R_Shader::MAX_FILE_SIZE); };
+static void r_create_gl_shader(String s, R_Shader &sh) {
+    Scratch scratch = local_scratch();
+    defer { release(scratch); };
     
-	if (!parse_shader_regions(source, vertex, fragment)) {
-        error("Failed to parse shader regions:\n%s\n", source);
+    char *vertex   = arena_push_array(scratch.arena, R_Shader::MAX_FILE_SIZE, char);
+	char *fragment = arena_push_array(scratch.arena, R_Shader::MAX_FILE_SIZE, char);
+    
+	if (!parse_shader_regions(s.value, vertex, fragment)) {
+        error("Failed to parse shader regions:\n%.*s\n", s.length, s.value);
         return;
     }
 
@@ -761,15 +757,15 @@ static void r_create_gl_shader(const char *source, R_Shader &sh) {
     }
 }
 
-u16 r_create_shader(const char *source) {
+u16 r_create_shader(String s) {
     R_Shader sh;
-    r_create_gl_shader(source, sh);
-    return add(R_table.shaders, sh);
+    r_create_gl_shader(s, sh);
+    return sparse_push(R_table.shaders, sh);
 }
 
-void r_recreate_shader(u16 shader, const char *source) {
+void r_recreate_shader(u16 shader, String s) {
     auto &sh = R_table.shaders[shader];
-    r_create_gl_shader(source, sh);
+    r_create_gl_shader(s, sh);
 }
 
 // std140 alignment rules
@@ -783,10 +779,10 @@ static inline u32 r_uniform_block_field_offset_gpu_aligned(const Uniform_Block_F
         
         if (field.count > 1) {
             alignment = R_UNIFORM_BUFFER_BASE_ALIGNMENT;
-            stride = Align(stride, R_UNIFORM_BUFFER_BASE_ALIGNMENT);
+            stride = Alignup(stride, R_UNIFORM_BUFFER_BASE_ALIGNMENT);
         }
 
-        offset = Align(offset, alignment);
+        offset = Alignup(offset, alignment);
 
         s32 element_count = field.count;
         if (i == field_index) {
@@ -797,7 +793,7 @@ static inline u32 r_uniform_block_field_offset_gpu_aligned(const Uniform_Block_F
         offset += stride * element_count;
     }
 
-    offset = Align(offset, R_UNIFORM_BUFFER_BASE_ALIGNMENT);
+    offset = Alignup(offset, R_UNIFORM_BUFFER_BASE_ALIGNMENT);
 
     return offset;
 }
@@ -813,14 +809,14 @@ static inline u32 get_uniform_block_size_gpu_aligned(const Uniform_Block_Field *
         
         if (field.count > 1) {
             alignment = R_UNIFORM_BUFFER_BASE_ALIGNMENT;
-            stride = Align(stride, R_UNIFORM_BUFFER_BASE_ALIGNMENT);
+            stride = Alignup(stride, R_UNIFORM_BUFFER_BASE_ALIGNMENT);
         }
 
-        size = Align(size, alignment);
+        size = Alignup(size, alignment);
         size += stride * field.count;
     }
 
-    size = Align(size, R_UNIFORM_BUFFER_BASE_ALIGNMENT);
+    size = Alignup(size, R_UNIFORM_BUFFER_BASE_ALIGNMENT);
 
     return size;
 }
@@ -869,7 +865,7 @@ void r_add_uniform_block(rid rid_uniform_buffer, s32 shader_binding, const char 
     const u32 offset = UNIFORM_BUFFER_SIZE;
 
     UNIFORM_BUFFER_SIZE += size;
-    UNIFORM_BUFFER_SIZE = Align(UNIFORM_BUFFER_SIZE, R_UNIFORM_BUFFER_OFFSET_ALIGNMENT);
+    UNIFORM_BUFFER_SIZE = Alignup(UNIFORM_BUFFER_SIZE, R_UNIFORM_BUFFER_OFFSET_ALIGNMENT);
     Assert(UNIFORM_BUFFER_SIZE <= MAX_UNIFORM_BUFFER_SIZE);
     
     glBindBufferRange(GL_UNIFORM_BUFFER, shader_binding, rid_uniform_buffer, offset, size);
@@ -987,7 +983,7 @@ u16 r_create_texture(u16 type, u16 format, u16 w, u16 h, u16 wrap,
     R_Texture tx;
     r_create_gl_texture(type, format, w, h, wrap, min_filter, mag_filter, data, tx);
 
-    return add(R_table.textures, tx);
+    return sparse_push(R_table.textures, tx);
 }
 
 void r_recreate_texture(u16 texture, u16 type, u16 format, u16 w, u16 h, u16 wrap,
@@ -1001,10 +997,13 @@ void r_delete_texture(u16 texture) {
     glDeleteTextures(1, &tx.rid);
 
     tx = {};
-    remove(R_table.textures, texture);
+    sparse_remove(R_table.textures, texture);
 }
 
 void rescale_font_atlas(Font_Atlas &atlas, s16 font_size) {
+    Scratch scratch = local_scratch();
+    defer { release(scratch); };
+    
     const auto &tx = R_table.textures[atlas.texture];
     
 	const Font_Info *font = atlas.font;
@@ -1029,8 +1028,7 @@ void rescale_font_atlas(Font_Atlas &atlas, s16 font_size) {
 	glBindTexture(GL_TEXTURE_2D_ARRAY, tx.rid);
 	glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_R8, atlas.font_size, atlas.font_size, charcode_count, 0, GL_RED, GL_UNSIGNED_BYTE, null);
 
-	u8 *bitmap = (u8 *)alloct(font_size * font_size);
-    defer { freet(font_size * font_size); };
+	u8 *bitmap = arena_push_array(scratch.arena, font_size * font_size, u8);
         
 	for (u32 i = 0; i < charcode_count; ++i) {
 		const u32 c = i + atlas.start_charcode;

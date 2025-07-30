@@ -1,8 +1,6 @@
 #pragma once
 
-#include "sid.h"
 #include "hash_table.h"
-#include "sparse.h"
 
 typedef void *File; // from os/file.h
 
@@ -39,7 +37,7 @@ inline sid sid_texture_player_idle[DIRECTION_COUNT];
 #define SID_FLIP_BOOK_PLAYER_MOVE_BACK    SID("/data/flip_books/player_move_back.fb")
 #define SID_FLIP_BOOK_PLAYER_MOVE_FORWARD SID("/data/flip_books/player_move_forward.fb")
 
-#define GAME_PAK_PATH PATH_PACK(GAME_NAME ".pak")
+#define GAME_PAK_PATH S(PATH_PACK(GAME_NAME ".pak"))
 #define ASSET_PAK_MAGIC U32_PACK('c', 'o', 'r', 'p')
 #define ASSET_PAK_VERSION 0
 
@@ -98,13 +96,13 @@ struct Asset_Pak_Header {
 struct Asset_Source_Table {
     static constexpr u32 MAX_COUNT = 256;
     
-    Hash_Table<sid, Asset_Source> table;
+    Table<sid, Asset_Source> table;
     u32 count_by_type[ASSET_TYPE_COUNT];
 };
 
 inline Asset_Source_Table Asset_source_table;
 
-typedef Hash_Table<sid, Asset> Asset_Table;
+typedef Table<sid, Asset> Asset_Table;
 inline Asset_Table Asset_table;
 
 struct R_Shader;
@@ -127,8 +125,8 @@ R_Mesh     *find_mesh(sid path);
 void serialize  (File file, Asset &asset);
 void deserialize(File file, Asset &asset);
 
-void save_asset_pack(const char *path);
-void load_asset_pack(const char *path);
+void save_asset_pack(String path);
+void load_asset_pack(String path);
 
-void to_relative_asset_path(char *relative_path, const char *full_path);
-void to_full_asset_path(char *full_path, const char *relative_path);
+String to_relative_asset_path(Arena &a, const String &path);
+String to_full_asset_path(Arena &a, const String &path);

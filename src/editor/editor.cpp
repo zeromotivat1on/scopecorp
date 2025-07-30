@@ -123,10 +123,16 @@ void on_input_editor(const Window_Event &event) {
         } else if (press && ctrl && key == KEY_S) {
             save_level(World);
         } else if (press && ctrl && key == KEY_R) {
-            char path[MAX_PATH_LENGTH] = {'\0'};
-            str_glue(path, DIR_LEVELS);
-            str_glue(path, World.name);
+            Scratch scratch = local_scratch();
+            defer { release(scratch); };
+
+            String_Builder sb;
+            str_build(scratch.arena, sb, DIR_LEVELS);
+            str_build(scratch.arena, sb, World.name);
+            
+            String path = str_build_finish(scratch.arena, sb);
             load_level(World, path);
+            
         } else if (press && alt && key == KEY_V) {
             os_set_window_vsync(Main_window, !Main_window.vsync);
         }
@@ -209,7 +215,7 @@ void tick_editor(f32 dt) {
                     
             const f32 speed = player.ed_camera_speed * dt;
             const vec3 camera_forward = forward(camera.yaw, camera.pitch);
-            const vec3 camera_right = camera.up.cross(camera_forward).normalize();
+            const vec3 camera_right = normalize(cross(camera.up, camera_forward));
 
             vec3 velocity;
 
@@ -231,7 +237,7 @@ void tick_editor(f32 dt) {
             if (down(KEY_Q))
                 velocity -= speed * camera.up;
 
-            camera.eye += velocity.truncate(speed);
+            camera.eye += truncate(velocity, speed);
             camera.at = camera.eye + camera_forward;
         }
     }
@@ -547,22 +553,24 @@ void tick_editor(f32 dt) {
     }
 }
 
-static void cb_queue_for_hot_reload(const File_Callback_Data *callback_data) {
-    char relative_path[MAX_PATH_LENGTH];
-    to_relative_asset_path(relative_path, callback_data->path);
-
+static void cb_queue_for_hot_reload(const File_Callback_Data *data) {
+    Scratch scratch = local_scratch();
+    defer { release(scratch); };
+    
+    const String relative_path = to_relative_asset_path(scratch.arena, data->path);
+    
     auto &ast = Asset_source_table;
     const auto sid = sid_intern(relative_path);
     
-    if (auto *source = find(ast.table, sid)) {
-        if (source->last_write_time != callback_data->last_write_time) {
-            auto &list = *(Hot_Reload_List *)callback_data->user_data;
+    if (auto *source = table_find(ast.table, sid)) {
+        if (source->last_write_time != data->last_write_time) {
+            auto &list = *(Hot_Reload_List *)data->user_data;
             
             Assert(list.reload_count < list.MAX_COUNT);
             list.hot_reload_paths[list.reload_count] = sid;
             list.reload_count += 1;
             
-            source->last_write_time = callback_data->last_write_time;
+            source->last_write_time = data->last_write_time;
         }
     }
 }
@@ -602,33 +610,35 @@ void check_hot_reload(Hot_Reload_List &list) {
         return;
     }
 
+    Scratch scratch = local_scratch();
+    defer { release(scratch); };
+    
     os_wait_semaphore(list.semaphore, WAIT_INFINITE);
 
     for (u16 i = 0; i < list.reload_count; ++i) {
         START_SCOPE_TIMER(asset);
 
+        Scratch scratch = local_scratch();
+        defer { release(scratch); };
+        
         const auto &sid = list.hot_reload_paths[i];
         const auto &asset = *find_asset(sid);
 
-        char path[MAX_PATH_LENGTH];
-        to_full_asset_path(path, sid_str(sid));
+        const String path = str_copy(scratch.arena, sid_str(sid));
 
         const u32 max_data_size = get_asset_max_file_size(asset.type);
-        void *data = alloct(max_data_size);
-        defer { freet(max_data_size); };
+        void *data = push(scratch.arena, max_data_size);
 
         u64 data_size = 0;
-        os_read_file(path, data, max_data_size, &data_size);
+        os_read_file(path.value, data, max_data_size, &data_size);
 
         ((char *)data)[data_size] = '\0';
 
         bool hot_reloaded = true;
         switch (asset.type) {
         case ASSET_SHADER: {
-            char *source = (char *)data;
-            parse_shader_includes(source);
-            
-            r_recreate_shader(asset.index, source);
+            const String s = parse_shader_includes(scratch.arena, String { (char *)data, asset.pak_data_size });
+            r_recreate_shader(asset.index, s);
             
             break;
         }
@@ -719,7 +729,8 @@ void init_debug_console() {
     auto &history_min_y = Debug_console.history_min_y;
     auto &history_max_width = Debug_console.history_max_width;
 
-    history = (char *)allocp(MAX_DEBUG_CONSOLE_HISTORY_SIZE);
+    // @Cleanup: use own arena?
+    history = arena_push_array(M_global, MAX_DEBUG_CONSOLE_HISTORY_SIZE, char);
     history[0] = '\0';
 
     on_viewport_resize_debug_console(R_viewport.width, R_viewport.height);
@@ -972,10 +983,14 @@ void on_input_debug_console(const Window_Event &event) {
                     } else if (str_cmp(token, DEBUG_CONSOLE_COMMAND_LEVEL)) {
                         const char *name = str_token(null, DELIMITERS);
                         if (name) {
-                            char path[MAX_PATH_LENGTH] = { '\0' };
-                            str_glue(path, DIR_LEVELS);
-                            str_glue(path, name);
-                        
+                            Scratch scratch = local_scratch();
+                            defer { release(scratch); };
+
+                            String_Builder sb;
+                            str_build(scratch.arena, sb, DIR_LEVELS);
+                            str_build(scratch.arena, sb, name);
+            
+                            String path = str_build_finish(scratch.arena, sb);
                             load_level(World, path);
                         } else {
                             str_glue(add_text, "usage: level name_with_extension\n");

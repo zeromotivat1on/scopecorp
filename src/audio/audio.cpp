@@ -4,15 +4,21 @@
 #include "audio/wav.h"
 
 #include "log.h"
-#include "sid.h"
 #include "str.h"
 #include "memory_eater.h"
 
 void au_create_table(Au_Table &t) {
-    t.sounds = Sparse<Au_Sound>(t.MAX_SOUNDS);
-
+    reserve(t.arena, MB(1));
+    
+    sparse_reserve(t.arena, t.sounds, t.MAX_SOUNDS);
+    
     // Add dummies at 0 index.
-    add_default(t.sounds);
+    sparse_push(t.sounds);
+}
+
+void au_destroy_table(Au_Table &t) {
+    release(t.arena);
+    t = {};
 }
 
 void *parse_wav(void *data, Wav_Header *header) {

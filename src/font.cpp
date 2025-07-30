@@ -11,7 +11,9 @@
 
 void init_font(void *data, Font_Info &font) {
     Assert(font.info == null);
-	font.info = allocpn(stbtt_fontinfo, 1);
+    
+    // @Cleanup: use own arena?
+	font.info = arena_push_type(M_global, stbtt_fontinfo);
 
     // @Cleanup: set stbtt allocator to allocate from linear allocation.
     stbtt_InitFont(font.info, (u8 *)data, stbtt_GetFontOffsetForIndex((u8 *)data, 0));
@@ -25,7 +27,8 @@ void bake_font_atlas(const Font_Info &font, u32 start_charcode, u32 end_charcode
                                       R_CLAMP, R_NEAREST, R_NEAREST);
 
 	const u32 charcode_count = end_charcode - start_charcode + 1;
-	atlas.metrics = allocpn(Font_Glyph_Metric, charcode_count);
+    // @Cleanup: use own arena?
+	atlas.metrics = arena_push_array(M_global, charcode_count, Font_Glyph_Metric);
 	atlas.start_charcode = start_charcode;
 	atlas.end_charcode = end_charcode;
     

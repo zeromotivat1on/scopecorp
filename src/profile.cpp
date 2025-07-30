@@ -67,8 +67,9 @@ Profile_Scope::~Profile_Scope() {
 
 void init_runtime_profiler() {
     auto &rp = Runtime_profiler;
-    rp.scopes      = allocpn(Profile_Scope, rp.MAX_SCOPES);
-    rp.scope_times = allocpn(f32,           rp.MAX_SCOPES);
+    // @Cleanup: use own arena?
+    rp.scopes      = arena_push_array(M_global, rp.MAX_SCOPES, Profile_Scope);
+    rp.scope_times = arena_push_array(M_global, rp.MAX_SCOPES, f32);
 }
 
 void open_runtime_profiler() {
@@ -230,6 +231,8 @@ void draw_memory_profiler() {
         ui_quad(p0, p1, color, QUAD_Z);
     }
 
+    // @Todo
+#if 0
     {   // Profiler scopes.
         struct Mem_Scope {
             const char *name = null;
@@ -291,6 +294,7 @@ void draw_memory_profiler() {
             pos.y -= atlas.line_height;
         }
     }
+#endif
 }
 
 void on_input_memory_profiler(const Window_Event &event) {

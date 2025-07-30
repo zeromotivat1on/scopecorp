@@ -2,6 +2,7 @@
 #include "log.h"
 #include "profile.h"
 
+#include "os/system.h"
 #include "os/file.h"
 #include "os/atomic.h"
 #include "os/input.h"
@@ -53,12 +54,21 @@ const u32  FILE_TRUNCATE_EXISTING = TRUNCATE_EXISTING;
 EXTERN_C IMAGE_DOS_HEADER __ImageBase;
 static const char *window_prop_name = "win32_window";
 
-File os_open_file(const char *path, s32 open_type, u32 access_flags, bool log_error) {
-	HANDLE handle = CreateFile(path, access_flags, FILE_SHARE_READ | FILE_SHARE_WRITE,
+void os_init() {
+    SYSTEM_INFO si;
+    GetSystemInfo(&si);
+    
+    OS_PAGE_SIZE  = si.dwPageSize;
+    OS_ALLOC_GRAN = si.dwAllocationGranularity;
+}
+
+File os_open_file(String path, s32 open_type, u32 access_flags, bool log_error) {
+	HANDLE handle = CreateFile(path.value, access_flags, FILE_SHARE_READ | FILE_SHARE_WRITE,
                                NULL, open_type, FILE_ATTRIBUTE_NORMAL, NULL);
 
-    if (log_error && handle == INVALID_HANDLE_VALUE)
+    if (log_error && handle == INVALID_HANDLE_VALUE) {
         error("Failed to open file %s, win32 error 0x%X", path, GetLastError());
+    }
     
     return handle;
 }
@@ -114,7 +124,7 @@ void for_each_file(const char *directory, For_Each_File_Callback callback, void 
             if (strcmp(file_name, ".") == 0 || strcmp(file_name, "..") == 0) continue;
             for_each_file(file_path, callback);
         } else {
-            callback_data.path = file_path;
+            callback_data.path = String { file_path, strlen(file_path) };
             callback_data.size = (find_data.nFileSizeHigh * (MAXDWORD + 1)) + find_data.nFileSizeLow;
 
             ULARGE_INTEGER last_write_time;
@@ -141,24 +151,24 @@ s64 os_file_ptr(File handle) {
     return INDEX_NONE;
 }
 
-void *os_vm_reserve(void *addr, u64 size) {
+void *os_reserve(void *addr, u64 size) {
 	Assert(size > 0);
 	return VirtualAlloc(addr, size, MEM_RESERVE, PAGE_READWRITE);
 }
 
-void *os_vm_commit(void *vm, u64 size) {
+void *os_commit(void *vm, u64 size) {
 	Assert(vm);
 	Assert(size > 0);
 	return VirtualAlloc(vm, size, MEM_COMMIT, PAGE_READWRITE);
 }
 
-bool os_vm_decommit(void *vm, u64 size) {
+bool os_decommit(void *vm, u64 size) {
 	Assert(vm);
 	Assert(size > 0);
 	return VirtualFree(vm, size, MEM_DECOMMIT);
 }
 
-bool os_vm_release(void *vm) {
+bool os_release(void *vm) {
 	Assert(vm);
 	return VirtualFree(vm, 0, MEM_RELEASE);
 }
@@ -545,7 +555,7 @@ static RECT get_window_border_rect() {
 bool os_create_window(u16 width, u16 height, const char *name, s16 x, s16 y, Window &w) {
     Assert(w.win32 == null);
     
-	w.win32 = allocpn(Win32_Window, 1);
+	w.win32 = arena_push_type(M_global, Win32_Window);
 
     auto &win32 = *w.win32;
 	win32.class_name = "win32_window";

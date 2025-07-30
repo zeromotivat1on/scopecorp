@@ -100,16 +100,17 @@ void on_input_game(const Window_Event &event) {
 }
 
 void create_world(Game_World &w) {
-	w = {};
-
-	w.static_meshes  = Sparse<Static_Mesh>(w.MAX_STATIC_MESHES);
-    w.point_lights   = Sparse<Point_Light>(w.MAX_POINT_LIGHTS);
-    w.direct_lights  = Sparse<Direct_Light>(w.MAX_DIRECT_LIGHTS);
-    w.sound_emitters_2d = Sparse<Sound_Emitter_2D>(w.MAX_SOUND_EMITTERS_2D);
-    w.sound_emitters_3d = Sparse<Sound_Emitter_3D>(w.MAX_SOUND_EMITTERS_3D);
-    w.portals        = Sparse<Portal>(w.MAX_PORTALS);
-
-    w.aabbs = Sparse<AABB>(w.MAX_AABBS);
+    w = {};
+    
+    reserve(w.arena, MB(8));
+    
+	sparse_reserve(w.arena, w.static_meshes,     w.MAX_STATIC_MESHES);
+    sparse_reserve(w.arena, w.point_lights,      w.MAX_POINT_LIGHTS);
+    sparse_reserve(w.arena, w.direct_lights,     w.MAX_DIRECT_LIGHTS);
+    sparse_reserve(w.arena, w.sound_emitters_2d, w.MAX_SOUND_EMITTERS_2D);
+    sparse_reserve(w.arena, w.sound_emitters_3d, w.MAX_SOUND_EMITTERS_3D);
+    sparse_reserve(w.arena, w.portals,           w.MAX_PORTALS);
+    sparse_reserve(w.arena, w.aabbs,             w.MAX_AABBS);
 }
 
 template <typename T>
@@ -139,9 +140,14 @@ static void write_sparse_array(File file, Sparse<T> *array) {
 void save_level(Game_World &world) {
     START_SCOPE_TIMER(save);
 
-    char path[MAX_PATH_LENGTH];
-    str_copy(path, DIR_LEVELS);
-    str_glue(path, world.name);
+    Scratch scratch = local_scratch();
+    defer { release(scratch); };
+    
+    String_Builder sb;
+    str_build(scratch.arena, sb, DIR_LEVELS);
+    str_build(scratch.arena, sb, world.name);
+
+    String path = str_build_finish(scratch.arena, sb);
     
     File file = os_open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_WRITE);
     defer { os_close_file(file); };
@@ -189,7 +195,7 @@ For_Result cb_init_entity_after_level_load(Entity *e, void *user_data) {
     return CONTINUE;
 }
 
-void load_level(Game_World &world, const char *path) {
+void load_level(Game_World &world, String path) {
     START_SCOPE_TIMER(load);
 
     File file = os_open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_READ);
@@ -274,7 +280,7 @@ void tick_game(f32 dt) {
         aabb.min = it.location - half_extent;
         aabb.max = it.location + half_extent;
 
-        const vec3 light_direction = get_forward_vector(it.rotation);
+        const vec3 light_direction = forward(it.rotation);
 
         // @Speed: its a bit painful to see several set calls instead of just one.
         // @Cleanup: figure out to make it cleaner, maybe get rid of field index parameters;
@@ -392,7 +398,7 @@ void tick_game(f32 dt) {
             } else if (game_state.player_movement_behavior == MOVE_RELATIVE_TO_CAMERA) {
                 auto &camera = World.camera;
                 const vec3 camera_forward = forward(camera.yaw, camera.pitch);
-                const vec3 camera_right = camera.up.cross(camera_forward).normalize();
+                const vec3 camera_right = normalize(cross(camera.up, camera_forward));
 
                 if (down(KEY_D)) {
                     velocity += speed * camera_right;
@@ -415,7 +421,7 @@ void tick_game(f32 dt) {
                 }
             }
 
-            player.velocity = velocity.truncate(speed);
+            player.velocity = truncate(velocity, speed);
         }
 
         player.collide_aabb_index = INDEX_NONE;
@@ -434,7 +440,7 @@ void tick_game(f32 dt) {
         }
         
         auto *mta = find_asset(player.draw_data.sid_material);
-        auto *mt  = find(R_table.materials, mta->index);
+        auto *mt  = sparse_find(R_table.materials, mta->index);
         if (player.velocity == vec3_zero) {
             if (mt) {
                 const auto &txa = *find_asset(sid_texture_player_idle[player.move_direction]);
@@ -554,48 +560,48 @@ Camera &active_camera(Game_World &world) {
 	return world.camera;
 }
 
-Entity *create_entity(Game_World &world, Entity_Type e_type) {
+Entity *create_entity(Game_World &w, Entity_Type e_type) {
     Entity *e = null;
     switch (e_type) {
     case E_PLAYER: {
-        e = &world.player;
+        e = &w.player;
         break;
     }
     case E_SKYBOX: {
-        e = &world.skybox;
+        e = &w.skybox;
         break;
     }
     case E_STATIC_MESH: {
-        e = find(world.static_meshes, add_default(world.static_meshes));
+        e = sparse_find(w.static_meshes, sparse_push(w.static_meshes));
         break;
     }
     case E_DIRECT_LIGHT: {
-        e = find(world.direct_lights, add_default(world.direct_lights));
+        e = sparse_find(w.direct_lights, sparse_push(w.direct_lights));
         break;
     }
     case E_POINT_LIGHT: {
-        e = find(world.point_lights, add_default(world.point_lights));
+        e = sparse_find(w.point_lights, sparse_push(w.point_lights));
         break;
     }
     case E_SOUND_EMITTER_2D: {
-        e = find(world.sound_emitters_2d, add_default(world.sound_emitters_2d));
+        e = sparse_find(w.sound_emitters_2d, sparse_push(w.sound_emitters_2d));
         break;
     }
     case E_SOUND_EMITTER_3D: {
-        e = find(world.sound_emitters_3d, add_default(world.sound_emitters_3d));
+        e = sparse_find(w.sound_emitters_3d, sparse_push(w.sound_emitters_3d));
         break;
     }
     case E_PORTAL: {
-        e = find(world.portals, add_default(world.portals));
+        e = sparse_find(w.portals, sparse_push(w.portals));
         break;
     }
     }
 
     if (e) {
         e->eid = eid_global_counter;
-        e->aabb_index = add_default(world.aabbs);
+        e->aabb_index = sparse_push(w.aabbs);
 
-        auto &aabb = world.aabbs[e->aabb_index];
+        auto &aabb = w.aabbs[e->aabb_index];
         const vec3 half_extent = e->scale * 0.5f;
         aabb.min = e->location - half_extent;
         aabb.max = e->location + half_extent;

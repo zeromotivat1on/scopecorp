@@ -3,7 +3,7 @@
 #include "str.h"
 #include "os/file.h"
 
-bool os_read_file(const char *path, void *buffer, u64 size, u64 *bytes_read, bool log_error) {
+bool os_read_file(String path, void *buffer, u64 size, u64 *bytes_read, bool log_error) {
 	File file = os_open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_READ, log_error);
 	if (file == INVALID_FILE) {
 		return false;
@@ -19,23 +19,40 @@ bool os_read_file(const char *path, void *buffer, u64 size, u64 *bytes_read, boo
 	return true;
 }
 
-s64 os_file_size(const char *path) {
+Buffer os_read_file(Arena &a, String path) {
     File file = os_open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_READ);
 	if (file == INVALID_FILE) {
-		return INDEX_NONE;
+		return BUFFER_NONE;
 	}
 
-    defer { os_close_file(file); };
+	defer { os_close_file(file); };
 
-    return os_file_size(file);
+    const u64 size = os_file_size(file);
+    Buffer buffer = arena_push_buffer(a, size);
+
+    if (!os_read_file(file, buffer.data, buffer.size)) {
+        pop(a, size);
+        return BUFFER_NONE;
+    }
+
+    return buffer;
 }
 
-void fix_directory_delimiters(char *path) {
-    char *read  = path;
-    char *write = path;
+String os_read_text_file(Arena &a, String path) {
+    Buffer buffer = os_read_file(a, path);
+    if (is_valid(buffer)) {
+        return String { (char *)buffer.data, buffer.size };
+    }
+
+    return STRING_NONE;
+}
+
+void fix_directory_delimiters(String &path) {
+    char *read  = path.value;
+    char *write = path.value;
     bool last_was_slash = false;
     
-    while (*read != '\0') {
+    while (read != path.value + path.length) {
         if (*read == '\\') *read = '/';
         if (*read == '/') {
             if (!last_was_slash) {
@@ -49,11 +66,12 @@ void fix_directory_delimiters(char *path) {
         read++;
     }
 
-    *write = '\0';
+    path.length = write - path.value;
 }
 
-void remove_extension(char *path) {
-    const char *dot   = str_char_from_end(path, '.');
-    const s64 dot_pos = dot - path;
-    path[dot_pos] = '\0';
+void remove_extension(String &path) {
+    const s64 index = str_index(path, '.', S_SEARCH_REVERSE_BIT);
+    if (index != INDEX_NONE) {
+        path.length = index;
+    }
 }

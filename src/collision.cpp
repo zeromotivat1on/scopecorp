@@ -22,12 +22,12 @@ bool overlap(const vec3 &point, const AABB &aabb) {
 }
 
 bool overlap(const vec3 &point, const Sphere &sphere) {
-    const f32 distance_sqr = (point - sphere.pos).length_sqr();
+    const f32 distance_sqr = length_sqr(point - sphere.pos);
     return distance_sqr < sphere.radius * sphere.radius;
 }
 
 bool overlap(const Sphere &a, const Sphere &b) {
-    const f32 distance_sqr = (a.pos - b.pos).length_sqr();
+    const f32 distance_sqr = length_sqr(a.pos - b.pos);
     return distance_sqr < a.radius * a.radius + b.radius * b.radius;
 }
 

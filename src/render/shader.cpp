@@ -13,7 +13,7 @@ enum Shader_Region_Type {
     REGION_COUNT
 };
 
-static const char *DECL_INCLUDE = "#include";
+static const String DECL_INCLUDE = S("#include");
 
 static const char *DECL_BEGIN_VERTEX = "#begin vertex";
 static const char *DECL_END_VERTEX   = "#end vertex";
@@ -69,44 +69,52 @@ static bool parse_shader_region(const char *in, char *out, Shader_Region_Type ty
     return true;
 }
 
-void parse_shader_includes(char *in) {
-    char *out = alloctn(char, R_Shader::MAX_FILE_SIZE);
-    defer { freetn(char, R_Shader::MAX_FILE_SIZE); };
-        
-    out[0] = '\0';
-
-    const char *cin = in;
-
-    const char *include = str_sub(cin, DECL_INCLUDE);
-
-    char *include_data = alloctn(char, R_Shader::MAX_FILE_SIZE);
-    defer { freetn(char, R_Shader::MAX_FILE_SIZE); };
+String parse_shader_includes(Arena &a, String s) {    
+    Scratch scratch = local_scratch();
+    defer { release(scratch); };
+    
+    String t = s;
+    String inc = str_slice(t, DECL_INCLUDE);
+    
+    String_Builder sb;
     
     // @Todo: handle recursive includes.
-    while (include) { // include files contents
-        str_glue(out, cin, include - cin);
+    while (is_valid(inc)) {
+        String inc_left = str_slice(t, DECL_INCLUDE, S_LEFT_SLICE_BIT | S_INDEX_MINUS_ONE_BIT);
+        str_build(a, sb, inc_left);
+        //str_glue(out, cin, include - cin);
 
-        const char *na = str_char(include, '"') + 1;
-        const char *nb = str_char(na,      '"') + 0;
-
-        char path[MAX_PATH_LENGTH];
-        str_copy(path, DIR_SHADERS);
-        str_glue(path, na, nb - na);
-
-        u64 include_data_size = 0;
-        os_read_file(path, include_data, R_Shader::MAX_FILE_SIZE, &include_data_size);
+        String inc_path = str_slice(inc,      '"', S_INDEX_PLUS_ONE_BIT);
+        inc_path        = str_slice(inc_path, '"', S_LEFT_SLICE_BIT | S_INDEX_MINUS_ONE_BIT);
         
-        str_glue(out, include_data, include_data_size);
+        String_Builder sb_path;
+        str_build(scratch.arena, sb_path, DIR_SHADERS);
+        str_build(scratch.arena, sb_path, inc_path);
+
+        String path = str_build_finish(scratch.arena, sb_path);
+
+        //u64 inc_data_size = 0;
+        //os_read_file(path.value, inc_buffer.data, inc_buffer.size, &inc_data_size);
+
+        String inc_contents = os_read_text_file(scratch.arena, path);
+        str_build(a, sb, inc_contents);
+        //str_glue(out, include_data, include_data_size);
 
         // @Robustness: this may lead to undesired behavior if several
         // include statements will be on same line.
-        cin = str_char(include, '\n') + 1;
-        include = str_sub(cin, DECL_INCLUDE);
+        t = str_slice(inc, '\n', S_INDEX_PLUS_ONE_BIT);
+        inc = str_slice(t, DECL_INCLUDE);
     }
 
-    str_glue(out, cin); // rest of shader code
+    str_build(a, sb, t); // rest of shader code
+    //str_glue(out, cin); // rest of shader code
 
-    str_copy(in, out); // copy back
+    String r = str_build_finish(a, sb);
+    if (r.length > R_Shader::MAX_FILE_SIZE) {
+        error("Final shader source size %llu with parsed includes exceeds max shade file size %llu", r.length, R_Shader::MAX_FILE_SIZE);
+    }
+    
+    return r;
 }
 
 bool parse_shader_regions(const char *source, char *out_vertex, char *out_fragment) {

@@ -1,7 +1,6 @@
 #include "pch.h"
 #include "log.h"
 #include "str.h"
-#include "sid.h"
 #include "font.h"
 #include "profile.h"
 #include "asset.h"
@@ -11,6 +10,7 @@
 #include "stb_sprintf.h"
 #include "stb_image.h"
 
+#include "os/system.h"
 #include "os/thread.h"
 #include "os/input.h"
 #include "os/window.h"
@@ -75,12 +75,15 @@ void on_window_event(const Window &window, const Window_Event &event) {
 
 s32 main() {    
     START_SCOPE_TIMER(startup);
-    
-    if (alloc_init() == false) {
-        error("Failed to initialize allocation");
-        return 1;
-    }
 
+    os_init();
+
+    if (!reserve(M_global, MB(4))) return 1;    
+    if (!reserve(M_frame,  MB(2))) return 1;
+    
+    defer { release(M_global); };
+    defer { release(M_frame); };
+    
     sid_init();
 
     sid_texture_player_idle[SOUTH] = SID_TEXTURE_PLAYER_IDLE_SOUTH;
@@ -114,6 +117,8 @@ s32 main() {
 		return 1;
 	}
 
+    defer { os_destroy_window(Main_window); };
+    
 	os_register_window_callback(Main_window, on_window_event);
 
     if (r_init_context(Main_window) == false) {
@@ -133,7 +138,9 @@ s32 main() {
     }
     
     r_detect_capabilities();
+
     r_create_table(R_table);
+    defer { r_destroy_table(R_table); };
     
     {
         const u32 map_bits = R_MAP_WRITE_BIT | R_MAP_PERSISTENT_BIT | R_MAP_COHERENT_BIT;
@@ -154,12 +161,15 @@ s32 main() {
     
     r_init_global_uniforms();
 
-    uniform_value_cache.data = allocp(MAX_UNIFORM_VALUE_CACHE_SIZE);
+    // @Cleanup: use own arena?
+    uniform_value_cache.data = push(M_global, MAX_UNIFORM_VALUE_CACHE_SIZE);
     uniform_value_cache.size = 0;
     uniform_value_cache.capacity = MAX_UNIFORM_VALUE_CACHE_SIZE;
 
     au_init_context();
+
     au_create_table(Au_table);
+    defer { au_destroy_table(Au_table); };
     
     os_lock_window_cursor(Main_window, true);
     os_set_window_vsync(Main_window, false);
@@ -217,6 +227,7 @@ s32 main() {
 	register_hot_reload_directory(hot_reload_list, DIR_FLIP_BOOKS);
 
     const Thread hot_reload_thread = start_hot_reload_thread(hot_reload_list);
+    defer { os_terminate_thread(hot_reload_thread); };
     
 	create_world(World);
 
@@ -279,14 +290,14 @@ s32 main() {
 	{
         auto &model = *(Static_Mesh *)create_entity(World, E_STATIC_MESH);
 		model.location = vec3(-2.0f, 0.0f, 2.0f);
-        //model.rotation = quat_from_axis_angle(vec3_right, -90.0f);
-        model.scale = vec3(3.0f);
+        model.rotation = quat_from_axis_angle(vec3_right, -90.0f);
+        //model.scale = vec3(3.0f);
         
         auto &aabb = World.aabbs[model.aabb_index];
 		aabb.min = model.location - model.scale * 0.5f;
 		aabb.max = aabb.min + model.scale;
 
-		model.draw_data.sid_mesh     = SID("/data/meshes/stanford-bunny.obj");
+		model.draw_data.sid_mesh     = SID("/data/meshes/tower.obj");
 		model.draw_data.sid_material = SID("/data/materials/tower.mat");
 	}
 
@@ -540,9 +551,9 @@ s32 main() {
             
 		os_swap_window_buffers(Main_window);
         update_render_stats();
-
-        freef(); // clear frame allocation
- 
+        
+        clear(M_frame);
+        
 		const s64 end_counter = os_perf_counter();
 		delta_time = (end_counter - begin_counter) / (f32)os_perf_hz_s();
 		begin_counter = end_counter;
@@ -554,10 +565,6 @@ s32 main() {
         }
 #endif
 	}
-
-    os_terminate_thread(hot_reload_thread);
-	os_destroy_window(Main_window);
-    alloc_shutdown();
     
 	return 0;
 }

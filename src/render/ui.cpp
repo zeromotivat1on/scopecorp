@@ -25,12 +25,9 @@
 
 #include "stb_sprintf.h"
 
-constexpr u32 MAX_UI_INPUT_TABLE_SIZE  = 512;
 constexpr u32 MAX_UI_INPUT_BUFFER_SIZE = KB(16);
 
-typedef Hash_Table<uiid, char *> UI_Input_Table;
-
-static UI_Input_Table ui_input_table = {};
+static Table<uiid, char *> ui_input_table = {};
 static char *ui_input_buffer = null; // storage for input buffers
 static u32 ui_input_buffer_size = 0;
 
@@ -65,7 +62,7 @@ static u64 ui_input_table_hash(const uiid &a) {
 }
 
 static char *get_or_alloc_input_buffer(uiid id, u32 size) {
-    char **v = find(ui_input_table, id);
+    char **v = table_find(ui_input_table, id);
     if (v == null) {        
         Assert(size + ui_input_buffer_size < MAX_UI_INPUT_BUFFER_SIZE);
 
@@ -73,7 +70,7 @@ static char *get_or_alloc_input_buffer(uiid id, u32 size) {
         text[0] = '\0';
         text[size + 1] = '\0';
         
-        v = add(ui_input_table, id, text);
+        v = table_push(ui_input_table, id, text);
         ui_input_buffer_size += size + 1;
     }
     
@@ -81,10 +78,14 @@ static char *get_or_alloc_input_buffer(uiid id, u32 size) {
 }
 
 void ui_init() {
-    ui_input_table = UI_Input_Table(MAX_UI_INPUT_TABLE_SIZE);
-    ui_input_table.hash_function = &ui_input_table_hash;
+    constexpr u32 MAX_INPUT_COUNT = 512;
 
-    ui_input_buffer = (char *)allocp(MAX_UI_INPUT_BUFFER_SIZE);
+    // @Cleanup: use own arena?
+    table_reserve(M_global, ui_input_table, MAX_INPUT_COUNT);
+    table_custom_hash(ui_input_table, &ui_input_table_hash);
+
+    // @Cleanup: use own arena?
+    ui_input_buffer = arena_push_array(M_global, MAX_UI_INPUT_BUFFER_SIZE, char);
 
     r_create_command_list(R_ui.MAX_COMMANDS, R_ui.command_list);
     
@@ -625,9 +626,9 @@ void ui_text(const char *text, u32 count, vec2 pos, u32 color, f32 z, s32 atlas_
 		const f32 cx = x + metric->offset_x;
 		const f32 cy = y - (ch + metric->offset_y);
 
-        const vec3 location  = vec3(cx, cy, 0.0f);
-        const vec3 scale     = vec3(cw, ch, 0.0f);
-        const mat4 transform = mat4_identity().translate(location).scale(scale);
+        const vec3 l = vec3(cx, cy, 0.0f);
+        const vec3 s = vec3(cw, ch, 0.0f);
+        const mat4 transform = translate(scale(mat4_identity(), s), l);
 
         trender.colors[trender.char_count] = color;
         trender.charmap[trender.char_count] = ci;

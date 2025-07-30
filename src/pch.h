@@ -105,7 +105,13 @@ inline constexpr rid RID_NONE = 0;
 #define is_ascii(x)           ((x) >= 0 && (x) <= 127)
 #define is_ascii_ex(x)        ((x) >= 0 && (x) <= 255)
 #define is_ascii_printable(x) ((x) >= 32 && (x) <= 126)
-
+#define is_ascii_space(x)     ((x) == ASCII_SPACE               \
+                               || (x) == ASCII_TAB              \
+                               || (x) == ASCII_NEW_LINE         \
+                               || (x) == ASCII_FORM_FEED        \
+                               || (x) == ASCII_VERTICAL_TAB     \
+                               || (x) == ASCII_CARRIAGE_RETURN)
+    
 #if DEBUG
 inline const char* Build_type_name = "DEBUG";
 #elif RELEASE
@@ -132,13 +138,14 @@ inline const char* Build_type_name = "RELEASE";
 struct My_Defer_Ref {};
 template <class F> struct My_Defer { F f; ~My_Defer() { f(); } };
 template <class F> My_Defer<F> operator+(My_Defer_Ref, F f) { return {f}; }
-#define defer const auto CONCAT(deferrer, __LINE__) = My_Defer_Ref{} + [&]()
+#define defer const auto CONCAT(_defer_, __LINE__) = My_Defer_Ref{} + [&]()
 
 #define For(x) for (auto &it : (x))
 
-#define Align(x, alignment) (((x) + (alignment) - 1) & ~((alignment) - 1))
-
-#define Offsetof(x, m) ((u64)&(((x *)0)->m))
+#define Alignup(x, a)   (((x) + (a) - 1) & ~((a) - 1))
+#define Aligndown(x, a) ((x) & ~((a) - 1))
+#define Offsetof(x, m)  ((u64)&(((x *)0)->m))
+#define Powerof2(x)     (((x) != 0) && ((x) & ((x) - 1)) == 0)
 
 #define Sign(x)        ((x) > 0 ? 1 : -1)
 #define Min(a, b)      ((a) < (b) ? (a) : (b))
@@ -161,8 +168,7 @@ struct Source_Location {
     const char *file = null;
     s32 line = 0;
 
-    Source_Location(const char *file, u32 line)
-        : file(file), line(line) {}
+    Source_Location(const char *file, u32 line) : file(file), line(line) {}
 
     static Source_Location current(const char *file = __builtin_FILE(), s32 line = __builtin_LINE()) {
         return Source_Location(file, line);
@@ -210,47 +216,132 @@ struct Rect {
     f32 h = 0.0f;
 };
 
-// Allocation types:
-// h  - heap allocation, default implementation
-// p  - persistent storage, push/pop
-// t  - temporary storage, push/pop
-// f  - frame storage, cleared at the end of every frame, push/pop
+struct Buffer {
+    u8 *data = null;
+    u64 size = 0;
+};
 
-inline constexpr u64 MAX_ALLOCP_SIZE = MB(16);
-inline constexpr u64 MAX_ALLOCT_SIZE = MB(64);
-inline constexpr u64 MAX_ALLOCF_SIZE = MB(1);
+#define BUFFER_NONE Buffer { null, 0 }
 
-bool alloc_init();
-void alloc_shutdown();
-void *alloch(u64 size);
-void *realloch(void *ptr, u64 size);
-void  freeh(void *ptr);
-void *allocp(u64 size, Source_Location loc = Source_Location::current());
-void  freep(u64 size, Source_Location loc = Source_Location::current());
-void *alloct(u64 size);
-void  freet(u64 size);
-void *allocf(u64 size);
-void  freef(u64 size);
-void  freef();
+bool is_valid(Buffer b);
 
-#define allocsn(T, n) (T *)allocs(sizeof(T) * (n))
-#define allochn(T, n) (T *)alloch(sizeof(T) * (n))
-#define allocpn(T, n) (T *)allocp(sizeof(T) * (n))
-#define alloctn(T, n) (T *)alloct(sizeof(T) * (n))
-#define allocfn(T, n) (T *)allocf(sizeof(T) * (n))
+// Self-contained memory storage.
+struct Arena {
+    u8 *base = null;
+    u64 reserved = 0;
+    u64 commited = 0;
+    u64 used = 0;
+};
 
-#define freepn(T, n) freep(sizeof(T) * (n));
-#define freetn(T, n) freet(sizeof(T) * (n));
-#define freefn(T, n) freef(sizeof(T) * (n));
+// Temp view of memory storage.
+struct Scratch {
+    Arena &arena;
+    u64 pos = 0;
+};
 
-void mem_set (void *data, s32 value, u64 size);
-void mem_copy(void *dst, const void *src, u64 size);
-void mem_move(void *dst, const void *src, u64 size);
-void mem_swap(void *a, void *b, u64 size);
+inline Arena M_global; // application lifetime allocations
+inline Arena M_frame;  // frame lifetime allocations
+
+inline constexpr u64 DEFAULT_ALIGNMENT = 8;
+
+bool  reserve  (Arena &a, u64 n, void *address = null);
+bool  commit   (Arena &a, u64 n);
+void *push     (Arena &a, u64 n, u64 align = DEFAULT_ALIGNMENT, bool zero = true);
+void  pop      (Arena &a, u64 n);
+void  clear    (Arena &a);
+bool  decommit (Arena &a, u64 n);
+bool  release  (Arena &a);
+
+// Returns thread local scratch for memory allocation.
+// There are several scratch storages under the hood for each thread, so
+// it is safe to have not strict push/pop calls in case of nested scratches.
+Scratch local_scratch();
+void release(Scratch &s);
+
+#define arena_push_type(a, t)     (t *)push(a, 1 * sizeof(t), alignof(t), true)
+#define arena_push_array(a, n, t) (t *)push(a, n * sizeof(t), alignof(t), true)
+#define arena_push_buffer(a, n)   Buffer { (u8 *)push(a, n), n }
+#define arena_pop_type(a, t)      pop(a, 1 * sizeof(t))
+#define arena_pop_array(a, n, t)  pop(a, n * sizeof(t))
+
+void mem_set  (void *p, s32 v, u64 n);
+void mem_copy (void *dst, const void *src, u64 n);
+void mem_move (void *dst, const void *src, u64 n);
+void mem_swap (void *a, void *b, u64 n);
 
 void sort(void *data, u32 count, u32 size, s32 (*compare)(const void *, const void *));
 
-// All R_ defines must NOT exceed u16 range.
+// Simple wrapper mainly for string literals as most of functionality over it does not
+// deal with internal memory, so standart copy is basically copy of pointer and length.
+// Functions that actually do something with underlying memory take Arena to alloc from.
+// It's up to the client to use it properly and do not shoot himself in the foot with
+// basic error like changing contents of string literal.
+// It's encouraged to use this String over raw c-strings or any other string wrappers.
+struct String {
+    char *value = null;
+    u64 length  = 0;
+};
+
+// Iterator used for string tokenization.
+struct String_Token_Iterator {
+    String &s;
+    String delims;
+    u64 pos = 0;
+};
+
+#define STRING_NONE String { null, 0 }
+#define S(literal)  String { literal, sizeof(literal) - 1 }
+
+#define S_SEARCH_REVERSE_BIT  0x1
+#define S_INDEX_PLUS_ONE_BIT  0x2
+#define S_INDEX_MINUS_ONE_BIT 0x4
+#define S_LENGTH_ON_FAIL_BIT  0x8
+#define S_START_PLUS_ONE_BIT  0x10
+#define S_LEFT_SLICE_BIT      0x20
+
+// @Note: this ones were added just to let C++ know how to compare POD type...
+inline bool operator==(const String &a, const String &b) { return a.value == b.value && a.length == b.length; }
+inline bool operator!=(const String &a, const String &b) { return !(a == b); }
+    
+String str_copy    (Arena &a, const char *cs);
+String str_copy    (Arena &a, const char *cs, u64 length);
+String str_copy    (Arena &a, String s);
+String str_format  (Arena &a, const char *cs, ...);
+String str_from    (String s, s64 i);
+String str_from_to (String s, s64 a, s64 b);
+String str_trim    (String s);
+String str_slice   (String s, char c, u32 bits = 0);
+String str_slice   (String s, String sub, u32 bits = 0);
+String str_token   (String_Token_Iterator &it);
+bool   str_equal   (String a, String b);
+s64    str_index   (String s, char c, u32 bits = 0);
+s64    str_index   (String s, String sub, u32 bits = 0);
+s32    str_to_s32  (String s);
+u32    str_to_u32  (String s);
+f32    str_to_f32  (String s);
+
+bool is_valid(String s);
+
+struct String_Builder {
+    String buffer;
+    u64 capacity = 0;
+};
+
+void   str_build        (Arena &a, String_Builder &sb, const char *cs);
+void   str_build        (Arena &a, String_Builder &sb, const char *cs, u64 length);
+void   str_build        (Arena &a, String_Builder &sb, String s);
+void   str_build_format (Arena &a, String_Builder &sb, const char *cs, ...);
+String str_build_finish (Arena &a, String_Builder &sb);
+
+// @Speed: this will intern sid on every call which may be not so optimal.
+#define SID(s) sid_intern(s)
+
+void sid_init();
+sid  sid_intern(const char *cs);
+sid  sid_intern(String s);
+String sid_str(sid sid);
+
+// All R_ defines does NOT exceed u16 range, except for bit-flags of course.
 
 #define R_NONE 0
 

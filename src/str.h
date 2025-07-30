@@ -1,5 +1,6 @@
 #pragma once
 
+
 u64  str_size(const char *str);
 void str_copy(char *dst, const char *src);
 void str_copy(char *dst, const char *src, u64 n);
@@ -30,3 +31,4 @@ u8  str_to_u8(const char *str);
 u16 str_to_u16(const char *str); 
 u32 str_to_u32(const char *str);
 u64 str_to_u64(const char *str);
+

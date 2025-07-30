@@ -10,17 +10,6 @@ struct Sparse {
     s32 *sparse   = null;
     s32  count    = 0;
     s32  capacity = 0;
-
-    Sparse() = default;
-    Sparse(s32 capacity)
-        : capacity(capacity),
-          items (allocpn(T,   capacity)),
-          dense (allocpn(s32, capacity)),
-          sparse(allocpn(s32, capacity)) {
-        for (s32 i = 0; i < capacity; ++i) {
-            dense[i] = sparse[i] = INDEX_NONE;
-        }
-    }
     
     T *begin() { return items; }
     T *end()   { return items + count; }
@@ -43,6 +32,92 @@ struct Sparse {
     }
 };
 
+template<typename T>
+void sparse_reserve(Arena &a, Sparse<T> &s, s32 n) {
+    if (s.items) {
+        warn("Attempt to reserve already reserved sparse 0x%X", &s);
+        return;
+    }
+
+    s.items = arena_push_array(a, n, T);
+    if (s.items == null) {
+        return;
+    }
+    
+    s.dense = arena_push_array(a, n, s32);
+    if (s.dense == null) {
+        arena_pop_array(a, n, T);
+        return;
+    }
+    
+    s.sparse = arena_push_array(a, n, s32);
+    if (s.sparse == null) {
+        arena_pop_array(a, n, s32);
+        arena_pop_array(a, n, T);
+        return;
+    }
+    
+    s.capacity = n;
+
+    // Sparse indices go immediately after dense.
+    mem_set(s.dense, 0xFF, 2 * n * sizeof(s32));
+}
+
+template<typename T>
+T *sparse_find(const Sparse<T> &s, s32 i) {
+    if (i < 0 || i >= s.capacity) return null;
+        
+    const s32 si = s.sparse[i];
+    if (si == INDEX_NONE) return null;
+        
+    return &s.items[si];
+}
+
+template<typename T>
+s32 sparse_insert(Sparse<T> &s, s32 i, const T &t) {
+    if (i < 0 || i >= s.capacity) return INDEX_NONE;
+    if (s.count >= s.capacity)    return INDEX_NONE;
+    if (sparse_find(s, i))        return INDEX_NONE;
+
+    s.sparse[i] = s.count;
+    s.dense[s.count] = i;
+    s.items[s.count] = t;
+
+    s.count += 1;
+    return i;
+}
+
+template<typename T>
+s32 sparse_push(Sparse<T> &s, const T &t) {
+    for (s32 i = 0; i < s.capacity; ++i)
+        if (s.sparse[i] == INDEX_NONE)
+            return sparse_insert(s, i, t);
+        
+    return INDEX_NONE;
+}
+
+template<typename T>
+s32 sparse_push(Sparse<T> &s) {
+    return sparse_push(s, T{});
+}
+
+template<typename T>
+s32 sparse_remove(Sparse<T> &s, s32 i) {
+    if (i < 0 || i >= s.capacity)  return INDEX_NONE;
+    if (sparse_find(s, i) == null) return INDEX_NONE;
+    
+    s.count -= 1;
+    
+    s.sparse[s.dense [s.count]] = s.sparse[i];
+    s.dense [s.sparse[i]]       = s.dense[s.count];
+    
+    s.items [s.sparse[i]] = s.items[s.count];
+    s.sparse[i] = INDEX_NONE;
+    
+    return i;
+}
+
+/*
 template<typename T>
 T *find(const Sparse<T> &array, s32 index) {
     if (index < 0 || index >= array.capacity) return null;
@@ -130,3 +205,4 @@ s32 remove(Sparse<T> &array, s32 index) {
         
     return index;
 }
+*/

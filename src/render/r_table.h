@@ -24,6 +24,8 @@ struct R_Table {
     static constexpr u16 MAX_VERTEX_DESCRIPTORS = 128;
     static constexpr u16 MAX_FLIP_BOOKS = 64;
 
+    Arena arena;
+    
     Sparse<R_Target>   targets;
     Sparse<R_Pass>     passes;
     Sparse<R_Texture>  textures;
@@ -38,4 +40,5 @@ struct R_Table {
 
 inline R_Table R_table;
 
-void r_create_table(R_Table &t);
+void r_create_table (R_Table &t);
+void r_destroy_table(R_Table &t);

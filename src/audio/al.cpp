@@ -68,7 +68,7 @@ u16 au_create_sound(u16 ch_count, u16 bit_rate, u16 sample_rate, u32 data_size, 
 
     al_check_error();
     
-    return add(Au_table.sounds, sn);
+    return sparse_push(Au_table.sounds, sn);
 }
 
 void au_set_listener_pos(vec3 pos) {

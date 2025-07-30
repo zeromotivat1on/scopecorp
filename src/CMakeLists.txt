@@ -12,13 +12,13 @@ set_target_properties(${GAME_EXE} PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${RUN_TREE_DIR}/build/${CMAKE_SYSTEM_NAME}/${CONFIG_TYPE}")
 
 target_sources(${GAME_EXE} PRIVATE
-                asset.cpp camera.cpp collision.cpp font.cpp large.cpp main.cpp pch.cpp profile.cpp sid.cpp str.cpp
+                asset.cpp basic.cpp camera.cpp collision.cpp font.cpp main.cpp profile.cpp
                 # work_queue.cpp
                 os/os.cpp
                 audio/al.cpp audio/audio.cpp
                 game/game.cpp
                 editor/editor.cpp
-                math/matrix.cpp math/math.cpp math/quat.cpp math/vector.cpp
+                math/math.cpp
                 render/render.cpp render/shader.cpp render/ui.cpp)
                 
 target_precompile_headers(${GAME_EXE} PUBLIC pch.h)
