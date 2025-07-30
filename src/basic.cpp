@@ -403,7 +403,7 @@ String str_slice(String s, char c, u32 bits) {
 
 String str_slice(String s, String sub, u32 bits) {
     const s64 index = str_index(s, sub, bits);
-    if (index < 0 || index >= (s64)s.length) return STRING_NONE;
+    if (index < 0 || index > (s64)s.length) return STRING_NONE;
 
     String r;
     
