@@ -75,7 +75,7 @@ void on_input_game(const Window_Event &event) {
         } else if (press && key == KEY_SWITCH_EDITOR_MODE) {
             game_state.mode = MODE_EDITOR;
             push_input_layer(Input_layer_editor);
-            editor_report("Game_Editor");
+            editor_report("Editor");
         }  else if (press && key == KEY_SWITCH_POLYGON_MODE) {
             if (game_state.polygon_mode == R_FILL) {
                 game_state.polygon_mode = R_LINE;

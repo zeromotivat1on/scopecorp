@@ -216,7 +216,7 @@ void draw_memory_profiler() {
     constexpr f32 MARGIN  = 100.0f;
     constexpr f32 PADDING = 16.0f;
     constexpr f32 QUAD_Z = 0.0f;
-    constexpr u32 MAX_LINE_COUNT = 5;
+    constexpr u32 MAX_LINE_COUNT = 4;
 
     const auto &atlas = R_ui.font_atlases[UI_PROFILER_FONT_ATLAS_INDEX];
     const f32 ascent  = atlas.font->ascent  * atlas.px_h_scale;
@@ -230,27 +230,22 @@ void draw_memory_profiler() {
         const u32 color = rgba_pack(0, 0, 0, 200);
         ui_quad(p0, p1, color, QUAD_Z);
     }
-
-    // @Todo
-#if 0
+    
     {   // Profiler scopes.
         struct Mem_Scope {
-            const char *name = null;
+            String name;
             u64 size = 0;
             u64 capacity = 0;
         };
         
-        extern u64 allocp_size, alloct_size, allocf_size;
-
         const Mem_Scope scopes[MAX_LINE_COUNT] = {
-            { "CPU Persistent", allocp_size, MAX_ALLOCP_SIZE },
-            { "CPU Temp",       alloct_size, MAX_ALLOCT_SIZE },
-            { "CPU Frame",      allocf_size, MAX_ALLOCF_SIZE },
-            { "GPU Vertex",     R_vertex_map_range.size, R_vertex_map_range.capacity },
-            { "GPU Index",      R_index_map_range.size,  R_index_map_range.capacity },
+            { S("M_global"), M_global.used, M_global.reserved },
+            { S("M_frame"),  M_frame.used,  M_frame.reserved },
+            { S("R_vertex"), R_vertex_map_range.size, R_vertex_map_range.capacity },
+            { S("R_index"),  R_index_map_range.size,  R_index_map_range.capacity },
         };
 
-        constexpr u32 MAX_NAME_LENGTH = 16;
+        constexpr u32 MAX_NAME_LENGTH = 10;
         constexpr u32 MAX_USAGE_LENGTH = 32;
         
         const u32 space_width_px = get_char_width_px(atlas, ASCII_SPACE);
@@ -275,7 +270,7 @@ void draw_memory_profiler() {
 
             pos.x = column_offset_1;
             count = stbsp_snprintf(buffer, sizeof(buffer),
-                                   "%s", scope.name);
+                                   "%.*s", scope.name.length, scope.name.value);
             ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
 
             pos.x = column_offset_2;
@@ -294,7 +289,6 @@ void draw_memory_profiler() {
             pos.y -= atlas.line_height;
         }
     }
-#endif
 }
 
 void on_input_memory_profiler(const Window_Event &event) {
@@ -317,7 +311,7 @@ void on_input_memory_profiler(const Window_Event &event) {
 void draw_dev_stats() {
     PROFILE_SCOPE(__FUNCTION__);
 
-    constexpr f32 Z = 0.0f;
+    constexpr f32 Z = UI_MAX_Z;
     
     const auto &atlas = R_ui.font_atlases[UI_DEFAULT_FONT_ATLAS_INDEX];
 	const auto &player = World.player;

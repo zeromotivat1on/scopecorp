@@ -32,16 +32,6 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
 
-#define ALLOC_DEBUG 0
-
-static void *vm_base     = null;
-static void *allocp_base = null;
-static void *alloct_base = null;
-static void *allocf_base = null;
-u64 allocp_size = 0;
-u64 alloct_size = 0;
-u64 allocf_size = 0;
-
 #if DEVELOPER
 void report_assert(const char *condition, const char *msg, Source_Location loc) {
     if (msg) {

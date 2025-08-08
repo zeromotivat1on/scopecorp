@@ -480,7 +480,7 @@ void tick_editor(f32 dt) {
     }
 
     // Create specific entity.
-    if (game_state.mode == MODE_EDITOR && !Main_window.cursor_locked) {
+    if (game_state.mode == MODE_EDITOR && Main_window.focused && !Main_window.cursor_locked) {
         constexpr f32 Z = 0.0f;
         
         constexpr String button_text = S("Add");

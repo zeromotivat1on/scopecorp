@@ -261,9 +261,9 @@ s32 main() {
         
         draw_world(World);
         
-        ui_world_line(World.player.location,
-                      World.player.location + normalize(World.player.velocity) * 1.0f,
-                      rgba_red);
+        //ui_world_line(World.player.location,
+        //            World.player.location + normalize(World.player.velocity) * 1.0f,
+        //            rgba_red);
 
 #if DEVELOPER
         r_geo_debug();
@@ -340,7 +340,7 @@ s32 main() {
             r_submit(R_Target {});
             r_submit(pass_viewport);
 
-            // @Nocheckin
+            // @Cleanup?
             // We cleared viewport buffers, so now we can disable depth test to
             // render quad on screen.
             R_Pass pass_depth;
