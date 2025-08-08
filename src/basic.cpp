@@ -332,7 +332,7 @@ String str_copy(Arena &a, String s) {
     return r;
 }
 
-static inline String str_format(Arena &a, const char *cs, const va_list &args) {
+static String str_format(Arena &a, const char *cs, const va_list &args) {
     // We do not assume really big strings for this function.
     constexpr u32 N = KB(16);
     
@@ -440,6 +440,12 @@ String str_token(String_Token_Iterator &it) {
     it.pos = end;
     
     return String { s.value + start, end - start };
+}
+
+void str_c(String s, u64 length, char *cs) {
+    Assert(s.length < length);
+    strncpy(cs, s.value, s.length);
+    cs[s.length] = '\0';
 }
 
 bool str_equal(String a, String b) {

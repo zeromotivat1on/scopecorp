@@ -377,8 +377,11 @@ void r_submit(R_Command_List &list) {
             const auto &u = R_table.uniforms[cmd.uniforms[j]];
             const String name = sid_str(u.name);
             const void *data = (u8 *)uniform_value_cache.data + u.offset;
+
+            char cname[u.MAX_NAME_LENGTH];
+            str_c(name, COUNT(cname), cname);
             
-            r_write_uniform_to_gpu(gl_shader, name.value, u.type, u.count, data);
+            r_write_uniform_to_gpu(gl_shader, cname, u.type, u.count, data);
         }
         
         if (cmd.bits & R_CMD_INDEXED_BIT) {

@@ -222,7 +222,7 @@ void ui_flush() {
     trender.char_count = 0;
 }
 
-u16 ui_button(uiid id, const char *text, const UI_Button_Style &style) {
+u16 ui_button(uiid id, String text, const UI_Button_Style &style) {
     const auto &atlas = R_ui.font_atlases[style.atlas_index];    
     const s32 width = get_line_width_px(atlas, text);
     const s32 height = atlas.line_height;
@@ -291,7 +291,7 @@ u16 ui_input_text(uiid id, char *text, u32 size, const UI_Input_Style &style) {
     u32 color_cursor = style.color_cursor.cold;
 
     u32 count = (u32)str_size(text);
-    
+
     if (inside(R_viewport.mouse_pos, p0, p1)) {
         if (id != R_ui.id_hot) {
             bits |= UI_HOT_BIT;
@@ -351,7 +351,7 @@ u16 ui_input_text(uiid id, char *text, u32 size, const UI_Input_Style &style) {
     }
 
     ui_quad(p0, p1, color_quad, style.z);
-    ui_text(text, style.pos_text, color_text, style.z + F32_EPSILON, style.atlas_index);
+    ui_text(String { text, count }, style.pos_text, color_text, style.z + F32_EPSILON, style.atlas_index);
 
     if (id == R_ui.id_active) {
         const f32 offset = (f32)atlas.space_advance_width * count;
@@ -528,13 +528,17 @@ u16 ui_input_sid(uiid id, sid *v, const UI_Input_Style &style) {
     }
 
     if (id != R_ui.id_active) {
-        stbsp_snprintf(text, size, "%s", sid_str(*v));
+        String s = sid_str(*v);
+        Assert(s.length < size);
+        
+        const auto count = stbsp_snprintf(text, size, "%.*s", s.length, s.value);
+        text[count] = '\0';
     }
 
     return bits;
 }
 
-u16 ui_combo(uiid id, u32 *selected_index, const char **options, u32 option_count, const UI_Combo_Style &style) {
+u16 ui_combo(uiid id, u32 *selected_index, u32 option_count, const String *options, const UI_Combo_Style &style) {
     Assert(*selected_index < option_count);
 
     u16 bits = 0;
@@ -548,7 +552,7 @@ u16 ui_combo(uiid id, u32 *selected_index, const char **options, u32 option_coun
         style.atlas_index,
     };
 
-    const char *option = options[*selected_index];
+    const String option = options[*selected_index];
     const auto button_bits = ui_button(id, option, button_style);
     
     if (button_bits & UI_FINISHED_BIT) {
@@ -564,17 +568,13 @@ u16 ui_combo(uiid id, u32 *selected_index, const char **options, u32 option_coun
     return bits;
 }
 
-void ui_text(const char *text, vec2 pos, u32 color, f32 z, s32 atlas_index) {
-    ui_text(text, (u32)str_size(text), pos, color, z, atlas_index);
-}
-
-void ui_text(const char *text, u32 count, vec2 pos, u32 color, f32 z, s32 atlas_index) {
+void ui_text(String text, vec2 pos, u32 color, f32 z, s32 atlas_index) {
     if (rgba_get_a(color) == 0) return;
 
     Assert(atlas_index < R_ui.MAX_FONT_ATLASES);
     
     auto &trender = R_ui.text_render;
-    Assert(trender.char_count + count <= trender.MAX_CHARS);
+    Assert(trender.char_count + text.length <= trender.MAX_CHARS);
 
 	const auto &atlas = R_ui.font_atlases[atlas_index];
     const auto &mt = R_table.materials[trender.material];
@@ -594,10 +594,10 @@ void ui_text(const char *text, u32 count, vec2 pos, u32 color, f32 z, s32 atlas_
 	f32 x = pos.x;
 	f32 y = pos.y;
 
-	for (u32 i = 0; i < count; ++i) {
+	for (u32 i = 0; i < text.length; ++i) {
         Assert(trender.char_count < trender.MAX_CHARS);
         
-		const char c = text[i];
+		const char c = text.value[i];
 
 		if (c == ASCII_SPACE) {
 			x += atlas.space_advance_width;
@@ -638,21 +638,17 @@ void ui_text(const char *text, u32 count, vec2 pos, u32 color, f32 z, s32 atlas_
         cmd.instance_count += 1;
         
 		x += metric->advance_width;
-        if (i < count - 1) {
-            x += atlas.px_h_scale * get_glyph_kern_advance(*atlas.font, c, text[i + 1]);
+        if (i < text.length - 1) {
+            x += atlas.px_h_scale * get_glyph_kern_advance(*atlas.font, c, text.value[i + 1]);
         }
 	}
     
     r_add(R_ui.command_list, cmd, ui_sort_key(z));
 }
 
-void ui_text_with_shadow(const char *text, vec2 pos, u32 color, vec2 shadow_offset, u32 shadow_color, f32 z, s32 atlas_index) {
-    ui_text_with_shadow(text, (u32)str_size(text), pos, color, shadow_offset, shadow_color, z, atlas_index);
-}
-
-void ui_text_with_shadow(const char *text, u32 count, vec2 pos, u32 color, vec2 shadow_offset, u32 shadow_color, f32 z, s32 atlas_index) {
-	ui_text(text, count, pos + shadow_offset, shadow_color, z, atlas_index);
-	ui_text(text, count, pos, color, z + F32_EPSILON, atlas_index);
+void ui_text_with_shadow(String text, vec2 pos, u32 color, vec2 shadow_offset, u32 shadow_color, f32 z, s32 atlas_index) {
+	ui_text(text, pos + shadow_offset, shadow_color, z,               atlas_index);
+	ui_text(text, pos,                 color,        z + F32_EPSILON, atlas_index);
 }
 
 void ui_quad(vec2 p0, vec2 p1, u32 color, f32 z) {

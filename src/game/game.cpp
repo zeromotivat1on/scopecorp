@@ -176,11 +176,11 @@ void save_level(Game_World &world) {
     write_sparse_array(file, &world.portals);
     write_sparse_array(file, &world.aabbs);
     
-    log("Saved level %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(save));
-    editor_report("Saved level %s", path);
+    log("Saved level %.*s in %.2fms", path.length, path.value, CHECK_SCOPE_TIMER_MS(save));
+    editor_report("Saved level %.*s", path.length, path.value);
 }
 
-For_Result cb_init_entity_after_level_load(Entity *e, void *user_data) {
+static For_Result cb_init_entity_after_level_load(Entity *e, void *user_data) {
     auto *world = (Game_World *)user_data;
 
     if (e->eid != EID_NONE) {        
@@ -264,10 +264,10 @@ void tick_game(f32 dt) {
         auto *mta = find_asset(skybox.draw_data.sid_material);
         if (mta) {
             skybox.uv_offset = camera.eye;
-            r_set_material_uniform(mta->index, SID("u_uv_scale"), 0,
-                                   sizeof(skybox.uv_scale), &skybox.uv_scale);
-            r_set_material_uniform(mta->index, SID("u_uv_offset"), 0,
-                                   sizeof(skybox.uv_offset), &skybox.uv_offset);
+
+            const auto index = mta->index;
+            r_set_material_uniform(index, SID("u_uv_scale"),  0, _sizeref(skybox.uv_scale));
+            r_set_material_uniform(index, SID("u_uv_offset"), 0, _sizeref(skybox.uv_offset));
         }
     }
 
@@ -327,22 +327,18 @@ void tick_game(f32 dt) {
 
         const auto &mt = R_table.materials[mta->index];
         const mat4 model = mat4_transform(it.location, it.rotation, it.scale);
-
-#define _size_ref(x) sizeof(x), &x
-
-		r_set_material_uniform(mta->index, SID("u_model"),    0, _size_ref(model));
-        r_set_material_uniform(mta->index, SID("u_uv_scale"), 0, _size_ref(it.uv_scale));
+        
+		r_set_material_uniform(mta->index, SID("u_model"),    0, _sizeref(model));
+        r_set_material_uniform(mta->index, SID("u_uv_scale"), 0, _sizeref(it.uv_scale));
 
         r_set_material_uniform(mta->index, SID("u_material.ambient"),
-                               0, _size_ref(mt.light_params.ambient));
+                               0, _sizeref(mt.light_params.ambient));
         r_set_material_uniform(mta->index, SID("u_material.diffuse"),
-                               0, _size_ref(mt.light_params.diffuse));
+                               0, _sizeref(mt.light_params.diffuse));
         r_set_material_uniform(mta->index, SID("u_material.specular"),
-                               0, _size_ref(mt.light_params.specular));
+                               0, _sizeref(mt.light_params.specular));
         r_set_material_uniform(mta->index, SID("u_material.shininess"),
-                               0, _size_ref(mt.light_params.shininess));
-
-#undef _size_ref
+                               0, _sizeref(mt.light_params.shininess));
 	}
 
     // @Todo: fine-tuned sound play.
@@ -491,23 +487,19 @@ void tick_game(f32 dt) {
         if (mt) {
             const mat4 model = mat4_transform(player.location, player.rotation, player.scale);
 
-#define _size_ref(x) sizeof(x), &x
-
-            r_set_material_uniform(mta->index, SID("u_model"), 0, _size_ref(model));
+            r_set_material_uniform(mta->index, SID("u_model"), 0, _sizeref(model));
             r_set_material_uniform(mta->index, SID("u_uv_scale"),
-                                   0, _size_ref(player.uv_scale));
+                                   0, _sizeref(player.uv_scale));
 
             r_set_material_uniform(mta->index, SID("u_material.ambient"),
-                                   0, _size_ref(mt->light_params.ambient));
+                                   0, _sizeref(mt->light_params.ambient));
             r_set_material_uniform(mta->index, SID("u_material.diffuse"),
-                                   0, _size_ref(mt->light_params.diffuse));
+                                   0, _sizeref(mt->light_params.diffuse));
             r_set_material_uniform(mta->index, SID("u_material.specular"),
-                                   0, _size_ref(mt->light_params.specular));
+                                   0, _sizeref(mt->light_params.specular));
             r_set_material_uniform(mta->index, SID("u_material.shininess"),
-                                   0, _size_ref(mt->light_params.shininess));
+                                   0, _sizeref(mt->light_params.shininess));
         }
-
-#undef _size_ref
     }
 
     {   // Tick camera.

@@ -199,15 +199,15 @@ REFLECT_ENTITY_FIELDS
 REFLECT_FIELD(Portal, destination_location, FIELD_VEC3)
 REFLECT_END(Portal)
 
-inline const char *entity_type_names[E_COUNT] = {
-    "Player",
-    "Skybox",
-    "Static Mesh",
-    "Direct Light",
-    "Point Light",
-    "Sound Emitter 2D",
-    "Sound Emitter 3D",
-    "Portal",
+inline constexpr String Entity_type_names[E_COUNT] = {
+    S("Player"),
+    S("Skybox"),
+    S("Static Mesh"),
+    S("Direct Light"),
+    S("Point Light"),
+    S("Sound Emitter 2D"),
+    S("Sound Emitter 3D"),
+    S("Portal"),
 };
 
 inline u32 entity_type_field_counts[E_COUNT] = {

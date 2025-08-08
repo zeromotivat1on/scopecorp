@@ -135,6 +135,8 @@ inline const char* Build_type_name = "RELEASE";
 #define CONCAT_(a, b) a ## b 
 #define CONCAT(a, b) CONCAT_(a, b)
 
+#define _sizeref(x) sizeof(x), &x
+
 struct My_Defer_Ref {};
 template <class F> struct My_Defer { F f; ~My_Defer() { f(); } };
 template <class F> My_Defer<F> operator+(My_Defer_Ref, F f) { return {f}; }
@@ -302,7 +304,7 @@ struct String_Token_Iterator {
 // @Note: this ones were added just to let C++ know how to compare POD type...
 inline bool operator==(const String &a, const String &b) { return a.value == b.value && a.length == b.length; }
 inline bool operator!=(const String &a, const String &b) { return !(a == b); }
-    
+
 String str_copy    (Arena &a, const char *cs);
 String str_copy    (Arena &a, const char *cs, u64 length);
 String str_copy    (Arena &a, String s);
@@ -313,6 +315,7 @@ String str_trim    (String s);
 String str_slice   (String s, char c, u32 bits = 0);
 String str_slice   (String s, String sub, u32 bits = 0);
 String str_token   (String_Token_Iterator &it);
+void   str_c       (String s, u64 length, char *cs);
 bool   str_equal   (String a, String b);
 s64    str_index   (String s, char c, u32 bits = 0);
 s64    str_index   (String s, String sub, u32 bits = 0);

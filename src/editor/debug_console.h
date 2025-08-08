@@ -27,7 +27,7 @@ struct Debug_Console {
     f32 history_min_y = 0.0f;
     
     char input[MAX_DEBUG_CONSOLE_INPUT_SIZE];
-    s32 input_size = 0;
+    u64 input_length = 0;
 
     f32 cursor_blink_dt = 0.0f;
     

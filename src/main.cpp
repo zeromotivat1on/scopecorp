@@ -147,7 +147,7 @@ s32 main() {
         const u32 storage_bits = R_DYNAMIC_STORAGE_BIT | map_bits;
         
         static R_Storage vstorage;
-        r_create_storage(MB(33), storage_bits, vstorage);
+        r_create_storage(MB(31), storage_bits, vstorage);
         R_vertex_map_range = r_map(vstorage, 0, MB(30), map_bits);
 
         static R_Storage istorage;
@@ -478,31 +478,21 @@ s32 main() {
             r_submit(pass_depth);
             
             const auto &mta = *find_asset(SID_MATERIAL_FRAME_BUFFER);
-
-#define _size_ref(x) sizeof(x), &x
             
             r_set_material_uniform(mta.index, SID("u_pixel_size"),
-                                   0, _size_ref(R_viewport.pixel_size));
-
+                                   0, _sizeref(R_viewport.pixel_size));
             r_set_material_uniform(mta.index, SID("u_curve_distortion_factor"),
-                                   0, _size_ref(R_viewport.curve_distortion_factor));
-            
+                                   0, _sizeref(R_viewport.curve_distortion_factor));
             r_set_material_uniform(mta.index, SID("u_chromatic_aberration_offset"),
-                                   0, _size_ref(R_viewport.chromatic_aberration_offset));
-
+                                   0, _sizeref(R_viewport.chromatic_aberration_offset));
             r_set_material_uniform(mta.index, SID("u_quantize_color_count"),
-                                   0, _size_ref(R_viewport.quantize_color_count));
-
+                                   0, _sizeref(R_viewport.quantize_color_count));
             r_set_material_uniform(mta.index, SID("u_noise_blend_factor"),
-                                   0, _size_ref(R_viewport.noise_blend_factor));
-
+                                   0, _sizeref(R_viewport.noise_blend_factor));
             r_set_material_uniform(mta.index, SID("u_scanline_count"),
-                                   0, _size_ref(R_viewport.scanline_count));
-
+                                   0, _sizeref(R_viewport.scanline_count));
             r_set_material_uniform(mta.index, SID("u_scanline_intensity"),
-                                   0, _size_ref(R_viewport.scanline_intensity));
-
-#undef _size_ref
+                                   0, _sizeref(R_viewport.scanline_intensity));
 
             const auto &mt = R_table.materials[mta.index];
             const auto &rt = R_table.targets[R_viewport.render_target];

@@ -42,6 +42,8 @@ inline rid RID_UNIFORM_BUFFER = RID_NONE;
 inline u32 UNIFORM_BUFFER_SIZE = 0;
 
 struct R_Uniform {
+    static constexpr u32 MAX_NAME_LENGTH = 64;
+    
     sid name = SID_NONE;
 	u16 type = 0;
 	u16 count = 0;

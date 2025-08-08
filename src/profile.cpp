@@ -150,7 +150,7 @@ void draw_runtime_profiler() {
         const f32 column_offset_3 = column_offset_2 + space_width_px * rp.MAX_NAME_LENGTH * 0.5f + 1;
         
         char buffer[256];
-        s32 count = 0;
+        u64 count = 0;
 
         const auto atlas_index = UI_PROFILER_FONT_ATLAS_INDEX;
         
@@ -168,16 +168,16 @@ void draw_runtime_profiler() {
                 
             pos.x = column_offset_1;
             count = stbsp_snprintf(buffer, sizeof(buffer), "%s", scope.name);
-            ui_text(buffer, count, pos, color, atlas_index);
+            ui_text(String { buffer, count }, pos, color, atlas_index);
 
             pos.x = column_offset_2;
             count = stbsp_snprintf(buffer, sizeof(buffer), "%.2fms", time);
-            ui_text(buffer, count, pos, color, atlas_index);
+            ui_text(String { buffer, count }, pos, color, atlas_index);
 
             pos.x = column_offset_3;
             count = stbsp_snprintf(buffer, sizeof(buffer), "%s:%d",
                                    scope.file_path, scope.line);
-            ui_text(buffer, count, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
+            ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
             
             pos.y -= atlas.line_height;
         }
@@ -276,20 +276,20 @@ void draw_memory_profiler() {
             pos.x = column_offset_1;
             count = stbsp_snprintf(buffer, sizeof(buffer),
                                    "%s", scope.name);
-            ui_text(buffer, count, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
+            ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
 
             pos.x = column_offset_2;
             count = stbsp_snprintf(buffer, sizeof(buffer),
                                    "%.2fmb/%.2fmb",
                                    TO_MB((f32)scope.size),
                                    TO_MB((f32)scope.capacity));
-            ui_text(buffer, count, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
+            ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
 
             const f32 percent = (f32)scope.size / scope.capacity * 100.f;
             pos.x = column_offset_3;
             count = stbsp_snprintf(buffer, sizeof(buffer),
                                    "%.2f%%", percent);
-            ui_text(buffer, count, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
+            ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
 
             pos.y -= atlas.line_height;
         }
@@ -323,9 +323,10 @@ void draw_dev_stats() {
 	const auto &player = World.player;
 	const auto &camera = active_camera(World);
 
-	static char text[256];
 	const f32 padding = atlas.font_size * 0.5f;
 	const vec2 shadow_offset = vec2(atlas.font_size * 0.1f, -atlas.font_size * 0.1f);
+
+    char text[256];
 	u32 count = 0;
 
 	vec2 pos;
@@ -347,7 +348,7 @@ void draw_dev_stats() {
             
             count = stbsp_snprintf(text, sizeof(text), "%s %u %s",
                                    to_string(e->type), e->eid, change_prop_name);
-            ui_text_with_shadow(text, count, pos, rgba_white, shadow_offset, rgba_black, Z);
+            ui_text_with_shadow(String { text, count }, pos, rgba_white, shadow_offset, rgba_black, Z);
             pos.y -= 4 * atlas.line_height;
         }
 	}
@@ -358,36 +359,36 @@ void draw_dev_stats() {
         count = stbsp_snprintf(text, sizeof(text),
                                "%s %s",
                                GAME_VERSION, Build_type_name);
-		pos.x = R_viewport.width - get_line_width_px(atlas, text, count) - padding;
-		ui_text_with_shadow(text, count, pos, rgba_white, shadow_offset, rgba_black, Z);
+		pos.x = R_viewport.width - get_line_width_px(atlas, String { text, count }) - padding;
+		ui_text_with_shadow(String { text, count }, pos, rgba_white, shadow_offset, rgba_black, Z);
 		pos.y -= atlas.line_height;
 
 		count = stbsp_snprintf(text, sizeof(text),
                                "%.2fms %.ffps",
                                average_dt * 1000.0f, average_fps);
-		pos.x = R_viewport.width - get_line_width_px(atlas, text, count) - padding;
-		ui_text_with_shadow(text, count, pos, rgba_white, shadow_offset, rgba_black, Z);
+        pos.x = R_viewport.width - get_line_width_px(atlas, String { text, count }) - padding;
+        ui_text_with_shadow(String { text, count }, pos, rgba_white, shadow_offset, rgba_black, Z);
 		pos.y -= atlas.line_height;
         
         count = stbsp_snprintf(text, sizeof(text),
                                "window %dx%d",
                                Main_window.width, Main_window.height);
-		pos.x = R_viewport.width - get_line_width_px(atlas, text, count) - padding;
-		ui_text_with_shadow(text, count, pos, rgba_white, shadow_offset, rgba_black, Z);
+        pos.x = R_viewport.width - get_line_width_px(atlas, String { text, count }) - padding;
+        ui_text_with_shadow(String { text, count }, pos, rgba_white, shadow_offset, rgba_black, Z);
 		pos.y -= atlas.line_height;
 
         count = stbsp_snprintf(text, sizeof(text),
                                "viewport %dx%d",
                                R_viewport.width, R_viewport.height);
-		pos.x = R_viewport.width - get_line_width_px(atlas, text, count) - padding;
-		ui_text_with_shadow(text, count, pos, rgba_white, shadow_offset, rgba_black, Z);
+        pos.x = R_viewport.width - get_line_width_px(atlas, String { text, count }) - padding;
+        ui_text_with_shadow(String { text, count }, pos, rgba_white, shadow_offset, rgba_black, Z);
         pos.y -= atlas.line_height;
 
         count = stbsp_snprintf(text, sizeof(text),
                                "draw calls %d",
                                draw_call_count);
-		pos.x = R_viewport.width - get_line_width_px(atlas, text, count) - padding;
-		ui_text_with_shadow(text, count, pos, rgba_white, shadow_offset, rgba_black, Z);
+        pos.x = R_viewport.width - get_line_width_px(atlas, String { text, count }) - padding;
+        ui_text_with_shadow(String { text, count }, pos, rgba_white, shadow_offset, rgba_black, Z);
 		pos.y -= atlas.line_height;
 	}
 

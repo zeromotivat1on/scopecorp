@@ -53,20 +53,10 @@ s32 get_char_width_px(const Font_Atlas &atlas, const char c) {
     return metric->advance_width;
 }
 
-s32 get_line_width_px(const Font_Atlas &atlas, const char *text) {
-    s32 width = 0;
-    const char *c = text;
-	while (*c != '\0') {
-        width += get_char_width_px(atlas, *c);
-        c += 1;
-	}
-	return width;
-}
-
-s32 get_line_width_px(const Font_Atlas &atlas, const char *text, s32 count) {
+s32 get_line_width_px(const Font_Atlas &atlas, String text) {
 	s32 width = 0;
-	for (s32 i = 0; i < count; ++i) {
-        width += get_char_width_px(atlas, text[i]);
+	for (s32 i = 0; i < text.length; ++i) {
+        width += get_char_width_px(atlas, text.value[i]);
 	}
 	return width;
 }

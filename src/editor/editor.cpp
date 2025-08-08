@@ -46,11 +46,11 @@ Input_Key KEY_SWITCH_POLYGON_MODE   = KEY_F1;
 Input_Key KEY_SWITCH_COLLISION_VIEW = KEY_F2;
 Input_Key KEY_SWITCH_DEBUG_CONSOLE  = KEY_GRAVE_ACCENT;
 
-constexpr u32 MAX_SCREEN_REPORT_SIZE = 256;
-constexpr f32 SCREEN_REPORT_SHOW_TIME = 2.0f;
-constexpr f32 SCREEN_REPORT_FADE_TIME = 0.5f;
-static char screen_report_text[MAX_SCREEN_REPORT_SIZE] = {'\0'};
-static f32 screen_report_time = 0.0f;
+constexpr f32 EDITOR_REPORT_SHOW_TIME = 2.0f;
+constexpr f32 EDITOR_REPORT_FADE_TIME = 0.5f;
+
+static String Editor_report;
+static f32 Editor_report_time = 0.0f;
 
 struct Find_Entity_By_AABB_Data {
     Entity *e = null;
@@ -483,7 +483,7 @@ void tick_editor(f32 dt) {
     if (game_state.mode == MODE_EDITOR && !Main_window.cursor_locked) {
         constexpr f32 Z = 0.0f;
         
-        const char *button_text = "Add";
+        constexpr String button_text = S("Add");
 
         const uiid button_id = { 0, 100, 0 };
         const uiid combo_id  = { 0, 200, 0 };
@@ -511,44 +511,48 @@ void tick_editor(f32 dt) {
         const auto button_bits = ui_button(button_id, button_text, button_style);
 
         constexpr u32 selection_offset = 2;
+        constexpr u32 option_count = COUNT(Entity_type_names) - selection_offset;
+        const String *options = Entity_type_names + selection_offset;
+
         static u32 selected_entity_type = 0;
-        ui_combo(combo_id, &selected_entity_type, entity_type_names + selection_offset, COUNT(entity_type_names) - selection_offset, combo_style);
+        ui_combo(combo_id, &selected_entity_type, option_count, options, combo_style);
         
         if (button_bits & UI_FINISHED_BIT) {
-            create_entity(World, (Entity_Type)(selected_entity_type + selection_offset));
+            selected_entity_type += selection_offset;
+            create_entity(World, (Entity_Type)(selected_entity_type));
         }
     }
 
     {   // Screen report.
-        screen_report_time += dt;
+        Editor_report_time += dt;
 
         f32 fade_time = 0.0f;
-        if (screen_report_time > SCREEN_REPORT_SHOW_TIME) {
-            fade_time = screen_report_time - SCREEN_REPORT_SHOW_TIME;
+        if (Editor_report_time > EDITOR_REPORT_SHOW_TIME) {
+            fade_time = Editor_report_time - EDITOR_REPORT_SHOW_TIME;
             
-            if (fade_time > SCREEN_REPORT_FADE_TIME) {
-                screen_report_time = 0.0f;
-                screen_report_text[0] = '\0';
+            if (fade_time > EDITOR_REPORT_FADE_TIME) {
+                Editor_report_time = 0.0f;
+                Editor_report.length = 0;
             }
         }
 
-        if (screen_report_text[0] != '\0') {
+        if (Editor_report.length > 0) {
             constexpr f32 Z = UI_MAX_Z;
             const auto atlas_index = UI_SCREEN_REPORT_FONT_ATLAS_INDEX;
             
             const auto &atlas = R_ui.font_atlases[UI_SCREEN_REPORT_FONT_ATLAS_INDEX];
-            const s32 width_px = get_line_width_px(atlas, screen_report_text);
+            const s32 width_px = get_line_width_px(atlas, Editor_report);
             const vec2 pos = vec2(R_viewport.width * 0.5f - width_px * 0.5f,
                                   R_viewport.height * 0.7f);
 
-            const f32 lerp_alpha = Clamp(fade_time / SCREEN_REPORT_FADE_TIME, 0.0f, 1.0f);
+            const f32 lerp_alpha = Clamp(fade_time / EDITOR_REPORT_FADE_TIME, 0.0f, 1.0f);
             const u32 alpha = (u32)Lerp(255, 0, lerp_alpha);
             const u32 color = rgba_pack(255, 255, 255, alpha);
 
             const vec2 shadow_offset = vec2(atlas.font_size * 0.1f, -atlas.font_size * 0.1f);
             const u32 shadow_color = rgba_pack(0, 0, 0, alpha);
             
-            ui_text_with_shadow(screen_report_text, pos, color, shadow_offset, shadow_color, Z, atlas_index);
+            ui_text_with_shadow(Editor_report, pos, color, shadow_offset, shadow_color, Z, atlas_index);
         }
     }
 }
@@ -765,7 +769,7 @@ void draw_debug_console() {
     auto &history_min_y = Debug_console.history_min_y;
     auto &history_max_width = Debug_console.history_max_width;
     auto &input = Debug_console.input;
-    auto &input_size = Debug_console.input_size;
+    auto &input_length = Debug_console.input_length;
     auto &cursor_blink_dt = Debug_console.cursor_blink_dt;
     
     const auto &atlas = R_ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
@@ -801,7 +805,7 @@ void draw_debug_console() {
         const vec2 pos = vec2(DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING,
                               DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING);
         const u32 color = rgba_white;
-        ui_text(input, input_size, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
+        ui_text(String { input, input_length }, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
     }
 
     {   // History text.
@@ -815,7 +819,7 @@ void draw_debug_console() {
         char *start = history;
         f32 visible_height = history_size > 0 ? atlas.line_height : 0.0f;
         f32 current_y = history_y;
-        s32 draw_count = 0;
+        u64 draw_count = 0;
         
         for (s32 i = 0; i < history_size; ++i) {
             if (current_y > history_min_y) {
@@ -840,11 +844,11 @@ void draw_debug_console() {
             }
         }
 
-        ui_text(start, draw_count, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
+        ui_text(String { start, draw_count }, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
     }
     
     {   // Cursor quad.
-        const s32 width_px = get_line_width_px(atlas, input, input_size);
+        const s32 width_px = get_line_width_px(atlas, String { input, input_length });
         const vec2 p0 = vec2(DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING + width_px + 1,
                              DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING + descent);
         const vec2 p1 = vec2(p0.x + atlas.space_advance_width, p0.y + ascent - descent);
@@ -949,7 +953,7 @@ void on_input_debug_console(const Window_Event &event) {
         auto &history_y = Debug_console.history_y;
         auto &history_min_y = Debug_console.history_min_y;
         auto &input = Debug_console.input;
-        auto &input_size = Debug_console.input_size;
+        auto &input_length = Debug_console.input_length;
         auto &cursor_blink_dt = Debug_console.cursor_blink_dt;
 
         const auto &atlas = R_ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
@@ -957,11 +961,11 @@ void on_input_debug_console(const Window_Event &event) {
         cursor_blink_dt = 0.0f;
     
         if (character == ASCII_NEW_LINE || character == ASCII_CARRIAGE_RETURN) {
-            if (input_size > 0) {
+            if (input_length > 0) {
                 static char add_text[MAX_DEBUG_CONSOLE_INPUT_SIZE + 128] = { '\0' };
             
                 // @Todo: make better history overflow handling.
-                if (history_size + input_size > MAX_DEBUG_CONSOLE_HISTORY_SIZE) {
+                if (history_size + input_length > MAX_DEBUG_CONSOLE_HISTORY_SIZE) {
                     history[0] = '\0';
                     history_size = 0;
                 }
@@ -1005,7 +1009,7 @@ void on_input_debug_console(const Window_Event &event) {
    
                 }
                 
-                input_size = 0;
+                input_length = 0;
                 add_text[0] = '\0';
             }
         
@@ -1013,19 +1017,19 @@ void on_input_debug_console(const Window_Event &event) {
         }
 
         if (character == ASCII_BACKSPACE) {
-            input_size -= 1;
-            input_size = Max(0, input_size);
-            input[input_size] = '\0';
+            input_length -= 1;
+            input_length = Max(0, input_length);
+            input[input_length] = '\0';
         }
 
         if (is_ascii_printable(character)) {
-            if (input_size >= MAX_DEBUG_CONSOLE_INPUT_SIZE) {
+            if (input_length >= MAX_DEBUG_CONSOLE_INPUT_SIZE) {
                 break;
             }
         
-            input[input_size] = (char)character;
-            input_size += 1;
-            input[input_size] = '\0';
+            input[input_length] = (char)character;
+            input_length += 1;
+            input[input_length] = '\0';
         }
         
         break;
@@ -1049,13 +1053,17 @@ void on_viewport_resize_debug_console(s16 width, s16 height) {
     history_max_width = width - 2 * DEBUG_CONSOLE_MARGIN;
 }
 
-void editor_report(const char *str, ...) {
-    screen_report_time = 0.0f;
+void editor_report(const char *cs, ...) {
+    constexpr u32 N = 256;
+    static char buffer[N];
+
+    Editor_report.value = buffer;
+    Editor_report_time = 0.0f;
 
     va_list args;
-	va_start(args, str);
-    stbsp_vsnprintf(screen_report_text, MAX_SCREEN_REPORT_SIZE, str, args);
-	va_end(args);
+	va_start(args, cs);
+    Editor_report.length = stbsp_vsnprintf(buffer, N, cs, args);
+    va_end(args);
 }
 
 const Reflect_Field &get_entity_field(Entity_Type type, u32 index) {

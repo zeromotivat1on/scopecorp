@@ -30,13 +30,13 @@ enum Reflect_Field_Type : u8 {
 };
 
 struct Reflect_Field {
-    const char *name = null;
+    String name;
     u32 offset = 0;
     Reflect_Field_Type type = FIELD_NONE;
 };
 
 #define REFLECT_BEGIN(t) inline const Reflect_Field t##_fields[] = {
-#define REFLECT_FIELD(t, fn, ft) { #fn, Offsetof(t, fn), ft },
+#define REFLECT_FIELD(t, fn, ft) { S(#fn), Offsetof(t, fn), ft },
 #define REFLECT_END(t) }; inline constexpr u32 t##_field_count = COUNT(t##_fields);
 
 #define REFLECT_FIELD_COUNT(t) t##_field_count

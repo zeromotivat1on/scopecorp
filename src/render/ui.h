@@ -160,7 +160,7 @@ inline R_UI R_ui;
 void ui_init();
 void ui_flush();
 
-u16 ui_button(uiid id, const char *text, const UI_Button_Style &style);
+u16 ui_button(uiid id, String text, const UI_Button_Style &style);
 u16 ui_input_text(uiid id, char *text, u32 size, const UI_Input_Style &style);
 
 u16 ui_input_f32(uiid id, f32 *v, const UI_Input_Style &style);
@@ -177,13 +177,10 @@ u16 ui_input_u64(uiid id, u64 *v, const UI_Input_Style &style);
 
 u16 ui_input_sid(uiid id, sid *v, const UI_Input_Style &style);
 
-u16 ui_combo(uiid, u32 *selected_index, const char **options, u32 option_count, const UI_Combo_Style &style);
+u16 ui_combo(uiid, u32 *selected_index, u32 option_count, const String *options, const UI_Combo_Style &style);
 
-void ui_text(const char *text, vec2 pos, u32 color, f32 z = 0.0f, s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX);
-void ui_text(const char *text, u32 count, vec2 pos, u32 color, f32 z = 0.0f, s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX);
-
-void ui_text_with_shadow(const char *text, vec2 pos, u32 color, vec2 shadow_offset, u32 shadow_color, f32 z = 0.0f, s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX);
-void ui_text_with_shadow(const char *text, u32 count, vec2 pos, u32 color, vec2 shadow_offset, u32 shadow_color, f32 z = 0.0f, s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX);
+void ui_text(String text, vec2 pos, u32 color, f32 z = 0.0f, s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX);
+void ui_text_with_shadow(String text, vec2 pos, u32 color, vec2 shadow_offset, u32 shadow_color, f32 z = 0.0f, s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX);
 
 void ui_quad(vec2 p0, vec2 p1, u32 color, f32 z = 0.0f);
 
