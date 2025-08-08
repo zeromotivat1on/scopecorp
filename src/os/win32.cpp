@@ -44,12 +44,11 @@ const Mutex     MUTEX_NONE      = NULL;
 const Semaphore SEMAPHORE_NONE  = NULL;
 const u32 CRITICAL_SECTION_SIZE = sizeof(CRITICAL_SECTION);
 
-const File INVALID_FILE           = INVALID_HANDLE_VALUE;
-const u32  FILE_FLAG_READ         = GENERIC_READ;
-const u32  FILE_FLAG_WRITE        = GENERIC_WRITE;
-const u32  FILE_OPEN_NEW          = CREATE_NEW;
-const u32  FILE_OPEN_EXISTING     = OPEN_EXISTING;
-const u32  FILE_TRUNCATE_EXISTING = TRUNCATE_EXISTING;
+const File FILE_NONE          = INVALID_HANDLE_VALUE;
+const u32  FILE_READ_BIT      = GENERIC_READ;
+const u32  FILE_WRITE_BIT     = GENERIC_WRITE;
+const u32  FILE_OPEN_NEW      = CREATE_NEW;
+const u32  FILE_OPEN_EXISTING = OPEN_EXISTING;
 
 EXTERN_C IMAGE_DOS_HEADER __ImageBase;
 static const char *window_prop_name = "win32_window";
@@ -62,12 +61,12 @@ void os_init() {
     OS_ALLOC_GRAN = si.dwAllocationGranularity;
 }
 
-File os_open_file(String path, s32 open_type, u32 access_flags, bool log_error) {
-	HANDLE handle = CreateFile(path.value, access_flags, FILE_SHARE_READ | FILE_SHARE_WRITE,
+File os_open_file(String path, s32 open_type, u32 access_bits) {
+	HANDLE handle = CreateFile(path.value, access_bits, FILE_SHARE_READ | FILE_SHARE_WRITE,
                                NULL, open_type, FILE_ATTRIBUTE_NORMAL, NULL);
 
-    if (log_error && handle == INVALID_HANDLE_VALUE) {
-        error("Failed to open file %s, win32 error 0x%X", path, GetLastError());
+    if (handle == INVALID_HANDLE_VALUE) {
+        error("Failed to open file %.*s, win32 error 0x%X", path, GetLastError());
     }
     
     return handle;
@@ -77,21 +76,26 @@ bool os_close_file(File handle) {
 	return CloseHandle(handle);
 }
 
-s64 os_file_size(File handle) {
+u64 os_file_size(File handle) {
 	LARGE_INTEGER size;
 	if (!GetFileSizeEx(handle, &size)) return -1;
 	return size.QuadPart;
 }
 
-bool os_read_file(File handle, void *buffer, u64 size, u64 *bytes_read) {
-	return ReadFile(handle, buffer, (DWORD)size, (LPDWORD)bytes_read, NULL);
+u64 os_read_file(File handle, u64 size, void *buffer) {
+    if (size == 0) return 0;
+    
+    DWORD read;
+	if (ReadFile(handle, buffer, (DWORD)size, &read, NULL)) return read;
+    return 0;
 }
 
-bool os_write_file(File handle, const void *buffer, u64 size, u64 *bytes_written) {
-    DWORD size_written;
-	BOOL result = WriteFile(handle, buffer, (DWORD)size, &size_written, NULL);
-    if (bytes_written) *bytes_written = size_written;
-    return result;
+u64 os_write_file(File handle, u64 size, const void *buffer) {
+    if (size == 0) return 0;
+ 
+    DWORD written;
+	if (WriteFile(handle, buffer, (DWORD)size, &written, NULL)) return written;
+    return 0;
 }
 
 bool os_set_file_ptr(File handle, s64 position) {

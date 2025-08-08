@@ -37,7 +37,7 @@ inline sid sid_texture_player_idle[DIRECTION_COUNT];
 #define SID_FLIP_BOOK_PLAYER_MOVE_BACK    SID("/data/flip_books/player_move_back.fb")
 #define SID_FLIP_BOOK_PLAYER_MOVE_FORWARD SID("/data/flip_books/player_move_forward.fb")
 
-#define GAME_PAK_PATH S(PATH_PACK(GAME_NAME ".pak"))
+#define GAME_PAK_PATH PATH_PACK(GAME_NAME ".pak")
 #define ASSET_PAK_MAGIC U32_PACK('c', 'o', 'r', 'p')
 #define ASSET_PAK_VERSION 0
 

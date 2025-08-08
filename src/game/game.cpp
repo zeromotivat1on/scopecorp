@@ -117,24 +117,24 @@ template <typename T>
 static void read_sparse_array(File file, Sparse<T> *array) {
     // @Cleanup: read sparse array directly with replace or add read data to existing one?
 
-    os_read_file(file, &array->count, sizeof(array->count));
+    os_read_file(file, _sizeref(array->count));
 
     s32 capacity = 0;
-    os_read_file(file, &capacity, sizeof(capacity));
+    os_read_file(file, _sizeref(capacity));
     Assert(capacity <= array->capacity);
 
-    os_read_file(file, array->items,  capacity * sizeof(T));
-    os_read_file(file, array->dense,  capacity * sizeof(s32));
-    os_read_file(file, array->sparse, capacity * sizeof(s32));
+    os_read_file(file, capacity * sizeof(T),   array->items);
+    os_read_file(file, capacity * sizeof(s32), array->dense);
+    os_read_file(file, capacity * sizeof(s32), array->sparse);
 }
 
 template <typename T>
 static void write_sparse_array(File file, Sparse<T> *array) {
-    os_write_file(file, &array->count,    sizeof(array->count));
-    os_write_file(file, &array->capacity, sizeof(array->capacity));
-    os_write_file(file, array->items,    array->capacity * sizeof(T));
-    os_write_file(file, array->dense,    array->capacity * sizeof(s32));
-    os_write_file(file, array->sparse,   array->capacity * sizeof(s32));
+    os_write_file(file, _sizeref(array->count));
+    os_write_file(file, _sizeref(array->capacity));
+    os_write_file(file, array->capacity * sizeof(T),   array->items);
+    os_write_file(file, array->capacity * sizeof(s32), array->dense);
+    os_write_file(file, array->capacity * sizeof(s32), array->sparse);
 }
 
 void save_level(Game_World &world) {
@@ -149,24 +149,24 @@ void save_level(Game_World &world) {
 
     String path = str_build_finish(scratch.arena, sb);
     
-    File file = os_open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_WRITE);
+    File file = os_open_file(path, FILE_OPEN_EXISTING, FILE_WRITE_BIT);
     defer { os_close_file(file); };
     
-    if (file == INVALID_FILE) {
+    if (file == FILE_NONE) {
         log("Level %s does not exist, creating new one", path);
-        file = os_open_file(path, FILE_OPEN_NEW, FILE_FLAG_WRITE);
-        if (file == INVALID_FILE) {
+        file = os_open_file(path, FILE_OPEN_NEW, FILE_WRITE_BIT);
+        if (file == FILE_NONE) {
             error("Failed to create new level %s", path);
             return;
         }
     }
 
-    os_write_file(file, &world.name, world.MAX_NAME_SIZE);
+    os_write_file(file, world.MAX_NAME_SIZE, &world.name);
     
-    os_write_file(file, &world.player,    sizeof(world.player));
-    os_write_file(file, &world.camera,    sizeof(world.camera));
-    os_write_file(file, &world.ed_camera, sizeof(world.ed_camera));
-    os_write_file(file, &world.skybox,    sizeof(world.skybox));
+    os_write_file(file, _sizeref(world.player));
+    os_write_file(file, _sizeref(world.camera));
+    os_write_file(file, _sizeref(world.ed_camera));
+    os_write_file(file, _sizeref(world.skybox));
 
     write_sparse_array(file, &world.static_meshes);
     write_sparse_array(file, &world.point_lights);
@@ -198,20 +198,20 @@ static For_Result cb_init_entity_after_level_load(Entity *e, void *user_data) {
 void load_level(Game_World &world, String path) {
     START_SCOPE_TIMER(load);
 
-    File file = os_open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_READ);
+    File file = os_open_file(path, FILE_OPEN_EXISTING, FILE_READ_BIT);
     defer { os_close_file(file); };
     
-    if (file == INVALID_FILE) {
+    if (file == FILE_NONE) {
         error("Failed to open level %s", path);
         return;
     }
 
-    os_read_file(file, &world.name, world.MAX_NAME_SIZE);
+    os_read_file(file, world.MAX_NAME_SIZE, &world.name);
     
-    os_read_file(file, &world.player,    sizeof(world.player));
-    os_read_file(file, &world.camera,    sizeof(world.camera));
-    os_read_file(file, &world.ed_camera, sizeof(world.ed_camera));
-    os_read_file(file, &world.skybox,    sizeof(world.skybox));
+    os_read_file(file, _sizeref(world.player));
+    os_read_file(file, _sizeref(world.camera));
+    os_read_file(file, _sizeref(world.ed_camera));
+    os_read_file(file, _sizeref(world.skybox));
 
     read_sparse_array(file, &world.static_meshes);
     read_sparse_array(file, &world.point_lights);

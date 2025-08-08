@@ -748,26 +748,26 @@ void serialize(File file, Asset &asset) {
     asset.pak_meta_size = meta_size;
     asset.pak_data_size = (u32)contents.size;
     
-    os_write_file(file, &asset, sizeof(asset));
+    os_write_file(file, _sizeref(asset));
 
     os_set_file_ptr(file, asset.pak_blob_offset);
-    os_write_file(file, meta, meta_size);
-    os_write_file(file, contents.data, contents.size);
+    os_write_file(file, meta_size, meta);
+    os_write_file(file, contents.size, contents.data);
 }
 
 void deserialize(File file, Asset &asset) {
     Scratch scratch = local_scratch();
     defer { release(scratch); };
     
-    os_read_file(file, &asset, sizeof(asset));
+    os_read_file(file, _sizeref(asset));
 
     os_set_file_ptr(file, asset.pak_blob_offset);
 
     void *meta = push(scratch.arena, asset.pak_meta_size);
     void *data = push(scratch.arena, asset.pak_data_size);
 
-    os_read_file(file, meta, asset.pak_meta_size);
-    os_read_file(file, data, asset.pak_data_size);
+    os_read_file(file, asset.pak_meta_size, meta);
+    os_read_file(file, asset.pak_data_size, data);
     
     switch (asset.type) {
     case ASSET_SHADER: {
@@ -896,13 +896,13 @@ static inline u32 get_asset_blob_size(const Asset &asset) {
 void save_asset_pack(String path) {
     START_SCOPE_TIMER(save);
 
-    File file = os_open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_WRITE);
+    File file = os_open_file(path, FILE_OPEN_EXISTING, FILE_WRITE_BIT);
     defer { os_close_file(file); };
     
-    if (file == INVALID_FILE) {
+    if (file == FILE_NONE) {
         log("Asset pak %s does not exist, creating new one", path);
-        file = os_open_file(path, FILE_OPEN_NEW, FILE_FLAG_WRITE);
-        if (file == INVALID_FILE) {
+        file = os_open_file(path, FILE_OPEN_NEW, FILE_WRITE_BIT);
+        if (file == FILE_NONE) {
             error("Failed to create new asset pak %s", path);
             return;
         }
@@ -924,7 +924,7 @@ void save_asset_pack(String path) {
         offset += sizeof(Asset) * ast.count_by_type[i];
     }
 
-    os_write_file(file, &header, sizeof(header));
+    os_write_file(file, _sizeref(header));
 
     For (ast.table) {
         String spath = sid_str(it.value.sid_relative_path);
@@ -948,16 +948,16 @@ void save_asset_pack(String path) {
 void load_asset_pack(String path) {
     START_SCOPE_TIMER(load);
 
-    File file = os_open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_READ);
+    File file = os_open_file(path, FILE_OPEN_EXISTING, FILE_READ_BIT);
     defer { os_close_file(file); };
     
-    if (file == INVALID_FILE) {
+    if (file == FILE_NONE) {
         error("Failed to open asset pack for load %s", path);
         return;
     }
 
     Asset_Pak_Header header;
-    os_read_file(file, &header, sizeof(header));
+    os_read_file(file, _sizeref(header));
 
     if (header.magic != ASSET_PAK_MAGIC) {
         error("Wrong asset pak %s magic %u", path, header.magic);

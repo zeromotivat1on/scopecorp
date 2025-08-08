@@ -633,8 +633,7 @@ void check_hot_reload(Hot_Reload_List &list) {
         const u32 max_data_size = get_asset_max_file_size(asset.type);
         void *data = push(scratch.arena, max_data_size);
 
-        u64 data_size = 0;
-        os_read_file(path.value, data, max_data_size, &data_size);
+        u64 data_size = os_read_file(path.value, max_data_size, data);
 
         ((char *)data)[data_size] = '\0';
 
@@ -1080,4 +1079,137 @@ const Reflect_Field &get_entity_field(Entity_Type type, u32 index) {
 
     // This should never happen, just make compiler happy.
     return REFLECT_FIELD_AT(Entity, index);
+}
+
+void init_default_level(Game_World &w) {
+    str_copy(w.name, "main.lvl");
+
+	auto &player = *(Player *)create_entity(World, E_PLAYER);
+	{
+        const auto &texture = *find_texture(SID_TEXTURE_PLAYER_IDLE_SOUTH);
+        
+        const f32 scale_aspect = (f32)texture.width / texture.height;
+        const f32 y_scale = 1.0f * scale_aspect;
+        const f32 x_scale = y_scale * scale_aspect;
+        
+		player.scale = vec3(x_scale, y_scale, 1.0f);
+        player.location = vec3(0.0f, F32_MIN, 0.0f);
+
+		player.draw_data.sid_mesh     = SID_MESH_PLAYER;
+		player.draw_data.sid_material = SID_MATERIAL_PLAYER;
+
+        player.sid_sound_steps = SID_SOUND_PLAYER_STEPS;
+	}
+
+	auto &ground = *(Static_Mesh *)create_entity(World, E_STATIC_MESH);
+	{        
+		ground.scale = vec3(16.0f, 16.0f, 0.0f);
+        ground.rotation = quat_from_axis_angle(vec3_right, 90.0f);
+        ground.uv_scale = vec2(ground.scale.x, ground.scale.y);
+        
+        auto &aabb = w.aabbs[ground.aabb_index];
+        const vec3 aabb_offset = vec3(ground.scale.x * 2, 0.0f, ground.scale.y * 2);
+        aabb.min = ground.location - aabb_offset * 0.5f;
+		aabb.max = aabb.min + aabb_offset;
+
+        ground.draw_data.sid_mesh     = SID_MESH_QUAD;
+        ground.draw_data.sid_material = SID_MATERIAL_GROUND;
+	}
+
+	auto &cube = *(Static_Mesh *)create_entity(World, E_STATIC_MESH);
+	{                
+		cube.location = vec3(3.0f, 0.5f, 4.0f);
+
+        auto &aabb = w.aabbs[cube.aabb_index];
+		aabb.min = cube.location - cube.scale * 0.5f;
+		aabb.max = aabb.min + cube.scale;
+
+		cube.draw_data.sid_mesh     = SID_MESH_CUBE;
+		cube.draw_data.sid_material = SID_MATERIAL_CUBE;
+	}
+
+	auto &skybox = *(Skybox *)create_entity(World, E_SKYBOX);
+	{
+        skybox.location = vec3(0.0f, -2.0f, 0.0f);
+        skybox.uv_scale = vec2(8.0f, 4.0f);
+        
+		skybox.draw_data.sid_mesh     = SID_MESH_SKYBOX;
+		skybox.draw_data.sid_material = SID_MATERIAL_SKYBOX;
+	}
+    
+	{
+        auto &model = *(Static_Mesh *)create_entity(World, E_STATIC_MESH);
+		model.location = vec3(-2.0f, 0.0f, 2.0f);
+        model.rotation = quat_from_axis_angle(vec3_right, -90.0f);
+        //model.scale = vec3(3.0f);
+        
+        auto &aabb = w.aabbs[model.aabb_index];
+		aabb.min = model.location - model.scale * 0.5f;
+		aabb.max = aabb.min + model.scale;
+
+		model.draw_data.sid_mesh     = SID("/data/meshes/tower.obj");
+		model.draw_data.sid_material = SID("/data/materials/tower.mat");
+	}
+
+    auto &sound_emitter_2d = *(Sound_Emitter_2D *)create_entity(World, E_SOUND_EMITTER_2D);
+    {
+        sound_emitter_2d.location = vec3(0.0f, 2.0f, 0.0f);
+        sound_emitter_2d.sid_sound = SID_SOUND_WIND_AMBIENCE;
+    }
+    
+    if (1) {
+        auto &direct_light = *(Direct_Light *)create_entity(World, E_DIRECT_LIGHT);
+
+        direct_light.location = vec3(0.0f, 5.0f, 0.0f);
+        direct_light.rotation = quat_from_axis_angle(vec3_right, 0.0f);
+        direct_light.scale = vec3(0.1f);
+        
+        direct_light.ambient  = vec3(0.32f);
+        direct_light.diffuse  = vec3_black;
+        direct_light.specular = vec3_black;
+
+        direct_light.u_light_index = 0;
+        
+        auto &aabb = w.aabbs[direct_light.aabb_index];
+		aabb.min = direct_light.location - direct_light.scale * 0.5f;
+		aabb.max = aabb.min + direct_light.scale;
+    }
+    
+    if (1) {
+        auto &point_light = *(Point_Light *)create_entity(World, E_POINT_LIGHT);
+        
+        point_light.location = vec3(0.0f, 2.0f, 0.0f);
+        point_light.scale = vec3(0.1f);
+        
+        point_light.ambient  = vec3(0.1f);
+        point_light.diffuse  = vec3(0.5f);
+        point_light.specular = vec3(1.0f);
+
+        point_light.attenuation.constant  = 1.0f;
+        point_light.attenuation.linear    = 0.09f;
+        point_light.attenuation.quadratic = 0.032f;
+        
+        point_light.u_light_index = 0;
+        
+        auto &aabb = w.aabbs[point_light.aabb_index];
+		aabb.min = point_light.location - point_light.scale * 0.5f;
+		aabb.max = aabb.min + point_light.scale;
+    }
+
+    auto &camera = w.camera;
+	camera.mode = MODE_PERSPECTIVE;
+	camera.yaw = 90.0f;
+	camera.pitch = 0.0f;
+	camera.eye = player.location + player.camera_offset;
+	camera.at = camera.eye + forward(camera.yaw, camera.pitch);
+	camera.up = vec3(0.0f, 1.0f, 0.0f);
+	camera.fov = 60.0f;
+	camera.near = 0.001f;
+	camera.far = 1000.0f;
+	camera.left = 0.0f;
+	camera.right = (f32)Main_window.width;
+	camera.bottom = 0.0f;
+	camera.top = (f32)Main_window.height;
+
+	w.ed_camera = camera;
 }

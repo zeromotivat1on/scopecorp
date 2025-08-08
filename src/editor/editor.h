@@ -20,3 +20,6 @@ inline Game_Editor Editor;
 void on_input_editor(const Window_Event &event);
 void tick_editor(f32 dt);
 void editor_report(const char *cs, ...);
+
+struct Game_World;
+void init_default_level(Game_World &w);

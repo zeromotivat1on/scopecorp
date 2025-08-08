@@ -3,34 +3,21 @@
 #include "str.h"
 #include "os/file.h"
 
-bool os_read_file(String path, void *buffer, u64 size, u64 *bytes_read, bool log_error) {
-	File file = os_open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_READ, log_error);
-	if (file == INVALID_FILE) {
-		return false;
-	}
-
-	defer { os_close_file(file); };
-
-	if (bytes_read) *bytes_read = 0;
-	if (!os_read_file(file, buffer, size, bytes_read)) {
-		return false;
-	}
-
-	return true;
-}
-
 Buffer os_read_file(Arena &a, String path) {
-    File file = os_open_file(path, FILE_OPEN_EXISTING, FILE_FLAG_READ);
-	if (file == INVALID_FILE) {
+    File file = os_open_file(path, FILE_OPEN_EXISTING, FILE_READ_BIT);
+	if (file == FILE_NONE) {
 		return BUFFER_NONE;
 	}
 
 	defer { os_close_file(file); };
 
     const u64 size = os_file_size(file);
+    if (size == INDEX_NONE) {
+        return BUFFER_NONE;
+    }
+    
     Buffer buffer = arena_push_buffer(a, size);
-
-    if (!os_read_file(file, buffer.data, buffer.size)) {
+    if (!os_read_file(file, buffer.size, buffer.data)) {
         pop(a, size);
         return BUFFER_NONE;
     }

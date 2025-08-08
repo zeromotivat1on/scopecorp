@@ -3,9 +3,9 @@
 typedef void *File;
 typedef void(*For_Each_File_Callback)(const struct File_Callback_Data *callback_data);
 
-extern const File INVALID_FILE;
-extern const u32  FILE_FLAG_READ;
-extern const u32  FILE_FLAG_WRITE;
+extern const File FILE_NONE;
+extern const u32  FILE_READ_BIT;
+extern const u32  FILE_WRITE_BIT;
 extern const u32  FILE_OPEN_NEW;
 extern const u32  FILE_OPEN_EXISTING;
 
@@ -16,13 +16,13 @@ struct File_Callback_Data {
     u64 last_write_time = 0;
 };
 
-File os_open_file(String path, s32 open_type, u32 access_flags, bool log_error = true);
+File os_open_file(String path, s32 open_type, u32 access_bits);
 bool os_close_file(File handle);
-s64  os_file_size(File handle);
-bool os_read_file(File handle, void *buffer, u64 size, u64 *bytes_read = null);
-bool os_write_file(File handle, const void *buffer, u64 size, u64 *bytes_written = null);
-bool os_set_file_ptr(File handle, s64 position);
+u64  os_file_size(File handle);
+u64  os_read_file(File handle, u64 size, void *buffer);
+u64  os_write_file(File handle, u64 size, const void *buffer);
 s64  os_file_ptr(File handle);
+bool os_set_file_ptr(File handle, s64 position);
 
 Buffer os_read_file(Arena &a, String path);
 String os_read_text_file(Arena &a, String path);
