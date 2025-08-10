@@ -72,7 +72,7 @@ void on_input_game(const Window_Event &event) {
         } else if (press && key == KEY_SWITCH_RUNTIME_PROFILER) {
             tm_open();
         } else if (press && key == KEY_SWITCH_MEMORY_PROFILER) {
-            open_memory_profiler();
+            mprof_open();
         } else if (press && key == KEY_SWITCH_EDITOR_MODE) {
             game_state.mode = MODE_EDITOR;
             push_input_layer(Input_layer_editor);

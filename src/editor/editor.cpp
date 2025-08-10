@@ -105,7 +105,7 @@ void on_input_editor(const Window_Event &event) {
         } else if (press && key == KEY_SWITCH_RUNTIME_PROFILER) {
             tm_open();
         } else if (press && key == KEY_SWITCH_MEMORY_PROFILER) {
-            open_memory_profiler();
+            mprof_open();
         } else if (press && key == KEY_SWITCH_EDITOR_MODE) {
             game_state.mode = MODE_GAME;
             os_lock_window_cursor(Main_window, true);
@@ -1331,7 +1331,6 @@ void tm_draw() {
     const auto &atlas = R_ui.font_atlases[atlas_index];
     const f32 ascent  = atlas.font->ascent  * atlas.px_h_scale;
     const f32 descent = atlas.font->descent * atlas.px_h_scale;
-        
     const s32 space_width_px = get_char_width_px(atlas, ASCII_SPACE);
 
     f32 offsets[NCOL];
@@ -1379,15 +1378,26 @@ void tm_draw() {
     
     {   // Profiler scopes.
         vec2 pos = vec2(MARGIN + PADDING, R_viewport.height - MARGIN - PADDING - ascent);
-        
-        u64 count = 0;
-        char buffer[256];
+
+        const char *titles[NCOL] = { "Name", "Exc", "Inc", "Cnt" };
+        for (u16 i = 0; i < NCOL; ++i) {
+            const f32 z = QUAD_Z + F32_EPSILON;
+            u32 color = rgba_white;
+
+            // Index plus one to ignore TM_SORT_NONE = 0.
+            if (i + 1 == Tm_ctx.sort_type) {
+                color = rgba_yellow;
+            }
+            
+            pos.x = offsets[i];
+            ui_text(s(titles[i]), pos, color, z, atlas_index);
+        }
+            
+        pos.y -= atlas.line_height * 1.5f;
 
         f32 time_threshold = 0.0f;
         u64 hz = 0;
         
-        const char *titles[NCOL] = { "Name", "Exc", "Inc", "Count" };
-
         switch (Tm_ctx.precision_type) {
         case TM_MICRO_SECONDS: {
             time_threshold = 100.0f;
@@ -1405,23 +1415,10 @@ void tm_draw() {
             break;
         }
         }
-                
-        for (u16 i = 0; i < NCOL; ++i) {
-            const f32 z = QUAD_Z + F32_EPSILON;
-            u32 color = rgba_white;
 
-            // Index plus one to ignore TM_SORT_NONE = 0.
-            if (i + 1 == Tm_ctx.sort_type) {
-                color = rgba_yellow;
-            }
-            
-            pos.x = offsets[i];
-            count = stbsp_snprintf(buffer, sizeof(buffer), titles[i]);
-            ui_text(String { buffer, count }, pos, color, z, atlas_index);
-        }
-            
-        pos.y -= atlas.line_height * 1.5f;
-        
+        u64 count = 0;
+        char buffer[256];
+
         for (u32 i = 0; i < zone_count; ++i) {
             const auto &zone = zones[i];
 
@@ -1502,77 +1499,196 @@ void tm_pop_zone() {
 
 // profile
 
-void init_memory_profiler() {
-    auto &mp = Memory_profiler;
+static Mprof_Context Mprof;
+
+void mprof_init() {
 }
 
-void open_memory_profiler() {
-    auto &mp = Memory_profiler;
-    Assert(!mp.is_open);
+void mprof_open() {
+    Assert(!Mprof.is_open);
     
-    mp.is_open = true;
+    Mprof.is_open = true;
 
     push_input_layer(Input_layer_memory_profiler);
 }
 
-void close_memory_profiler() {
-    auto &mp = Memory_profiler;
-    Assert(mp.is_open);
+void mprof_close() {
+    Assert(Mprof.is_open);
 
-    mp.is_open = false;
+    Mprof.is_open = false;
 
     pop_input_layer();
 }
 
-void draw_memory_profiler() {
-    auto &mp = Memory_profiler;
+void mprof_on_input(const Window_Event &event) {
+    const bool press = event.key_press;
+    const auto key = event.key_code;
+        
+    switch (event.type) {
+    case WINDOW_EVENT_KEYBOARD: {
+        if (press && key == KEY_CLOSE_WINDOW) {
+            os_close_window(Main_window);
+        } else if (press && key == KEY_SWITCH_MEMORY_PROFILER) {
+            mprof_close();
+        } else if (press && key == KEY_0) {
+            Mprof.sort_type = MPROF_SORT_NONE;
+        } else if (press && key == KEY_1) {
+            Mprof.sort_type = MPROF_SORT_NAME;
+        } else if (press && key == KEY_2) {
+            Mprof.sort_type = MPROF_SORT_USED;
+        } else if (press && key == KEY_3) {
+            Mprof.sort_type = MPROF_SORT_CAP;
+        } else if (press && key == KEY_4) {
+            Mprof.sort_type = MPROF_SORT_PERC;
+        } else if (press && key == KEY_B) {
+            Mprof.precision_type = MPROF_BYTES;
+        } else if (press && key == KEY_K) {
+            Mprof.precision_type = MPROF_KILO_BYTES;
+        } else if (press && key == KEY_M) {
+            Mprof.precision_type = MPROF_MEGA_BYTES;
+        } else if (press && key == KEY_G) {
+            Mprof.precision_type = MPROF_GIGA_BYTES;
+        } else if (press && key == KEY_T) {
+            Mprof.precision_type = MPROF_TERA_BYTES;
+        }
+        
+        break;
+    }
+    }
+}
 
-    if (!mp.is_open) return;
-    
+void mprof_draw() {
     constexpr f32 MARGIN  = 100.0f;
     constexpr f32 PADDING = 16.0f;
     constexpr f32 QUAD_Z = 0.0f;
-    constexpr u32 MAX_LINE_COUNT = 4;
 
-    const auto &atlas = R_ui.font_atlases[UI_PROFILER_FONT_ATLAS_INDEX];
+    constexpr u32 NCOL = 4;
+    constexpr u32 MAX_SCOPE_COUNT = 4;
+
+    constexpr u32 MAX_NAME_LENGTH    = 12;
+    constexpr u32 MAX_MEMORY_LENGTH  = 16;
+    constexpr u32 MAX_PERCENT_LENGTH = 6;
+    
+    if (!Mprof.is_open) return;
+
+    struct M_Scope {
+        String name;
+        s64 size = 0;
+        s64 capacity = 0;
+        f32 percent = 0.0f;
+    };
+    
+    M_Scope scopes[MAX_SCOPE_COUNT] = {
+        { S("M_global"), (s64)M_global.used, (s64)M_global.reserved },
+        { S("M_frame"),  (s64)M_frame.used,  (s64)M_frame.reserved },
+        { S("R_vertex"), R_vertex_map_range.size, R_vertex_map_range.capacity },
+        { S("R_index"),  R_index_map_range.size,  R_index_map_range.capacity },
+    };
+
+    for (u32 i = 0; i < MAX_SCOPE_COUNT; ++i) {
+        auto &scope = scopes[i];
+        scope.percent = (f32)scope.size / scope.capacity * 100.f;
+    }
+        
+    const auto atlas_index = UI_PROFILER_FONT_ATLAS_INDEX;
+    const auto &atlas = R_ui.font_atlases[atlas_index];
     const f32 ascent  = atlas.font->ascent  * atlas.px_h_scale;
     const f32 descent = atlas.font->descent * atlas.px_h_scale;
+    const u32 space_width_px = get_char_width_px(atlas, ASCII_SPACE);
 
+    u32 memory_length = 16;
+    f64 prec_scale = 1.0;
+    
+    switch (Mprof.precision_type) {
+    case MPROF_BYTES: {
+        prec_scale = 1.0;
+        memory_length = 14;
+        break;
+    }
+    case MPROF_KILO_BYTES: {
+        prec_scale = 1.0 / 1024;
+        memory_length = 12;
+        break;
+    }
+    case MPROF_MEGA_BYTES: {
+        prec_scale = 1.0 / 1024 / 1024;
+        memory_length = 10;
+        break;
+    }
+    case MPROF_GIGA_BYTES: {
+        prec_scale = 1.0 / 1024 / 1024 / 1024;
+        memory_length = 8;
+        break;
+    }
+    case MPROF_TERA_BYTES: {
+        prec_scale = 1.0 / 1024 / 1024 / 1024 / 1024;
+        memory_length = 8;
+        break;
+    }
+    }
+        
+    f32 offsets[NCOL];
+    offsets[0] = MARGIN + PADDING;
+    offsets[1] = offsets[0] + space_width_px * MAX_NAME_LENGTH;
+    offsets[2] = offsets[1] + space_width_px * memory_length;
+    offsets[3] = offsets[2] + space_width_px * memory_length;
+        
     {   // Profiler quad.
-        const vec2 p0 = vec2(MARGIN,
-                             R_viewport.height - MARGIN - 2 * PADDING - MAX_LINE_COUNT * atlas.line_height);
-        const vec2 p1 = vec2(R_viewport.width - MARGIN,
-                             R_viewport.height - MARGIN);
+        const vec2 p0 = vec2(MARGIN, R_viewport.height - MARGIN - 2 * PADDING - (MAX_SCOPE_COUNT + 1.5f) * atlas.line_height);
+        const vec2 p1 = vec2(offsets[NCOL - 1] + MAX_PERCENT_LENGTH * space_width_px + PADDING, R_viewport.height - MARGIN);
         const u32 color = rgba_pack(0, 0, 0, 200);
         ui_quad(p0, p1, color, QUAD_Z);
     }
+
+    switch (Mprof.sort_type) {
+    case MPROF_SORT_NONE: {
+        break;
+    }
+    case MPROF_SORT_NAME: {
+        std::stable_sort(scopes, scopes + MAX_SCOPE_COUNT, [] (const auto &a, const auto &b) {
+            return str_compare(a.name, b.name) < 0;
+        });
+        break;
+    }
+    case MPROF_SORT_USED: {
+        std::stable_sort(scopes, scopes + MAX_SCOPE_COUNT, [] (const auto &a, const auto &b) {
+            return (b.size - a.size) < 0;
+        });
+        break;
+    }
+    case MPROF_SORT_CAP: {
+        std::stable_sort(scopes, scopes + MAX_SCOPE_COUNT, [] (const auto &a, const auto &b) {
+            return (b.capacity - a.capacity) < 0;
+        });
+        break;
+    }
+    case MPROF_SORT_PERC: {
+        std::stable_sort(scopes, scopes + MAX_SCOPE_COUNT, [] (const auto &a, const auto &b) {
+            return (b.percent - a.percent) < 0;
+        });
+        break;
+    }
+    }
     
     {   // Profiler scopes.
-        struct Mem_Scope {
-            String name;
-            u64 size = 0;
-            u64 capacity = 0;
-        };
-        
-        const Mem_Scope scopes[MAX_LINE_COUNT] = {
-            { S("M_global"), M_global.used, M_global.reserved },
-            { S("M_frame"),  M_frame.used,  M_frame.reserved },
-            { S("R_vertex"), R_vertex_map_range.size, R_vertex_map_range.capacity },
-            { S("R_index"),  R_index_map_range.size,  R_index_map_range.capacity },
-        };
-
-        constexpr u32 MAX_NAME_LENGTH = 10;
-        constexpr u32 MAX_USAGE_LENGTH = 32;
-        
-        const u32 space_width_px = get_char_width_px(atlas, ASCII_SPACE);
-        const f32 column_offset_1 = MARGIN + PADDING;
-        const f32 column_offset_2 = column_offset_1 + space_width_px * MAX_NAME_LENGTH + 1;
-        const f32 column_offset_3 = column_offset_2 + space_width_px * MAX_USAGE_LENGTH * 0.5f + 1;
-
-        const auto atlas_index = UI_PROFILER_FONT_ATLAS_INDEX;
-        
         vec2 pos = vec2(MARGIN + PADDING, R_viewport.height - MARGIN - PADDING - ascent);
-        for (u32 i = 0; i < MAX_LINE_COUNT; ++i) {
+        
+        const char *titles[NCOL] = { "Name", "Used", "Cap", "Perc" };
+        for (u32 i = 0; i < NCOL; ++i) {
+            u32 color = rgba_white;
+
+            // Index plus one to ignore MPROF_SORT_NONE = 0.
+            if (i + 1 == Mprof.sort_type) {
+                color = rgba_yellow;
+            }
+            
+            pos.x = offsets[i];
+            ui_text(s(titles[i]), pos, color, QUAD_Z + F32_EPSILON, atlas_index);
+        }
+
+        pos.y -= atlas.line_height * 1.5f;
+        
+        for (u32 i = 0; i < MAX_SCOPE_COUNT; ++i) {
             const auto &scope = scopes[i];
 
             const f32 alpha = Clamp((f32)scope.size / scope.capacity, 0.0f, 1.0f);
@@ -1584,43 +1700,25 @@ void draw_memory_profiler() {
             char buffer[256];
             u32 count = 0;
 
-            pos.x = column_offset_1;
+            pos.x = offsets[0];
             count = stbsp_snprintf(buffer, sizeof(buffer),
                                    "%.*s", scope.name.length, scope.name.value);
             ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
 
-            pos.x = column_offset_2;
-            count = stbsp_snprintf(buffer, sizeof(buffer),
-                                   "%.2fmb/%.2fmb",
-                                   TO_MB((f32)scope.size),
-                                   TO_MB((f32)scope.capacity));
+            pos.x = offsets[1];
+            count = stbsp_snprintf(buffer, sizeof(buffer), "%.2f", (f64)scope.size * prec_scale);
             ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
 
-            const f32 percent = (f32)scope.size / scope.capacity * 100.f;
-            pos.x = column_offset_3;
-            count = stbsp_snprintf(buffer, sizeof(buffer),
-                                   "%.2f%%", percent);
+            pos.x = offsets[2];
+            count = stbsp_snprintf(buffer, sizeof(buffer), "%.2f", (f64)scope.capacity * prec_scale);
+            ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
+            
+            pos.x = offsets[3];
+            count = stbsp_snprintf(buffer, sizeof(buffer), "%.2f", scope.percent);
             ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
 
             pos.y -= atlas.line_height;
         }
-    }
-}
-
-void on_input_memory_profiler(const Window_Event &event) {
-    const bool press = event.key_press;
-    const auto key = event.key_code;
-        
-    switch (event.type) {
-    case WINDOW_EVENT_KEYBOARD: {
-        if (press && key == KEY_CLOSE_WINDOW) {
-            os_close_window(Main_window);
-        } else if (press && key == KEY_SWITCH_MEMORY_PROFILER) {
-            close_memory_profiler();
-        }
-        
-        break;
-    }
     }
 }
 

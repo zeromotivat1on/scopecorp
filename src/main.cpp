@@ -109,7 +109,7 @@ s32 main() {
         Input_layer_runtime_profiler.on_input = tm_on_input;
 
         Input_layer_memory_profiler.type = INPUT_LAYER_MEMORY_PROFILER;
-        Input_layer_memory_profiler.on_input = on_input_memory_profiler;
+        Input_layer_memory_profiler.on_input = mprof_on_input;
 
         push_input_layer(Input_layer_editor);
     }
@@ -268,7 +268,7 @@ s32 main() {
         r_geo_debug();
         draw_dev_stats();
         draw_debug_console();
-        draw_memory_profiler();
+        mprof_draw();
 #endif
         
 #if 0

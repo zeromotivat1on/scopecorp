@@ -303,6 +303,7 @@ struct String_Token_Iterator {
 inline bool operator==(const String &a, const String &b) { return a.value == b.value && a.length == b.length; }
 inline bool operator!=(const String &a, const String &b) { return !(a == b); }
 
+String s           (const char *cs);
 String str_copy    (Arena &a, const char *cs);
 String str_copy    (Arena &a, const char *cs, u64 length);
 String str_copy    (Arena &a, String s);
