@@ -24,6 +24,7 @@
 #include "render/r_flip_book.h"
 
 #include "editor/editor.h"
+#include "editor/telemetry.h"
 
 #include "game/game.h"
 #include "game/world.h"
@@ -159,7 +160,7 @@ void r_resize_viewport(R_Viewport &viewport, u16 width, u16 height) {
 }
 
 void draw_world(const Game_World &world) {
-    PROFILE_SCOPE(__FUNCTION__);
+    TM_SCOPE_ZONE(__func__);
     
 	draw_entity(world.skybox);
 
@@ -404,7 +405,7 @@ void r_geo_ray(const Ray &ray, f32 length, u32 color) {
 }
 
 void r_geo_flush() {
-    PROFILE_SCOPE(__FUNCTION__);
+    TM_SCOPE_ZONE(__func__);
 
     if (R_geo.vertex_count == 0) return;
 

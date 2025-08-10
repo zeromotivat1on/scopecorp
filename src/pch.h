@@ -111,7 +111,7 @@ inline constexpr rid RID_NONE = 0;
                                || (x) == ASCII_FORM_FEED        \
                                || (x) == ASCII_VERTICAL_TAB     \
                                || (x) == ASCII_CARRIAGE_RETURN)
-    
+
 #if DEBUG
 inline const char* Build_type_name = "DEBUG";
 #elif RELEASE
@@ -260,18 +260,16 @@ bool  release  (Arena &a);
 Scratch local_scratch();
 void release(Scratch &s);
 
-#define arena_push_type(a, t)     (t *)push(a, 1 * sizeof(t), alignof(t), true)
-#define arena_push_array(a, n, t) (t *)push(a, n * sizeof(t), alignof(t), true)
+#define arena_push_type(a, t)     (t *)push(a, (1) * sizeof(t), alignof(t), true)
+#define arena_push_array(a, n, t) (t *)push(a, (n) * sizeof(t), alignof(t), true)
 #define arena_push_buffer(a, n)   Buffer { (u8 *)push(a, n), n }
-#define arena_pop_type(a, t)      pop(a, 1 * sizeof(t))
-#define arena_pop_array(a, n, t)  pop(a, n * sizeof(t))
+#define arena_pop_type(a, t)      pop(a, (1) * sizeof(t))
+#define arena_pop_array(a, n, t)  pop(a, (n) * sizeof(t))
 
 void mem_set  (void *p, s32 v, u64 n);
 void mem_copy (void *dst, const void *src, u64 n);
 void mem_move (void *dst, const void *src, u64 n);
 void mem_swap (void *a, void *b, u64 n);
-
-void sort(void *data, u32 count, u32 size, s32 (*compare)(const void *, const void *));
 
 // Simple wrapper mainly for string literals as most of functionality over it does not
 // deal with internal memory, so standart copy is basically copy of pointer and length.
@@ -317,6 +315,7 @@ String str_slice   (String s, String sub, u32 bits = 0);
 String str_token   (String_Token_Iterator &it);
 void   str_c       (String s, u64 length, char *cs);
 bool   str_equal   (String a, String b);
+s32    str_compare (String a, String b);
 s64    str_index   (String s, char c, u32 bits = 0);
 s64    str_index   (String s, String sub, u32 bits = 0);
 s32    str_to_s32  (String s);
@@ -343,6 +342,18 @@ void sid_init();
 sid  sid_intern(const char *cs);
 sid  sid_intern(String s);
 String sid_str(sid sid);
+
+#if DEVELOPER
+#define TM_PUSH_ZONE(s)  tm_push_zone(S(s))
+#define TM_POP_ZONE()    tm_pop_zone()
+#define TM_SCOPE_ZONE(s) TM_PUSH_ZONE(s); defer { TM_POP_ZONE(); }
+#else
+#define TM_PUSH_ZONE(s)
+#define TM_POP_ZONE()
+#define TM_SCOPE_ZONE(s)
+#endif
+
+void sort(void *data, u32 count, u32 size, s32 (*compare)(const void *, const void *));
 
 // All R_ defines does NOT exceed u16 range, except for bit-flags of course.
 

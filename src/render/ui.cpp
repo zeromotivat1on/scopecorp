@@ -11,6 +11,8 @@
 
 #include "game/world.h"
 
+#include "editor/telemetry.h"
+
 #include "math/vector.h"
 #include "math/matrix.h"
 
@@ -209,7 +211,7 @@ void ui_init() {
 }
 
 void ui_flush() {
-    PROFILE_SCOPE(__FUNCTION__);
+    TM_SCOPE_ZONE(__func__);
     
     r_submit(R_ui.command_list);
 

@@ -308,18 +308,18 @@ s32 atomic_decrement(s32 *dst) {
 	return InterlockedDecrement((LONG *)dst);
 }
 
-s64 os_time_since_boot_ms() {
+u64 os_time_since_boot_ms() {
 	return GetTickCount64();
 }
 
-s64 os_perf_counter() {
+u64 os_perf_counter() {
 	LARGE_INTEGER counter;
 	const BOOL res = QueryPerformanceCounter(&counter);
 	Assert(res); // @Robustness: handle win32 failure
 	return counter.QuadPart;
 }
 
-s64 os_perf_hz_s() {
+u64 os_perf_hz() {
 	static u64 frequency64 = 0;
 
 	if (frequency64 == 0) {
@@ -332,16 +332,13 @@ s64 os_perf_hz_s() {
 	return frequency64;
 }
 
-s64 os_perf_hz_ms() {
-	static u64 frequency64 = 0;
+u64 os_perf_hz_ms() {
+	static u64 frequency64 = os_perf_hz() / 1000;
+	return frequency64;
+}
 
-	if (frequency64 == 0) {
-		LARGE_INTEGER frequency;
-		const BOOL res = QueryPerformanceFrequency(&frequency);
-		Assert(res);
-		frequency64 = frequency.QuadPart / 1000;
-	}
-
+u64 os_perf_hz_ns() {
+	static u64 frequency64 = os_perf_hz_ms() / 1000;
 	return frequency64;
 }
 

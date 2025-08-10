@@ -12,7 +12,7 @@ set_target_properties(${GAME_EXE} PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${RUN_TREE_DIR}/build/${CMAKE_SYSTEM_NAME}/${CONFIG_TYPE}")
 
 target_sources(${GAME_EXE} PRIVATE
-                asset.cpp basic.cpp camera.cpp collision.cpp font.cpp main.cpp profile.cpp
+                asset.cpp basic.cpp camera.cpp collision.cpp font.cpp main.cpp
                 # work_queue.cpp
                 os/os.cpp
                 audio/al.cpp audio/audio.cpp

@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "log.h"
-#include "profile.h"
+
+#include "editor/telemetry.h"
 
 #include "render/render.h"
 #include "render/glad.h"
@@ -255,12 +256,10 @@ void os_set_window_vsync(Window &w, bool enable) {
 }
 
 void os_swap_window_buffers(Window &w) {
-    auto &win32 = *w.win32;
-
-    PROFILE_SCOPE(__FUNCTION__);
-	SwapBuffers(win32.hdc);
-
     // Clear event queue. It was moved here from poll_events as now we need to know what
     // events were passed this frame during main loop.
     w.event_count = 0;
+    
+    auto &win32 = *w.win32;
+	SwapBuffers(win32.hdc);
 }

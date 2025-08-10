@@ -46,6 +46,7 @@
 #include "editor/editor.h"
 #include "editor/hot_reload.h"
 #include "editor/debug_console.h"
+#include "editor/telemetry.h"
 
 void on_window_event(const Window &window, const Window_Event &event) {
     switch (event.type) {
@@ -83,7 +84,8 @@ s32 main() {
     
     defer { release(M_global); };
     defer { release(M_frame); };
-    
+
+    tm_init();
     sid_init();
 
     sid_texture_player_idle[SOUTH] = SID_TEXTURE_PLAYER_IDLE_SOUTH;
@@ -104,7 +106,7 @@ s32 main() {
         Input_layer_debug_console.on_input = on_input_debug_console;
 
         Input_layer_runtime_profiler.type = INPUT_LAYER_RUNTIME_PROFILER;
-        Input_layer_runtime_profiler.on_input = on_input_runtime_profiler;
+        Input_layer_runtime_profiler.on_input = tm_on_input;
 
         Input_layer_memory_profiler.type = INPUT_LAYER_MEMORY_PROFILER;
         Input_layer_memory_profiler.on_input = on_input_memory_profiler;
@@ -172,7 +174,7 @@ s32 main() {
     defer { au_destroy_table(Au_table); };
     
     os_lock_window_cursor(Main_window, true);
-    os_set_window_vsync(Main_window, false);
+    os_set_window_vsync(Main_window, true);
 
     stbi_set_flip_vertically_on_load(true);
 
@@ -209,7 +211,6 @@ s32 main() {
     r_geo_init();
 
     init_debug_console();
-    init_runtime_profiler();
     
     // @Cleanup: just make it better.
     extern void r_init_frame_buffer_draw();
@@ -245,8 +246,6 @@ s32 main() {
     log("Startup took %.2fms", CHECK_SCOPE_TIMER_MS(startup));
     
 	while (os_window_alive(Main_window)) {
-        PROFILE_SCOPE("game_frame");
-
         // @Note: event queue is NOT cleared after this call as some parts of the code
         // want to know which events were polled. The queue is cleared during buffer swap.
 		os_poll_window_events(Main_window);
@@ -269,7 +268,6 @@ s32 main() {
         r_geo_debug();
         draw_dev_stats();
         draw_debug_console();
-        draw_runtime_profiler();
         draw_memory_profiler();
 #endif
         
@@ -411,11 +409,17 @@ s32 main() {
             
 		os_swap_window_buffers(Main_window);
         update_render_stats();
+
+#if DEVELOPER
+        // Queue telemetry profiler draw. We are doing it here, so
+        // telemetry zones will be listed in order of push by default.
+        tm_draw();
+#endif
         
         clear(M_frame);
         
 		const s64 end_counter = os_perf_counter();
-		delta_time = (end_counter - begin_counter) / (f32)os_perf_hz_s();
+		delta_time = (end_counter - begin_counter) / (f32)os_perf_hz();
 		begin_counter = end_counter;
         
 #if DEVELOPER

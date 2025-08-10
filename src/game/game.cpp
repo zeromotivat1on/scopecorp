@@ -16,6 +16,7 @@
 
 #include "editor/editor.h"
 #include "editor/debug_console.h"
+#include "editor/telemetry.h"
 
 #include "render/render.h"
 #include "render/ui.h"
@@ -69,7 +70,7 @@ void on_input_game(const Window_Event &event) {
         } else if (press && key == KEY_SWITCH_DEBUG_CONSOLE) {
             open_debug_console();
         } else if (press && key == KEY_SWITCH_RUNTIME_PROFILER) {
-            open_runtime_profiler();
+            tm_open();
         } else if (press && key == KEY_SWITCH_MEMORY_PROFILER) {
             open_memory_profiler();
         } else if (press && key == KEY_SWITCH_EDITOR_MODE) {
@@ -228,7 +229,7 @@ void load_level(Game_World &world, String path) {
 }
 
 void tick_game(f32 dt) {
-    PROFILE_SCOPE(__FUNCTION__);
+    TM_SCOPE_ZONE(__func__);
 
     // @Cleanup: looks more like a hack.
     const auto *input_layer = get_current_input_layer();
@@ -274,6 +275,7 @@ void tick_game(f32 dt) {
     r_set_uniform_block_value(&uniform_block_direct_lights, 0, 0, &World.direct_lights.count, r_uniform_type_size_gpu_aligned(R_U32));
     r_set_uniform_block_value(&uniform_block_point_lights, 0, 0, &World.point_lights.count, r_uniform_type_size_gpu_aligned(R_U32));
 
+    TM_PUSH_ZONE("direct_lights");
     For (World.direct_lights) {
         auto &aabb = World.aabbs[it.aabb_index];
         const vec3 half_extent = (aabb.max - aabb.min) * 0.5f;
@@ -290,7 +292,9 @@ void tick_game(f32 dt) {
         r_set_uniform_block_value(&uniform_block_direct_lights, 3, it.u_light_index, &it.diffuse, r_uniform_type_size_gpu_aligned(R_F32_3));
         r_set_uniform_block_value(&uniform_block_direct_lights, 4, it.u_light_index, &it.specular, r_uniform_type_size_gpu_aligned(R_F32_3));
     }
-    
+    TM_POP_ZONE();
+
+    TM_PUSH_ZONE("point_lights");
     For (World.point_lights) {
         auto &aabb = World.aabbs[it.aabb_index];
         const vec3 half_extent = (aabb.max - aabb.min) * 0.5f;
@@ -312,7 +316,9 @@ void tick_game(f32 dt) {
         r_set_uniform_block_value(&uniform_block_point_lights, 6, it.u_light_index, &it.attenuation.linear, r_uniform_type_size_gpu_aligned(R_F32));
         r_set_uniform_block_value(&uniform_block_point_lights, 7, it.u_light_index, &it.attenuation.quadratic, r_uniform_type_size_gpu_aligned(R_F32));
     }
-    
+    TM_POP_ZONE();
+
+    TM_PUSH_ZONE("static_meshes");
 	For (World.static_meshes) {
         // @Todo: take into account rotation and scale.
         auto &aabb = World.aabbs[it.aabb_index];
@@ -340,6 +346,7 @@ void tick_game(f32 dt) {
         r_set_material_uniform(mta->index, SID("u_material.shininess"),
                                0, _sizeref(mt.light_params.shininess));
 	}
+    TM_POP_ZONE();
 
     // @Todo: fine-tuned sound play.
     

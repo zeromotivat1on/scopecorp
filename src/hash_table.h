@@ -1,10 +1,10 @@
 #pragma once
 
-#include "log.h"
+inline constexpr f32 MAX_TABLE_LOAD_FACTOR = 0.7f;
 
 template<typename K, typename V>
 struct Table {
-    static constexpr f32 MAX_LOAD_FACTOR = 0.7f;
+    static constexpr f32 MAX_LOAD_FACTOR = MAX_TABLE_LOAD_FACTOR;
     
     typedef u64 (*Hash   )(const K &key);
     typedef bool(*Compare)(const K &a, const K &b);
@@ -30,7 +30,7 @@ struct Table {
     Const_Iterator begin() const { return Const_Iterator(this, 0); }
     Const_Iterator end()   const { return Const_Iterator(this, capacity); }
 
-    V &operator[](const K &k) const {
+    V &operator[](const K &k) {
         const u64 hash = hash_function(k);
         u32 i = hash % capacity;
 
@@ -47,7 +47,9 @@ struct Table {
         keys  [i] = k;
         values[i] = V{};
         hashes[i] = hash;
-        
+
+        count += 1;
+
         return values[i];
     }
 
@@ -137,10 +139,14 @@ struct Table {
     };
 };
 
+inline u32 table_optimal_capacity(u32 n) {
+    constexpr f32 scale = 2.0f - MAX_TABLE_LOAD_FACTOR;
+    return (u32)(n * scale);
+}
+
 template<typename K, typename V>
-void table_reserve(Arena &a, Table<K, V> &t, s32 n) {
+void table_reserve(Arena &a, Table<K, V> &t, u32 n) {
     if (t.keys) {
-        warn("Attempt to reserve already reserved table 0x%X", &t);
         return;
     }
 
@@ -184,6 +190,15 @@ template<typename K, typename V>
 u64 table_bytes(const Table<K, V> &t) {
     // @Cleanup: not sure if its the mose correct way to tell allocated size.
     return t.capacity * (sizeof(K) + sizeof(V) + sizeof(u64));
+}
+
+template<typename K, typename V>
+void table_reset(Table<K, V> &t) {
+    t.count = 0;
+    
+    mem_set(t.keys,   0, t.capacity * sizeof(t.keys[0]));
+    mem_set(t.values, 0, t.capacity * sizeof(t.values[0]));
+    mem_set(t.hashes, 0, t.capacity * sizeof(t.hashes[0]));
 }
 
 template<typename K, typename V>

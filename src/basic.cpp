@@ -440,7 +440,11 @@ void str_c(String s, u64 length, char *cs) {
 
 bool str_equal(String a, String b) {
     if (a.length != b.length) return false;
-    return strncmp(a.value, b.value, a.length) == 0;
+    return str_compare(a, b) == 0;
+}
+
+s32 str_compare(String a, String b) {
+    return strncmp(a.value, b.value, a.length);
 }
 
 s64 str_index(String s, char c, u32 bits) {
