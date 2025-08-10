@@ -256,6 +256,8 @@ void os_set_window_vsync(Window &w, bool enable) {
 }
 
 void os_swap_window_buffers(Window &w) {
+    TM_SCOPE_ZONE(__func__);
+    
     // Clear event queue. It was moved here from poll_events as now we need to know what
     // events were passed this frame during main loop.
     w.event_count = 0;

@@ -337,7 +337,7 @@ u64 os_perf_hz_ms() {
 	return frequency64;
 }
 
-u64 os_perf_hz_ns() {
+u64 os_perf_hz_us() {
 	static u64 frequency64 = os_perf_hz_ms() / 1000;
 	return frequency64;
 }

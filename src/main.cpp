@@ -406,7 +406,7 @@ s32 main() {
             
             ui_flush(); // ui is drawn directly to screen
         }
-            
+        
 		os_swap_window_buffers(Main_window);
         update_render_stats();
 

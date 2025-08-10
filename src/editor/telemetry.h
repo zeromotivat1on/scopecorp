@@ -1,18 +1,22 @@
 #pragma once
 
-#include "hash_table.h"
-
-enum Tm_Bits : u16 {
+enum Tm_Bits : u8 {
     TM_OPEN_BIT  = 0x1,
     TM_PAUSE_BIT = 0x2,
 };
 
-enum Tm_Sort_Type : u16 {
+enum Tm_Sort_Type : u8 {
     TM_SORT_NONE,
     TM_SORT_NAME,
     TM_SORT_EXC,
     TM_SORT_INC,
     TM_SORT_CNT,
+};
+
+enum Tm_Precision_Type : u8 {
+    TM_MICRO_SECONDS,
+    TM_MILI_SECONDS,
+    TM_SECONDS,
 };
 
 struct Tm_Zone {
@@ -27,13 +31,15 @@ struct Tm_Zone {
 struct Tm_Context {
     static constexpr u16 MAX_ZONES = 256;
 
-    u16 bits = 0;
-    u16 sort_type = 0;
-
+    u8 bits = 0;
+    u8 sort_type = 0;
+    u8 precision_type = 0;
+    
     u16 zone_total_count  = 0;
     u16 zone_active_count = 0;
     
     Tm_Zone *zones = null;
+    u16 *index_stack = null;
 };
 
 struct Window_Event;

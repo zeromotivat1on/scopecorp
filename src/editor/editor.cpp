@@ -1224,6 +1224,7 @@ static Tm_Context Tm_ctx;
 
 void tm_init() {
     Tm_ctx.zones = arena_push_array(M_global, Tm_ctx.MAX_ZONES, Tm_Zone);
+    Tm_ctx.index_stack = arena_push_array(M_global, Tm_ctx.MAX_ZONES, u16);
 }
 
 void tm_open() {
@@ -1268,6 +1269,12 @@ void tm_on_input(const Window_Event &event) {
             Tm_ctx.sort_type = TM_SORT_INC;
         } else if (press && key == KEY_4) {
             Tm_ctx.sort_type = TM_SORT_CNT;
+        } else if (press && key == KEY_C) {
+            Tm_ctx.precision_type = TM_MICRO_SECONDS;
+        } else if (press && key == KEY_L) {
+            Tm_ctx.precision_type = TM_MILI_SECONDS;
+        } else if (press && key == KEY_S) {
+            Tm_ctx.precision_type = TM_SECONDS;
         }
         
         break;
@@ -1295,6 +1302,11 @@ void tm_draw() {
     constexpr f32 PADDING = 16.0f;
     constexpr f32 QUAD_Z = 0.0f;
 
+    constexpr u32 MAX_NAME_LENGTH  = 24;
+    constexpr u32 MAX_TIME_LENGTH  = 10;
+    constexpr u32 MAX_COUNT_LENGTH = 5;
+    constexpr u16 NCOL = 4;
+    
     constexpr f32 UPDATE_INTERVAL = 0.2f;
 
     static f32 update_time = 0.0f;
@@ -1312,16 +1324,25 @@ void tm_draw() {
             zone_count = Tm_ctx.zone_total_count;
         }
     }
-        
-    if (tm_closed()) return;
     
-    const auto &atlas = R_ui.font_atlases[UI_PROFILER_FONT_ATLAS_INDEX];
+    if (tm_closed()) return;
+
+    const auto atlas_index = UI_PROFILER_FONT_ATLAS_INDEX;
+    const auto &atlas = R_ui.font_atlases[atlas_index];
     const f32 ascent  = atlas.font->ascent  * atlas.px_h_scale;
     const f32 descent = atlas.font->descent * atlas.px_h_scale;
+        
+    const s32 space_width_px = get_char_width_px(atlas, ASCII_SPACE);
+
+    f32 offsets[NCOL];
+    offsets[0] = MARGIN + PADDING;
+    offsets[1] = offsets[0] + space_width_px * MAX_NAME_LENGTH;
+    offsets[2] = offsets[1] + space_width_px * MAX_TIME_LENGTH;
+    offsets[3] = offsets[2] + space_width_px * MAX_TIME_LENGTH;
 
     {   // Profiler quad.
-        const vec2 p0 = vec2(MARGIN, R_viewport.height - MARGIN - 2 * PADDING - (zone_count + 1) * atlas.line_height);
-        const vec2 p1 = vec2(R_viewport.width - MARGIN, R_viewport.height - MARGIN);
+        const vec2 p0 = vec2(MARGIN, R_viewport.height - MARGIN - 2 * PADDING - (zone_count + 1.5f) * atlas.line_height);
+        const vec2 p1 = vec2(offsets[NCOL - 1] + MAX_COUNT_LENGTH * space_width_px + PADDING, R_viewport.height - MARGIN);
         const u32 color = rgba_pack(0, 0, 0, 200);
         ui_quad(p0, p1, color, QUAD_Z);
     }
@@ -1357,26 +1378,34 @@ void tm_draw() {
     }
     
     {   // Profiler scopes.
-        constexpr u32 MAX_NAME_LENGTH = 32;
-        constexpr u32 MAX_TIME_LENGTH = 16;
-        constexpr u32 MAX_COUNT_LENGTH = 8;
-        constexpr u16 NCOL = 4;
-        
         vec2 pos = vec2(MARGIN + PADDING, R_viewport.height - MARGIN - PADDING - ascent);
-
-        const auto atlas_index = UI_PROFILER_FONT_ATLAS_INDEX;
-        const s32 space_width_px = get_char_width_px(atlas, ASCII_SPACE);
-
+        
         u64 count = 0;
         char buffer[256];
-        
-        f32 offsets[NCOL];
-        offsets[0] = MARGIN + PADDING;
-        offsets[1] = offsets[0] + space_width_px * MAX_NAME_LENGTH;
-        offsets[2] = offsets[1] + space_width_px * MAX_TIME_LENGTH;
-        offsets[3] = offsets[2] + space_width_px * MAX_TIME_LENGTH;
 
-        const char *titles[NCOL] = { "Name", "Exc", "Inc", "Count" };            
+        f32 time_threshold = 0.0f;
+        u64 hz = 0;
+        
+        const char *titles[NCOL] = { "Name", "Exc", "Inc", "Count" };
+
+        switch (Tm_ctx.precision_type) {
+        case TM_MICRO_SECONDS: {
+            time_threshold = 100.0f;
+            hz = os_perf_hz_us();
+            break;
+        }
+        case TM_MILI_SECONDS: {
+            time_threshold = 0.5f;
+            hz = os_perf_hz_ms();
+            break;
+        }
+        case TM_SECONDS: {
+            time_threshold = 0.1f;
+            hz = os_perf_hz();
+            break;
+        }
+        }
+                
         for (u16 i = 0; i < NCOL; ++i) {
             const f32 z = QUAD_Z + F32_EPSILON;
             u32 color = rgba_white;
@@ -1392,18 +1421,17 @@ void tm_draw() {
         }
             
         pos.y -= atlas.line_height * 1.5f;
-                
+        
         for (u32 i = 0; i < zone_count; ++i) {
             const auto &zone = zones[i];
 
             const auto &name = zone.name;
-            const f32 exc = (f32)zone.exclusive / os_perf_hz_ns();
-            const f32 inc = (f32)zone.inclusive / os_perf_hz_ns();
+            const f32 inc = (f32)zone.inclusive / hz;
+            const f32 exc = (f32)zone.exclusive / hz;
             const u32 calls = zone.calls;
             const u32 depth = zone.depth;
-
-            constexpr f32 max_time = 600.0f;
-            const f32 time_alpha = Clamp(exc / max_time, 0.0f, 1.0f);
+            
+            const f32 time_alpha = Clamp(exc / time_threshold, 0.0f, 1.0f);
             const u8 r = (u8)(255 * time_alpha);
             const u8 g = (u8)(255 * (1.0f - time_alpha));
             
@@ -1415,11 +1443,11 @@ void tm_draw() {
             ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
 
             pos.x = offsets[1];
-            count = stbsp_snprintf(buffer, sizeof(buffer), "%.2fns", exc);
+            count = stbsp_snprintf(buffer, sizeof(buffer), "%.2f", exc);
             ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
 
             pos.x = offsets[2];
-            count = stbsp_snprintf(buffer, sizeof(buffer), "%.2fns", inc);
+            count = stbsp_snprintf(buffer, sizeof(buffer), "%.2f", inc);
             ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
 
             pos.x = offsets[3];
@@ -1443,6 +1471,7 @@ void tm_push_zone(String name) {
     zone.start = os_perf_counter();
 
     Tm_ctx.zones[Tm_ctx.zone_total_count] = zone;
+    Tm_ctx.index_stack[Tm_ctx.zone_active_count] = Tm_ctx.zone_total_count;
     Tm_ctx.zone_active_count += 1;
     Tm_ctx.zone_total_count  += 1;
 }
@@ -1452,9 +1481,10 @@ void tm_pop_zone() {
     
     Assert(Tm_ctx.zone_active_count > 0);
 
-    const s32 last_index = Tm_ctx.zone_total_count - 1;
+    const s32 last_index = Tm_ctx.index_stack[Tm_ctx.zone_active_count - 1];
     auto &last = Tm_ctx.zones[last_index];
-    last.exclusive = os_perf_counter() - last.start;
+    last.inclusive = os_perf_counter() - last.start;
+    last.exclusive += last.inclusive;
     
     Tm_ctx.zone_active_count -= 1;
 
@@ -1462,7 +1492,7 @@ void tm_pop_zone() {
     while (parent_index >= 0) {
         auto &zone = Tm_ctx.zones[parent_index];
         if (zone.depth < last.depth) {
-            zone.inclusive += last.exclusive;
+            zone.exclusive -= last.inclusive;
             break;
         }
 
