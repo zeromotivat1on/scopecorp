@@ -5,8 +5,8 @@ enum Input_Layer_Type : u8 {
     INPUT_LAYER_GAME,
     INPUT_LAYER_EDITOR,
     INPUT_LAYER_DEBUG_CONSOLE,
-    INPUT_LAYER_RUNTIME_PROFILER,
-    INPUT_LAYER_MEMORY_PROFILER,
+    INPUT_LAYER_TM,
+    INPUT_LAYER_MPROF,
 };
 
 struct Window_Event;
@@ -30,8 +30,8 @@ inline Input_Stack Input_stack;
 inline Input_Layer Input_layer_game;
 inline Input_Layer Input_layer_editor;
 inline Input_Layer Input_layer_debug_console;
-inline Input_Layer Input_layer_runtime_profiler;
-inline Input_Layer Input_layer_memory_profiler;
+inline Input_Layer Input_layer_tm;
+inline Input_Layer Input_layer_mprof;
 
 inline Input_Layer *get_current_input_layer() {
     if (Input_stack.layer_count > 0) {

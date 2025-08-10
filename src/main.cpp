@@ -105,11 +105,11 @@ s32 main() {
         Input_layer_debug_console.type = INPUT_LAYER_DEBUG_CONSOLE;
         Input_layer_debug_console.on_input = on_input_debug_console;
 
-        Input_layer_runtime_profiler.type = INPUT_LAYER_RUNTIME_PROFILER;
-        Input_layer_runtime_profiler.on_input = tm_on_input;
+        Input_layer_tm.type = INPUT_LAYER_TM;
+        Input_layer_tm.on_input = tm_on_input;
 
-        Input_layer_memory_profiler.type = INPUT_LAYER_MEMORY_PROFILER;
-        Input_layer_memory_profiler.on_input = mprof_on_input;
+        Input_layer_mprof.type = INPUT_LAYER_MPROF;
+        Input_layer_mprof.on_input = mprof_on_input;
 
         push_input_layer(Input_layer_editor);
     }

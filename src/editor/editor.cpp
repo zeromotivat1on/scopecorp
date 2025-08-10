@@ -1232,7 +1232,7 @@ void tm_open() {
     
     Tm_ctx.bits |= TM_OPEN_BIT;
 
-    push_input_layer(Input_layer_runtime_profiler);
+    push_input_layer(Input_layer_tm);
 }
 
 void tm_close() {
@@ -1509,7 +1509,7 @@ void mprof_open() {
     
     Mprof.is_open = true;
 
-    push_input_layer(Input_layer_memory_profiler);
+    push_input_layer(Input_layer_mprof);
 }
 
 void mprof_close() {
