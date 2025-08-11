@@ -119,8 +119,8 @@ s32 main() {
 		return 1;
 	}
 
-    defer { os_destroy_window(Main_window); };
 	os_register_window_callback(Main_window, on_window_event);
+    defer { os_destroy_window(Main_window); };
 
     if (!r_init_context(Main_window)) {
         error("Failed to initialize render context");
