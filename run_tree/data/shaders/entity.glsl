@@ -40,13 +40,6 @@ layout (location = 3) in vec3     f_pixel_world_location;
 layout (location = 0) out vec4 out_color;
 layout (location = 1) out int  out_entity_id;
 
-struct Material {
-    vec3  ambient;
-    vec3  diffuse;
-    vec3  specular;
-    float shininess;
-};
-
 uniform sampler2D u_sampler;
 uniform Material  u_material;
 
@@ -54,19 +47,15 @@ void main() {
     const vec3 normal = vec3(0, 1, 0);
     const vec3 view_direction = normalize(u_camera_location - f_pixel_world_location);
 
-    vec3 phong;
+    vec3 phong = vec3(0);
 
     for (int i = 0; i < u_direct_light_count; ++i) {
-        phong += get_direct_light(normal, view_direction, u_direct_lights[i],
-                                  u_material.ambient, u_material.diffuse,
-                                  u_material.specular, u_material.shininess);
+        phong += get_direct_light(normal, view_direction, u_direct_lights[i], u_material);
     }
 
     for (int i = 0; i < u_point_light_count; ++i) {
-        phong += get_point_light(normal, view_direction,
-                                 f_pixel_world_location, u_point_lights[i],
-                                 u_material.ambient, u_material.diffuse,
-                                 u_material.specular, u_material.shininess);
+        phong += get_point_light(normal, view_direction, f_pixel_world_location,
+                                 u_point_lights[i], u_material);
     }
 
     //out_color = vec4(1, 1, 1, 1) * vec4(phong, 1.0f);
