@@ -274,9 +274,6 @@ void tick_game(f32 dt) {
         }
     }
 
-    //r_set_uniform_block_value(&uniform_block_direct_lights, 0, 0, &World.direct_lights.count, r_uniform_type_size_gpu_aligned(R_U32));
-    //r_set_uniform_block_value(&uniform_block_point_lights, 0, 0, &World.point_lights.count, r_uniform_type_size_gpu_aligned(R_U32));
-
     TM_PUSH_ZONE("direct_lights");
     For (World.direct_lights) {
         auto &aabb = World.aabbs[it.aabb_index];
@@ -315,6 +312,7 @@ void tick_game(f32 dt) {
         
         r_add(R_table.point_light_block, light);
     }
+    
     // @Cleanup: at some point we may need to submit on demand, oppose to immediate.
     r_submit(R_table.point_light_block);
     TM_POP_ZONE();
