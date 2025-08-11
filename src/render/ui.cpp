@@ -90,7 +90,7 @@ void ui_init() {
     ui_input_buffer = arena_push_array(M_global, MAX_UI_INPUT_BUFFER_SIZE, char);
 
     r_create_command_list(R_ui.MAX_COMMANDS, R_ui.command_list);
-    
+            
     {
         const auto &fna = *find_asset(SID_FONT_BETTER_VCR);
         const auto &ui_default_font = Font_infos[fna.index];
@@ -212,7 +212,24 @@ void ui_init() {
 
 void ui_flush() {
     TM_SCOPE_ZONE(__func__);
+
+    R_Pass pass;
+    pass.polygon = R_FILL;
+    pass.viewport.x = R_viewport.x;
+    pass.viewport.y = R_viewport.y;
+    pass.viewport.w = R_viewport.width;
+    pass.viewport.h = R_viewport.height;
+    pass.scissor.x = R_viewport.x;
+    pass.scissor.y = R_viewport.y;
+    pass.scissor.w = R_viewport.width;
+    pass.scissor.h = R_viewport.height;
+    pass.cull.face    = R_BACK;
+    pass.cull.winding = R_CCW;
+    pass.blend.src = R_SRC_ALPHA;
+    pass.blend.dst = R_ONE_MINUS_SRC_ALPHA;
+    pass.depth.mask = R_DISABLE;
     
+    r_submit(pass);
     r_submit(R_ui.command_list);
 
     auto &lrender = R_ui.line_render;

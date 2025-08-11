@@ -4,6 +4,7 @@
 
 #include "math/vector.h"
 
+#include "render/r_pass.h"
 #include "render/r_command.h"
 
 inline constexpr f32 UI_MAX_Z = 1000.0f;
@@ -31,16 +32,10 @@ struct Font_Atlas;
 enum UI_Immediate_Bits : u16 {
     UI_HOT_BIT       = 0x1,
     UI_UNHOT_BIT     = 0x2,
-
-    // Received focus (button click or input select).
-    UI_ACTIVATED_BIT = 0x4,
-    // Action was completed as NOT planned.
-    UI_LOST_BIT      = 0x8,
-    // Action was completed as planned.
-    UI_FINISHED_BIT  = 0x10,
-
-    // Some data was changed (e.g: input text or combo option).
-    UI_CHANGED_BIT   = 0x20,
+    UI_ACTIVATED_BIT = 0x4,  // received focus (button click or input select)
+    UI_LOST_BIT      = 0x8,  // action was completed as NOT planned
+    UI_FINISHED_BIT  = 0x10, // action was completed as planned
+    UI_CHANGED_BIT   = 0x20, // some data was changed (e.g: input text or combo option)
 };
 
 struct uiid {
@@ -152,6 +147,7 @@ struct R_UI {
     Text_Render text_render;
     Quad_Render quad_render;
 
+    R_Pass pass;
     R_Command_List command_list;
 };
 

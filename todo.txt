@@ -1,3 +1,5 @@
+- Fix telemetry sort for nested zones.
+
 - UI input functions for non-text are basically the same, cleanup.
 
 - Asset save/load/hot-reload code has a lot of duplications, cleanup.

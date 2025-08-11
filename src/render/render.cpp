@@ -159,16 +159,131 @@ void r_resize_viewport(R_Viewport &viewport, u16 width, u16 height) {
     log("Resized viewport %dx%d", r_width, r_height);
 }
 
-void draw_world(const Game_World &world) {
+void r_viewport_flush() {
+    const auto &v = R_viewport;
+    
+    R_Pass pass;
+    pass.polygon = R_FILL;
+    pass.viewport.x = v.x;
+    pass.viewport.y = v.y;
+    pass.viewport.w = v.width;
+    pass.viewport.h = v.height;
+    pass.scissor.x = v.x;
+    pass.scissor.y = v.y;
+    pass.scissor.w = v.width;
+    pass.scissor.h = v.height;
+    pass.cull.face    = R_BACK;
+    pass.cull.winding = R_CCW;
+    pass.clear.color = rgba_black;
+    pass.clear.bits  = R_COLOR_BUFFER_BIT | R_DEPTH_BUFFER_BIT | R_STENCIL_BUFFER_BIT;
+
+    // Reset default render target (window screen).
+    // @Cleanup: make it more clear.
+    r_submit(R_Target {});
+    r_submit(pass);
+
+    // @Cleanup?
+    // We cleared viewport buffers, so now we can disable depth test to
+    // render quad on screen.
+    pass = {};
+    pass.depth.mask = R_DISABLE;
+    r_submit(pass);
+
+    const auto &mta = *find_asset(SID_MATERIAL_FRAME_BUFFER);            
+    r_set_material_uniform(mta.index, SID("u_pixel_size"),
+                           0, _sizeref(v.pixel_size));
+    r_set_material_uniform(mta.index, SID("u_curve_distortion_factor"),
+                           0, _sizeref(v.curve_distortion_factor));
+    r_set_material_uniform(mta.index, SID("u_chromatic_aberration_offset"),
+                           0, _sizeref(v.chromatic_aberration_offset));
+    r_set_material_uniform(mta.index, SID("u_quantize_color_count"),
+                           0, _sizeref(v.quantize_color_count));
+    r_set_material_uniform(mta.index, SID("u_noise_blend_factor"),
+                           0, _sizeref(v.noise_blend_factor));
+    r_set_material_uniform(mta.index, SID("u_scanline_count"),
+                           0, _sizeref(v.scanline_count));
+    r_set_material_uniform(mta.index, SID("u_scanline_intensity"),
+                           0, _sizeref(v.scanline_intensity));
+
+    const auto &mt = R_table.materials[mta.index];
+    const auto &rt = R_table.targets[v.render_target];
+
+    extern u16 fb_vd;
+    extern u32 fb_first_index;
+    extern u32 fb_index_count;
+
+    R_Command cmd;
+    cmd.bits = R_CMD_INDEXED_BIT;
+    cmd.mode = R_TRIANGLES;
+    cmd.shader = mt.shader;
+    cmd.texture = rt.color_attachments[0].texture;
+    cmd.uniform_count = mt.uniform_count;
+    cmd.uniforms = mt.uniforms;
+    cmd.vertex_desc = fb_vd;
+    cmd.first = fb_first_index;
+    cmd.count = fb_index_count;
+
+    static R_Command_List cmd_list;
+    if (cmd_list.capacity == 0) {
+        r_create_command_list(1, cmd_list);
+    }
+            
+    r_add(cmd_list, cmd);
+    r_submit(cmd_list);
+}
+
+void draw_world(const Game_World &w) {
     TM_SCOPE_ZONE(__func__);
     
-	draw_entity(world.skybox);
+	draw_entity(w.skybox);
 
-	For (world.static_meshes) {
+	For (w.static_meshes) {
 		draw_entity(it);
     }
     
-	draw_entity(world.player);
+	draw_entity(w.player);
+}
+
+void r_world_flush() {
+    TM_SCOPE_ZONE(__func__);
+
+    const auto &target = R_table.targets[R_viewport.render_target];
+    r_submit(target);
+
+    R_Pass pass;
+    pass.polygon = game_state.polygon_mode;
+    pass.viewport.x = 0;
+    pass.viewport.y = 0;
+    pass.viewport.w = target.width;
+    pass.viewport.h = target.height;
+    pass.scissor.x = 0;
+    pass.scissor.y = 0;
+    pass.scissor.w = target.width;
+    pass.scissor.h = target.height;
+    // @Note: we disable cull face test for now as some models use other winding or
+    // partially invisibile due to their parts have other winding.
+    pass.cull.test    = R_DISABLE;
+    pass.cull.face    = R_BACK;
+    pass.cull.winding = R_CCW;
+    pass.blend.src = R_SRC_ALPHA;
+    pass.blend.dst = R_ONE_MINUS_SRC_ALPHA;
+    pass.depth.mask = R_ENABLE;
+    pass.depth.func = R_LESS;
+    pass.stencil.mask = 0x00;
+    pass.stencil.func.type       = R_ALWAYS;
+    pass.stencil.func.comparator = 1;
+    pass.stencil.func.mask       = 0xFF;
+    pass.stencil.op.stencil_failed = R_KEEP;
+    pass.stencil.op.depth_failed   = R_KEEP;
+    pass.stencil.op.passed         = R_REPLACE;
+    pass.clear.color = rgba_white;
+    pass.clear.bits  = R_COLOR_BUFFER_BIT | R_DEPTH_BUFFER_BIT | R_STENCIL_BUFFER_BIT;
+    
+    r_submit(pass);
+    r_submit(World.main_cmd_list);
+
+    //r_submit(w.outline_pass);
+    //r_submit(w.outline_cmd_list);
 }
 
 static R_Sort_Key entity_sort_key(const Entity &e) {
@@ -240,7 +355,7 @@ void draw_entity(const Entity &e) {
         r_geo_cross(e.location, 0.5f);
     }
 
-    r_add(R_command_list, cmd, entity_sort_key(e));
+    r_add(World.main_cmd_list, cmd, entity_sort_key(e));
     
     /*
     if (e->flags & ENTITY_FLAG_SELECTED_IN_EDITOR) {
@@ -603,17 +718,17 @@ u16 r_vertex_component_size(u16 type) {
 	}
 }
 
-void update_render_stats() {
+void r_update_stats() {
     static f32 update_time = 0.0f;
     constexpr f32 update_interval = 0.2f;
 
-    update_time += delta_time;
+    update_time += Delta_time;
     
     constexpr s32 dt_frame_count = 512;
     static f32 previous_dt_table[dt_frame_count];
     
-    frame_index++;
-    previous_dt_table[frame_index % dt_frame_count] = delta_time;
+    Frame_index += 1;
+    previous_dt_table[Frame_index % dt_frame_count] = Delta_time;
 
     if (update_time > update_interval) {
         update_time = 0.0f;
@@ -623,8 +738,8 @@ void update_render_stats() {
             dt_sum += previous_dt_table[i];
         }
         
-        average_dt  = dt_sum / dt_frame_count;
-        average_fps = 1.0f / average_dt;
+        Average_dt  = dt_sum / dt_frame_count;
+        Average_fps = 1.0f / Average_dt;
     }
 }
 

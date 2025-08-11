@@ -215,9 +215,6 @@ s32 main() {
     // @Cleanup: just make it better.
     extern void r_init_frame_buffer_draw();
     r_init_frame_buffer_draw();
-
-    constexpr u32 MAX_COMMANDS = 512;
-    r_create_command_list(MAX_COMMANDS, R_command_list);
     
 	Hot_Reload_List hot_reload_list = {};
     // @Note: shader includes does not count as shader hot reload.
@@ -240,11 +237,9 @@ s32 main() {
     load_level(World, main_level_path);
 #endif
     
-	delta_time = 0.0f;
-	s64 begin_counter = os_perf_counter();
-
     log("Startup took %.2fms", CHECK_SCOPE_TIMER_MS(startup));
-    
+
+    u64 begin_counter = os_perf_counter();
 	while (os_window_alive(Main_window)) {
         // @Note: event queue is NOT cleared after this call as some parts of the code
         // want to know which events were polled. The queue is cleared during buffer swap.
@@ -255,8 +250,8 @@ s32 main() {
         
         check_hot_reload(hot_reload_list);
 
-        tick_game(delta_time);
-        tick_editor(delta_time);
+        tick_game(Delta_time);
+        tick_editor(Delta_time);
         
         draw_world(World);
         
@@ -278,137 +273,13 @@ s32 main() {
         pixel_size_time += delta_time * 4.0f;
 #endif
 
-        {
-            const auto &rt = R_table.targets[R_viewport.render_target];
-            
-            R_Pass pass_game;
-            pass_game.polygon = game_state.polygon_mode;
-            pass_game.viewport.x = 0;
-            pass_game.viewport.y = 0;
-            pass_game.viewport.w = rt.width;
-            pass_game.viewport.h = rt.height;
-            pass_game.scissor.x = 0;
-            pass_game.scissor.y = 0;
-            pass_game.scissor.w = rt.width;
-            pass_game.scissor.h = rt.height;
-            // @Note: we disable cull face test for now as some models use other winding or
-            // partially invisibile due to their parts have other winding.
-            pass_game.cull.test    = R_DISABLE;
-            pass_game.cull.face    = R_BACK;
-            pass_game.cull.winding = R_CCW;
-            pass_game.blend.src = R_SRC_ALPHA;
-            pass_game.blend.dst = R_ONE_MINUS_SRC_ALPHA;
-            pass_game.depth.mask = R_ENABLE;
-            pass_game.depth.func = R_LESS;
-            pass_game.stencil.mask = 0x00;
-            pass_game.stencil.func.type       = R_ALWAYS;
-            pass_game.stencil.func.comparator = 1;
-            pass_game.stencil.func.mask       = 0xFF;
-            pass_game.stencil.op.stencil_failed = R_KEEP;
-            pass_game.stencil.op.depth_failed   = R_KEEP;
-            pass_game.stencil.op.passed         = R_REPLACE;
-            pass_game.clear.color = rgba_white;
-            pass_game.clear.bits  = R_COLOR_BUFFER_BIT | R_DEPTH_BUFFER_BIT | R_STENCIL_BUFFER_BIT;
-            
-            r_submit(rt);
-            r_submit(pass_game);
-
-            r_submit(R_command_list);
-            r_geo_flush();
-        }
-        
-        {
-            R_Pass pass_viewport;
-            pass_viewport.polygon = R_FILL;
-            pass_viewport.viewport.x = R_viewport.x;
-            pass_viewport.viewport.y = R_viewport.y;
-            pass_viewport.viewport.w = R_viewport.width;
-            pass_viewport.viewport.h = R_viewport.height;
-            pass_viewport.scissor.x = R_viewport.x;
-            pass_viewport.scissor.y = R_viewport.y;
-            pass_viewport.scissor.w = R_viewport.width;
-            pass_viewport.scissor.h = R_viewport.height;
-            pass_viewport.cull.face    = R_BACK;
-            pass_viewport.cull.winding = R_CCW;
-            pass_viewport.clear.color = rgba_black;
-            pass_viewport.clear.bits  = R_COLOR_BUFFER_BIT | R_DEPTH_BUFFER_BIT | R_STENCIL_BUFFER_BIT;
-
-            // Reset default render target (window screen).
-            // @Cleanup: make it more clear.
-            r_submit(R_Target {});
-            r_submit(pass_viewport);
-
-            // @Cleanup?
-            // We cleared viewport buffers, so now we can disable depth test to
-            // render quad on screen.
-            R_Pass pass_depth;
-            pass_depth.depth.mask = R_DISABLE;
-            r_submit(pass_depth);
-            
-            const auto &mta = *find_asset(SID_MATERIAL_FRAME_BUFFER);
-            
-            r_set_material_uniform(mta.index, SID("u_pixel_size"),
-                                   0, _sizeref(R_viewport.pixel_size));
-            r_set_material_uniform(mta.index, SID("u_curve_distortion_factor"),
-                                   0, _sizeref(R_viewport.curve_distortion_factor));
-            r_set_material_uniform(mta.index, SID("u_chromatic_aberration_offset"),
-                                   0, _sizeref(R_viewport.chromatic_aberration_offset));
-            r_set_material_uniform(mta.index, SID("u_quantize_color_count"),
-                                   0, _sizeref(R_viewport.quantize_color_count));
-            r_set_material_uniform(mta.index, SID("u_noise_blend_factor"),
-                                   0, _sizeref(R_viewport.noise_blend_factor));
-            r_set_material_uniform(mta.index, SID("u_scanline_count"),
-                                   0, _sizeref(R_viewport.scanline_count));
-            r_set_material_uniform(mta.index, SID("u_scanline_intensity"),
-                                   0, _sizeref(R_viewport.scanline_intensity));
-
-            const auto &mt = R_table.materials[mta.index];
-            const auto &rt = R_table.targets[R_viewport.render_target];
-
-            extern u16 fb_vd;
-            extern u32 fb_first_index;
-            extern u32 fb_index_count;
-
-            R_Command cmd;
-            cmd.bits = R_CMD_INDEXED_BIT;
-            cmd.mode = R_TRIANGLES;
-            cmd.shader = mt.shader;
-            cmd.texture = rt.color_attachments[0].texture;
-            cmd.uniform_count = mt.uniform_count;
-            cmd.uniforms = mt.uniforms;
-            cmd.vertex_desc = fb_vd;
-            cmd.first = fb_first_index;
-            cmd.count = fb_index_count;
-            
-            r_add(R_command_list, cmd);
-
-            r_submit(R_command_list);
-        }
-
-        {
-            R_Pass pass_ui;
-            pass_ui.polygon = R_FILL;
-            pass_ui.viewport.x = R_viewport.x;
-            pass_ui.viewport.y = R_viewport.y;
-            pass_ui.viewport.w = R_viewport.width;
-            pass_ui.viewport.h = R_viewport.height;
-            pass_ui.scissor.x = R_viewport.x;
-            pass_ui.scissor.y = R_viewport.y;
-            pass_ui.scissor.w = R_viewport.width;
-            pass_ui.scissor.h = R_viewport.height;
-            pass_ui.cull.face    = R_BACK;
-            pass_ui.cull.winding = R_CCW;
-            pass_ui.blend.src = R_SRC_ALPHA;
-            pass_ui.blend.dst = R_ONE_MINUS_SRC_ALPHA;
-            pass_ui.depth.mask = R_DISABLE;
-
-            r_submit(pass_ui);
-            
-            ui_flush(); // ui is drawn directly to screen
-        }
+        r_world_flush();
+        r_geo_flush();
+        r_viewport_flush();
+        ui_flush(); // ui is drawn directly to screen
         
 		os_swap_window_buffers(Main_window);
-        update_render_stats();
+        r_update_stats();
 
 #if DEVELOPER
         // Queue telemetry profiler draw. We are doing it here, so
@@ -418,14 +289,14 @@ s32 main() {
         
         clear(M_frame);
         
-		const s64 end_counter = os_perf_counter();
-		delta_time = (end_counter - begin_counter) / (f32)os_perf_hz();
+		const u64 end_counter = os_perf_counter();
+		Delta_time = (f32)(end_counter - begin_counter) / os_perf_hz();
 		begin_counter = end_counter;
         
 #if DEVELOPER
         // If dt is too large, we could have resumed from a breakpoint.
-        if (delta_time > 1.0f) {
-            delta_time = 0.16f;
+        if (Delta_time > 1.0f) {
+            Delta_time = 0.16f;
         }
 #endif
 	}

@@ -777,7 +777,7 @@ void draw_debug_console() {
     
     const auto &atlas = R_ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
 
-    cursor_blink_dt += delta_time;
+    cursor_blink_dt += Delta_time;
         
     const f32 ascent  = atlas.font->ascent  * atlas.px_h_scale;
     const f32 descent = atlas.font->descent * atlas.px_h_scale;
@@ -1315,7 +1315,7 @@ void tm_draw() {
     
     defer { tm_flush(); };
 
-    update_time += delta_time;
+    update_time += Delta_time;
     if (update_time > UPDATE_INTERVAL) {
         update_time = 0.0f;
 
@@ -1379,7 +1379,7 @@ void tm_draw() {
     {   // Profiler scopes.
         vec2 pos = vec2(MARGIN + PADDING, R_viewport.height - MARGIN - PADDING - ascent);
 
-        const char *titles[NCOL] = { "Name", "Exc", "Inc", "Cnt" };
+        const char *titles[NCOL] = { "Name", "Exc", "Inc", "Num" };
         for (u16 i = 0; i < NCOL; ++i) {
             const f32 z = QUAD_Z + F32_EPSILON;
             u32 color = rgba_white;
@@ -1771,7 +1771,7 @@ void draw_dev_stats() {
 		pos.y -= atlas.line_height;
 
 		count = stbsp_snprintf(text, sizeof(text),
-                               "%.2fms %.ffps", average_dt * 1000.0f, average_fps);
+                               "%.2fms %.ffps", Average_dt * 1000.0f, Average_fps);
         pos.x = R_viewport.width - get_line_width_px(atlas, String { text, count }) - padding;
         ui_text_with_shadow(String { text, count }, pos, rgba_white, shadow_offset, rgba_black, Z);
 		pos.y -= atlas.line_height;
@@ -1788,11 +1788,11 @@ void draw_dev_stats() {
         ui_text_with_shadow(String { text, count }, pos, rgba_white, shadow_offset, rgba_black, Z);
         pos.y -= atlas.line_height;
 
-        count = stbsp_snprintf(text, sizeof(text), "draw calls %d", draw_call_count);
+        count = stbsp_snprintf(text, sizeof(text), "draw calls %d", Draw_call_count);
         pos.x = R_viewport.width - get_line_width_px(atlas, String { text, count }) - padding;
         ui_text_with_shadow(String { text, count }, pos, rgba_white, shadow_offset, rgba_black, Z);
 		pos.y -= atlas.line_height;
 	}
 
-    draw_call_count = 0;
+    Draw_call_count = 0;
 }

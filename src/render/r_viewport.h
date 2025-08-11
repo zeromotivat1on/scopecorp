@@ -34,3 +34,4 @@ struct R_Viewport {
 inline R_Viewport R_viewport;
 
 void r_resize_viewport(R_Viewport &viewport, u16 width, u16 height);
+void r_viewport_flush();

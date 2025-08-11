@@ -53,8 +53,7 @@ void on_window_resize(u16 width, u16 height) {
     const auto &rt = R_table.targets[R_viewport.render_target];
     const auto &mta = *find_asset(SID_MATERIAL_FRAME_BUFFER);
     const vec2 resolution = vec2(rt.width, rt.height);
-    r_set_material_uniform(mta.index, SID("u_resolution"),
-                           0, sizeof(resolution), &resolution);
+    r_set_material_uniform(mta.index, SID("u_resolution"), 0, _sizeref(resolution));
 }
 
 void on_input_game(const Window_Event &event) {
@@ -112,6 +111,9 @@ void create_world(Game_World &w) {
     sparse_reserve(w.arena, w.sound_emitters_3d, w.MAX_SOUND_EMITTERS_3D);
     sparse_reserve(w.arena, w.portals,           w.MAX_PORTALS);
     sparse_reserve(w.arena, w.aabbs,             w.MAX_AABBS);
+
+    constexpr u32 MAX_MAIN_CMDS = 512;
+    r_create_command_list(MAX_MAIN_CMDS, w.main_cmd_list);
 }
 
 template <typename T>

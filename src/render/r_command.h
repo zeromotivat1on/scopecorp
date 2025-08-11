@@ -75,7 +75,7 @@ struct R_Command_List {
 // @Cleanup: this command list is used/reused for different purposes;
 // maybe its not bad but it could lead to possible issues, make sure
 // its submitted with correct queued commands.
-inline R_Command_List R_command_list;
+//inline R_Command_List R_command_list;
 
 void r_add(R_Command_List &list, const R_Command &cmd, R_Sort_Key sort_key = { 0 });
 

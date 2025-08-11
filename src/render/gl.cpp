@@ -401,7 +401,7 @@ void r_submit(R_Command_List &list) {
             rendered_indirect_count += render_count;
         }
 
-        draw_call_count += 1;
+        Draw_call_count += 1;
     }
 
     glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);

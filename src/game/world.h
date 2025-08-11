@@ -3,7 +3,10 @@
 #include "camera.h"
 #include "sparse.h"
 #include "collision.h"
+
 #include "game/entity.h"
+
+#include "render/r_command.h"
 
 typedef For_Result (*For_Each_Entity_Callback)(Entity *e, void *user_data);
 
@@ -38,6 +41,8 @@ struct Game_World {
 	Sparse<Portal>           portals;
     
 	Sparse<AABB> aabbs;
+
+    R_Command_List main_cmd_list;
 };
 
 inline Game_World World;
@@ -55,3 +60,5 @@ void draw_world(const Game_World &world);
 void draw_entity(const Entity &e);
 
 void for_each_entity(Game_World &world, For_Each_Entity_Callback callback, void *user_data = null);
+
+void r_world_flush();
