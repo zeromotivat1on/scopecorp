@@ -1563,7 +1563,7 @@ void mprof_draw() {
     constexpr f32 QUAD_Z = 0.0f;
 
     constexpr u32 NCOL = 4;
-    constexpr u32 MAX_SCOPE_COUNT = 4;
+    constexpr u32 MAX_SCOPE_COUNT = 6;
 
     constexpr u32 MAX_NAME_LENGTH    = 12;
     constexpr u32 MAX_MEMORY_LENGTH  = 16;
@@ -1579,8 +1579,10 @@ void mprof_draw() {
     };
     
     M_Scope scopes[MAX_SCOPE_COUNT] = {
-        { S("M_global"), (s64)M_global.used, (s64)M_global.reserved },
-        { S("M_frame"),  (s64)M_frame.used,  (s64)M_frame.reserved },
+        { S("M_global"), (s64)M_global.used,      (s64)M_global.reserved },
+        { S("M_frame"),  (s64)M_frame.used,       (s64)M_frame.reserved },
+        { S("M_world"),  (s64)World.arena.used,   (s64)World.arena.reserved },
+        { S("M_rtable"), (s64)R_table.arena.used, (s64)R_table.arena.reserved },
         { S("R_vertex"), R_vertex_map_range.size, R_vertex_map_range.capacity },
         { S("R_index"),  R_index_map_range.size,  R_index_map_range.capacity },
     };
