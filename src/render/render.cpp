@@ -38,6 +38,10 @@
 
 void r_create_table(R_Table &t) {
     reserve(t.arena, MB(4));
+
+    t.uniform_value_cache.data = push(t.arena, t.MAX_UNIFORM_VALUE_CACHE_SIZE);
+    t.uniform_value_cache.size = 0;
+    t.uniform_value_cache.capacity = t.MAX_UNIFORM_VALUE_CACHE_SIZE;
     
     sparse_reserve(t.arena, t.targets,    t.MAX_TARGETS);
     sparse_reserve(t.arena, t.passes,     t.MAX_PASSES);
@@ -618,8 +622,8 @@ u16 r_create_uniform(sid name, u16 type, u16 count) {
     un.count = count;
     un.size = count * r_uniform_type_size(type);
 
-    auto &cache = uniform_value_cache;
-    Assert(cache.size + un.size <= MAX_UNIFORM_VALUE_CACHE_SIZE);
+    auto &cache = R_table.uniform_value_cache;
+    Assert(cache.size + un.size <= R_table.MAX_UNIFORM_VALUE_CACHE_SIZE);
 
     un.offset = cache.size;
     cache.size += un.size;
@@ -631,7 +635,7 @@ void r_set_uniform(u16 uniform, u32 offset, u32 size, const void *data) {
     auto &un = R_table.uniforms[uniform];
     Assert(offset + size <= un.size);
 
-    auto &cache = uniform_value_cache;
+    auto &cache = R_table.uniform_value_cache;
     mem_copy((u8 *)cache.data + un.offset + offset, data, size);
 }
 

@@ -376,7 +376,7 @@ void r_submit(R_Command_List &list) {
         for (u32 j = 0; j < cmd.uniform_count; ++j) {
             const auto &u = R_table.uniforms[cmd.uniforms[j]];
             const String name = sid_str(u.name);
-            const void *data = (u8 *)uniform_value_cache.data + u.offset;
+            const void *data = (u8 *)R_table.uniform_value_cache.data + u.offset;
 
             char cname[u.MAX_NAME_LENGTH];
             str_c(name, COUNT(cname), cname);

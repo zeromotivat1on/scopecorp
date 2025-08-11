@@ -120,10 +120,9 @@ s32 main() {
 	}
 
     defer { os_destroy_window(Main_window); };
-    
 	os_register_window_callback(Main_window, on_window_event);
 
-    if (r_init_context(Main_window) == false) {
+    if (!r_init_context(Main_window)) {
         error("Failed to initialize render context");
         return 1;
     }
@@ -141,16 +140,13 @@ s32 main() {
     
     r_detect_capabilities();
 
-    r_create_table(R_table);
-    defer { r_destroy_table(R_table); };
-    
     {
         const u32 map_bits = R_MAP_WRITE_BIT | R_MAP_PERSISTENT_BIT | R_MAP_COHERENT_BIT;
         const u32 storage_bits = R_DYNAMIC_STORAGE_BIT | map_bits;
         
         static R_Storage vstorage;
-        r_create_storage(MB(31), storage_bits, vstorage);
-        R_vertex_map_range = r_map(vstorage, 0, MB(30), map_bits);
+        r_create_storage(MB(32), storage_bits, vstorage);
+        R_vertex_map_range = r_map(vstorage, 0, MB(32), map_bits);
 
         static R_Storage istorage;
         r_create_storage(MB(2), storage_bits, istorage);
@@ -161,15 +157,11 @@ s32 main() {
 #endif
     }
     
+    r_create_table(R_table);
     r_init_global_uniforms();
-
-    // @Cleanup: use own arena?
-    uniform_value_cache.data = push(M_global, MAX_UNIFORM_VALUE_CACHE_SIZE);
-    uniform_value_cache.size = 0;
-    uniform_value_cache.capacity = MAX_UNIFORM_VALUE_CACHE_SIZE;
-
+    defer { r_destroy_table(R_table); };
+    
     au_init_context();
-
     au_create_table(Au_table);
     defer { au_destroy_table(Au_table); };
     

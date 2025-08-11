@@ -14,6 +14,8 @@ struct R_Flip_Book;
 
 // Table of all currently active render resources.
 struct R_Table {
+    static constexpr u32 MAX_UNIFORM_VALUE_CACHE_SIZE = KB(16);
+    
     static constexpr u16 MAX_TARGETS   = 16;
     static constexpr u16 MAX_PASSES    = 32;
     static constexpr u16 MAX_TEXTURES  = 64;
@@ -36,6 +38,8 @@ struct R_Table {
     Sparse<R_Vertex_Descriptor> vertex_descriptors;
 
     Sparse<R_Flip_Book> flip_books;
+
+    struct { void *data = null; u32 size = 0; u32 capacity = 0; } uniform_value_cache;
 };
 
 inline R_Table R_table;

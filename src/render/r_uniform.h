@@ -35,8 +35,7 @@ inline constexpr s32 MAX_UNIFORM_NAME_SIZE = 64;
 inline constexpr s32 MAX_UNIFORM_BUFFER_BLOCKS = 32;
 inline constexpr s32 MAX_UNIFORM_BLOCK_FIELDS  = 16;
 
-inline constexpr u32 MAX_UNIFORM_BUFFER_SIZE      = KB(16);
-inline constexpr u32 MAX_UNIFORM_VALUE_CACHE_SIZE = KB(16);
+inline constexpr u32 MAX_UNIFORM_BUFFER_SIZE = KB(16);
 
 inline rid RID_UNIFORM_BUFFER = RID_NONE;
 inline u32 UNIFORM_BUFFER_SIZE = 0;
@@ -71,14 +70,6 @@ struct Uniform_Block {
     u32 offset = 0; // gpu aligned offset in uniform buffer
     u32 size   = 0; // gpu aligned size
 };
-
-struct Uniform_Value_Cache {
-    void *data   = null;
-    u32 size     = 0;
-    u32 capacity = 0;
-};
-
-inline Uniform_Value_Cache uniform_value_cache;
 
 inline Uniform_Block uniform_block_camera;
 inline Uniform_Block uniform_block_viewport;
