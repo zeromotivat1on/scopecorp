@@ -57,20 +57,14 @@ void main() {
     vec3 phong;
 
     for (int i = 0; i < u_direct_light_count; ++i) {
-        phong += get_direct_light(normal, view_direction,
-                                  u_direct_light_directions[i], u_direct_light_ambients[i],
-                                  u_direct_light_diffuses[i], u_direct_light_speculars[i],
+        phong += get_direct_light(normal, view_direction, u_direct_lights[i],
                                   u_material.ambient, u_material.diffuse,
                                   u_material.specular, u_material.shininess);
     }
 
     for (int i = 0; i < u_point_light_count; ++i) {
-        phong += get_point_light(normal, view_direction, f_pixel_world_location,
-                                 u_point_light_locations[i], u_point_light_ambients[i],
-                                 u_point_light_diffuses[i], u_point_light_speculars[i],
-                                 u_point_light_attenuation_constants[i],
-                                 u_point_light_attenuation_linears[i],
-                                 u_point_light_attenuation_quadratics[i],
+        phong += get_point_light(normal, view_direction,
+                                 f_pixel_world_location, u_point_lights[i],
                                  u_material.ambient, u_material.diffuse,
                                  u_material.specular, u_material.shininess);
     }

@@ -156,9 +156,9 @@ s32 main() {
         R_eid_alloc_range = r_alloc(R_vertex_map_range, MB(1));
 #endif
     }
-    
-    r_create_table(R_table);
+
     r_init_global_uniforms();
+    r_create_table(R_table);
     defer { r_destroy_table(R_table); };
     
     au_init_context();

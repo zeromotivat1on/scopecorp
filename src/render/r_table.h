@@ -2,6 +2,8 @@
 
 #include "sparse.h"
 
+#include "render/r_light.h"
+
 struct R_Target;
 struct R_Pass;
 struct R_Texture;
@@ -39,6 +41,9 @@ struct R_Table {
 
     Sparse<R_Flip_Book> flip_books;
 
+    R_Direct_Light_Uniform_Block direct_light_block;
+    R_Point_Light_Uniform_Block  point_light_block;
+    
     struct { void *data = null; u32 size = 0; u32 capacity = 0; } uniform_value_cache;
 };
 

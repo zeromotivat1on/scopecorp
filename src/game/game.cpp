@@ -274,8 +274,8 @@ void tick_game(f32 dt) {
         }
     }
 
-    r_set_uniform_block_value(&uniform_block_direct_lights, 0, 0, &World.direct_lights.count, r_uniform_type_size_gpu_aligned(R_U32));
-    r_set_uniform_block_value(&uniform_block_point_lights, 0, 0, &World.point_lights.count, r_uniform_type_size_gpu_aligned(R_U32));
+    //r_set_uniform_block_value(&uniform_block_direct_lights, 0, 0, &World.direct_lights.count, r_uniform_type_size_gpu_aligned(R_U32));
+    //r_set_uniform_block_value(&uniform_block_point_lights, 0, 0, &World.point_lights.count, r_uniform_type_size_gpu_aligned(R_U32));
 
     TM_PUSH_ZONE("direct_lights");
     For (World.direct_lights) {
@@ -284,16 +284,17 @@ void tick_game(f32 dt) {
         aabb.min = it.location - half_extent;
         aabb.max = it.location + half_extent;
 
-        const vec3 light_direction = forward(it.rotation);
+        U_Direct_Light light;
+        light.direction = forward(it.rotation);
+        light.ambient   = it.ambient;
+        light.diffuse   = it.diffuse;
+        light.specular  = it.specular;
 
-        // @Speed: its a bit painful to see several set calls instead of just one.
-        // @Cleanup: figure out to make it cleaner, maybe get rid of field index parameters;
-        // 0 field index is light count, so skipped.
-        r_set_uniform_block_value(&uniform_block_direct_lights, 1, it.u_light_index, &light_direction, r_uniform_type_size_gpu_aligned(R_F32_3));
-        r_set_uniform_block_value(&uniform_block_direct_lights, 2, it.u_light_index, &it.ambient, r_uniform_type_size_gpu_aligned(R_F32_3));
-        r_set_uniform_block_value(&uniform_block_direct_lights, 3, it.u_light_index, &it.diffuse, r_uniform_type_size_gpu_aligned(R_F32_3));
-        r_set_uniform_block_value(&uniform_block_direct_lights, 4, it.u_light_index, &it.specular, r_uniform_type_size_gpu_aligned(R_F32_3));
+        r_add(R_table.direct_light_block, light);
     }
+
+    // @Cleanup: at some point we may need to submit on demand, oppose to immediate.
+    r_submit(R_table.direct_light_block);
     TM_POP_ZONE();
 
     TM_PUSH_ZONE("point_lights");
@@ -303,21 +304,19 @@ void tick_game(f32 dt) {
         aabb.min = it.location - half_extent;
         aabb.max = it.location + half_extent;
 
-        const vec3 light_direction = vec3_zero;
+        U_Point_Light light;
+        light.location = it.location;
+        light.ambient  = it.ambient;
+        light.diffuse  = it.diffuse;
+        light.specular = it.specular;
+        light.attenuation_constant  = it.attenuation_constant;
+        light.attenuation_linear    = it.attenuation_linear;
+        light.attenuation_quadratic = it.attenuation_quadratic;
         
-        // @Speed: its a bit painful to see several set calls instead of just one.
-        // @Cleanup: figure out to make it cleaner, maybe get rid of field index parameters;
-        // 0 field index is light count, so skipped.
-        r_set_uniform_block_value(&uniform_block_point_lights, 1, it.u_light_index, &it.location, r_uniform_type_size_gpu_aligned(R_F32_3));
-
-        r_set_uniform_block_value(&uniform_block_point_lights, 2, it.u_light_index, &it.ambient, r_uniform_type_size_gpu_aligned(R_F32_3));
-        r_set_uniform_block_value(&uniform_block_point_lights, 3, it.u_light_index, &it.diffuse, r_uniform_type_size_gpu_aligned(R_F32_3));
-        r_set_uniform_block_value(&uniform_block_point_lights, 4, it.u_light_index, &it.specular, r_uniform_type_size_gpu_aligned(R_F32_3));
-
-        r_set_uniform_block_value(&uniform_block_point_lights, 5, it.u_light_index, &it.attenuation.constant, r_uniform_type_size_gpu_aligned(R_F32));
-        r_set_uniform_block_value(&uniform_block_point_lights, 6, it.u_light_index, &it.attenuation.linear, r_uniform_type_size_gpu_aligned(R_F32));
-        r_set_uniform_block_value(&uniform_block_point_lights, 7, it.u_light_index, &it.attenuation.quadratic, r_uniform_type_size_gpu_aligned(R_F32));
+        r_add(R_table.point_light_block, light);
     }
+    // @Cleanup: at some point we may need to submit on demand, oppose to immediate.
+    r_submit(R_table.point_light_block);
     TM_POP_ZONE();
 
     TM_PUSH_ZONE("static_meshes");

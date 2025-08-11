@@ -1171,8 +1171,6 @@ void init_default_level(Game_World &w) {
         direct_light.ambient  = vec3(0.32f);
         direct_light.diffuse  = vec3_black;
         direct_light.specular = vec3_black;
-
-        direct_light.u_light_index = 0;
         
         auto &aabb = w.aabbs[direct_light.aabb_index];
 		aabb.min = direct_light.location - direct_light.scale * 0.5f;
@@ -1189,12 +1187,10 @@ void init_default_level(Game_World &w) {
         point_light.diffuse  = vec3(0.5f);
         point_light.specular = vec3(1.0f);
 
-        point_light.attenuation.constant  = 1.0f;
-        point_light.attenuation.linear    = 0.09f;
-        point_light.attenuation.quadratic = 0.032f;
-        
-        point_light.u_light_index = 0;
-        
+        point_light.attenuation_constant  = 1.0f;
+        point_light.attenuation_linear    = 0.09f;
+        point_light.attenuation_quadratic = 0.032f;
+                
         auto &aabb = w.aabbs[point_light.aabb_index];
 		aabb.min = point_light.location - point_light.scale * 0.5f;
 		aabb.max = aabb.min + point_light.scale;

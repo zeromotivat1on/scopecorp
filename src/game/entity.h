@@ -125,23 +125,14 @@ struct Direct_Light : Entity {
     vec3 ambient  = vec3_white;
     vec3 diffuse  = vec3_white;
     vec3 specular = vec3_white;
-
-    s32 u_light_index = INDEX_NONE; // index in Direct_Lights uniform block
 };
 
 REFLECT_BEGIN(Direct_Light)
 REFLECT_ENTITY_FIELDS
-REFLECT_FIELD(Direct_Light, ambient, FIELD_VEC3)
-REFLECT_FIELD(Direct_Light, diffuse, FIELD_VEC3)
+REFLECT_FIELD(Direct_Light, ambient,  FIELD_VEC3)
+REFLECT_FIELD(Direct_Light, diffuse,  FIELD_VEC3)
 REFLECT_FIELD(Direct_Light, specular, FIELD_VEC3)
-REFLECT_FIELD(Direct_Light, u_light_index, FIELD_S32)
 REFLECT_END(Direct_Light)
-
-struct Light_Attenuation {
-    f32 constant  = 0.0f;
-    f32 linear    = 0.0f;
-    f32 quadratic = 0.0f;
-};
 
 struct Point_Light : Entity {
     Point_Light() { type = E_POINT_LIGHT; }
@@ -149,21 +140,20 @@ struct Point_Light : Entity {
     vec3 ambient  = vec3_white;
     vec3 diffuse  = vec3_white;
     vec3 specular = vec3_white;
-
-    Light_Attenuation attenuation;
     
-    s32 u_light_index = INDEX_NONE; // index in Point_Lights uniform block
+    f32 attenuation_constant  = 0.0f;
+    f32 attenuation_linear    = 0.0f;
+    f32 attenuation_quadratic = 0.0f;
 };
 
 REFLECT_BEGIN(Point_Light)
 REFLECT_ENTITY_FIELDS
-REFLECT_FIELD(Point_Light, ambient, FIELD_VEC3)
-REFLECT_FIELD(Point_Light, diffuse, FIELD_VEC3)
+REFLECT_FIELD(Point_Light, ambient,  FIELD_VEC3)
+REFLECT_FIELD(Point_Light, diffuse,  FIELD_VEC3)
 REFLECT_FIELD(Point_Light, specular, FIELD_VEC3)
-REFLECT_FIELD(Point_Light, attenuation.constant, FIELD_F32)
-REFLECT_FIELD(Point_Light, attenuation.linear, FIELD_F32)
-REFLECT_FIELD(Point_Light, attenuation.quadratic, FIELD_F32)
-REFLECT_FIELD(Point_Light, u_light_index, FIELD_S32)
+REFLECT_FIELD(Point_Light, attenuation_constant,  FIELD_F32)
+REFLECT_FIELD(Point_Light, attenuation_linear,    FIELD_F32)
+REFLECT_FIELD(Point_Light, attenuation_quadratic, FIELD_F32)
 REFLECT_END(Point_Light)
 
 struct Sound_Emitter_2D : Entity {

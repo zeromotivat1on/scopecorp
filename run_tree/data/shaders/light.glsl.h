@@ -1,64 +1,69 @@
-#define MAX_DIRECT_LIGHTS 4  // must be the same as in game code
-#define MAX_POINT_LIGHTS  32 // must be the same as in game code
+struct Direct_Light {
+    vec3 direction;
+
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+};
+
+struct Point_Light {
+    vec3 location;
+
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+
+    float attenuation_constant;
+    float attenuation_linear;
+    float attenuation_quadratic;
+};
 
 layout (std140) uniform Direct_Lights {
+    #define MAX_DIRECT_LIGHTS 4  // must be the same as in game code
+
     uint u_direct_light_count;
-    
-    vec3 u_direct_light_directions[MAX_DIRECT_LIGHTS];
-    
-    vec3 u_direct_light_ambients [MAX_DIRECT_LIGHTS];
-    vec3 u_direct_light_diffuses [MAX_DIRECT_LIGHTS];
-    vec3 u_direct_light_speculars[MAX_DIRECT_LIGHTS];
+    Direct_Light u_direct_lights[MAX_DIRECT_LIGHTS];
 };
 
 layout (std140) uniform Point_Lights {
-    uint u_point_light_count;
-    
-    vec3 u_point_light_locations[MAX_POINT_LIGHTS];
-    
-    vec3 u_point_light_ambients [MAX_POINT_LIGHTS];
-    vec3 u_point_light_diffuses [MAX_POINT_LIGHTS];
-    vec3 u_point_light_speculars[MAX_POINT_LIGHTS];
+    #define MAX_POINT_LIGHTS  32 // must be the same as in game code
 
-    float u_point_light_attenuation_constants [MAX_POINT_LIGHTS];
-    float u_point_light_attenuation_linears   [MAX_POINT_LIGHTS];
-    float u_point_light_attenuation_quadratics[MAX_POINT_LIGHTS];
+    uint u_point_light_count;
+    Point_Light u_point_lights[MAX_POINT_LIGHTS];
 };
 
-vec3 get_direct_light(vec3 normal, vec3 view_direction,
-                      vec3 l_direction, vec3 l_ambient, vec3 l_diffuse, vec3 l_specular,
+vec3 get_direct_light(vec3 normal, vec3 view_direction, Direct_Light light,
                       vec3 m_ambient, vec3 m_diffuse, vec3 m_specular, float m_shininess) {
-    l_direction = normalize(-l_direction);
+    light.direction = normalize(-light.direction);
 
-    const vec3 ambient = l_ambient * m_ambient;
+    const vec3 ambient = light.ambient * m_ambient;
     
-    const float diffuse_factor = max(dot(normal, l_direction), 0.0);
-    const vec3 diffuse = l_diffuse * diffuse_factor * m_diffuse;
+    const float diffuse_factor = max(dot(normal, light.direction), 0.0);
+    const vec3 diffuse = light.diffuse * diffuse_factor * m_diffuse;
     
-    const vec3 l_reflected_direction = reflect(-l_direction, normal);
-    const float specular_factor = pow(max(dot(view_direction, l_reflected_direction), 0.0f), m_shininess);
-    const vec3 specular = l_specular * specular_factor * m_specular;
+    const vec3 reflected_direction = reflect(-light.direction, normal);
+    const float specular_factor = pow(max(dot(view_direction, reflected_direction), 0.0f), m_shininess);
+    const vec3 specular = light.specular * specular_factor * m_specular;
 
     return ambient + diffuse + specular;
 }
 
-vec3 get_point_light(vec3 normal, vec3 view_direction, vec3 pixel_world_location,
-                     vec3 l_location, vec3 l_ambient, vec3 l_diffuse, vec3 l_specular,
-                     float l_att_constant, float l_att_linear, float l_att_quadratic,
+vec3 get_point_light(vec3 normal, vec3 view_direction,
+                     vec3 pixel_world_location, Point_Light light,
                      vec3 m_ambient, vec3 m_diffuse, vec3 m_specular, float m_shininess) {
-    const vec3 l_direction = normalize(l_location - pixel_world_location);
+    const vec3 light_direction = normalize(light.location - pixel_world_location);
 
-    vec3 ambient = l_ambient * m_ambient;
+    vec3 ambient = light.ambient * m_ambient;
 
-    const float diffuse_factor = max(dot(normal, l_direction), 0.0f);
-    vec3 diffuse = l_diffuse * (diffuse_factor * m_diffuse);
+    const float diffuse_factor = max(dot(normal, light_direction), 0.0f);
+    vec3 diffuse = light.diffuse * (diffuse_factor * m_diffuse);
 
-    const vec3 l_reflected_direction = reflect(-l_direction, normal);
-    const float specular_factor = pow(max(dot(view_direction, l_reflected_direction), 0.0f), m_shininess);
-    vec3 specular = l_specular * specular_factor * m_specular;
+    const vec3 reflected_direction = reflect(-light_direction, normal);
+    const float specular_factor = pow(max(dot(view_direction, reflected_direction), 0.0f), m_shininess);
+    vec3 specular = light.specular * specular_factor * m_specular;
 
-    const float distance = length(l_location - pixel_world_location);
-    const float attenuation = 1.0f / (l_att_constant + l_att_linear * distance + l_att_quadratic * distance * distance);
+    const float distance = length(light.location - pixel_world_location);
+    const float attenuation = 1.0f / (light.attenuation_constant + light.attenuation_linear * distance + light.attenuation_quadratic * distance * distance);
 
     ambient  *= attenuation;
     diffuse  *= attenuation;
