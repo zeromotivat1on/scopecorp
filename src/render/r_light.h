@@ -21,7 +21,7 @@ struct alignas(16) U_Point_Light {
 };
 
 struct R_Direct_Light_Uniform_Block {
-    static constexpr String NAME = S("Direct_Lights");
+    static constexpr String NAME = UNIFORM_BLOCK_NAME_DIRECT_LIGHTS;
     static constexpr u32 BINDING = UNIFORM_BLOCK_BINDING_DIRECT_LIGHTS;
     
     u32 count = 0;
@@ -31,7 +31,7 @@ struct R_Direct_Light_Uniform_Block {
 };
 
 struct R_Point_Light_Uniform_Block {
-    static constexpr String NAME = S("Point_Lights");
+    static constexpr String NAME = UNIFORM_BLOCK_NAME_POINT_LIGHTS;
     static constexpr u32 BINDING = UNIFORM_BLOCK_BINDING_POINT_LIGHTS;
     
     u32 count = 0;

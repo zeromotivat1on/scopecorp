@@ -752,7 +752,7 @@ static void r_create_gl_shader(String s, R_Shader &sh) {
         // Set or update uniform block bindings.
         Assert(COUNT(UNIFORM_BLOCK_NAMES) == COUNT(UNIFORM_BLOCK_BINDINGS));
         for (s32 i = 0; i < COUNT(UNIFORM_BLOCK_NAMES); ++i) {
-            const u32 index = glGetUniformBlockIndex(sh.rid, UNIFORM_BLOCK_NAMES[i]);
+            const u32 index = glGetUniformBlockIndex(sh.rid, UNIFORM_BLOCK_NAMES[i].value);
             if (index != GL_INVALID_INDEX) {
                 glUniformBlockBinding(sh.rid, index, UNIFORM_BLOCK_BINDINGS[i]);
             }   
@@ -863,7 +863,7 @@ rid r_create_uniform_buffer(u32 size) {
     return rid;
 }
 
-void r_add_uniform_block(rid rid_uniform_buffer, s32 shader_binding, const char *name, const Uniform_Block_Field *fields, s32 field_count, Uniform_Block *block) {
+void r_add_uniform_block(rid rid_uniform_buffer, s32 shader_binding, String name, const Uniform_Block_Field *fields, s32 field_count, Uniform_Block &block) {
     const u32 size = get_uniform_block_size_gpu_aligned(fields, field_count);
     const u32 offset = UNIFORM_BUFFER_SIZE;
 
@@ -872,24 +872,23 @@ void r_add_uniform_block(rid rid_uniform_buffer, s32 shader_binding, const char 
     Assert(UNIFORM_BUFFER_SIZE <= MAX_UNIFORM_BUFFER_SIZE);
     
     glBindBufferRange(GL_UNIFORM_BUFFER, shader_binding, rid_uniform_buffer, offset, size);
-
-    block->rid_uniform_buffer = rid_uniform_buffer;
-    block->name = name;
-    mem_copy(block->fields, fields, field_count * sizeof(Uniform_Block_Field));
-    block->field_count = field_count;
-    block->shader_binding = shader_binding;
-    block->offset = offset;
-    block->size = size;
+    
+    block.name = name;
+    mem_copy(block.fields, fields, field_count * sizeof(fields[0]));
+    block.field_count = field_count;
+    block.shader_binding = shader_binding;
+    block.offset = offset;
+    block.size = size;
 }
 
-void r_set_uniform_block_value(Uniform_Block *block, s32 field_index, s32 field_element_index, const void *data, u32 size) {
+void r_set_uniform_block_value(Uniform_Block &block, s32 field_index, s32 field_element_index, u32 size, const void *data) {
     const u32 field_offset = r_uniform_block_field_offset_gpu_aligned(block, field_index, field_element_index);
-    r_set_uniform_block_value(block, field_offset, data, size);
+    r_set_uniform_block_value(block, field_offset, size, data);
 }
 
-void r_set_uniform_block_value(Uniform_Block *block, u32 offset, const void *data, u32 size) {
-    Assert(offset + size <= block->size);
-    glNamedBufferSubData(block->rid_uniform_buffer, block->offset + offset, size, data);
+void r_set_uniform_block_value(Uniform_Block &block, u32 offset, u32 size, const void *data) {
+    Assert(offset + size <= block.size);
+    glNamedBufferSubData(RID_UNIFORM_BUFFER, block.offset + offset, size, data);
 }
 
 u32 r_uniform_block_field_size_gpu_aligned(const Uniform_Block_Field &field) {
@@ -900,10 +899,10 @@ u32 r_uniform_block_field_size_gpu_aligned(const Uniform_Block_Field &field) {
     return r_uniform_type_size_gpu_aligned(R_F32_4) * field.count;
 }
 
-u32 r_uniform_block_field_offset_gpu_aligned(Uniform_Block *block, s32 field_index, s32 field_element_index) {
-    Assert(field_index < block->field_count);
-    Assert(field_element_index < block->fields[field_index].count);
-    return r_uniform_block_field_offset_gpu_aligned(block->fields, field_index, field_element_index);
+u32 r_uniform_block_field_offset_gpu_aligned(Uniform_Block &block, s32 field_index, s32 field_element_index) {
+    Assert(field_index < block.field_count);
+    Assert(field_element_index < block.fields[field_index].count);
+    return r_uniform_block_field_offset_gpu_aligned(block.fields, field_index, field_element_index);
 }
 
 static s32 to_gl_format(u32 format) {

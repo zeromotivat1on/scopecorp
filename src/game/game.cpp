@@ -38,8 +38,8 @@ void on_window_resize(u16 width, u16 height) {
     R_viewport.orthographic_projection = mat4_orthographic(0, R_viewport.width, 0, R_viewport.height, -1, 1);
 
     const vec2 viewport_resolution = vec2(R_viewport.width, R_viewport.height);
-    r_set_uniform_block_value(&uniform_block_viewport, 0, 0, &viewport_resolution, r_uniform_type_size_gpu_aligned(R_F32_2));        
-    r_set_uniform_block_value(&uniform_block_viewport, 1, 0, &R_viewport.orthographic_projection, r_uniform_type_size_gpu_aligned(R_F32_4X4));        
+    r_set_uniform_block_value(uniform_block_viewport, 0, 0, r_uniform_type_size_gpu_aligned(R_F32_2), &viewport_resolution);
+    r_set_uniform_block_value(uniform_block_viewport, 1, 0, r_uniform_type_size_gpu_aligned(R_F32_4X4), &R_viewport.orthographic_projection);
         
     on_viewport_resize(World.camera, R_viewport);
     World.ed_camera.aspect = World.camera.aspect;
@@ -253,10 +253,10 @@ void tick_game(f32 dt) {
 
     update_matrices(camera);
 
-    r_set_uniform_block_value(&uniform_block_camera, 0, 0, &camera.eye,       r_uniform_type_size_gpu_aligned(R_F32_3));
-    r_set_uniform_block_value(&uniform_block_camera, 1, 0, &camera.view,      r_uniform_type_size_gpu_aligned(R_F32_4X4));
-    r_set_uniform_block_value(&uniform_block_camera, 2, 0, &camera.proj,      r_uniform_type_size_gpu_aligned(R_F32_4X4));
-    r_set_uniform_block_value(&uniform_block_camera, 3, 0, &camera.view_proj, r_uniform_type_size_gpu_aligned(R_F32_4X4));
+    r_set_uniform_block_value(uniform_block_camera, 0, 0, r_uniform_type_size_gpu_aligned(R_F32_3), &camera.eye);
+    r_set_uniform_block_value(uniform_block_camera, 1, 0, r_uniform_type_size_gpu_aligned(R_F32_4X4), &camera.view);
+    r_set_uniform_block_value(uniform_block_camera, 2, 0, r_uniform_type_size_gpu_aligned(R_F32_4X4), &camera.proj);
+    r_set_uniform_block_value(uniform_block_camera, 3, 0, r_uniform_type_size_gpu_aligned(R_F32_4X4), &camera.view_proj);
 
     {   // Update skybox.
         auto &aabb = World.aabbs[skybox.aabb_index];

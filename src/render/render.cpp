@@ -76,10 +76,7 @@ void r_destroy_table(R_Table &t) {
 
 void r_init_global_uniforms() {
     RID_UNIFORM_BUFFER = r_create_uniform_buffer(MAX_UNIFORM_BUFFER_SIZE);
-        
-    constexpr u32 MAX_UNIFORM_LIGHTS = 64; // must be the same as in shaders
-    static_assert(MAX_UNIFORM_LIGHTS >= World.MAX_POINT_LIGHTS + World.MAX_DIRECT_LIGHTS);
-
+    
     const Uniform_Block_Field camera_fields[] = {
         { R_F32_3,   1 },
         { R_F32_4X4, 1 },
@@ -91,51 +88,18 @@ void r_init_global_uniforms() {
         { R_F32_2,   1 },
         { R_F32_4X4, 1 },
     };
-         
-    const Uniform_Block_Field direct_light_fields[] = {
-        { R_U32,   1 },
-        { R_F32_3, World.MAX_DIRECT_LIGHTS },
-        { R_F32_3, World.MAX_DIRECT_LIGHTS },
-        { R_F32_3, World.MAX_DIRECT_LIGHTS },
-        { R_F32_3, World.MAX_DIRECT_LIGHTS },
-    };
-
-    const Uniform_Block_Field point_light_fields[] = {
-        { R_U32,   1 },
-        { R_F32_3, World.MAX_POINT_LIGHTS },
-        { R_F32_3, World.MAX_POINT_LIGHTS },
-        { R_F32_3, World.MAX_POINT_LIGHTS },
-        { R_F32_3, World.MAX_POINT_LIGHTS },
-        { R_F32,   World.MAX_POINT_LIGHTS },
-        { R_F32,   World.MAX_POINT_LIGHTS },
-        { R_F32,   World.MAX_POINT_LIGHTS },
-    };
-
+    
     r_add_uniform_block(RID_UNIFORM_BUFFER,
                         UNIFORM_BLOCK_BINDING_CAMERA,
                         UNIFORM_BLOCK_NAME_CAMERA,
                         camera_fields, COUNT(camera_fields),
-                        &uniform_block_camera);
+                        uniform_block_camera);
 
     r_add_uniform_block(RID_UNIFORM_BUFFER,
                         UNIFORM_BLOCK_BINDING_VIEWPORT,
                         UNIFORM_BLOCK_NAME_VIEWPORT,
                         viewport_fields, COUNT(viewport_fields),
-                        &uniform_block_viewport);
-
-    /*
-    r_add_uniform_block(RID_UNIFORM_BUFFER,
-                        UNIFORM_BLOCK_BINDING_DIRECT_LIGHTS,
-                        UNIFORM_BLOCK_NAME_DIRECT_LIGHTS,
-                        direct_light_fields, COUNT(direct_light_fields),
-                        &uniform_block_direct_lights);
-    
-    r_add_uniform_block(RID_UNIFORM_BUFFER,
-                        UNIFORM_BLOCK_BINDING_POINT_LIGHTS,
-                        UNIFORM_BLOCK_NAME_POINT_LIGHTS,
-                        point_light_fields, COUNT(point_light_fields),
-                        &uniform_block_point_lights);
-    */
+                        uniform_block_viewport);
 }
 
 void r_resize_viewport(R_Viewport &viewport, u16 width, u16 height) {
@@ -682,8 +646,8 @@ void r_create(R_Direct_Light_Uniform_Block &ub) {
         { R_F32_3, World.MAX_DIRECT_LIGHTS },
     };
 
-    r_add_uniform_block(RID_UNIFORM_BUFFER, ub.BINDING, ub.NAME.value,
-                        fields, COUNT(fields), &ub.block);
+    r_add_uniform_block(RID_UNIFORM_BUFFER, ub.BINDING, ub.NAME,
+                        fields, COUNT(fields), ub.block);
 }
 
 void r_create(R_Point_Light_Uniform_Block &ub) {
@@ -701,8 +665,8 @@ void r_create(R_Point_Light_Uniform_Block &ub) {
         { R_F32,   World.MAX_POINT_LIGHTS },
     };
 
-    r_add_uniform_block(RID_UNIFORM_BUFFER, ub.BINDING, ub.NAME.value,
-                        fields, COUNT(fields), &ub.block);
+    r_add_uniform_block(RID_UNIFORM_BUFFER, ub.BINDING, ub.NAME,
+                        fields, COUNT(fields), ub.block);
 }
 
 void r_add(R_Direct_Light_Uniform_Block &ub, const U_Direct_Light &light) {
@@ -720,14 +684,14 @@ void r_add(R_Point_Light_Uniform_Block &ub, const U_Point_Light &light) {
 }
 
 void r_submit(R_Direct_Light_Uniform_Block &ub) {
-    r_set_uniform_block_value(&ub.block, 0,  &ub.count, sizeof(ub.count));
-    r_set_uniform_block_value(&ub.block, 16, ub.lights, ub.count * sizeof(ub.lights[0]));
+    r_set_uniform_block_value(ub.block, 0,  _sizeref(ub.count));
+    r_set_uniform_block_value(ub.block, 16, ub.count * sizeof(ub.lights[0]), ub.lights);
     ub.count = 0;
 }
 
 void r_submit(R_Point_Light_Uniform_Block &ub) {
-    r_set_uniform_block_value(&ub.block, 0,  &ub.count, sizeof(ub.count));
-    r_set_uniform_block_value(&ub.block, 16, ub.lights, ub.count * sizeof(ub.lights[0]));
+    r_set_uniform_block_value(ub.block, 0,  _sizeref(ub.count));
+    r_set_uniform_block_value(ub.block, 16, ub.count * sizeof(ub.lights[0]), ub.lights);
     ub.count = 0;
 }
 
