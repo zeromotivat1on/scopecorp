@@ -534,11 +534,11 @@ mat4 mat4_perspective(f32 rfovy, f32 aspect, f32 n, f32 f) {
 	const f32 tan_half_fovy = Tan(rfovy * 0.5f);
 
 	mat4 a;
-	a[0][0] = 1.0f / (aspect * tan_half_fovy);	// x-axis scaling
-	a[1][1] = 1.0f / tan_half_fovy;			// y-axis scaling
-	a[2][2] = -(f + n) / (f - n);				// z-axis scaling
-	a[2][3] = -1.0f;							// rh perspective divide
-	a[3][2] = -(2.0f * f * n) / (f - n);		// z-axis translation
+	a[0][0] = 1.0f / (aspect * tan_half_fovy); // x-axis scaling
+	a[1][1] = 1.0f / tan_half_fovy;			   // y-axis scaling
+	a[2][2] = -(f + n) / (f - n);			   // z-axis scaling
+	a[2][3] = -1.0f;						   // rh perspective divide
+	a[3][2] = -(2.0f * f * n) / (f - n);	   // z-axis translation
 
 	return a;
 }

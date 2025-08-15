@@ -180,7 +180,7 @@ s32 main() {
         
     R_viewport.aspect_type = VIEWPORT_4X3;
     R_viewport.resolution_scale = 1.0f;
-    R_viewport.quantize_color_count = 32;
+    R_viewport.quantize_color_count = 256;
 
     const u16 cformats[] = { R_RGB_8, R_RED_32 };
     R_viewport.render_target = r_create_render_target(Main_window.width, Main_window.height,
@@ -246,10 +246,12 @@ s32 main() {
         tick_editor(Delta_time);
         
         draw_world(World);
-        
-        //ui_world_line(World.player.location,
-        //            World.player.location + normalize(World.player.velocity) * 1.0f,
-        //            rgba_red);
+
+        //editor_report("%s", to_string(World.player.velocity));
+        ui_world_line(vec3_zero, vec3_zero + vec3(0.5f, 0.0f, 0.0f), rgba_red);
+        // ui_world_line(World.player.location,
+        //               World.player.location + normalize(World.player.velocity) * 1.0f,
+        //               rgba_red);
 
 #if DEVELOPER
         r_geo_debug();

@@ -70,7 +70,7 @@ struct Player : Entity {
     f32 move_speed      = 3.0f;
     f32 ed_camera_speed = 4.0f;
     
-    f32 mouse_sensitivity = 32.0f;
+    f32 mouse_sensitivity = 16.0f;
     
     vec3 camera_offset       = vec3(0.0f, 1.0f, -3.0f);
     vec3 camera_dead_zone    = vec3(1.0f, 1.0f, 1.0f);

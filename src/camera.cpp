@@ -29,22 +29,11 @@ void on_viewport_resize(Camera &c, const R_Viewport &vp) {
 
 // @Todo: fix world_to_screen convertion.
 #include "editor/editor.h"
-vec2 world_to_screen(const Rect &rect, const mat4 &view_proj, vec3 loc, bool report) {
+vec2 world_to_screen(const Rect &rect, const mat4 &view_proj, vec3 loc) {
     const vec4 clip = view_proj * vec4(loc, 1.0f);
-
-    if (Abs(clip.x) > clip.w || Abs(clip.y) > clip.w || Abs(clip.z) > clip.w) {
-        return vec2_zero;
-    }
-    
     const vec3 ndc = clip.xyz / clip.w;
-    const vec2 pos = vec2(rect.x + ((ndc.x + 1.0f) * 0.5f * rect.w),
-                          rect.y + ((ndc.y + 1.0f) * 0.5f * rect.h));
-
-    if (report) {
-        editor_report("loc %s, clip %s, ndc %s, pos %s",
-                      to_string(loc), to_string(clip), to_string(ndc), to_string(pos));
-    }
-    
+    const vec2 pos = vec2((ndc.x + 1.0f) * 0.5f * rect.w,
+                          (ndc.y + 1.0f) * 0.5f * rect.h);
     return pos;
 }
 
