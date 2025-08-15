@@ -19,6 +19,109 @@ static const char *DECL_END_VERTEX   = "#end vertex";
 static const char *DECL_BEGIN_FRAGMENT = "#begin fragment";
 static const char *DECL_END_FRAGMENT   = "#end fragment";
 
+// Slang stuff to do.
+/*
+#include "slang/slang.h"
+#include "slang/slang-com-ptr.h"
+
+static Slang::ComPtr<slang::IGlobalSession> Global_session;
+static Slang::ComPtr<slang::ISession>       Local_session;
+
+void r_init_shader_compiler() {
+    slang::createGlobalSession(Global_session.writeRef());
+
+    slang::TargetDesc target_desc = {};    
+    target_desc.format = SLANG_SPIRV;
+    target_desc.profile = Global_session->findProfile("spirv_1_5");
+    target_desc.flags = 0;
+
+    slang::SessionDesc session_desc = {};
+    session_desc.targets = &target_desc;
+    session_desc.targetCount = 1;
+    session_desc.compilerOptionEntryCount = 0;
+
+    Global_session->createSession(session_desc, Local_session.writeRef());
+}
+
+void r_destroy_shader_compiler() {
+    
+}
+
+Buffer r_compile_shader(Arena &a, String path) {
+    char cpath[MAX_PATH_LENGTH];
+    str_c(path, COUNT(cpath), cpath);
+    
+    Slang::ComPtr<slang::IBlob> diagnostics;
+    auto *module = Local_session->loadModule(cpath, diagnostics.writeRef());
+
+    if (diagnostics) {
+        log("Slang diagnostic after module load: %s", (const char *)diagnostics->getBufferPointer());
+    }
+    
+    if (!module) {
+        error("Failed to load shader module %s", cpath);        
+        return BUFFER_NONE;
+    }
+
+    constexpr String name = S("vertex_main");
+    Slang::ComPtr<slang::IEntryPoint> entry_point;
+    module->findEntryPointByName(name.value, entry_point.writeRef());
+
+    if (!entry_point) {
+        error("Failed to find entry point %s in shader %s", name.value, cpath);
+        return BUFFER_NONE;
+    }
+    
+    slang::IComponentType *components[] = { module, entry_point };
+    Slang::ComPtr<slang::IComponentType> program;
+    Local_session->createCompositeComponentType(components, COUNT(components), program.writeRef());
+
+    if (!program) {
+        error("Failed to create shader program from %s", cpath);
+        return BUFFER_NONE;
+    }
+    
+    Slang::ComPtr<slang::IComponentType> linked_program;
+    program->link(linked_program.writeRef(), diagnostics.writeRef());
+
+    if (diagnostics) {
+        log("Slang diagnostic after program link: %s", (const char *)diagnostics->getBufferPointer());
+    }
+
+    if (!linked_program) {
+        error("Failed to link shader program from %s", cpath);
+        return BUFFER_NONE;
+    }
+
+    s32 entry_point_index = 0; // only one entry point
+    s32 target_index      = 0; // only one target
+    Slang::ComPtr<slang::IBlob> kernel_blob;
+    linked_program->getEntryPointCode(entry_point_index, target_index,
+                                      kernel_blob.writeRef(), diagnostics.writeRef());
+    
+    if (diagnostics) {
+        log("Slang diagnostic after compiled code retreival: %s", (const char *)diagnostics->getBufferPointer());
+    }
+
+    if (!kernel_blob) {
+        error("Failed to get compiled shader code from %s", cpath);
+        return BUFFER_NONE;
+    }
+
+    // According to docs, slang caches all data in session object, so we don't
+    // necessary need to push binary to arena, but we just want to store all
+    // data used by the engine in our own memory storages.
+    
+    Buffer r;
+    r.size = kernel_blob->getBufferSize();
+    r.data = (u8 *)push(a, r.size);
+    
+    mem_copy(r.data, kernel_blob->getBufferPointer(), r.size);
+
+    return r;
+}
+*/
+
 static inline const char *get_shader_region_begin_decl(Shader_Region_Type type) {
     switch (type) {
     case REGION_VERTEX:   return DECL_BEGIN_VERTEX;
