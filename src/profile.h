@@ -5,7 +5,7 @@
 
 enum Input_Key : u8;
 
-extern Input_Key KEY_SWITCH_RUNTIME_PROFILER;
+extern Input_Key KEY_SWITCH_TELEMETRY;
 extern Input_Key KEY_SWITCH_MEMORY_PROFILER;
 
 #define SCOPE_TIMER_NAME(name) CONCAT(_st_, name)

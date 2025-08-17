@@ -6,7 +6,7 @@
 #define DBGC_CMD_LEVEL S("level")
 
 enum Input_Key : u8;
-extern Input_Key KEY_SWITCH_DEBUG_CONSOLE;
+extern Input_Key KEY_SWITCH_CONSOLE;
 
 struct Window_Event;
 

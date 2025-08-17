@@ -42,13 +42,13 @@
 #include "stb_image.h"
 #include "stb_sprintf.h"
 
-Input_Key KEY_CLOSE_WINDOW            = KEY_ESCAPE;
-Input_Key KEY_SWITCH_EDITOR_MODE      = KEY_F11;
-Input_Key KEY_SWITCH_POLYGON_MODE     = KEY_F1;
-Input_Key KEY_SWITCH_COLLISION_VIEW   = KEY_F2;
-Input_Key KEY_SWITCH_DEBUG_CONSOLE    = KEY_GRAVE_ACCENT;
-Input_Key KEY_SWITCH_RUNTIME_PROFILER = KEY_F5;
-Input_Key KEY_SWITCH_MEMORY_PROFILER  = KEY_F6;
+Input_Key KEY_CLOSE_WINDOW           = KEY_ESCAPE;
+Input_Key KEY_SWITCH_EDITOR_MODE     = KEY_F11;
+Input_Key KEY_SWITCH_POLYGON_MODE    = KEY_F1;
+Input_Key KEY_SWITCH_COLLISION_VIEW  = KEY_F2;
+Input_Key KEY_SWITCH_CONSOLE         = KEY_GRAVE_ACCENT;
+Input_Key KEY_SWITCH_TELEMETRY       = KEY_F5;
+Input_Key KEY_SWITCH_MEMORY_PROFILER = KEY_F6;
 
 constexpr f32 EDITOR_REPORT_SHOW_TIME = 2.0f;
 constexpr f32 EDITOR_REPORT_FADE_TIME = 0.5f;
@@ -100,9 +100,9 @@ void on_input_editor(const Window_Event &event) {
     case WINDOW_EVENT_KEYBOARD: {
         if (press && key == KEY_CLOSE_WINDOW) {
             os_close_window(Main_window);
-        } else if (press && key == KEY_SWITCH_DEBUG_CONSOLE) {
+        } else if (press && key == KEY_SWITCH_CONSOLE) {
             console_open();
-        } else if (press && key == KEY_SWITCH_RUNTIME_PROFILER) {
+        } else if (press && key == KEY_SWITCH_TELEMETRY) {
             telemetry_open();
         } else if (press && key == KEY_SWITCH_MEMORY_PROFILER) {
             mprof_open();
@@ -922,7 +922,7 @@ void console_on_input(const Window_Event &event) {
     case WINDOW_EVENT_KEYBOARD: {
         if (press && key == KEY_CLOSE_WINDOW) {
             os_close_window(Main_window);
-        } else if (press && key == KEY_SWITCH_DEBUG_CONSOLE) {
+        } else if (press && key == KEY_SWITCH_CONSOLE) {
             console_close();
         } else if ((press || repeat) && key == KEY_UP) {
             console_scroll(1);
@@ -1234,7 +1234,7 @@ void telemetry_on_input(const Window_Event &event) {
     case WINDOW_EVENT_KEYBOARD: {
         if (press && key == KEY_CLOSE_WINDOW) {
             os_close_window(Main_window);
-        } else if (press && key == KEY_SWITCH_RUNTIME_PROFILER) {
+        } else if (press && key == KEY_SWITCH_TELEMETRY) {
             telemetry_close();
         } else if (press && key == KEY_P) {
             if (Tm_ctx.bits & TM_PAUSE_BIT) {

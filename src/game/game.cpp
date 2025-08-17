@@ -66,9 +66,9 @@ void on_input_game(const Window_Event &event) {
 	case WINDOW_EVENT_KEYBOARD: {
         if (press && key == KEY_CLOSE_WINDOW) {
             os_close_window(Main_window);
-        } else if (press && key == KEY_SWITCH_DEBUG_CONSOLE) {
+        } else if (press && key == KEY_SWITCH_CONSOLE) {
             console_open();
-        } else if (press && key == KEY_SWITCH_RUNTIME_PROFILER) {
+        } else if (press && key == KEY_SWITCH_TELEMETRY) {
             telemetry_open();
         } else if (press && key == KEY_SWITCH_MEMORY_PROFILER) {
             mprof_open();
