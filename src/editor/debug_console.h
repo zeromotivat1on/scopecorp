@@ -1,9 +1,9 @@
 #pragma once
 
-#define DBGC_UNKNOWN_CMD_WARNING "unknown command: "
+#define CONSOLE_UNKNOWN_CMD_WARNING "unknown command: "
 
-#define DBGC_CMD_CLEAR S("clear")
-#define DBGC_CMD_LEVEL S("level")
+#define CONSOLE_CMD_CLEAR S("clear")
+#define CONSOLE_CMD_LEVEL S("level")
 
 enum Input_Key : u8;
 extern Input_Key KEY_SWITCH_CONSOLE;

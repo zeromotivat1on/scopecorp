@@ -967,7 +967,7 @@ void console_on_input(const Window_Event &event) {
                 String token = str_token(sti);
                 
                 if (is_valid(token)) {
-                    if (str_equal(token, DBGC_CMD_CLEAR)) {
+                    if (str_equal(token, CONSOLE_CMD_CLEAR)) {
                         token = str_token(sti);
                         if (!is_valid(token)) {
                             history.value[0] = '\0';
@@ -977,7 +977,7 @@ void console_on_input(const Window_Event &event) {
                             str_build(scratch.arena, sb, "usage: clear\n");
                             console_add_to_history(str_build_finish(scratch.arena, sb));
                         }
-                    } else if (str_equal(token, DBGC_CMD_LEVEL)) {
+                    } else if (str_equal(token, CONSOLE_CMD_LEVEL)) {
                         token = str_token(sti);
                         if (is_valid(token)) {
                             Scratch scratch = local_scratch();
@@ -994,7 +994,7 @@ void console_on_input(const Window_Event &event) {
                             console_add_to_history(str_build_finish(scratch.arena, sb));
                         }
                     } else {
-                        str_build(scratch.arena, sb, DBGC_UNKNOWN_CMD_WARNING);
+                        str_build(scratch.arena, sb, CONSOLE_UNKNOWN_CMD_WARNING);
                         str_build(scratch.arena, sb, input);
                         str_build(scratch.arena, sb, "\n");
                         console_add_to_history(str_build_finish(scratch.arena, sb));
