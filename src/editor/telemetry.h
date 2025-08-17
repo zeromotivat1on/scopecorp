@@ -44,10 +44,10 @@ struct Tm_Context {
 
 struct Window_Event;
 
-void tm_init();
-void tm_open();
-void tm_close();
-void tm_draw();
-void tm_on_input(const Window_Event &event);
-void tm_push_zone(String name);
-void tm_pop_zone();
+void telemetry_init();
+void telemetry_open();
+void telemetry_close();
+void telemetry_draw();
+void telemetry_on_input(const Window_Event &event);
+void telemetry_push_zone(String name);
+void telemetry_pop_zone();

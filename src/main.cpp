@@ -85,7 +85,7 @@ s32 main() {
     defer { release(M_global); };
     defer { release(M_frame); };
 
-    tm_init();
+    telemetry_init();
     sid_init();
 
     sid_texture_player_idle[SOUTH] = SID_TEXTURE_PLAYER_IDLE_SOUTH;
@@ -102,11 +102,11 @@ s32 main() {
         Input_layer_editor.type = INPUT_LAYER_EDITOR;
         Input_layer_editor.on_input = on_input_editor;
 
-        Input_layer_dbgc.type = INPUT_LAYER_DBGC;
-        Input_layer_dbgc.on_input = dbgc_on_input;
+        Input_layer_console.type = INPUT_LAYER_CONSOLE;
+        Input_layer_console.on_input = console_on_input;
 
-        Input_layer_tm.type = INPUT_LAYER_TM;
-        Input_layer_tm.on_input = tm_on_input;
+        Input_layer_telemetry.type = INPUT_LAYER_TELEMETRY;
+        Input_layer_telemetry.on_input = telemetry_on_input;
 
         Input_layer_mprof.type = INPUT_LAYER_MPROF;
         Input_layer_mprof.on_input = mprof_on_input;
@@ -202,7 +202,7 @@ s32 main() {
     ui_init();
     r_geo_init();
 
-    dbgc_init();
+    console_init();
     
     // @Cleanup: just make it better.
     extern void r_init_frame_buffer_draw();
@@ -255,7 +255,7 @@ s32 main() {
 #if DEVELOPER
         r_geo_debug();
         draw_dev_stats();
-        dbgc_draw();
+        console_draw();
         mprof_draw();
 #endif
         
@@ -277,7 +277,7 @@ s32 main() {
 #if DEVELOPER
         // Queue telemetry profiler draw. We are doing it here, so
         // telemetry zones will be listed in order of push by default.
-        tm_draw();
+        telemetry_draw();
 #endif
         
         clear(M_frame);

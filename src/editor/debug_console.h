@@ -30,10 +30,10 @@ struct Debug_Console {
     bool is_open = false;
 };
 
-void dbgc_init();
-void dbgc_open();
-void dbgc_close();
-void dbgc_draw();
-void dbgc_add_to_history(String s);
-void dbgc_on_input(const Window_Event &event);
-void dbgc_on_viewport_resize(s16 width, s16 height);
+void console_init();
+void console_open();
+void console_close();
+void console_draw();
+void console_add_to_history(String s);
+void console_on_input(const Window_Event &event);
+void console_on_viewport_resize(s16 width, s16 height);

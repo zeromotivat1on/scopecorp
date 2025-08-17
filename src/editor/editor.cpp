@@ -101,9 +101,9 @@ void on_input_editor(const Window_Event &event) {
         if (press && key == KEY_CLOSE_WINDOW) {
             os_close_window(Main_window);
         } else if (press && key == KEY_SWITCH_DEBUG_CONSOLE) {
-            dbgc_open();
+            console_open();
         } else if (press && key == KEY_SWITCH_RUNTIME_PROFILER) {
-            tm_open();
+            telemetry_open();
         } else if (press && key == KEY_SWITCH_MEMORY_PROFILER) {
             mprof_open();
         } else if (press && key == KEY_SWITCH_EDITOR_MODE) {
@@ -728,48 +728,48 @@ void check_hot_reload(Hot_Reload_List &list) {
     list.reload_count = 0;
 }
 
-static Debug_Console Dbgc;
+static Debug_Console Console;
 
-void dbgc_init() {
-    Assert(!Dbgc.history.value);
-    Assert(!Dbgc.input.value);
+void console_init() {
+    Assert(!Console.history.value);
+    Assert(!Console.input.value);
     
     // @Cleanup: use own arena?
-    Dbgc.history.value = arena_push_array(M_global, Dbgc.MAX_HISTORY_SIZE, char);
-    Dbgc.input.value   = arena_push_array(M_global, Dbgc.MAX_INPUT_SIZE,   char);
+    Console.history.value = arena_push_array(M_global, Console.MAX_HISTORY_SIZE, char);
+    Console.input.value   = arena_push_array(M_global, Console.MAX_INPUT_SIZE,   char);
     
-    dbgc_on_viewport_resize(R_viewport.width, R_viewport.height);
+    console_on_viewport_resize(R_viewport.width, R_viewport.height);
 }
 
-void dbgc_open() {
-    Assert(!Dbgc.is_open);
+void console_open() {
+    Assert(!Console.is_open);
 
-    Dbgc.is_open = true;
+    Console.is_open = true;
 
-    push_input_layer(Input_layer_dbgc);
+    push_input_layer(Input_layer_console);
 }
 
-void dbgc_close() {
-    Assert(Dbgc.is_open);
+void console_close() {
+    Assert(Console.is_open);
     
-    Dbgc.cursor_blink_dt = 0.0f;
-    Dbgc.is_open = false;
+    Console.cursor_blink_dt = 0.0f;
+    Console.is_open = false;
     
     pop_input_layer();
 }
 
-void dbgc_draw() {
+void console_draw() {
     TM_SCOPE_ZONE(__FUNCTION__);
     
-    if (!Dbgc.is_open) return;
+    if (!Console.is_open) return;
     
-    auto &history = Dbgc.history;
-    auto &history_height = Dbgc.history_height;
-    auto &history_y = Dbgc.history_y;
-    auto &history_min_y = Dbgc.history_min_y;
-    auto &history_max_width = Dbgc.history_max_width;
-    auto &input = Dbgc.input;
-    auto &cursor_blink_dt = Dbgc.cursor_blink_dt;
+    auto &history = Console.history;
+    auto &history_height = Console.history_height;
+    auto &history_y = Console.history_y;
+    auto &history_min_y = Console.history_min_y;
+    auto &history_max_width = Console.history_max_width;
+    auto &input = Console.input;
+    auto &cursor_blink_dt = Console.cursor_blink_dt;
     
     const auto &atlas = R_ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
 
@@ -785,32 +785,32 @@ void dbgc_draw() {
 
     {   // History quad.
         
-        const vec2 p0 = vec2(Dbgc.MARGIN, Dbgc.MARGIN);
-        const vec2 p1 = vec2(R_viewport.width - Dbgc.MARGIN, R_viewport.height - Dbgc.MARGIN);
+        const vec2 p0 = vec2(Console.MARGIN, Console.MARGIN);
+        const vec2 p1 = vec2(R_viewport.width - Console.MARGIN, R_viewport.height - Console.MARGIN);
         const u32 color = rgba_pack(0, 0, 0, 200);
         ui_quad(p0, p1, color, QUAD_Z);
     }
 
     {   // Input quad.
-        const vec2 q0 = vec2(Dbgc.MARGIN, Dbgc.MARGIN);
-        const vec2 q1 = vec2(R_viewport.width - Dbgc.MARGIN,
-                             Dbgc.MARGIN + lower_case_height + 2 * Dbgc.PADDING);
+        const vec2 q0 = vec2(Console.MARGIN, Console.MARGIN);
+        const vec2 q1 = vec2(R_viewport.width - Console.MARGIN,
+                             Console.MARGIN + lower_case_height + 2 * Console.PADDING);
         const u32 color = rgba_pack(0, 0, 0, 200);
         ui_quad(q0, q1, color, QUAD_Z);
     }
 
     {   // Input text.
-        const vec2 pos = vec2(Dbgc.MARGIN + Dbgc.PADDING, Dbgc.MARGIN + Dbgc.PADDING);
+        const vec2 pos = vec2(Console.MARGIN + Console.PADDING, Console.MARGIN + Console.PADDING);
         const u32 color = rgba_white;
         ui_text(input, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
     }
 
     {   // History text.
-        const vec2 pos = vec2(Dbgc.MARGIN + Dbgc.PADDING,
-                              R_viewport.height - Dbgc.MARGIN - Dbgc.PADDING - ascent);
+        const vec2 pos = vec2(Console.MARGIN + Console.PADDING,
+                              R_viewport.height - Console.MARGIN - Console.PADDING - ascent);
         const u32 color = rgba_white;
         
-        const f32 max_height = R_viewport.height - 2 * Dbgc.MARGIN - 3 * Dbgc.PADDING;
+        const f32 max_height = R_viewport.height - 2 * Console.MARGIN - 3 * Console.PADDING;
 
         history_height = 0.0f;
         char *start = history.value;
@@ -824,8 +824,8 @@ void dbgc_draw() {
                 visible_height = 0.0f;
             } else {
                 draw_count += 1;
-                if (draw_count >= Dbgc.MAX_HISTORY_SIZE) {
-                    draw_count = Dbgc.MAX_HISTORY_SIZE;
+                if (draw_count >= Console.MAX_HISTORY_SIZE) {
+                    draw_count = Console.MAX_HISTORY_SIZE;
                     break;
                 }
             }
@@ -846,13 +846,13 @@ void dbgc_draw() {
     
     {   // Cursor quad.
         const s32 width_px = get_line_width_px(atlas, input);
-        const vec2 p0 = vec2(Dbgc.MARGIN + Dbgc.PADDING + width_px + 1,
-                             Dbgc.MARGIN + Dbgc.PADDING + descent);
+        const vec2 p0 = vec2(Console.MARGIN + Console.PADDING + width_px + 1,
+                             Console.MARGIN + Console.PADDING + descent);
         const vec2 p1 = vec2(p0.x + atlas.space_advance_width, p0.y + ascent - descent);
         u32 color = rgba_white;
 
-        if (cursor_blink_dt > Dbgc.CURSOR_BLINK_INTERVAL) {
-            if (cursor_blink_dt > 2 * Dbgc.CURSOR_BLINK_INTERVAL) {
+        if (cursor_blink_dt > Console.CURSOR_BLINK_INTERVAL) {
+            if (cursor_blink_dt > 2 * Console.CURSOR_BLINK_INTERVAL) {
                 cursor_blink_dt = 0.0f;
             } else {
                 color = 0;
@@ -863,13 +863,13 @@ void dbgc_draw() {
     }
 }
 
-void dbgc_add_to_history(String s) {
-    if (!Dbgc.history.value) {
+void console_add_to_history(String s) {
+    if (!Console.history.value) {
         return;
     }
 
-    auto &history = Dbgc.history;
-    auto &history_max_width = Dbgc.history_max_width;
+    auto &history = Console.history;
+    auto &history_max_width = Console.history_max_width;
 
     const auto &atlas = R_ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
 
@@ -878,7 +878,7 @@ void dbgc_add_to_history(String s) {
         const char c = s.value[i];
 
         // @Cleanup: make better history overflow handling.
-        if (history.length > Dbgc.MAX_HISTORY_SIZE) {
+        if (history.length > Console.MAX_HISTORY_SIZE) {
             history.length = 0;
         }
    
@@ -901,10 +901,10 @@ void dbgc_add_to_history(String s) {
     history.value[history.length] = '\0';
 }
 
-static void dbgc_scroll(s32 delta) {
-    auto &history_height = Dbgc.history_height;
-    auto &history_y = Dbgc.history_y;
-    auto &history_min_y = Dbgc.history_min_y;
+static void console_scroll(s32 delta) {
+    auto &history_height = Console.history_height;
+    auto &history_y = Console.history_y;
+    auto &history_min_y = Console.history_min_y;
 
     const auto &atlas = R_ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
     
@@ -912,7 +912,7 @@ static void dbgc_scroll(s32 delta) {
     history_y = Clamp(history_y, history_min_y, history_min_y + history_height);
 }
 
-void dbgc_on_input(const Window_Event &event) {
+void console_on_input(const Window_Event &event) {
     const bool press = event.key_press;
     const bool repeat = event.key_repeat;
     const auto key = event.key_code;
@@ -923,27 +923,27 @@ void dbgc_on_input(const Window_Event &event) {
         if (press && key == KEY_CLOSE_WINDOW) {
             os_close_window(Main_window);
         } else if (press && key == KEY_SWITCH_DEBUG_CONSOLE) {
-            dbgc_close();
+            console_close();
         } else if ((press || repeat) && key == KEY_UP) {
-            dbgc_scroll(1);
+            console_scroll(1);
         } else if ((press || repeat) && key == KEY_DOWN) {
-            dbgc_scroll(-1);            
+            console_scroll(-1);            
         }
         
         break;
     }
     case WINDOW_EVENT_TEXT_INPUT: {
-        if (!Dbgc.is_open) break;
+        if (!Console.is_open) break;
 
         if (character == ASCII_GRAVE_ACCENT) {
             break;
         }
 
-        auto &history = Dbgc.history;
-        auto &history_y = Dbgc.history_y;
-        auto &history_min_y = Dbgc.history_min_y;
-        auto &input = Dbgc.input;
-        auto &cursor_blink_dt = Dbgc.cursor_blink_dt;
+        auto &history = Console.history;
+        auto &history_y = Console.history_y;
+        auto &history_min_y = Console.history_min_y;
+        auto &input = Console.input;
+        auto &cursor_blink_dt = Console.cursor_blink_dt;
 
         const auto &atlas = R_ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
 
@@ -957,7 +957,7 @@ void dbgc_on_input(const Window_Event &event) {
                 String_Builder sb;
                 
                 // @Todo: make better history overflow handling.
-                if (history.length + input.length > Dbgc.MAX_HISTORY_SIZE) {
+                if (history.length + input.length > Console.MAX_HISTORY_SIZE) {
                     history.value[0] = '\0';
                     history.length = 0;
                 }
@@ -975,7 +975,7 @@ void dbgc_on_input(const Window_Event &event) {
                             history_y = history_min_y;
                         } else {
                             str_build(scratch.arena, sb, "usage: clear\n");
-                            dbgc_add_to_history(str_build_finish(scratch.arena, sb));
+                            console_add_to_history(str_build_finish(scratch.arena, sb));
                         }
                     } else if (str_equal(token, DBGC_CMD_LEVEL)) {
                         token = str_token(sti);
@@ -991,13 +991,13 @@ void dbgc_on_input(const Window_Event &event) {
                             load_level(World, path);
                         } else {
                             str_build(scratch.arena, sb, "usage: level name_with_extension\n");
-                            dbgc_add_to_history(str_build_finish(scratch.arena, sb));
+                            console_add_to_history(str_build_finish(scratch.arena, sb));
                         }
                     } else {
                         str_build(scratch.arena, sb, DBGC_UNKNOWN_CMD_WARNING);
                         str_build(scratch.arena, sb, input);
                         str_build(scratch.arena, sb, "\n");
-                        dbgc_add_to_history(str_build_finish(scratch.arena, sb));
+                        console_add_to_history(str_build_finish(scratch.arena, sb));
                     }
    
                 }
@@ -1014,7 +1014,7 @@ void dbgc_on_input(const Window_Event &event) {
         }
 
         if (is_ascii_printable(character)) {
-            if (input.length >= Dbgc.MAX_INPUT_SIZE) {
+            if (input.length >= Console.MAX_INPUT_SIZE) {
                 break;
             }
         
@@ -1026,21 +1026,21 @@ void dbgc_on_input(const Window_Event &event) {
     }
     case WINDOW_EVENT_MOUSE: {
         const s32 delta = Sign(event.scroll_delta);
-        dbgc_scroll(delta);
+        console_scroll(delta);
         break;
     }
     }
 }
 
-void dbgc_on_viewport_resize(s16 width, s16 height) {
-    auto &history_y = Dbgc.history_y;
-    auto &history_min_y = Dbgc.history_min_y;
-    auto &history_max_width = Dbgc.history_max_width;
+void console_on_viewport_resize(s16 width, s16 height) {
+    auto &history_y = Console.history_y;
+    auto &history_min_y = Console.history_min_y;
+    auto &history_max_width = Console.history_max_width;
 
-    history_min_y = height - Dbgc.MARGIN;
+    history_min_y = height - Console.MARGIN;
     history_y = history_min_y;
 
-    history_max_width = width - 2 * Dbgc.MARGIN;
+    history_max_width = width - 2 * Console.MARGIN;
 }
 
 void editor_report(const char *cs, ...) {
@@ -1205,20 +1205,20 @@ void init_default_level(Game_World &w) {
 
 static Tm_Context Tm_ctx;
 
-void tm_init() {
+void telemetry_init() {
     Tm_ctx.zones = arena_push_array(M_global, Tm_ctx.MAX_ZONES, Tm_Zone);
     Tm_ctx.index_stack = arena_push_array(M_global, Tm_ctx.MAX_ZONES, u16);
 }
 
-void tm_open() {
+void telemetry_open() {
     Assert(!(Tm_ctx.bits & TM_OPEN_BIT));
     
     Tm_ctx.bits |= TM_OPEN_BIT;
 
-    push_input_layer(Input_layer_tm);
+    push_input_layer(Input_layer_telemetry);
 }
 
-void tm_close() {
+void telemetry_close() {
     Assert(Tm_ctx.bits & TM_OPEN_BIT);
     
     Tm_ctx.bits &= ~TM_OPEN_BIT;
@@ -1226,7 +1226,7 @@ void tm_close() {
     pop_input_layer();
 }
 
-void tm_on_input(const Window_Event &event) {
+void telemetry_on_input(const Window_Event &event) {
     const bool press = event.key_press;
     const auto key = event.key_code;
         
@@ -1235,7 +1235,7 @@ void tm_on_input(const Window_Event &event) {
         if (press && key == KEY_CLOSE_WINDOW) {
             os_close_window(Main_window);
         } else if (press && key == KEY_SWITCH_RUNTIME_PROFILER) {
-            tm_close();
+            telemetry_close();
         } else if (press && key == KEY_P) {
             if (Tm_ctx.bits & TM_PAUSE_BIT) {
                 Tm_ctx.bits &= ~TM_PAUSE_BIT;
@@ -1265,22 +1265,22 @@ void tm_on_input(const Window_Event &event) {
     }
 }
 
-static inline bool tm_closed() {
+static inline bool telemetry_closed() {
     return !(Tm_ctx.bits & TM_OPEN_BIT);
 }
 
-static inline bool tm_paused() {
+static inline bool telemetry_paused() {
     return Tm_ctx.bits & TM_PAUSE_BIT;
 }
 
-static inline void tm_flush() {
+static inline void telemetry_flush() {
     Tm_ctx.zone_total_count = 0;
 }
 
 // @Todo: own stable sort.
 #include <algorithm>
 
-void tm_draw() {
+void telemetry_draw() {
     constexpr f32 MARGIN  = 100.0f;
     constexpr f32 PADDING = 16.0f;
     constexpr f32 QUAD_Z = 0.0f;
@@ -1296,7 +1296,7 @@ void tm_draw() {
     static Tm_Zone *zones = arena_push_array(M_global, Tm_ctx.MAX_ZONES, Tm_Zone);
     static u32 zone_count = 0;
     
-    defer { tm_flush(); };
+    defer { telemetry_flush(); };
 
     update_time += Delta_time;
     if (update_time > UPDATE_INTERVAL) {
@@ -1308,7 +1308,7 @@ void tm_draw() {
         }
     }
     
-    if (tm_closed()) return;
+    if (telemetry_closed()) return;
 
     const auto atlas_index = UI_PROFILER_FONT_ATLAS_INDEX;
     const auto &atlas = R_ui.font_atlases[atlas_index];
@@ -1439,8 +1439,8 @@ void tm_draw() {
     }
 }
 
-void tm_push_zone(String name) {
-    if (tm_paused()) return;
+void telemetry_push_zone(String name) {
+    if (telemetry_paused()) return;
     
     Assert(Tm_ctx.zone_total_count < Tm_ctx.MAX_ZONES);
 
@@ -1456,8 +1456,8 @@ void tm_push_zone(String name) {
     Tm_ctx.zone_total_count  += 1;
 }
 
-void tm_pop_zone() {
-    if (tm_paused()) return;
+void telemetry_pop_zone() {
+    if (telemetry_paused()) return;
     
     Assert(Tm_ctx.zone_active_count > 0);
 

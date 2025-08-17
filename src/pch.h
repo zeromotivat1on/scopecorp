@@ -348,8 +348,8 @@ sid  sid_intern(String s);
 String sid_str(sid sid);
 
 #if DEVELOPER
-#define TM_PUSH_ZONE(s)  tm_push_zone(S(s))
-#define TM_POP_ZONE()    tm_pop_zone()
+#define TM_PUSH_ZONE(s)  telemetry_push_zone(S(s))
+#define TM_POP_ZONE()    telemetry_pop_zone()
 #define TM_SCOPE_ZONE(s) TM_PUSH_ZONE(s); defer { TM_POP_ZONE(); }
 #else
 #define TM_PUSH_ZONE(s)

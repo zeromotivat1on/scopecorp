@@ -48,7 +48,7 @@ void on_window_resize(u16 width, u16 height) {
     World.ed_camera.bottom = World.camera.bottom;
     World.ed_camera.top    = World.camera.top;
 
-    dbgc_on_viewport_resize(R_viewport.width, R_viewport.height);
+    console_on_viewport_resize(R_viewport.width, R_viewport.height);
 
     const auto &rt = R_table.targets[R_viewport.render_target];
     const auto &mta = *find_asset(SID_MATERIAL_FRAME_BUFFER);
@@ -67,9 +67,9 @@ void on_input_game(const Window_Event &event) {
         if (press && key == KEY_CLOSE_WINDOW) {
             os_close_window(Main_window);
         } else if (press && key == KEY_SWITCH_DEBUG_CONSOLE) {
-            dbgc_open();
+            console_open();
         } else if (press && key == KEY_SWITCH_RUNTIME_PROFILER) {
-            tm_open();
+            telemetry_open();
         } else if (press && key == KEY_SWITCH_MEMORY_PROFILER) {
             mprof_open();
         } else if (press && key == KEY_SWITCH_EDITOR_MODE) {

@@ -242,7 +242,7 @@ static void log_output_va(Log_Level log_level, const char *format, va_list args)
 
     buffer[count] = '\n';
     count += 1;
-    dbgc_add_to_history(String { buffer, count });
+    console_add_to_history(String { buffer, count });
 }
 
 void print(Log_Level level, const char *format, ...) {
