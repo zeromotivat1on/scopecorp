@@ -731,11 +731,12 @@ void check_hot_reload(Hot_Reload_List &list) {
 static Debug_Console Dbgc;
 
 void dbgc_init() {
-    Assert(!Dbgc.history);
+    Assert(!Dbgc.history.value);
+    Assert(!Dbgc.input.value);
     
     // @Cleanup: use own arena?
-    Dbgc.history     = arena_push_array(M_global, Dbgc.MAX_HISTORY_SIZE, char);
-    Dbgc.input.value = arena_push_array(M_global, Dbgc.MAX_INPUT_SIZE,   char);
+    Dbgc.history.value = arena_push_array(M_global, Dbgc.MAX_HISTORY_SIZE, char);
+    Dbgc.input.value   = arena_push_array(M_global, Dbgc.MAX_INPUT_SIZE,   char);
     
     dbgc_on_viewport_resize(R_viewport.width, R_viewport.height);
 }
@@ -763,7 +764,6 @@ void dbgc_draw() {
     if (!Dbgc.is_open) return;
     
     auto &history = Dbgc.history;
-    auto &history_size = Dbgc.history_size;
     auto &history_height = Dbgc.history_height;
     auto &history_y = Dbgc.history_y;
     auto &history_min_y = Dbgc.history_min_y;
@@ -813,12 +813,12 @@ void dbgc_draw() {
         const f32 max_height = R_viewport.height - 2 * Dbgc.MARGIN - 3 * Dbgc.PADDING;
 
         history_height = 0.0f;
-        char *start = history;
-        f32 visible_height = history_size > 0 ? atlas.line_height : 0.0f;
+        char *start = history.value;
+        f32 visible_height = history.length > 0 ? atlas.line_height : 0.0f;
         f32 current_y = history_y;
         u64 draw_count = 0;
         
-        for (s32 i = 0; i < history_size; ++i) {
+        for (s32 i = 0; i < history.length; ++i) {
             if (current_y > history_min_y) {
                 start += 1;
                 visible_height = 0.0f;
@@ -830,7 +830,7 @@ void dbgc_draw() {
                 }
             }
             
-            if (history[i] == ASCII_NEW_LINE) {
+            if (history.value[i] == ASCII_NEW_LINE) {
                 history_height += atlas.line_height;
                 visible_height += atlas.line_height;
                 current_y -= atlas.line_height;
@@ -864,12 +864,11 @@ void dbgc_draw() {
 }
 
 void dbgc_add_to_history(String s) {
-    if (!Dbgc.history) {
+    if (!Dbgc.history.value) {
         return;
     }
 
     auto &history = Dbgc.history;
-    auto &history_size = Dbgc.history_size;
     auto &history_max_width = Dbgc.history_max_width;
 
     const auto &atlas = R_ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
@@ -879,28 +878,27 @@ void dbgc_add_to_history(String s) {
         const char c = s.value[i];
 
         // @Cleanup: make better history overflow handling.
-        if (history_size > Dbgc.MAX_HISTORY_SIZE) {
-            history[0] = '\0';
-            history_size = 0;
+        if (history.length > Dbgc.MAX_HISTORY_SIZE) {
+            history.length = 0;
         }
    
-        if (text_width < history_max_width) {            
+        if (text_width < history_max_width) {
             text_width += get_char_width_px(atlas, c);
             if (c == ASCII_NEW_LINE) {
                 text_width = 0;
             }
         } else { // wrap lines that do not fit into debug console window
-            history[history_size] = ASCII_NEW_LINE;
-            history_size += 1;
+            history.value[history.length] = ASCII_NEW_LINE;
+            history.length += 1;
 
             text_width = 0;
         }
 
-        history[history_size] = c;
-        history_size += 1; 
+        history.value[history.length] = c;
+        history.length += 1; 
     }
 
-    history[history_size] = '\0';
+    history.value[history.length] = '\0';
 }
 
 static void dbgc_scroll(s32 delta) {
@@ -942,7 +940,6 @@ void dbgc_on_input(const Window_Event &event) {
         }
 
         auto &history = Dbgc.history;
-        auto &history_size = Dbgc.history_size;
         auto &history_y = Dbgc.history_y;
         auto &history_min_y = Dbgc.history_min_y;
         auto &input = Dbgc.input;
@@ -960,9 +957,9 @@ void dbgc_on_input(const Window_Event &event) {
                 String_Builder sb;
                 
                 // @Todo: make better history overflow handling.
-                if (history_size + input.length > Dbgc.MAX_HISTORY_SIZE) {
-                    history[0] = '\0';
-                    history_size = 0;
+                if (history.length + input.length > Dbgc.MAX_HISTORY_SIZE) {
+                    history.value[0] = '\0';
+                    history.length = 0;
                 }
 
                 constexpr String DELIMITERS = S(" ");
@@ -973,8 +970,8 @@ void dbgc_on_input(const Window_Event &event) {
                     if (str_equal(token, DBGC_CMD_CLEAR)) {
                         token = str_token(sti);
                         if (!is_valid(token)) {
-                            history[0] = '\0';
-                            history_size = 0;
+                            history.value[0] = '\0';
+                            history.length = 0;
                             history_y = history_min_y;
                         } else {
                             str_build(scratch.arena, sb, "usage: clear\n");

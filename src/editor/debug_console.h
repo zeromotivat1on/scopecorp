@@ -17,13 +17,12 @@ struct Debug_Console {
     static constexpr f32 MARGIN                = 100.0f;
     static constexpr f32 PADDING               = 16.0f;
     
-    char *history = null;
-    s32 history_size = 0;
     f32 history_height = 0.0f;
     f32 history_max_width = 0.0f;
     f32 history_y = 0.0f;
     f32 history_min_y = 0.0f;
 
+    String history;
     String input;
     
     f32 cursor_blink_dt = 0.0f;
