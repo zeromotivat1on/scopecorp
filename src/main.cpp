@@ -74,7 +74,7 @@ void on_window_event(const Window &window, const Window_Event &event) {
     }
 }
 
-s32 main() {    
+s32 main() {
     START_SCOPE_TIMER(startup);
 
     os_init();

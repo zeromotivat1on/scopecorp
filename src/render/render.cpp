@@ -522,30 +522,34 @@ void r_geo_flush() {
 static For_Result cb_draw_aabb(Entity *e, void *user_data) {
     auto *aabb = sparse_find(World.aabbs, e->aabb_index);
     if (aabb) {
-        u32 aabb_color = rgba_black;
+        u32 color = rgba_black;
         switch (e->type) {
         case E_PLAYER:
         case E_STATIC_MESH: {
-            aabb_color = rgba_red;
+            color = rgba_red;
             break;
         }
         case E_SOUND_EMITTER_2D:
         case E_SOUND_EMITTER_3D: {
-            aabb_color = rgba_blue;
+            color = rgba_blue;
             break;
         }
         case E_PORTAL: {
-            aabb_color = rgba_purple;
+            color = rgba_purple;
             break;
         }
         case E_DIRECT_LIGHT:
         case E_POINT_LIGHT: {
-            aabb_color = rgba_white;
+            color = rgba_white;
             break;
         }
         }
+
+        if (e == Editor.mouse_picked_entity) {
+            color = rgba_yellow;
+        }
         
-        r_geo_aabb(*aabb, aabb_color);
+        r_geo_aabb(*aabb, color);
     }
 
     return CONTINUE;
@@ -561,12 +565,6 @@ void r_geo_debug() {
     
     if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
         for_each_entity(World, cb_draw_aabb);
-
-        if (Editor.mouse_picked_entity) {
-            const auto *e = Editor.mouse_picked_entity;
-            const u32 mouse_picked_color = rgba_yellow;
-            r_geo_aabb(World.aabbs[e->aabb_index], mouse_picked_color);
-        }
         
         if (player.collide_aabb_index != INDEX_NONE) {
             r_geo_aabb(World.aabbs[player.aabb_index],         rgba_green);

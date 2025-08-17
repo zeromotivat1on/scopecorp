@@ -752,8 +752,8 @@ void ui_world_line(vec3 start, vec3 end, u32 color, f32 z) {
     const auto &camera = active_camera(World);
     const auto rect = to_rect(R_viewport);
     
-    const vec2 s = world_to_screen(rect, camera.view_proj, start);
-    const vec2 e = world_to_screen(rect, camera.view_proj, end);
+    const vec2 s = world_to_screen(start, camera, rect);
+    const vec2 e = world_to_screen(end,   camera, rect);
     
     ui_line(s, e, color, z);
 }

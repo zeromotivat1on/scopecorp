@@ -102,9 +102,6 @@ Rect to_rect(const R_Viewport &vp) {
 Ray ray_from_mouse(const Camera &camera, const R_Viewport &viewport, s16 x, s16 y) {
     Ray ray;
     ray.origin = camera.eye;
-    ray.direction = normalize(screen_to_world(to_rect(viewport),
-                                              inverse(camera.view),
-                                              inverse(camera.proj),
-                                              vec2(x, y)));
+    ray.direction = normalize(screen_to_world(vec2(x, y), camera, to_rect(viewport)));
     return ray;
 }

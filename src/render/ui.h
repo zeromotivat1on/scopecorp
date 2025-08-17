@@ -83,18 +83,6 @@ struct UI_Combo_Style {
     s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX;
 };
 
-enum UI_Draw_Type : u8 {
-    UI_DRAW_TEXT,
-    UI_DRAW_QUAD,
-};
-
-struct UI_Draw_Command {
-    UI_Draw_Type type;
-    f32 z = 0.0f;
-    s32 instance_count = 0;
-    s32 atlas_index = 0; // for text draw command
-};
-
 struct R_UI {
     static constexpr u32 MAX_COMMANDS = 512;
     static constexpr u32 MAX_FONT_ATLASES = 32;

@@ -17,6 +17,9 @@ void update_matrices(Camera &c) {
     }
     
     c.view_proj = c.view * c.proj;
+
+    c.inv_view = inverse(c.view);
+    c.inv_proj = inverse(c.proj);
 }
 
 void on_viewport_resize(Camera &c, const R_Viewport &vp) {
@@ -29,25 +32,26 @@ void on_viewport_resize(Camera &c, const R_Viewport &vp) {
 
 // @Todo: fix world_to_screen convertion.
 #include "editor/editor.h"
-vec2 world_to_screen(const Rect &rect, const mat4 &view_proj, vec3 loc) {
-    const vec4 clip = view_proj * vec4(loc, 1.0f);
+
+vec2 world_to_screen(vec3 location, const Camera &camera, const Rect &rect) {
+    const vec4 clip = vec4(location, 1.0f) * camera.proj * camera.view;
     const vec3 ndc = clip.xyz / clip.w;
     const vec2 pos = vec2((ndc.x + 1.0f) * 0.5f * rect.w,
                           (ndc.y + 1.0f) * 0.5f * rect.h);
     return pos;
 }
 
-vec3 screen_to_world(const Rect &rect, const mat4 &inv_view, const mat4 &inv_proj, vec2 pos) {
+vec3 screen_to_world(vec2 pos, const Camera &camera, const Rect &rect) {
     vec3 ndc;
     ndc.x = -1.0f + (2.0f * (pos.x - rect.x)) / rect.w;
     ndc.y = -1.0f + (2.0f * (pos.y - rect.y)) / rect.h;
     ndc.z = 1.0f;
 
     const vec4 clip = vec4(ndc.xy, -1.0f, 1.0f);
-    vec4 eye = inv_proj * clip;
+    vec4 eye = camera.inv_proj * clip;
     eye.z = -1.0f;
     eye.w =  0.0f;
 
-    const vec4 location = inv_view * eye;
+    const vec4 location = camera.inv_view * eye;
     return location.xyz;
 }
