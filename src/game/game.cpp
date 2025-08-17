@@ -48,7 +48,7 @@ void on_window_resize(u16 width, u16 height) {
     World.ed_camera.bottom = World.camera.bottom;
     World.ed_camera.top    = World.camera.top;
 
-    on_viewport_resize_debug_console(R_viewport.width, R_viewport.height);
+    dbgc_on_viewport_resize(R_viewport.width, R_viewport.height);
 
     const auto &rt = R_table.targets[R_viewport.render_target];
     const auto &mta = *find_asset(SID_MATERIAL_FRAME_BUFFER);
@@ -58,16 +58,16 @@ void on_window_resize(u16 width, u16 height) {
 
 void on_input_game(const Window_Event &event) {
     const bool press = event.key_press;
-    const bool ctrl = event.with_ctrl;
-    const bool alt  = event.with_alt;
-    const auto key = event.key_code;
+    const bool ctrl  = event.with_ctrl;
+    const bool alt   = event.with_alt;
+    const auto key   = event.key_code;
         
     switch (event.type) {
 	case WINDOW_EVENT_KEYBOARD: {
         if (press && key == KEY_CLOSE_WINDOW) {
             os_close_window(Main_window);
         } else if (press && key == KEY_SWITCH_DEBUG_CONSOLE) {
-            open_debug_console();
+            dbgc_open();
         } else if (press && key == KEY_SWITCH_RUNTIME_PROFILER) {
             tm_open();
         } else if (press && key == KEY_SWITCH_MEMORY_PROFILER) {

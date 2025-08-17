@@ -102,8 +102,8 @@ s32 main() {
         Input_layer_editor.type = INPUT_LAYER_EDITOR;
         Input_layer_editor.on_input = on_input_editor;
 
-        Input_layer_debug_console.type = INPUT_LAYER_DEBUG_CONSOLE;
-        Input_layer_debug_console.on_input = on_input_debug_console;
+        Input_layer_dbgc.type = INPUT_LAYER_DBGC;
+        Input_layer_dbgc.on_input = dbgc_on_input;
 
         Input_layer_tm.type = INPUT_LAYER_TM;
         Input_layer_tm.on_input = tm_on_input;
@@ -202,7 +202,7 @@ s32 main() {
     ui_init();
     r_geo_init();
 
-    init_debug_console();
+    dbgc_init();
     
     // @Cleanup: just make it better.
     extern void r_init_frame_buffer_draw();
@@ -247,7 +247,6 @@ s32 main() {
         
         draw_world(World);
 
-        //editor_report("%s", to_string(World.player.velocity));
         ui_world_line(vec3_zero, vec3_zero + vec3(0.5f, 0.0f, 0.0f), rgba_red);
         // ui_world_line(World.player.location,
         //               World.player.location + normalize(World.player.velocity) * 1.0f,
@@ -256,7 +255,7 @@ s32 main() {
 #if DEVELOPER
         r_geo_debug();
         draw_dev_stats();
-        draw_debug_console();
+        dbgc_draw();
         mprof_draw();
 #endif
         

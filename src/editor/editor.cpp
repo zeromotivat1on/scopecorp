@@ -101,7 +101,7 @@ void on_input_editor(const Window_Event &event) {
         if (press && key == KEY_CLOSE_WINDOW) {
             os_close_window(Main_window);
         } else if (press && key == KEY_SWITCH_DEBUG_CONSOLE) {
-            open_debug_console();
+            dbgc_open();
         } else if (press && key == KEY_SWITCH_RUNTIME_PROFILER) {
             tm_open();
         } else if (press && key == KEY_SWITCH_MEMORY_PROFILER) {
@@ -728,52 +728,48 @@ void check_hot_reload(Hot_Reload_List &list) {
     list.reload_count = 0;
 }
 
-void init_debug_console() {
-    Assert(!Debug_console.history);
+static Debug_Console Dbgc;
 
-    auto &history = Debug_console.history;
-    auto &history_y = Debug_console.history_y;
-    auto &history_min_y = Debug_console.history_min_y;
-    auto &history_max_width = Debug_console.history_max_width;
-
-    // @Cleanup: use own arena?
-    history = arena_push_array(M_global, MAX_DEBUG_CONSOLE_HISTORY_SIZE, char);
-    history[0] = '\0';
-
-    on_viewport_resize_debug_console(R_viewport.width, R_viewport.height);
-}
-
-void open_debug_console() {
-    Assert(!Debug_console.is_open);
-
-    Debug_console.is_open = true;
-
-    push_input_layer(Input_layer_debug_console);
-}
-
-void close_debug_console() {
-    Assert(Debug_console.is_open);
+void dbgc_init() {
+    Assert(!Dbgc.history);
     
-    Debug_console.cursor_blink_dt = 0.0f;
-    Debug_console.is_open = false;
+    // @Cleanup: use own arena?
+    Dbgc.history     = arena_push_array(M_global, Dbgc.MAX_HISTORY_SIZE, char);
+    Dbgc.input.value = arena_push_array(M_global, Dbgc.MAX_INPUT_SIZE,   char);
+    
+    dbgc_on_viewport_resize(R_viewport.width, R_viewport.height);
+}
+
+void dbgc_open() {
+    Assert(!Dbgc.is_open);
+
+    Dbgc.is_open = true;
+
+    push_input_layer(Input_layer_dbgc);
+}
+
+void dbgc_close() {
+    Assert(Dbgc.is_open);
+    
+    Dbgc.cursor_blink_dt = 0.0f;
+    Dbgc.is_open = false;
     
     pop_input_layer();
 }
 
-void draw_debug_console() {
+void dbgc_draw() {
     TM_SCOPE_ZONE(__FUNCTION__);
     
-    if (!Debug_console.is_open) return;
+    if (!Dbgc.is_open) return;
     
-    auto &history = Debug_console.history;
-    auto &history_size = Debug_console.history_size;
-    auto &history_height = Debug_console.history_height;
-    auto &history_y = Debug_console.history_y;
-    auto &history_min_y = Debug_console.history_min_y;
-    auto &history_max_width = Debug_console.history_max_width;
-    auto &input = Debug_console.input;
-    auto &input_length = Debug_console.input_length;
-    auto &cursor_blink_dt = Debug_console.cursor_blink_dt;
+    auto &history = Dbgc.history;
+    auto &history_size = Dbgc.history_size;
+    auto &history_height = Dbgc.history_height;
+    auto &history_y = Dbgc.history_y;
+    auto &history_min_y = Dbgc.history_min_y;
+    auto &history_max_width = Dbgc.history_max_width;
+    auto &input = Dbgc.input;
+    auto &cursor_blink_dt = Dbgc.cursor_blink_dt;
     
     const auto &atlas = R_ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
 
@@ -789,34 +785,32 @@ void draw_debug_console() {
 
     {   // History quad.
         
-        const vec2 p0 = vec2(DEBUG_CONSOLE_MARGIN, DEBUG_CONSOLE_MARGIN);
-        const vec2 p1 = vec2(R_viewport.width - DEBUG_CONSOLE_MARGIN,
-                             R_viewport.height - DEBUG_CONSOLE_MARGIN);
+        const vec2 p0 = vec2(Dbgc.MARGIN, Dbgc.MARGIN);
+        const vec2 p1 = vec2(R_viewport.width - Dbgc.MARGIN, R_viewport.height - Dbgc.MARGIN);
         const u32 color = rgba_pack(0, 0, 0, 200);
         ui_quad(p0, p1, color, QUAD_Z);
     }
 
     {   // Input quad.
-        const vec2 q0 = vec2(DEBUG_CONSOLE_MARGIN, DEBUG_CONSOLE_MARGIN);
-        const vec2 q1 = vec2(R_viewport.width - DEBUG_CONSOLE_MARGIN,
-                             DEBUG_CONSOLE_MARGIN + lower_case_height + 2 * DEBUG_CONSOLE_PADDING);
+        const vec2 q0 = vec2(Dbgc.MARGIN, Dbgc.MARGIN);
+        const vec2 q1 = vec2(R_viewport.width - Dbgc.MARGIN,
+                             Dbgc.MARGIN + lower_case_height + 2 * Dbgc.PADDING);
         const u32 color = rgba_pack(0, 0, 0, 200);
         ui_quad(q0, q1, color, QUAD_Z);
     }
 
     {   // Input text.
-        const vec2 pos = vec2(DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING,
-                              DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING);
+        const vec2 pos = vec2(Dbgc.MARGIN + Dbgc.PADDING, Dbgc.MARGIN + Dbgc.PADDING);
         const u32 color = rgba_white;
-        ui_text(String { input, input_length }, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
+        ui_text(input, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
     }
 
     {   // History text.
-        const vec2 pos = vec2(DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING,
-                              R_viewport.height - DEBUG_CONSOLE_MARGIN - DEBUG_CONSOLE_PADDING - ascent);
+        const vec2 pos = vec2(Dbgc.MARGIN + Dbgc.PADDING,
+                              R_viewport.height - Dbgc.MARGIN - Dbgc.PADDING - ascent);
         const u32 color = rgba_white;
         
-        const f32 max_height = R_viewport.height - 2 * DEBUG_CONSOLE_MARGIN - 3 * DEBUG_CONSOLE_PADDING;
+        const f32 max_height = R_viewport.height - 2 * Dbgc.MARGIN - 3 * Dbgc.PADDING;
 
         history_height = 0.0f;
         char *start = history;
@@ -830,8 +824,8 @@ void draw_debug_console() {
                 visible_height = 0.0f;
             } else {
                 draw_count += 1;
-                if (draw_count >= MAX_DEBUG_CONSOLE_HISTORY_SIZE) {
-                    draw_count = MAX_DEBUG_CONSOLE_HISTORY_SIZE;
+                if (draw_count >= Dbgc.MAX_HISTORY_SIZE) {
+                    draw_count = Dbgc.MAX_HISTORY_SIZE;
                     break;
                 }
             }
@@ -851,14 +845,14 @@ void draw_debug_console() {
     }
     
     {   // Cursor quad.
-        const s32 width_px = get_line_width_px(atlas, String { input, input_length });
-        const vec2 p0 = vec2(DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING + width_px + 1,
-                             DEBUG_CONSOLE_MARGIN + DEBUG_CONSOLE_PADDING + descent);
+        const s32 width_px = get_line_width_px(atlas, input);
+        const vec2 p0 = vec2(Dbgc.MARGIN + Dbgc.PADDING + width_px + 1,
+                             Dbgc.MARGIN + Dbgc.PADDING + descent);
         const vec2 p1 = vec2(p0.x + atlas.space_advance_width, p0.y + ascent - descent);
         u32 color = rgba_white;
 
-        if (cursor_blink_dt > DEBUG_CONSOLE_CURSOR_BLINK_INTERVAL) {
-            if (cursor_blink_dt > 2 * DEBUG_CONSOLE_CURSOR_BLINK_INTERVAL) {
+        if (cursor_blink_dt > Dbgc.CURSOR_BLINK_INTERVAL) {
+            if (cursor_blink_dt > 2 * Dbgc.CURSOR_BLINK_INTERVAL) {
                 cursor_blink_dt = 0.0f;
             } else {
                 color = 0;
@@ -869,27 +863,23 @@ void draw_debug_console() {
     }
 }
 
-void add_to_debug_console_history(const char *text) {
-    add_to_debug_console_history(text, (u32)str_size(text));
-}
-
-void add_to_debug_console_history(const char *text, u32 count) {
-    if (!Debug_console.history) {
+void dbgc_add_to_history(String s) {
+    if (!Dbgc.history) {
         return;
     }
 
-    auto &history = Debug_console.history;
-    auto &history_size = Debug_console.history_size;
-    auto &history_max_width = Debug_console.history_max_width;
+    auto &history = Dbgc.history;
+    auto &history_size = Dbgc.history_size;
+    auto &history_max_width = Dbgc.history_max_width;
 
     const auto &atlas = R_ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
 
     f32 text_width = 0.0f; 
-    for (u32 i = 0; i < count; ++i) {
-        const char c = text[i];
+    for (u32 i = 0; i < s.length; ++i) {
+        const char c = s.value[i];
 
         // @Cleanup: make better history overflow handling.
-        if (history_size > MAX_DEBUG_CONSOLE_HISTORY_SIZE) {
+        if (history_size > Dbgc.MAX_HISTORY_SIZE) {
             history[0] = '\0';
             history_size = 0;
         }
@@ -913,10 +903,10 @@ void add_to_debug_console_history(const char *text, u32 count) {
     history[history_size] = '\0';
 }
 
-static void scroll_debug_console(s32 delta) {
-    auto &history_height = Debug_console.history_height;
-    auto &history_y = Debug_console.history_y;
-    auto &history_min_y = Debug_console.history_min_y;
+static void dbgc_scroll(s32 delta) {
+    auto &history_height = Dbgc.history_height;
+    auto &history_y = Dbgc.history_y;
+    auto &history_min_y = Dbgc.history_min_y;
 
     const auto &atlas = R_ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
     
@@ -924,7 +914,7 @@ static void scroll_debug_console(s32 delta) {
     history_y = Clamp(history_y, history_min_y, history_min_y + history_height);
 }
 
-void on_input_debug_console(const Window_Event &event) {
+void dbgc_on_input(const Window_Event &event) {
     const bool press = event.key_press;
     const bool repeat = event.key_repeat;
     const auto key = event.key_code;
@@ -935,125 +925,125 @@ void on_input_debug_console(const Window_Event &event) {
         if (press && key == KEY_CLOSE_WINDOW) {
             os_close_window(Main_window);
         } else if (press && key == KEY_SWITCH_DEBUG_CONSOLE) {
-            close_debug_console();
+            dbgc_close();
         } else if ((press || repeat) && key == KEY_UP) {
-            scroll_debug_console(1);
+            dbgc_scroll(1);
         } else if ((press || repeat) && key == KEY_DOWN) {
-            scroll_debug_console(-1);            
+            dbgc_scroll(-1);            
         }
         
         break;
     }
     case WINDOW_EVENT_TEXT_INPUT: {
-        if (!Debug_console.is_open) break;
+        if (!Dbgc.is_open) break;
 
         if (character == ASCII_GRAVE_ACCENT) {
             break;
         }
 
-        auto &history = Debug_console.history;
-        auto &history_size = Debug_console.history_size;
-        auto &history_y = Debug_console.history_y;
-        auto &history_min_y = Debug_console.history_min_y;
-        auto &input = Debug_console.input;
-        auto &input_length = Debug_console.input_length;
-        auto &cursor_blink_dt = Debug_console.cursor_blink_dt;
+        auto &history = Dbgc.history;
+        auto &history_size = Dbgc.history_size;
+        auto &history_y = Dbgc.history_y;
+        auto &history_min_y = Dbgc.history_min_y;
+        auto &input = Dbgc.input;
+        auto &cursor_blink_dt = Dbgc.cursor_blink_dt;
 
         const auto &atlas = R_ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
 
         cursor_blink_dt = 0.0f;
     
         if (character == ASCII_NEW_LINE || character == ASCII_CARRIAGE_RETURN) {
-            if (input_length > 0) {
-                static char add_text[MAX_DEBUG_CONSOLE_INPUT_SIZE + 128] = { '\0' };
-            
+            if (input.length > 0) {
+                Scratch scratch = local_scratch();
+                defer { release(scratch); };
+                
+                String_Builder sb;
+                
                 // @Todo: make better history overflow handling.
-                if (history_size + input_length > MAX_DEBUG_CONSOLE_HISTORY_SIZE) {
+                if (history_size + input.length > Dbgc.MAX_HISTORY_SIZE) {
                     history[0] = '\0';
                     history_size = 0;
                 }
 
-                const char *DELIMITERS = " ";
-                const char *token = str_token(input, DELIMITERS);
+                constexpr String DELIMITERS = S(" ");
+                String_Token_Iterator sti = STI(input, DELIMITERS);
+                String token = str_token(sti);
                 
-                if (token) {
-                    if (str_cmp(token, DEBUG_CONSOLE_COMMAND_CLEAR)) {
-                        const char *next = str_token(null, DELIMITERS);
-                        if (!next) {
+                if (is_valid(token)) {
+                    if (str_equal(token, DBGC_CMD_CLEAR)) {
+                        token = str_token(sti);
+                        if (!is_valid(token)) {
                             history[0] = '\0';
                             history_size = 0;
                             history_y = history_min_y;
                         } else {
-                            str_glue(add_text, "usage: clear\n");
-                            add_to_debug_console_history(add_text);
+                            str_build(scratch.arena, sb, "usage: clear\n");
+                            dbgc_add_to_history(str_build_finish(scratch.arena, sb));
                         }
-                    } else if (str_cmp(token, DEBUG_CONSOLE_COMMAND_LEVEL)) {
-                        const char *name = str_token(null, DELIMITERS);
-                        if (name) {
+                    } else if (str_equal(token, DBGC_CMD_LEVEL)) {
+                        token = str_token(sti);
+                        if (is_valid(token)) {
                             Scratch scratch = local_scratch();
                             defer { release(scratch); };
 
                             String_Builder sb;
                             str_build(scratch.arena, sb, DIR_LEVELS);
-                            str_build(scratch.arena, sb, name);
+                            str_build(scratch.arena, sb, token);
             
                             String path = str_build_finish(scratch.arena, sb);
                             load_level(World, path);
                         } else {
-                            str_glue(add_text, "usage: level name_with_extension\n");
-                            add_to_debug_console_history(add_text);
+                            str_build(scratch.arena, sb, "usage: level name_with_extension\n");
+                            dbgc_add_to_history(str_build_finish(scratch.arena, sb));
                         }
                     } else {
-                        str_glue(add_text, DEBUG_CONSOLE_UNKNOWN_COMMAND_WARNING);
-                        str_glue(add_text, input);
-                        str_glue(add_text, "\n");
-                        add_to_debug_console_history(add_text);
+                        str_build(scratch.arena, sb, DBGC_UNKNOWN_CMD_WARNING);
+                        str_build(scratch.arena, sb, input);
+                        str_build(scratch.arena, sb, "\n");
+                        dbgc_add_to_history(str_build_finish(scratch.arena, sb));
                     }
    
                 }
                 
-                input_length = 0;
-                add_text[0] = '\0';
+                input.length = 0;
             }
         
             break;
         }
 
         if (character == ASCII_BACKSPACE) {
-            input_length -= 1;
-            input_length = Max(0, input_length);
-            input[input_length] = '\0';
+            input.length -= 1;
+            input.length = Max(0, input.length);
         }
 
         if (is_ascii_printable(character)) {
-            if (input_length >= MAX_DEBUG_CONSOLE_INPUT_SIZE) {
+            if (input.length >= Dbgc.MAX_INPUT_SIZE) {
                 break;
             }
         
-            input[input_length] = (char)character;
-            input_length += 1;
-            input[input_length] = '\0';
+            input.value[input.length] = (char)character;
+            input.length += 1;
         }
         
         break;
     }
     case WINDOW_EVENT_MOUSE: {
         const s32 delta = Sign(event.scroll_delta);
-        scroll_debug_console(delta);
+        dbgc_scroll(delta);
         break;
     }
     }
 }
 
-void on_viewport_resize_debug_console(s16 width, s16 height) {
-    auto &history_y = Debug_console.history_y;
-    auto &history_min_y = Debug_console.history_min_y;
-    auto &history_max_width = Debug_console.history_max_width;
+void dbgc_on_viewport_resize(s16 width, s16 height) {
+    auto &history_y = Dbgc.history_y;
+    auto &history_min_y = Dbgc.history_min_y;
+    auto &history_max_width = Dbgc.history_max_width;
 
-    history_min_y = height - DEBUG_CONSOLE_MARGIN;
+    history_min_y = height - Dbgc.MARGIN;
     history_y = history_min_y;
 
-    history_max_width = width - 2 * DEBUG_CONSOLE_MARGIN;
+    history_max_width = width - 2 * Dbgc.MARGIN;
 }
 
 void editor_report(const char *cs, ...) {

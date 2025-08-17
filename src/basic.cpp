@@ -234,7 +234,7 @@ static void log_output_va(Log_Level log_level, const char *format, va_list args)
 	const char *prefixes[] = { "\x1b[37m", "\x1b[93m", "\x1b[91m" };
 
 	static char buffer[4096];
-	s32 count = stbsp_vsnprintf(buffer, sizeof(buffer), format, args);
+	u64 count = stbsp_vsnprintf(buffer, sizeof(buffer), format, args);
 	printf("%s%s", prefixes[log_level], buffer);
 
 	// Restore default bg and fg colors.
@@ -242,7 +242,7 @@ static void log_output_va(Log_Level log_level, const char *format, va_list args)
 
     buffer[count] = '\n';
     count += 1;
-    add_to_debug_console_history(buffer, count);
+    dbgc_add_to_history(String { buffer, count });
 }
 
 void print(Log_Level level, const char *format, ...) {

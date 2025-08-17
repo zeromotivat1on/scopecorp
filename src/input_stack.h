@@ -4,7 +4,7 @@ enum Input_Layer_Type : u8 {
     INPUT_LAYER_NONE,
     INPUT_LAYER_GAME,
     INPUT_LAYER_EDITOR,
-    INPUT_LAYER_DEBUG_CONSOLE,
+    INPUT_LAYER_DBGC,
     INPUT_LAYER_TM,
     INPUT_LAYER_MPROF,
 };
@@ -29,7 +29,7 @@ inline Input_Stack Input_stack;
 
 inline Input_Layer Input_layer_game;
 inline Input_Layer Input_layer_editor;
-inline Input_Layer Input_layer_debug_console;
+inline Input_Layer Input_layer_dbgc;
 inline Input_Layer Input_layer_tm;
 inline Input_Layer Input_layer_mprof;
 

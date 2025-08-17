@@ -263,6 +263,7 @@ void release(Scratch &s);
 #define arena_push_type(a, t)     (t *)push(a, (1) * sizeof(t), alignof(t), true)
 #define arena_push_array(a, n, t) (t *)push(a, (n) * sizeof(t), alignof(t), true)
 #define arena_push_buffer(a, n)   Buffer { (u8 *)push(a, n), n }
+#define arena_push_string(a, n)   String { (char *)push(a, n), n }
 #define arena_pop_type(a, t)      pop(a, (1) * sizeof(t))
 #define arena_pop_array(a, n, t)  pop(a, (n) * sizeof(t))
 
@@ -291,6 +292,8 @@ struct String_Token_Iterator {
 
 #define STRING_NONE String { null, 0 }
 #define S(literal)  String { literal, sizeof(literal) - 1 }
+
+#define STI(s, delims) String_Token_Iterator { s, delims, 0 }
 
 #define S_SEARCH_REVERSE_BIT  0x1
 #define S_INDEX_PLUS_ONE_BIT  0x2
