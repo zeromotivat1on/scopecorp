@@ -18,6 +18,9 @@ struct R_Shader {
     rid rid = RID_NONE;
 };
 
+void r_init_shader_compiler();
+void r_destroy_shader_compiler();
+
 u16  r_create_shader(String s);
 void r_recreate_shader(u16 shader, String s);
 

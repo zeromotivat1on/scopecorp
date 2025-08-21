@@ -7,7 +7,6 @@
 #include "os/file.h"
 
 // Slang stuff to do.
-/*
 #include "slang/slang.h"
 #include "slang/slang-com-ptr.h"
 
@@ -28,6 +27,8 @@ void r_init_shader_compiler() {
     session_desc.compilerOptionEntryCount = 0;
 
     Global_session->createSession(session_desc, Local_session.writeRef());
+
+    log("Initialized slang compiler");
 }
 
 void r_destroy_shader_compiler() {
@@ -107,7 +108,6 @@ Buffer r_compile_shader(Arena &a, String path) {
 
     return r;
 }
-*/
 
 constexpr String DECL_BEGIN_VERTEX   = S("#begin vertex");
 constexpr String DECL_END_VERTEX     = S("#end vertex");

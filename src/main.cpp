@@ -157,7 +157,9 @@ s32 main() {
     }
 
     r_init_global_uniforms();
+    r_init_shader_compiler();
     r_create_table(R_table);
+    defer { r_destroy_shader_compiler(); };
     defer { r_destroy_table(R_table); };
     
     au_init_context();

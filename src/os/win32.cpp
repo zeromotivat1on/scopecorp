@@ -66,7 +66,8 @@ File os_open_file(String path, s32 open_type, u32 access_bits) {
                                NULL, open_type, FILE_ATTRIBUTE_NORMAL, NULL);
 
     if (handle == INVALID_HANDLE_VALUE) {
-        error("Failed to open file %.*s, win32 error 0x%X", path, GetLastError());
+        error("Failed to open file %.*s, win32 error 0x%X",
+              path.length, path.value, GetLastError());
     }
     
     return handle;
