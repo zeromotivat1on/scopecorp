@@ -2,7 +2,6 @@
 #include "game/game.h"
 #include "game/world.h"
 
-#include "str.h"
 #include "log.h"
 #include "profile.h"
 #include "input_stack.h"
@@ -103,6 +102,9 @@ void create_world(Game_World &w) {
     w = {};
     
     reserve(w.arena, MB(8));
+
+    w.name = arena_push_string(w.arena, w.MAX_NAME_SIZE);
+    w.name.length = 0;
     
 	sparse_reserve(w.arena, w.static_meshes,     w.MAX_STATIC_MESHES);
     sparse_reserve(w.arena, w.point_lights,      w.MAX_POINT_LIGHTS);

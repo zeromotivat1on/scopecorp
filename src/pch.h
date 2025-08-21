@@ -322,8 +322,14 @@ bool   str_equal   (String a, String b);
 s32    str_compare (String a, String b);
 s64    str_index   (String s, char c, u32 bits = 0);
 s64    str_index   (String s, String sub, u32 bits = 0);
+s8     str_to_s8   (String s);
+s16    str_to_s16  (String s);
 s32    str_to_s32  (String s);
+s64    str_to_s64  (String s);
+u8     str_to_u8   (String s);
+u16    str_to_u16  (String s);
 u32    str_to_u32  (String s);
+u64    str_to_u64  (String s);
 f32    str_to_f32  (String s);
 
 bool is_valid(String s);

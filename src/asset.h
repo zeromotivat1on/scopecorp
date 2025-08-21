@@ -128,5 +128,5 @@ void deserialize(File file, Asset &asset);
 void save_asset_pack(String path);
 void load_asset_pack(String path);
 
-String to_relative_asset_path(Arena &a, const String &path);
-String to_full_asset_path(Arena &a, const String &path);
+String to_relative_asset_path(Arena &a, String path);
+String to_full_asset_path(Arena &a, String path);

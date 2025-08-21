@@ -6,6 +6,12 @@
 #error "Unsupported graphics api"
 #endif
 
+enum Shader_Type {
+    SHADER_VERTEX,
+    SHADER_FRAGMENT,
+    SHADER_COUNT
+};
+
 struct R_Shader {
     static constexpr u32 MAX_FILE_SIZE = KB(256);
     
@@ -16,4 +22,4 @@ u16  r_create_shader(String s);
 void r_recreate_shader(u16 shader, String s);
 
 String parse_shader_includes(Arena &a, String s);
-bool parse_shader_regions(const char *source, char *out_vertex, char *out_fragment);
+String parse_shader_region(Arena &a, String s, Shader_Type type);

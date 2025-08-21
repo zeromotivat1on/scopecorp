@@ -1,6 +1,5 @@
 #include "pch.h"
 #include "log.h"
-#include "str.h"
 #include "font.h"
 #include "profile.h"
 #include "asset.h"

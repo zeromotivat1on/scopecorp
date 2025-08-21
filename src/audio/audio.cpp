@@ -4,7 +4,6 @@
 #include "audio/wav.h"
 
 #include "log.h"
-#include "str.h"
 #include "memory_eater.h"
 
 void au_create_table(Au_Table &t) {
@@ -23,35 +22,35 @@ void au_destroy_table(Au_Table &t) {
 
 void *parse_wav(void *data, Wav_Header *header) {
     Wav_Header wavh = *(Wav_Header *)eat(&data, sizeof(Wav_Header));
-    if (!str_cmp(wavh.riff_id, "RIFF", 4)) {
+    if (!str_equal(s(wavh.riff_id), S("RIFF"))) {
 		error("File is not a valid wav file, header does not begin with 'RIFF'");
 		return null;
 	}
 
-    if (!str_cmp(wavh.wave_id, "WAVE", 4)) {
+    if (!str_equal(s(wavh.wave_id), S("WAVE"))) {
 		error("File is not a valid wav file, header does not begin with 'WAVE'");
 		return null;
 	}
      
-    if (!str_cmp(wavh.fmt_id, "fmt ", 4)) {
-		error("File is not a valid wav file, header does not contain 'fmt '");
-		return null;
-	}
+    if (!str_equal(s(wavh.fmt_id), S("fmt "))) {
+        error("File is not a valid wav file, header does not contain 'fmt '");
+        return null;
+    }
 
     // If we found 'data' chunk, we are done, but ...
-    if (str_cmp(wavh.data_id, "data", 4)) {
+    if (str_equal(s(wavh.data_id), S("data"))) {
         if (header) *header = wavh;
         return data;
-	}
+    }
 
     // ... it may be possible that we have 'LIST' chunk instead of 'data', so parse it.
-    if (str_cmp(wavh.data_id, "LIST", 4)) {
+    if (str_equal(s(wavh.data_id), S("LIST"))) {
         const u32 list_size = wavh.sampled_data_size;
         eat(&data, list_size);
 
         const char *data_id = (char *)eat(&data, 4);
-        if (str_cmp(data_id, "data", 4)) {
-            str_copy(wavh.data_id, data_id, 4);
+        if (str_equal(s(data_id), S("data"))) {
+            mem_copy(wavh.data_id, data_id, 4);
             wavh.sampled_data_size = eat_u32(&data);
 
             if (header) *header = wavh;

@@ -23,7 +23,7 @@ struct Game_World {
 
     Arena arena;
     
-    char name[MAX_NAME_SIZE];
+    String name;
 
 	f32 dt;
 

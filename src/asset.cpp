@@ -1,7 +1,6 @@
 #include "pch.h"
 #include "asset.h"
 #include "log.h"
-#include "str.h"
 #include "profile.h"
 #include "font.h"
 #include "hash.h"
@@ -989,13 +988,13 @@ void load_asset_pack(String path) {
         path.length, path.value, CHECK_SCOPE_TIMER_MS(load));
 }
 
-String to_relative_asset_path(Arena &a, const String &path) {
-    const char *data = str_sub(path.value, "\\data");
-    if (!data) data = str_sub(path.value, "/data");
-    if (!data) return STRING_NONE;
+String to_relative_asset_path(Arena &a, String path) {
+    String data = str_slice(path, S("\\data"));
+    if (!is_valid(data)) data = str_slice(path, S("/data"));
+    if (!is_valid(data)) return STRING_NONE;
 
     String_Builder sb;
-    str_build(a, sb, data, path.length - (data - path.value));
+    str_build(a, sb, data);
 
     String s = str_build_finish(a, sb);
     fix_directory_delimiters(s);
@@ -1003,7 +1002,7 @@ String to_relative_asset_path(Arena &a, const String &path) {
     return s;
 }
 
-String to_full_asset_path(Arena &a, const String &path) {
+String to_full_asset_path(Arena &a, String path) {
     String_Builder sb;
     str_build(a, sb, DIR_RUN_TREE);
     str_build(a, sb, path);

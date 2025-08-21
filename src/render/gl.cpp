@@ -20,7 +20,6 @@
 #include "math/math_basic.h"
 
 #include "log.h"
-#include "str.h"
 #include "font.h"
 #include "asset.h"
 
@@ -676,9 +675,9 @@ u16 r_create_vertex_descriptor(u32 count, const R_Vertex_Binding *bindings) {
     return sparse_push(R_table.vertex_descriptors, vd);
 }
 
-static u32 gl_create_shader(GLenum type, const char *src) {
+static u32 gl_create_shader(GLenum type, String s) {
 	const u32 shader = glCreateShader(type);
-	glShaderSource(shader, 1, &src, null);
+	glShaderSource(shader, 1, &s.value, &(*(GLint *)&s.length));
 	glCompileShader(shader);
 
 	s32 success;
@@ -723,14 +722,18 @@ static void r_create_gl_shader(String s, R_Shader &sh) {
     Scratch scratch = local_scratch();
     defer { release(scratch); };
     
-    char *vertex   = arena_push_array(scratch.arena, R_Shader::MAX_FILE_SIZE, char);
-	char *fragment = arena_push_array(scratch.arena, R_Shader::MAX_FILE_SIZE, char);
-    
-	if (!parse_shader_regions(s.value, vertex, fragment)) {
-        error("Failed to parse shader regions:\n%.*s\n", s.length, s.value);
+    String vertex = parse_shader_region(scratch.arena, s, SHADER_VERTEX);
+    if (!is_valid(vertex)) {
+        error("Failed to parse vertex shader from:\n%.*s\n", s.length, s.value);
         return;
     }
 
+    String fragment = parse_shader_region(scratch.arena, s, SHADER_FRAGMENT);
+    if (!is_valid(fragment)) {
+        error("Failed to parse fragment shader from:\n%.*s\n", s.length, s.value);
+        return;
+    }
+    
     const u32 gl_vertex = gl_create_shader(GL_VERTEX_SHADER, vertex);
     if (gl_vertex == GL_INVALID_INDEX) {
         return;

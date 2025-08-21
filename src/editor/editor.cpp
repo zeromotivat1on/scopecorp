@@ -31,7 +31,6 @@
 #include "math/matrix.h"
 
 #include "log.h"
-#include "str.h"
 #include "profile.h"
 #include "font.h"
 #include "asset.h"
@@ -1073,8 +1072,10 @@ const Reflect_Field &get_entity_field(Entity_Type type, u32 index) {
 }
 
 void init_default_level(Game_World &w) {
-    str_copy(w.name, "main.lvl");
-
+    constexpr String s = S("main.lvl");
+    mem_copy(w.name.value, s.value, s.length);
+    w.name.length = s.length;
+    
 	auto &player = *(Player *)create_entity(World, E_PLAYER);
 	{
         const auto &texture = *find_texture(SID_TEXTURE_PLAYER_IDLE_SOUTH);

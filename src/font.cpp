@@ -1,7 +1,6 @@
 #include "pch.h"
 #include "font.h"
 #include "log.h"
-#include "str.h"
 #include "stb_truetype.h"
 
 #include "os/file.h"

@@ -2,22 +2,9 @@
 #include "render/r_shader.h"
 
 #include "log.h"
-#include "str.h"
 #include "asset.h"
 
 #include "os/file.h"
-
-enum Shader_Region_Type {
-    REGION_VERTEX,
-    REGION_FRAGMENT,
-    REGION_COUNT
-};
-
-static const char *DECL_BEGIN_VERTEX = "#begin vertex";
-static const char *DECL_END_VERTEX   = "#end vertex";
-
-static const char *DECL_BEGIN_FRAGMENT = "#begin fragment";
-static const char *DECL_END_FRAGMENT   = "#end fragment";
 
 // Slang stuff to do.
 /*
@@ -122,52 +109,54 @@ Buffer r_compile_shader(Arena &a, String path) {
 }
 */
 
-static inline const char *get_shader_region_begin_decl(Shader_Region_Type type) {
+constexpr String DECL_BEGIN_VERTEX   = S("#begin vertex");
+constexpr String DECL_END_VERTEX     = S("#end vertex");
+constexpr String DECL_BEGIN_FRAGMENT = S("#begin fragment");
+constexpr String DECL_END_FRAGMENT   = S("#end fragment");
+
+static inline String get_begin_decl(Shader_Type type) {
     switch (type) {
-    case REGION_VERTEX:   return DECL_BEGIN_VERTEX;
-    case REGION_FRAGMENT: return DECL_BEGIN_FRAGMENT;
+    case SHADER_VERTEX:   return DECL_BEGIN_VERTEX;
+    case SHADER_FRAGMENT: return DECL_BEGIN_FRAGMENT;
     default:
-        error("Unknown shader region type %d", type);
-        return null;
+        error("Unknown shader type %d", type);
+        return STRING_NONE;
     }
 }
 
-static inline const char *get_shader_region_end_decl(Shader_Region_Type type) {
+static inline String get_end_decl(Shader_Type type) {
     switch (type) {
-    case REGION_VERTEX:   return DECL_END_VERTEX;
-    case REGION_FRAGMENT: return DECL_END_FRAGMENT;
+    case SHADER_VERTEX:   return DECL_END_VERTEX;
+    case SHADER_FRAGMENT: return DECL_END_FRAGMENT;
     default:
-        error("Unknown shader region type %d", type);
-        return null;
+        error("Unknown shader type %d", type);
+        return STRING_NONE;
     }
 }
 
-static bool parse_shader_region(const char *in, char *out, Shader_Region_Type type) {
-    Assert(type < REGION_COUNT);
+String parse_shader_region(Arena &a, String s, Shader_Type type) {
+    Assert(type < SHADER_COUNT);
     
-    const char *decl_begin = get_shader_region_begin_decl(type);
-    const char *decl_end   = get_shader_region_end_decl(type);
-
-    const char *cin   = in;
-    const char *begin = str_sub(cin, decl_begin);
-    const char *end   = str_sub(cin, decl_end);
+    const String decl_begin = get_begin_decl(type);
+    const String decl_end   = get_end_decl(type);
     
-    if (begin == null) {
-        error("Failed to find shader region begin declaration '%s'", decl_begin);
-        return false;
+    String begin = str_slice(s, decl_begin);
+    String end   = str_slice(s, decl_end);
+    
+    if (!is_valid(begin)) {
+        error("Failed to find shader region begin declaration '%s'", decl_begin.value);
+        return STRING_NONE;
     }
 
-    if (end == null) {
-        error("Failed to find shader region end declaration '%s'", decl_end);
-        return false;
+    if (!is_valid(end)) {
+        error("Failed to find shader region end declaration '%s'", decl_end.value);
+        return STRING_NONE;
     }
-
-    *out = '\0';
-
-    cin = str_char(begin, '\n') + 1;
-    str_glue(out, cin, end - cin);
     
-    return true;
+    begin = str_slice(begin, ASCII_NEW_LINE, S_INDEX_PLUS_ONE_BIT);
+    const auto region = String { begin.value, (u64)(end.value - begin.value) };
+    
+    return str_copy(a, region);
 }
 
 String parse_shader_includes(Arena &a, String s) {
@@ -211,18 +200,4 @@ String parse_shader_includes(Arena &a, String s) {
     }
     
     return r;
-}
-
-bool parse_shader_regions(const char *source, char *out_vertex, char *out_fragment) {
-    if (!parse_shader_region(source, out_vertex, REGION_VERTEX)) {
-        error("Failed to parse vertex shader region");
-        return false;
-    }
-
-    if (!parse_shader_region(source, out_fragment, REGION_FRAGMENT)) {
-        error("Failed to parse fragment shader region");
-        return false;
-    }
-
-    return true;
 }

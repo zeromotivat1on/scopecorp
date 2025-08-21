@@ -1,6 +1,5 @@
 #include "pch.h"
 #include "log.h"
-#include "str.h"
 #include "os/file.h"
 
 Buffer os_read_file(Arena &a, String path) {
