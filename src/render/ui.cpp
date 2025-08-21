@@ -308,7 +308,7 @@ u16 ui_input_text(uiid id, char *text, u32 size, const UI_Input_Style &style) {
     u32 color_quad = style.color_quad.cold;
     u32 color_cursor = style.color_cursor.cold;
 
-    u32 count = (u32)s(text).length;
+    u32 count = (u32)String(text).length;
 
     if (inside(R_viewport.mouse_pos, p0, p1)) {
         if (id != R_ui.id_hot) {
@@ -389,7 +389,7 @@ u16 ui_input_f32(uiid id, f32 *v, const UI_Input_Style &style) {
     
     const auto bits = ui_input_text(id, text, size, style);
     if (bits & UI_FINISHED_BIT) {
-        *v = str_to_f32(s(text));
+        *v = str_to_f32(String(text));
     }
 
     if (id != R_ui.id_active) {
@@ -406,7 +406,7 @@ u16 ui_input_s8(uiid id, s8 *v, const UI_Input_Style &style) {
     
     const auto bits = ui_input_text(id, text, size, style);
     if (bits & UI_FINISHED_BIT) {
-        *v = str_to_s8(s(text));
+        *v = str_to_s8(String(text));
     }
 
     if (id != R_ui.id_active) {
@@ -423,7 +423,7 @@ u16 ui_input_s16(uiid id, s16 *v, const UI_Input_Style &style) {
     
     const auto bits = ui_input_text(id, text, size, style);
     if (bits & UI_FINISHED_BIT) {
-        *v = str_to_s16(s(text));
+        *v = str_to_s16(String(text));
     }
 
     if (id != R_ui.id_active) {
@@ -440,7 +440,7 @@ u16 ui_input_s32(uiid id, s32 *v, const UI_Input_Style &style) {
     
     const auto bits = ui_input_text(id, text, size, style);
     if (bits & UI_FINISHED_BIT) {
-        *v = str_to_s32(s(text));
+        *v = str_to_s32(String(text));
     }
 
     if (id != R_ui.id_active) {
@@ -457,7 +457,7 @@ u16 ui_input_s64(uiid id, s64 *v, const UI_Input_Style &style) {
     
     const auto bits = ui_input_text(id, text, size, style);
     if (bits & UI_FINISHED_BIT) {
-        *v = str_to_s64(s(text));
+        *v = str_to_s64(String(text));
     }
 
     if (id != R_ui.id_active) {
@@ -474,7 +474,7 @@ u16 ui_input_u8(uiid id, u8 *v, const UI_Input_Style &style) {
     
     const auto bits = ui_input_text(id, text, size, style);
     if (bits & UI_FINISHED_BIT) {
-        *v = str_to_u8(s(text));
+        *v = str_to_u8(String(text));
     }
 
     if (id != R_ui.id_active) {
@@ -491,7 +491,7 @@ u16 ui_input_u16(uiid id, u16 *v, const UI_Input_Style &style) {
     
     const auto bits = ui_input_text(id, text, size, style);
     if (bits & UI_FINISHED_BIT) {
-        *v = str_to_u16(s(text));
+        *v = str_to_u16(String(text));
     }
 
     if (id != R_ui.id_active) {
@@ -508,7 +508,7 @@ u16 ui_input_u32(uiid id, u32 *v, const UI_Input_Style &style) {
     
     const auto bits = ui_input_text(id, text, size, style);
     if (bits & UI_FINISHED_BIT) {
-        *v = str_to_u32(s(text));
+        *v = str_to_u32(String(text));
     }
 
     if (id != R_ui.id_active) {
@@ -525,7 +525,7 @@ u16 ui_input_u64(uiid id, u64 *v, const UI_Input_Style &style) {
     
     const auto bits = ui_input_text(id, text, size, style);
     if (bits & UI_FINISHED_BIT) {
-        *v = str_to_u64(s(text));
+        *v = str_to_u64(String(text));
     }
 
     if (id != R_ui.id_active) {

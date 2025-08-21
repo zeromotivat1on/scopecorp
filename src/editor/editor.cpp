@@ -1374,7 +1374,7 @@ void telemetry_draw() {
             }
             
             pos.x = offsets[i];
-            ui_text(s(titles[i]), pos, color, z, atlas_index);
+            ui_text(String(titles[i]), pos, color, z, atlas_index);
         }
             
         pos.y -= atlas.line_height * 1.5f;
@@ -1669,7 +1669,7 @@ void mprof_draw() {
             }
             
             pos.x = offsets[i];
-            ui_text(s(titles[i]), pos, color, QUAD_Z + F32_EPSILON, atlas_index);
+            ui_text(String(titles[i]), pos, color, QUAD_Z + F32_EPSILON, atlas_index);
         }
 
         pos.y -= atlas.line_height * 1.5f;

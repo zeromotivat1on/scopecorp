@@ -654,7 +654,7 @@ void serialize(File file, Asset &asset) {
     
     switch (asset.type) {
     case ASSET_SHADER: {
-        String s = parse_shader_includes(scratch.arena, String { (char *)contents.data, contents.size });
+        String s = parse_shader_includes(scratch.arena, String(contents));
 
         contents.data = (u8 *)s.value;
         contents.size = s.length;
@@ -666,11 +666,9 @@ void serialize(File file, Asset &asset) {
         break;
     }
     case ASSET_MATERIAL: {
-        String s = String { (char *)contents.data, contents.size };
-
         auto &mmeta = *(R_Material::Meta *)meta;
         R_Uniform::Meta umetas[R_Material::MAX_UNIFORMS] = { 0 };
-        parse_asset_file_data(s, mmeta, COUNT(umetas), umetas);
+        parse_asset_file_data(String(contents), mmeta, COUNT(umetas), umetas);
 
         contents.size = mmeta.uniform_count * sizeof(umetas[0]);
         mem_copy(contents.data, umetas, contents.size);
@@ -684,7 +682,7 @@ void serialize(File file, Asset &asset) {
         Scratch scratch = local_scratch();
         defer { release(scratch); };
         
-        String s = String { (char *)contents.data, contents.size };
+        String s = { contents };
 
         auto &mmeta = *(R_Mesh::Meta *)meta;
 

@@ -281,6 +281,11 @@ void mem_swap (void *a, void *b, u64 n);
 struct String {
     char *value = null;
     u64 length  = 0;
+
+    String() = default;
+    String(const char *cs);
+    String(Buffer buffer) { value = (char *)buffer.data; length = buffer.size; }
+    constexpr String(const char *cs, u64 len) { value = (char *)cs; length = len; }
 };
 
 // Iterator used for string tokenization.
@@ -306,7 +311,6 @@ struct String_Token_Iterator {
 inline bool operator==(const String &a, const String &b) { return a.value == b.value && a.length == b.length; }
 inline bool operator!=(const String &a, const String &b) { return !(a == b); }
 
-String s           (const char *cs);
 String str_copy    (Arena &a, const char *cs);
 String str_copy    (Arena &a, const char *cs, u64 length);
 String str_copy    (Arena &a, String s);

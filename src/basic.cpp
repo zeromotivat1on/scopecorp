@@ -302,13 +302,9 @@ void sort(void *data, u32 count, u32 size, s32 (*compare)(const void*, const voi
 
 // string
 
-String s(const char *cs) {
-    // @Cleanup: do not like this cast, but what else can we do?
-    return String { (char *)cs, strlen(cs) };
-}
-
-String str_copy(Arena &a, const char *cs) {
-    return str_copy(a, cs, strlen(cs));
+String::String(const char *cs) {
+    value = (char *)cs;
+    length = strlen(cs);
 }
 
 String str_copy(Arena &a, const char *cs, u64 length) {
