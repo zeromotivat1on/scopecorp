@@ -1,44 +1,40 @@
 #pragma once
 
-inline constexpr u32 MAX_WINDOW_DROP_COUNT = 64;
-
-struct Window;
-struct Window_Event;
-
-typedef void(*Window_Event_Callback)(const Window &window, const Window_Event &event);
-
 enum Window_Event_Type : u8 {
 	WINDOW_EVENT_UNKNOWN,
+    WINDOW_EVENT_FOCUSED,
+	WINDOW_EVENT_LOST_FOCUS,
 	WINDOW_EVENT_RESIZE,
 	WINDOW_EVENT_KEYBOARD,
 	WINDOW_EVENT_TEXT_INPUT,
-	WINDOW_EVENT_MOUSE,
+	WINDOW_EVENT_MOUSE_CLICK,
+	WINDOW_EVENT_MOUSE_MOVE,
+	WINDOW_EVENT_MOUSE_WHEEL,
 	WINDOW_EVENT_FILE_DROP,
 	WINDOW_EVENT_QUIT,
 };
 
+enum Window_Event_Input_Bits : u8 {
+    WINDOW_EVENT_PRESS_BIT   = 0x1,
+    WINDOW_EVENT_RELEASE_BIT = 0x2,
+    WINDOW_EVENT_REPEAT_BIT  = 0x4,
+};
+
 struct Window_Event {
-	Window_Event_Type type;
-	bool key_press;
-	bool key_release;
-	bool key_repeat;
-    bool with_ctrl;
-    bool with_shift;
-    bool with_alt;
-	s16 key_code;
-    char *file_drops;
-    u16 file_drop_count;
-    s16 scroll_delta;
-	u32 character;
-    u16 prev_width;
-    u16 prev_height;
+	Window_Event_Type type = WINDOW_EVENT_UNKNOWN;
+
+    union {
+        struct { s16 x; s16 y; };
+        struct { u16 w; u16 h; };
+        struct { u8 input_bits; Key_Code key_code; };
+        struct { u32 character; };
+        struct { s16 scroll_delta; };
+        struct { u16 file_drop_count; char *file_drops; };
+    };
 };
 
 struct Window {
-    static constexpr u16 MAX_EVENTS = 32; // per frame
-    
     void *user_data = null;
-	Window_Event_Callback event_callback = null;
 
 	u16 width  = 0;
 	u16 height = 0;
@@ -48,25 +44,23 @@ struct Window {
 	bool cursor_locked = false;
 	bool last_cursor_locked = false;
 
-    u16 event_count = 0;
-    Window_Event events[MAX_EVENTS];
+    Array <Window_Event> events; // saved events after poll_events call
+
+    void *handle = null;
     
-#if WIN32
+#ifdef WIN32
 	struct Win32_Window *win32 = null;
 #endif
 };
 
-inline Window Main_window;
+Window *new_window (u16 width, u16 height, const char *name, s16 x = 0, s16 y = 0);
 
-bool os_create_window(u16 width, u16 height, const char *name, s16 x, s16 y, Window &w);
-void os_set_window_user_data(Window &w, void *user_data);
-void os_register_window_callback(Window &w, Window_Event_Callback callback);
-void os_destroy_window(Window &w);
-void os_poll_window_events(Window &w);
-void os_close_window(Window &w);
-bool os_window_alive(Window &w);
-bool os_set_window_title(Window &w, const char *title);
-void os_lock_window_cursor(Window &w, bool lock);
-void os_swap_window_buffers(Window &w);
-
-void os_set_window_vsync(Window &w, bool enable);
+void destroy            (Window *w);
+void poll_events        (Window *w);
+void close              (Window *w);
+bool is_valid           (Window *w);
+bool set_title          (Window *w, const char *title);
+void lock_cursor        (Window *w, bool lock);
+void set_cursor         (Window *w, s16 x, s16 y);
+void swap_buffers       (Window *w);
+void set_vsync          (Window *w, bool enable);

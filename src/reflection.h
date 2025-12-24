@@ -18,13 +18,13 @@ enum Reflect_Field_Type : u8 {
 
     FIELD_SID,
     
-    FIELD_VEC2,
-    FIELD_VEC3,
-    FIELD_VEC4,
-    FIELD_MAT2,
-    FIELD_MAT3,
-    FIELD_MAT4,
-    FIELD_QUAT,
+    FIELD_VECTOR2,
+    FIELD_VECTOR3,
+    FIELD_VECTOR4,
+    FIELD_MATRIX2,
+    FIELD_MATRIX3,
+    FIELD_MATRIX4,
+    FIELD_QUATERNION,
     
     //FIELD_STRUCT,
 };
@@ -36,8 +36,8 @@ struct Reflect_Field {
 };
 
 #define REFLECT_BEGIN(t) inline const Reflect_Field t##_fields[] = {
-#define REFLECT_FIELD(t, fn, ft) { S(#fn), Offsetof(t, fn), ft },
-#define REFLECT_END(t) }; inline constexpr u32 t##_field_count = COUNT(t##_fields);
+#define REFLECT_FIELD(t, fn, ft) { S(#fn), offset_of(t, fn), ft },
+#define REFLECT_END(t) }; inline constexpr u32 t##_field_count = carray_count(t##_fields);
 
 #define REFLECT_FIELD_COUNT(t) t##_field_count
 #define REFLECT_FIELD_AT(t, i) t##_fields[i]

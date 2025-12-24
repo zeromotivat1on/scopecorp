@@ -1,7 +1,5 @@
 #pragma once
 
-struct Window;
+inline constexpr auto LOG_IDENT_GL = S("GL");
 
-bool r_init_context(Window &w);
-void r_detect_capabilities();
-void r_init_global_uniforms();
+bool init_render_context (struct Window *window);

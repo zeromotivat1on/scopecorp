@@ -1,11 +1,8 @@
 #pragma once
 
 #include "font.h"
-
-#include "math/vector.h"
-
-#include "render/r_pass.h"
-#include "render/r_command.h"
+#include "vector.h"
+#include "vertex_descriptor.h"
 
 inline constexpr f32 UI_MAX_Z = 1000.0f;
 
@@ -25,7 +22,7 @@ inline constexpr u32 UI_INPUT_BUFFER_SIZE_U32 = 16;
 inline constexpr u32 UI_INPUT_BUFFER_SIZE_U64 = 16;
 inline constexpr u32 UI_INPUT_BUFFER_SIZE_SID = 64;
 
-struct mat4;
+struct Matrix4;
 struct Font_Atlas;
 
 // Bits that are returned from immediate ui elements.
@@ -46,8 +43,8 @@ struct uiid {
 
 inline constexpr uiid UIID_NONE = { 0, 0, 0 };
 
-bool operator==(const uiid &a, const uiid &b);
-bool operator!=(const uiid &a, const uiid &b);
+bool operator==(const uiid &a, const uiid &b) { return a.owner == b.owner && a.item == b.item && a.index == b.index; }
+bool operator!=(const uiid &a, const uiid &b) { return !(a == b); }
 
 struct UI_Color {
     u32 cold   = 0;
@@ -55,118 +52,100 @@ struct UI_Color {
     u32 active = 0;
 };
 
-struct UI_Button_Style {
+struct UI_Style {
+    Baked_Font_Atlas *font_atlas = global_font_atlases.main_small;
+
     f32 z = 0.0f;
-    vec2 pos_text = vec2_zero;
-    vec2 padding  = vec2_zero;
-    UI_Color color_text;
-    UI_Color color_quad;
-    s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX;
+
+    Vector2 pos     = Vector2_zero;
+    Vector2 padding = Vector2_zero;
+    Vector2 margin  = Vector2_zero;
+
+    UI_Color back_color;
+    UI_Color front_color;
 };
 
-struct UI_Input_Style {
-    f32 z = 0.0f;
-    vec2 pos_text = vec2_zero;
-    vec2 padding  = vec2_zero;
-    UI_Color color_text;
-    UI_Color color_quad;
-    UI_Color color_cursor;
-    s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX;
+struct UI_Button_Style : UI_Style {
 };
 
-struct UI_Combo_Style {
-    f32 z = 0.0f;
-    vec2 pos_text = vec2_zero;
-    vec2 padding  = vec2_zero;
-    UI_Color color_text;
-    UI_Color color_quad;
-    s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX;
+struct UI_Input_Style : UI_Style {
+    UI_Color cursor_color;
 };
 
-struct R_UI {
-    static constexpr u32 MAX_COMMANDS = 512;
-    static constexpr u32 MAX_FONT_ATLASES = 32;
-    
+struct UI_Combo_Style : UI_Style {
+};
+
+struct Material;
+
+struct UI_Context {    
     struct Line_Render {
         static constexpr u16 MAX_LINES = 256;
     
-        vec2 *positions = null;
+        Vector2 *positions = null;
         u32  *colors    = null;
 
         u16 line_count = 0;
 
-        u16 vertex_desc = 0;
-        u16 material = 0;
+        Vertex_Descriptor vertex_descriptor;
+        Material *material = null;
     };
 
     struct Quad_Render {
         static constexpr u16 MAX_QUADS = 128;
     
-        vec2 *positions = null;
+        Vector2 *positions = null;
         u32  *colors    = null;
 
         u16 quad_count = 0;
 
-        u16 vertex_desc = 0;
-        u16 material = 0;
+        Vertex_Descriptor vertex_descriptor;
+        Material *material = null;
     };
 
     struct Text_Render {
-        static constexpr u16 MAX_CHARS = 2048;
+        static constexpr u16 MAX_CHARS = 4096;
 
         f32  *positions  = null;
+        Vector4 *uv_rects   = null;
         u32  *colors     = null;
         u32  *charmap    = null;
-        mat4 *transforms = null;
+        Matrix4 *transforms = null;
 
         u16 char_count = 0;
 
-        u16 vertex_desc = 0;
-        u16 material = 0;
+        Vertex_Descriptor vertex_descriptor;
+        Material *material = null;
     };
     
     uiid id_hot;
     uiid id_active;
-    
-    u16 font_atlas_count = 0;
-    Font_Atlas font_atlases[MAX_FONT_ATLASES];
 
+    Table <uiid, char *> input_table;
+    String input_buffer;
+    
     Line_Render line_render;
     Text_Render text_render;
     Quad_Render quad_render;
-
-    R_Pass pass;
-    R_Command_List command_list;
 };
 
-inline R_UI R_ui;
+inline UI_Context ui;
 
-void ui_init();
-void ui_flush();
+void init_ui ();
 
-u16 ui_button(uiid id, String text, const UI_Button_Style &style);
-u16 ui_input_text(uiid id, char *text, u32 size, const UI_Input_Style &style);
-
-u16 ui_input_f32(uiid id, f32 *v, const UI_Input_Style &style);
-
-u16 ui_input_s8 (uiid id, s8  *v, const UI_Input_Style &style);
-u16 ui_input_s16(uiid id, s16 *v, const UI_Input_Style &style);
-u16 ui_input_s32(uiid id, s32 *v, const UI_Input_Style &style);
-u16 ui_input_s64(uiid id, s64 *v, const UI_Input_Style &style);
-
-u16 ui_input_u8 (uiid id, u8  *v, const UI_Input_Style &style);
-u16 ui_input_u16(uiid id, u16 *v, const UI_Input_Style &style);
-u16 ui_input_u32(uiid id, u32 *v, const UI_Input_Style &style);
-u16 ui_input_u64(uiid id, u64 *v, const UI_Input_Style &style);
-
-u16 ui_input_sid(uiid id, sid *v, const UI_Input_Style &style);
-
-u16 ui_combo(uiid, u32 *selected_index, u32 option_count, const String *options, const UI_Combo_Style &style);
-
-void ui_text(String text, vec2 pos, u32 color, f32 z = 0.0f, s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX);
-void ui_text_with_shadow(String text, vec2 pos, u32 color, vec2 shadow_offset, u32 shadow_color, f32 z = 0.0f, s32 atlas_index = UI_DEFAULT_FONT_ATLAS_INDEX);
-
-void ui_quad(vec2 p0, vec2 p1, u32 color, f32 z = 0.0f);
-
-void ui_line(vec2 start, vec2 end, u32 color, f32 z = 0.0f);
-void ui_world_line(vec3 start, vec3 end, u32 color, f32 z = 0.0f);
+u16  ui_button     (uiid id, String text, const UI_Button_Style &style);
+u16  ui_input_text (uiid id, char *text, u32 size, const UI_Input_Style &style);
+u16  ui_input_f32  (uiid id, f32 *v, const UI_Input_Style &style);
+u16  ui_input_s8   (uiid id, s8  *v, const UI_Input_Style &style);
+u16  ui_input_s16  (uiid id, s16 *v, const UI_Input_Style &style);
+u16  ui_input_s32  (uiid id, s32 *v, const UI_Input_Style &style);
+u16  ui_input_s64  (uiid id, s64 *v, const UI_Input_Style &style);
+u16  ui_input_u8   (uiid id, u8  *v, const UI_Input_Style &style);
+u16  ui_input_u16  (uiid id, u16 *v, const UI_Input_Style &style);
+u16  ui_input_u32  (uiid id, u32 *v, const UI_Input_Style &style);
+u16  ui_input_u64  (uiid id, u64 *v, const UI_Input_Style &style);
+void ui_quad       (Vector2 p0, Vector2 p1, u32 color, f32 z = 0.0f);
+void ui_line       (Vector2 start, Vector2 end, u32 color, f32 z = 0.0f);
+void ui_world_line (Vector3 start, Vector3 end, u32 color, f32 z = 0.0f);
+u16  ui_combo      (uiid, u32 *selected_index, u32 option_count, const String *options, const UI_Combo_Style &style);
+void ui_text       (String text, Vector2 pos, u32 color, f32 z = 0.0f, const Baked_Font_Atlas *font_atlas = global_font_atlases.main_small);
+void ui_text_with_shadow (String text, Vector2 pos, u32 color, Vector2 shadow_offset, u32 shadow_color, f32 z = 0.0f, const Baked_Font_Atlas *font_atlas = global_font_atlases.main_small);

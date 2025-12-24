@@ -1,4 +1,8 @@
 *.pak
+*.exe
+*.pdb
+*.obj
+*.rdi
 
 run_tree/build
 run_tree/cmake

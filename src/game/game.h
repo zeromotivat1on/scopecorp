@@ -1,10 +1,16 @@
 #pragma once
 
-enum Game_Mode {
-	MODE_GAME,
-	MODE_EDITOR,
-    MODE_COUNT
+#include "string_builder.h"
+#include "command_buffer.h"
+
+struct Game_Logger_Data {
+    String_Builder messages;
 };
+
+inline Game_Logger_Data game_logger_data;
+
+void game_logger_proc  (String message, String ident, Log_Level level, void *logger_data);
+void flush_game_logger ();
 
 enum View_Mode_Flag : u32 {
     VIEW_MODE_FLAG_COLLISION = 0x1,
@@ -27,26 +33,28 @@ enum Property_Change_Type {
     PROPERTY_SCALE,
 };
 
-enum Polygon_Mode : u8;
-
 struct Game_State {
-	Game_Mode mode = MODE_EDITOR;
     u32 view_mode_flags = 0;
-	Camera_Behavior camera_behavior = FOLLOW_PLAYER;
-	Player_Movement_Behavior player_movement_behavior = MOVE_RELATIVE_TO_CAMERA;
+	Camera_Behavior camera_behavior = STICK_TO_PLAYER;
+	Player_Movement_Behavior player_movement_behavior = MOVE_INDEPENDENT;
     Property_Change_Type selected_entity_property_to_change = PROPERTY_LOCATION;
-    u32 polygon_mode = R_FILL;
+    Polygon_Mode polygon_mode = POLYGON_FILL;
 };
-
-struct Window_Event;
 
 inline Game_State game_state;
 
-void on_window_resize(u16 width, u16 height);
-void on_input_game(const Window_Event &event);
-void tick_game(f32 dt);
+struct Window_Event;
 
-const char *to_string(Game_Mode mode);
+void on_window_resize(u16 width, u16 height);
+
+void init_asset_storages ();
+void load_game_assets    ();
+
+void simulate_game ();
+void on_game_input (const Window_Event *e);
+void on_game_push  ();
+void on_game_pop   ();
+
+const char *to_string(Program_Mode mode);
 const char *to_string(Camera_Behavior behavior);
 const char *to_string(Player_Movement_Behavior behavior);
-const char *to_string(enum Entity_Type type);

@@ -32,7 +32,6 @@ struct Work_Queue
     void wait(u32 ms);
 };
 
-Work_Queue create_work_queue(Semaphore semaphore);
 bool active(Work_Queue* wq);
 void add(Work_Queue* wq, void* data, Callback callback);
 bool process(Work_Queue* wq);

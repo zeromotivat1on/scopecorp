@@ -1,19 +1,14 @@
 #include "pch.h"
-#include "camera.h"
-#include "log.h"
-
-#include "math/math_basic.h"
-#include "math/matrix.h"
-
-#include "render/r_viewport.h"
+#include "matrix.h"
+#include "viewport.h"
 
 void update_matrices(Camera &c) {
-    c.view = mat4_view(c.eye, c.at, c.up);
+    c.view = make_view(c.position, c.look_at_position, c.up_vector);
 
-    if (c.mode == MODE_PERSPECTIVE) {
-		c.proj = mat4_perspective(Rad(c.fov), c.aspect, c.near, c.far);
-    } else if (c.mode == MODE_ORTHOGRAPHIC) {
-		c.proj = mat4_orthographic(c.left, c.right, c.bottom, c.top, c.near, c.far);
+    if (c.mode == PERSPECTIVE) {
+		c.proj = make_perspective(To_Radians(c.fov), c.aspect, c.near_plane, c.far_plane);
+    } else if (c.mode == ORTHOGRAPHIC) {
+		c.proj = make_orthographic(c.left, c.right, c.bottom, c.top, c.near_plane, c.far_plane);
     }
     
     c.view_proj = c.view * c.proj;
@@ -22,7 +17,7 @@ void update_matrices(Camera &c) {
     c.inv_proj = inverse(c.proj);
 }
 
-void on_viewport_resize(Camera &c, const R_Viewport &vp) {
+void on_viewport_resize(Camera &c, const Viewport &vp) {
 	c.aspect = (f32)vp.width / vp.height;
 	c.left   = vp.x;
 	c.right  = (f32)vp.x + vp.width;
@@ -30,28 +25,34 @@ void on_viewport_resize(Camera &c, const R_Viewport &vp) {
 	c.top    = (f32)vp.y + vp.height;
 }
 
-// @Todo: fix world_to_screen convertion.
-#include "editor/editor.h"
+Vector2 world_to_screen(Vector3 location, const Camera &camera, const Rect &rect) {
+    const auto view_proj = camera.view_proj;
 
-vec2 world_to_screen(vec3 location, const Camera &camera, const Rect &rect) {
-    const vec4 clip = vec4(location, 1.0f) * camera.proj * camera.view;
-    const vec3 ndc = clip.xyz / clip.w;
-    const vec2 pos = vec2((ndc.x + 1.0f) * 0.5f * rect.w,
-                          (ndc.y + 1.0f) * 0.5f * rect.h);
+    const auto clip = Vector4(location, 1.0f) * view_proj;
+    if (clip.w <= 0.0f) return Vector2(-F32_MAX, -F32_MAX);
+
+    const auto ndc = Vector2(clip.x / clip.w, clip.y / clip.w);
+    if (ndc.x < -1.0f || ndc.x > 1.0f || ndc.y < -1.0f || ndc.y > 1.0f)
+        return Vector2(-F32_MAX, -F32_MAX);
+
+    Vector2 pos;
+    pos.x = rect.x + (ndc.x * 0.5f + 0.5f) * rect.w;
+    pos.y = rect.y + (1.0f - (ndc.y * 0.5f + 0.5f)) * rect.h;
+
     return pos;
 }
 
-vec3 screen_to_world(vec2 pos, const Camera &camera, const Rect &rect) {
-    vec3 ndc;
+Vector3 screen_to_world(Vector2 pos, const Camera &camera, const Rect &rect) {
+    Vector3 ndc;
     ndc.x = -1.0f + (2.0f * (pos.x - rect.x)) / rect.w;
     ndc.y = -1.0f + (2.0f * (pos.y - rect.y)) / rect.h;
     ndc.z = 1.0f;
 
-    const vec4 clip = vec4(ndc.xy, -1.0f, 1.0f);
-    vec4 eye = camera.inv_proj * clip;
+    const Vector4 clip = Vector4(ndc.xy, -1.0f, 1.0f);
+    Vector4 eye = camera.inv_proj * clip;
     eye.z = -1.0f;
     eye.w =  0.0f;
 
-    const vec4 location = camera.inv_view * eye;
+    const Vector4 location = camera.inv_view * eye;
     return location.xyz;
 }

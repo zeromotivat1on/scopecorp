@@ -20,8 +20,14 @@ struct Wav_Header {
     
     char data_id[4];
     u32 sampled_data_size;
-
-    // sampled data goes here...
 };
 
-void *parse_wav(void *data, Wav_Header *header);
+struct Parsed_Wav {
+    Wav_Header header;
+    
+    // Sampled data goes here, basically an offset pointer from given data in parse_wav.
+    // This is also the field you can check to ensure parsing was finished correctly.
+    void *sampled_data = null;
+};
+
+Parsed_Wav parse_wav (void *data);

@@ -1,63 +1,45 @@
 #include "pch.h"
-#include "audio/au_table.h"
-#include "audio/au_sound.h"
-#include "audio/wav.h"
+#include "audio_player.h"
+#include "wav.h"
 
-#include "log.h"
-#include "memory_eater.h"
+Audio_Player *get_audio_player   () { Assert(audio_player); return audio_player; }
+Vector3 get_audio_listener_position () { return get_audio_player()->listener_position; }
+void set_audio_listener_position (Vector3 position) { get_audio_player()->listener_position = position; }
 
-void au_create_table(Au_Table &t) {
-    reserve(t.arena, MB(1));
+Parsed_Wav parse_wav(void *data) {
+    auto header = *Eat(&data, Wav_Header);
     
-    sparse_reserve(t.arena, t.sounds, t.MAX_SOUNDS);
-    
-    // Add dummies at 0 index.
-    sparse_push(t.sounds);
-}
-
-void au_destroy_table(Au_Table &t) {
-    release(t.arena);
-    t = {};
-}
-
-void *parse_wav(void *data, Wav_Header *header) {
-    Wav_Header wavh = *(Wav_Header *)eat(&data, sizeof(Wav_Header));
-    if (!str_equal(String(wavh.riff_id, 4), S("RIFF"))) {
-		error("File is not a valid wav file, header does not begin with 'RIFF'");
-		return null;
+    if (String(header.riff_id, 4) != S("RIFF")) {
+		log(LOG_MINIMAL, "File is not a valid wav file, header does not begin with 'RIFF'");
+		return {};
 	}
 
-    if (!str_equal(String(wavh.wave_id, 4), S("WAVE"))) {
-		error("File is not a valid wav file, header does not begin with 'WAVE'");
-		return null;
+    if (String(header.wave_id, 4) != S("WAVE")) {
+		log(LOG_MINIMAL, "File is not a valid wav file, header does not begin with 'WAVE'");
+		return {};
 	}
      
-    if (!str_equal(String(wavh.fmt_id, 4), S("fmt "))) {
-        error("File is not a valid wav file, header does not contain 'fmt '");
-        return null;
+    if (String(header.fmt_id, 4) != S("fmt ")) {
+        log(LOG_MINIMAL, "File is not a valid wav file, header does not contain 'fmt '");
+        return {};
     }
 
-    // If we found 'data' chunk, we are done, but ...
-    if (str_equal(String(wavh.data_id, 4), S("data"))) {
-        if (header) *header = wavh;
-        return data;
+    if (String(header.data_id, 4) == S("data")) {
+        return { header, data };
     }
 
-    // ... it may be possible that we have 'LIST' chunk instead of 'data', so parse it.
-        if (str_equal(String(wavh.data_id, 4), S("LIST"))) {
-        const u32 list_size = wavh.sampled_data_size;
+    if (String(header.data_id, 4) == S("LIST")) {
+        const u32 list_size = header.sampled_data_size;
         eat(&data, list_size);
 
-        char *data_id = (char *)eat(&data, 4);
-        if (str_equal(String(data_id, 4), S("data"))) {
-            mem_copy(wavh.data_id, data_id, 4);
-            wavh.sampled_data_size = eat_u32(&data);
-
-            if (header) *header = wavh;
-            return data;
+        char *data_id = Eat(&data, char, 4);
+        if (String(data_id, 4) == S("data")) {
+            copy(header.data_id, data_id, 4);
+            header.sampled_data_size = *Eat(&data, u32);
+            return { header, data };
         }
     }
         
-    error("File is not a valid wav file, header does not contain 'data'");
-    return null;
+    log(LOG_MINIMAL, "File is not a valid wav file, header does not contain 'data'");
+    return {};
 }

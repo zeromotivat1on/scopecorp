@@ -1,121 +1,257 @@
 #include "pch.h"
-#include "editor/editor.h"
-#include "editor/hot_reload.h"
-#include "editor/debug_console.h"
-#include "editor/telemetry.h"
-
-#include "game/game.h"
-#include "game/world.h"
-#include "game/entity.h"
-
-#include "os/time.h"
-#include "os/file.h"
-#include "os/input.h"
-#include "os/window.h"
-#include "os/thread.h"
-
-#include "render/ui.h"
-#include "render/r_table.h"
-#include "render/r_storage.h"
-#include "render/r_viewport.h"
-#include "render/r_stats.h"
-#include "render/r_target.h"
-#include "render/r_shader.h"
-#include "render/r_texture.h"
-#include "render/r_material.h"
-#include "render/r_mesh.h"
-#include "render/r_flip_book.h"
-
-#include "math/math_basic.h"
-#include "math/vector.h"
-#include "math/matrix.h"
-
-#include "log.h"
+#include "editor.h"
+#include "hot_reload.h"
+#include "console.h"
+#include "game.h"
+#include "entity_manager.h"
+#include "cpu_time.h"
+#include "file_system.h"
+#include "input.h"
+#include "window.h"
+#include "thread.h"
+#include "ui.h"
+#include "viewport.h"
+#include "render_frame.h"
+#include "render_target.h"
+#include "triangle_mesh.h"
+#include "shader.h"
+#include "texture.h"
+#include "material.h"
+#include "flip_book.h"
+#include "vector.h"
+#include "matrix.h"
 #include "profile.h"
 #include "font.h"
-#include "asset.h"
 #include "input_stack.h"
 #include "reflection.h"
 #include "collision.h"
-
 #include "stb_image.h"
 #include "stb_sprintf.h"
+#include <algorithm>
+#include <functional>
 
-Input_Key KEY_CLOSE_WINDOW           = KEY_ESCAPE;
-Input_Key KEY_SWITCH_EDITOR_MODE     = KEY_F11;
-Input_Key KEY_SWITCH_POLYGON_MODE    = KEY_F1;
-Input_Key KEY_SWITCH_COLLISION_VIEW  = KEY_F2;
-Input_Key KEY_SWITCH_CONSOLE         = KEY_GRAVE_ACCENT;
-Input_Key KEY_SWITCH_TELEMETRY       = KEY_F5;
-Input_Key KEY_SWITCH_MEMORY_PROFILER = KEY_F6;
+Level_Set *init_editor_level_set() {
+    auto cs = New(Campaign_State);
+    auto manager = cs->entity_manager = new_entity_manager();
 
-constexpr f32 EDITOR_REPORT_SHOW_TIME = 2.0f;
-constexpr f32 EDITOR_REPORT_FADE_TIME = 0.5f;
+    // Reserve some reasonable amount of entities.
+    array_realloc(manager->entities,           256);
+    array_realloc(manager->entities_to_delete, 256);
+    array_realloc(manager->free_entities,      256);
 
-static String Editor_report;
-static f32 Editor_report_time = 0.0f;
+    auto set = New(Level_Set);
+    set->name = copy_string("editor");
+    set->campaign_state = cs;
+    
+    editor_level_set = set;
+    return set;
+}
+
+void init_level_editor_hub() {
+    auto manager = get_entity_manager();
+    
+	auto player = New_Entity(manager, E_PLAYER);
+    manager->player = player->eid;
+    
+	{
+        auto material = get_material(S("player"));
+        auto texture = material->diffuse_texture;
+
+        if (texture) {
+            const f32 scale_aspect = (f32)texture->width / texture->height;
+            const f32 y_scale = 1.0f * scale_aspect;
+            const f32 x_scale = y_scale * scale_aspect;
+        
+            player->scale = Vector3(x_scale, y_scale, 0.2f);
+        }
+
+        player->position = Vector3(0.0f, F32_MIN, 0.0f);
+        player->object_to_world = make_transform(player->position, player->orientation, player->scale);
+        
+        player->aabb.c = player->position + Vector3(0.0f, player->scale.y * 0.5f, 0.0f);
+        player->aabb.r = player->scale * 0.5f;
+
+        player->mesh     = S("player");
+        player->material = S("player");
+
+        player->move_speed     = 500.0f;
+        player->move_direction = SOUTH;
+        player->move_sound     = S("player_steps");
+
+        player->camera_offset = Vector3(0.0f, 1.0f, -3.0f);
+	}
+
+	{
+        auto ground = New_Entity(manager, E_STATIC_MESH);
+        
+		ground->scale = Vector3(16.0f, 16.0f, 0.0f);
+        ground->orientation = make_quaternion_from_axis_angle(Vector3_right, 90.0f);
+        ground->uv_scale = Vector2(ground->scale.x, ground->scale.y);
+        ground->position = Vector3_zero;
+        ground->object_to_world = make_transform(ground->position, ground->orientation, ground->scale);
+
+        auto &aabb = ground->aabb;
+        aabb.c = ground->position;
+		aabb.r = Vector3(ground->scale.x, 0.0f, ground->scale.y);
+
+        ground->mesh     = S("quad");
+        ground->material = S("ground");
+	}
+
+	{
+        auto cube = New_Entity(manager, E_STATIC_MESH);
+
+		cube->position = Vector3(3.0f, 0.5f, 4.0f);
+        cube->object_to_world = make_transform(cube->position, cube->orientation, cube->scale);
+        
+        auto &aabb = cube->aabb;
+        aabb.c = cube->position;
+		aabb.r = cube->scale * 0.5f;
+        
+        cube->mesh     = S("cube");
+        cube->material = S("cube");
+	}
+
+	{
+        auto skybox = New_Entity(manager, E_SKYBOX);
+        manager->skybox = skybox->eid;
+
+        skybox->position = Vector3(0.0f, -2.0f, 0.0f);
+        skybox->uv_scale = Vector2(8.0f, 4.0f);
+        
+        skybox->mesh     = S("skybox");
+        skybox->material = S("skybox");
+	}
+    
+	{
+        auto model = New_Entity(manager, E_STATIC_MESH);
+		model->position = Vector3(-2.0f, 0.0f, 2.0f);
+        model->orientation = make_quaternion_from_axis_angle(Vector3_right, -90.0f);
+        
+        auto &aabb = model->aabb;
+        aabb.c = model->position;
+		aabb.r = model->scale * 0.5f;
+
+        model->mesh     = S("tower");
+        model->material = S("tower");
+	}
+
+    {
+        auto emitter = New_Entity(manager, E_SOUND_EMITTER);
+        emitter->sound_play_spatial = false;
+        emitter->scale = Vector3(0.1f);
+        emitter->position = Vector3(0.0f, 1.0f, 0.0f);
+        emitter->sound = S("wind_ambience");
+        set_sound_looping(emitter->sound, true);
+
+        auto &aabb = emitter->aabb;
+        aabb.c = emitter->position;
+		aabb.r = emitter->scale * 0.5f;
+    }
+    
+    {
+        auto light = New_Entity(manager, E_DIRECT_LIGHT);
+
+        light->position = Vector3(0.0f, 5.0f, 0.0f);
+        light->orientation = make_quaternion_from_axis_angle(Vector3_right, 0.0f);
+        light->scale = Vector3(0.1f);
+        
+        light->ambient_factor  = Vector3(0.32f);
+        light->diffuse_factor  = Vector3_black;
+        light->specular_factor = Vector3_black;
+        
+        auto &aabb = light->aabb;
+        aabb.c = light->position;
+		aabb.r = light->scale * 0.5f;
+    }
+    
+    {
+        auto light = New_Entity(manager, E_POINT_LIGHT);
+        
+        light->position = Vector3(0.0f, 2.0f, 0.0f);
+        light->scale = Vector3(0.1f);
+        
+        light->ambient_factor  = Vector3(0.1f);
+        light->diffuse_factor  = Vector3(0.5f);
+        light->specular_factor = Vector3(1.0f);
+
+        light->attenuation_constant  = 1.0f;
+        light->attenuation_linear    = 0.09f;
+        light->attenuation_quadratic = 0.032f;
+                
+        auto &aabb = light->aabb;
+        aabb.c = light->position;
+		aabb.r = light->scale * 0.5f;
+    }
+
+    auto window = get_window();
+    auto &camera = manager->camera;
+	camera.mode = PERSPECTIVE;
+	camera.yaw = 90.0f;
+	camera.pitch = 0.0f;
+	camera.position = player->position + player->camera_offset;
+	camera.look_at_position = camera.position + forward(camera.yaw, camera.pitch);
+	camera.up_vector = Vector3(0.0f, 1.0f, 0.0f);
+	camera.fov = 60.0f;
+	camera.near_plane = 0.001f;
+	camera.far_plane = 1000.0f;
+	camera.left = 0.0f;
+	camera.right = (f32)window->width;
+	camera.bottom = 0.0f;
+	camera.top = (f32)window->height;
+}
 
 struct Find_Entity_By_AABB_Data {
-    Entity *e = null;
-    s32 aabb_index = INDEX_NONE;
+    Entity *e  = null;
+    AABB *aabb = null;
 };
 
 void mouse_pick_entity(Entity *e) {
-    if (Editor.mouse_picked_entity) {
-        Editor.mouse_picked_entity->bits &= ~E_MOUSE_PICKED_BIT;
+    if (editor.mouse_picked_entity) {
+        editor.mouse_picked_entity->bits &= ~E_MOUSE_PICKED_BIT;
     }
                 
     e->bits |= E_MOUSE_PICKED_BIT;
-    Editor.mouse_picked_entity = e;
+    editor.mouse_picked_entity = e;
 
     game_state.selected_entity_property_to_change = PROPERTY_LOCATION;
 }
 
 void mouse_unpick_entity() {
-    if (Editor.mouse_picked_entity) {
-        Editor.mouse_picked_entity->bits &= ~E_MOUSE_PICKED_BIT;
-        Editor.mouse_picked_entity = null;
+    if (editor.mouse_picked_entity) {
+        editor.mouse_picked_entity->bits &= ~E_MOUSE_PICKED_BIT;
+        editor.mouse_picked_entity = null;
     }
 }
 
-static For_Result cb_find_entity_by_aabb(Entity *e, void *user_data) {
-    auto *data = (Find_Entity_By_AABB_Data *)user_data;
+void on_editor_push() {
+    screen_report("Editor");
+}
 
-    if (e->aabb_index == data->aabb_index) {
-        data->e = e;
-        return BREAK;
-    }
+void on_editor_pop() {
+    mouse_unpick_entity();
+}
+
+void on_editor_input(const Window_Event *e) {
+    auto window = get_window();
+
+    const auto ctrl = down(KEY_CTRL);
+    const auto alt  = down(KEY_ALT);
     
-    return CONTINUE;
-};
-
-void on_input_editor(const Window_Event &event) {
-    const bool press = event.key_press;
-    const bool ctrl = event.with_ctrl;
-    const bool alt  = event.with_alt;
-    const auto key = event.key_code;
-        
-    switch (event.type) {
+    switch (e->type) {
     case WINDOW_EVENT_KEYBOARD: {
-        if (press && key == KEY_CLOSE_WINDOW) {
-            os_close_window(Main_window);
-        } else if (press && key == KEY_SWITCH_CONSOLE) {
-            console_open();
-        } else if (press && key == KEY_SWITCH_TELEMETRY) {
-            telemetry_open();
-        } else if (press && key == KEY_SWITCH_MEMORY_PROFILER) {
-            mprof_open();
-        } else if (press && key == KEY_SWITCH_EDITOR_MODE) {
-            game_state.mode = MODE_GAME;
-            os_lock_window_cursor(Main_window, true);
-            pop_input_layer();
-            editor_report("Game");
-            mouse_unpick_entity();
+        const auto key   = e->key_code;
+        const auto press = e->input_bits & WINDOW_EVENT_PRESS_BIT;
+
+        if (press && key == KEY_OPEN_CONSOLE) {
+            open_console();
+        } else if (press && key == KEY_OPEN_PROFILER) {
+            open_profiler();
         } else if (press && key == KEY_SWITCH_POLYGON_MODE) {
-            if (game_state.polygon_mode == R_FILL) {
-                game_state.polygon_mode = R_LINE;
+            if (game_state.polygon_mode == POLYGON_FILL) {
+                game_state.polygon_mode = POLYGON_LINE;
             } else {
-                game_state.polygon_mode = R_FILL;
+                game_state.polygon_mode = POLYGON_FILL;
             }
         } else if (press && key == KEY_SWITCH_COLLISION_VIEW) {
             if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
@@ -124,23 +260,16 @@ void on_input_editor(const Window_Event &event) {
                 game_state.view_mode_flags |= VIEW_MODE_FLAG_COLLISION;
             }
         } else if (press && ctrl && key == KEY_S) {
-            save_level(World);
-        } else if (press && ctrl && key == KEY_R) {
-            Scratch scratch = local_scratch();
-            defer { release(scratch); };
-
-            String_Builder sb;
-            str_build(scratch.arena, sb, DIR_LEVELS);
-            str_build(scratch.arena, sb, World.name);
-            
-            String path = str_build_finish(scratch.arena, sb);
-            load_level(World, path);
+            //save_level(World);
+        } else if (press && ctrl && key == KEY_R) {         
+            //auto path = tprint("%S%S", PATH_LEVEL(""), World.name);
+            //load_level(World, path);
             
         } else if (press && alt && key == KEY_V) {
-            os_set_window_vsync(Main_window, !Main_window.vsync);
+            set_vsync(window, !window->vsync);
         }
 
-        if (Editor.mouse_picked_entity) {
+        if (editor.mouse_picked_entity) {
             if (press && key == KEY_Z) {
                 game_state.selected_entity_property_to_change = PROPERTY_LOCATION;
             } else if (press && key == KEY_X) {
@@ -152,40 +281,21 @@ void on_input_editor(const Window_Event &event) {
             
         break;
     }
-    case WINDOW_EVENT_MOUSE: {
+    case WINDOW_EVENT_MOUSE_CLICK: {
+        const auto key   = e->key_code;
+        const auto press = e->input_bits & WINDOW_EVENT_PRESS_BIT;
+
         if (press && key == MOUSE_MIDDLE) {
-            os_lock_window_cursor(Main_window, !Main_window.cursor_locked);
-        } else if (press && key == MOUSE_RIGHT && !Main_window.cursor_locked) {
+            lock_cursor(window, !window->cursor_locked);
+        } else if (press && key == MOUSE_RIGHT && !window->cursor_locked) {
             mouse_unpick_entity();
-        } else if (press && key == MOUSE_LEFT && !Main_window.cursor_locked && R_ui.id_hot == UIID_NONE) {
-            if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
-                const Ray ray = ray_from_mouse(World.ed_camera, R_viewport,
-                                               input_table.mouse_x, input_table.mouse_y);
-                const s32 aabb_index = find_closest_overlapped_aabb(ray, World.aabbs.items, World.aabbs.count);
-                if (aabb_index != INDEX_NONE) {
-                    Find_Entity_By_AABB_Data find_data;
-                    find_data.e = null;
-                    find_data.aabb_index = aabb_index;
+        } else if (press && key == MOUSE_LEFT && !window->cursor_locked && ui.id_hot == UIID_NONE) {
+            // @Cleanup: specify memory barrier target.
+            gpu_memory_barrier();
 
-                    for_each_entity(World, cb_find_entity_by_aabb, &find_data);
-
-                    if (find_data.e) {
-                        mouse_pick_entity(find_data.e);
-                    }
-                }
-            } else {
-                const auto &target = R_viewport.render_target;
-                const u32 x = (u32)R_viewport.mouse_pos.x;
-                const u32 y = (u32)R_viewport.mouse_pos.y;
-                const u32 color_attachment = 1;
- 
-                const s32 pixel = r_read_render_target_pixel(target, color_attachment, x, y);
-
-                auto *e = find_entity_by_eid(World, (eid)pixel);
-                if (e) {
-                    mouse_pick_entity(e);
-                }
-            }
+            auto manager = get_entity_manager();
+            auto e = get_entity(manager, gpu_picking_data->eid);
+            if (e) mouse_pick_entity(e);
         }
         
         break;
@@ -193,643 +303,570 @@ void on_input_editor(const Window_Event &event) {
     }
 }
 
-void tick_editor(f32 dt) {
-    TM_SCOPE_ZONE(__FUNCTION__);
+void update_editor() {
+    Profile_Zone(__func__);
 
+    const f32 dt = get_delta_time();
+    
+    auto window      = get_window();
+    auto input       = get_input_table();
+    auto input_layer = get_current_input_layer();
+    auto manager     = get_entity_manager();
+    auto player      = get_player(manager);
+    auto &camera     = manager->camera;
+    
     const bool ctrl  = down(KEY_CTRL);
     const bool shift = down(KEY_SHIFT);
     
-    const auto *input_layer = get_current_input_layer();
-    const auto &player = World.player;
-    
-    // Tick camera.
-    if (game_state.mode == MODE_GAME) {
-        World.ed_camera = World.camera;
-    } else if (game_state.mode == MODE_EDITOR) {
+    // Update editor specific stuff.
+    if (program_mode == MODE_EDITOR) {
+        // Update camera.
         if (input_layer->type == INPUT_LAYER_EDITOR) {
-            const f32 mouse_sensitivity = player.mouse_sensitivity;
-            auto &camera = World.ed_camera;
+            const f32 mouse_sensitivity = 16.0f;
 
-            if (Main_window.cursor_locked) {   
-                camera.yaw -= input_table.mouse_offset_x * mouse_sensitivity * dt;
-                camera.pitch += input_table.mouse_offset_y * mouse_sensitivity * dt;
-                camera.pitch = Clamp(camera.pitch, -89.0f, 89.0f);
+            if (window->cursor_locked) {   
+                camera.yaw   -= input->mouse_offset_x * mouse_sensitivity * dt;
+                camera.pitch += input->mouse_offset_y * mouse_sensitivity * dt;
+                camera.pitch  = Clamp(camera.pitch, -89.0f, 89.0f);
             }
                     
-            const f32 speed = player.ed_camera_speed * dt;
-            const vec3 camera_forward = forward(camera.yaw, camera.pitch);
-            const vec3 camera_right = normalize(cross(camera.up, camera_forward));
+            const f32 speed = editor.camera_speed * dt;
+            const Vector3 camera_forward = forward(camera.yaw, camera.pitch);
+            const Vector3 camera_right = normalize(cross(camera.up_vector, camera_forward));
 
-            vec3 velocity;
+            Vector3 velocity;
+            if (down(KEY_D)) velocity += speed * camera_right;
+            if (down(KEY_A)) velocity -= speed * camera_right;
+            if (down(KEY_W)) velocity += speed * camera_forward;
+            if (down(KEY_S)) velocity -= speed * camera_forward;
+            if (down(KEY_E)) velocity += speed * camera.up_vector;
+            if (down(KEY_Q)) velocity -= speed * camera.up_vector;
 
-            if (down(KEY_D))
-                velocity += speed * camera_right;
-
-            if (down(KEY_A))
-                velocity -= speed * camera_right;
-
-            if (down(KEY_W))
-                velocity += speed * camera_forward;
-
-            if (down(KEY_S))
-                velocity -= speed * camera_forward;
-
-            if (down(KEY_E))
-                velocity += speed * camera.up;
-
-            if (down(KEY_Q))
-                velocity -= speed * camera.up;
-
-            camera.eye += truncate(velocity, speed);
-            camera.at = camera.eye + camera_forward;
+            camera.position += truncate(velocity, speed);
+            camera.look_at_position = camera.position + camera_forward;
         }
-    }
+
+        update_matrices(camera);
+
+        // @Speed: entity aabb move and transform update.
+        For (manager->entities) {
+            move_aabb_along_with_entity(&it);
+            it.object_to_world = make_transform(it.position, it.orientation, it.scale);
+        }
     
-    // Tick mouse picked entity editor.
-    if (input_layer->type == INPUT_LAYER_EDITOR && Editor.mouse_picked_entity) {
-        auto *e = Editor.mouse_picked_entity;
+        // Update mouse picked entity editor.
+        if (input_layer->type == INPUT_LAYER_EDITOR && editor.mouse_picked_entity) {
+            // auto e = editor.mouse_picked_entity;
 
-        {   // Draw entity fields.
-            constexpr f32 MARGIN  = 100.0f;
-            constexpr f32 PADDING = 16.0f;
-            constexpr f32 QUAD_Z = 0.0f;
+            // {   // Draw entity fields.
+            //     constexpr f32 MARGIN  = 100.0f;
+            //     constexpr f32 PADDING = 16.0f;
+            //     constexpr f32 QUAD_Z = 0.0f;
             
-            const auto &atlas = R_ui.font_atlases[UI_DEFAULT_FONT_ATLAS_INDEX];
-            const f32 ascent  = atlas.font->ascent  * atlas.px_h_scale;
-            const f32 descent = atlas.font->descent * atlas.px_h_scale;
+            //     const auto &atlas = *global_font_atlases.main_small;
+            //     const f32 ascent  = atlas.ascent  * atlas.px_h_scale;
+            //     const f32 descent = atlas.descent * atlas.px_h_scale;
 
-            const u32 field_count = entity_type_field_counts[(u8)e->type];
-            const f32 height = (f32)field_count * atlas.line_height;
+            //     const u32 field_count = entity_type_field_counts[(u8)e->entity_type];
+            //     const f32 height = (f32)field_count * atlas.line_height;
             
-            const vec2 p0 = vec2(MARGIN, R_viewport.height - MARGIN);
-            const vec2 p1 = vec2(R_viewport.width - MARGIN, p0.y - height - 2 * PADDING);
-            const u32 qc = rgba_pack(0, 0, 0, 200);
+            //     const Vector2 p0 = Vector2(MARGIN, screen_viewport.height - MARGIN);
+            //     const Vector2 p1 = Vector2(screen_viewport.width - MARGIN, p0.y - height - 2 * PADDING);
+            //     const u32 qc = rgba_pack(0, 0, 0, 200);
 
-            ui_quad(p0, p1, qc, QUAD_Z);
+            //     ui_quad(p0, p1, qc, QUAD_Z);
 
-            // @Todo: correct uiid generation.
-            uiid id = { 0, (u16)e->eid, 0 };
-            vec2 pos = vec2(p0.x + PADDING, p0.y - PADDING - ascent);
+            //     // @Todo: correct uiid generation.
+            //     uiid id = { 0, (u16)e->entity_id, 0 };
+            //     Vector2 pos = Vector2(p0.x + PADDING, p0.y - PADDING - ascent);
             
-            for (u32 i = 0; i < field_count; ++i) {
-                const auto &field = get_entity_field(e->type, i);
-                const f32 field_name_width = (f32)get_line_width_px(atlas, field.name);
-                const f32 max_width_f32 = (f32)UI_INPUT_BUFFER_SIZE_F32 * atlas.space_advance_width;
+            //     for (u32 i = 0; i < field_count; ++i) {
+            //         const auto &field = get_entity_field(e->entity_type, i);
+            //         const f32 field_name_width = (f32)get_line_width_px(atlas, field.name);
+            //         const f32 max_width_f32 = UI_INPUT_BUFFER_SIZE_F32 * atlas.space_xadvance;
                 
-                constexpr u32 tcc = rgba_white;
-                constexpr u32 tch = rgba_white;
-                constexpr u32 tca = rgba_white;
-                constexpr u32 qcc = rgba_pack(32, 32, 32, 200);
-                constexpr u32 qch = rgba_pack(48, 48, 48, 200);
-                constexpr u32 qca = rgba_pack(64, 64, 64, 200);
-                constexpr u32 ccc = rgba_white;
-                constexpr u32 cch = rgba_white;
-                constexpr u32 cca = rgba_white;
+            //         constexpr u32 tcc = rgba_white;
+            //         constexpr u32 tch = rgba_white;
+            //         constexpr u32 tca = rgba_white;
+            //         constexpr u32 qcc = rgba_pack(32, 32, 32, 200);
+            //         constexpr u32 qch = rgba_pack(48, 48, 48, 200);
+            //         constexpr u32 qca = rgba_pack(64, 64, 64, 200);
+            //         constexpr u32 ccc = rgba_white;
+            //         constexpr u32 cch = rgba_white;
+            //         constexpr u32 cca = rgba_white;
 
-                const s32 offset = atlas.space_advance_width * 40;
-                UI_Input_Style style = {
-                    QUAD_Z,
-                    vec2(pos.x + offset, pos.y),
-                    vec2_zero,
-                    { tcc, tch, tca },
-                    { qcc, qch, qca },
-                    { ccc, cch, cca },
-                };
+            //         const f32 offset = atlas.space_xadvance * 40;
+            //         UI_Input_Style style = {
+            //             global_font_atlases.main_small,
+            //             QUAD_Z,
+            //             Vector2(pos.x + offset, pos.y),
+            //             Vector2_zero,
+            //             Vector2_zero,
+            //             { tcc, tch, tca },
+            //             { qcc, qch, qca },
+            //             { ccc, cch, cca },
+            //         };
 
-                ui_text(field.name, pos, rgba_white, QUAD_Z + F32_EPSILON);
+            //         ui_text(field.name, pos, rgba_white, QUAD_Z + F32_EPSILON);
 
-                switch (field.type) {
-                case FIELD_S8: {
-                    auto &v = reflect_field_cast<s8>(*e, field);
-                    ui_input_s8(id, &v, style);
-                    id.index += 1;
-                    break;
-                }
-                case FIELD_S16: {
-                    auto &v = reflect_field_cast<s16>(*e, field);
-                    ui_input_s16(id, &v, style);
-                    id.index += 1;
-                    break;
-                }
-                case FIELD_S32: {
-                    auto &v = reflect_field_cast<s32>(*e, field);
-                    ui_input_s32(id, &v, style);
-                    id.index += 1;
-                    break;
-                }
-                case FIELD_S64: {
-                    auto &v = reflect_field_cast<s64>(*e, field);
-                    ui_input_s64(id, &v, style);
-                    id.index += 1;
-                    break;
-                }
-                case FIELD_U8: {
-                    auto &v = reflect_field_cast<u8>(*e, field);
-                    ui_input_u8(id, &v, style);
-                    id.index += 1;
-                    break;
-                }
-                case FIELD_U16: {
-                    auto &v = reflect_field_cast<u16>(*e, field);
-                    ui_input_u16(id, &v, style);
-                    id.index += 1;
-                    break;
-                }
-                case FIELD_U32: {
-                    auto &v = reflect_field_cast<u32>(*e, field);
-                    ui_input_u32(id, &v, style);
-                    id.index += 1;
-                    break;
-                }
-                case FIELD_U64: {
-                    auto &v = reflect_field_cast<u64>(*e, field);
-                    ui_input_u64(id, &v, style);
-                    id.index += 1;
-                    break;
-                }
-                case FIELD_F32: {
-                    auto &v = reflect_field_cast<f32>(*e, field);
-                    ui_input_f32(id, &v, style);
-                    id.index += 1;
-                    break;
-                }
-                case FIELD_SID: {
-                    auto &v = reflect_field_cast<sid>(*e, field);
-                    ui_input_sid(id, &v, style);
-                    id.index += 1;
-                    break;
-                }
-                case FIELD_VEC2: {
-                    auto &v = reflect_field_cast<vec2>(*e, field);
+            //         switch (field.type) {
+            //         case FIELD_S8: {
+            //             auto &v = reflect_field_cast<s8>(*e, field);
+            //             ui_input_s8(id, &v, style);
+            //             id.index += 1;
+            //             break;
+            //         }
+            //         case FIELD_S16: {
+            //             auto &v = reflect_field_cast<s16>(*e, field);
+            //             ui_input_s16(id, &v, style);
+            //             id.index += 1;
+            //             break;
+            //         }
+            //         case FIELD_S32: {
+            //             auto &v = reflect_field_cast<s32>(*e, field);
+            //             ui_input_s32(id, &v, style);
+            //             id.index += 1;
+            //             break;
+            //         }
+            //         case FIELD_S64: {
+            //             auto &v = reflect_field_cast<s64>(*e, field);
+            //             ui_input_s64(id, &v, style);
+            //             id.index += 1;
+            //             break;
+            //         }
+            //         case FIELD_U8: {
+            //             auto &v = reflect_field_cast<u8>(*e, field);
+            //             ui_input_u8(id, &v, style);
+            //             id.index += 1;
+            //             break;
+            //         }
+            //         case FIELD_U16: {
+            //             auto &v = reflect_field_cast<u16>(*e, field);
+            //             ui_input_u16(id, &v, style);
+            //             id.index += 1;
+            //             break;
+            //         }
+            //         case FIELD_U32: {
+            //             auto &v = reflect_field_cast<u32>(*e, field);
+            //             ui_input_u32(id, &v, style);
+            //             id.index += 1;
+            //             break;
+            //         }
+            //         case FIELD_U64: {
+            //             auto &v = reflect_field_cast<u64>(*e, field);
+            //             ui_input_u64(id, &v, style);
+            //             id.index += 1;
+            //             break;
+            //         }
+            //         case FIELD_F32: {
+            //             auto &v = reflect_field_cast<f32>(*e, field);
+            //             ui_input_f32(id, &v, style);
+            //             id.index += 1;
+            //             break;
+            //         }
+            //         case FIELD_VECTOR2: {
+            //             auto &v = reflect_field_cast<Vector2>(*e, field);
 
-                    ui_input_f32(id, &v.x, style);
-                    id.index += 1;
-                    style.pos_text.x += max_width_f32 + atlas.space_advance_width;
+            //             ui_input_f32(id, &v.x, style);
+            //             id.index += 1;
+            //             style.pos.x += max_width_f32 + atlas.space_xadvance;
 
-                    ui_input_f32(id, &v.y, style);
-                    id.index += 1;
-                    style.pos_text.x += max_width_f32 + atlas.space_advance_width;
+            //             ui_input_f32(id, &v.y, style);
+            //             id.index += 1;
+            //             style.pos.x += max_width_f32 + atlas.space_xadvance;
 
-                    break;
-                }
-                case FIELD_VEC3: {
-                    auto &v = reflect_field_cast<vec3>(*e, field);
+            //             break;
+            //         }
+            //         case FIELD_VECTOR3: {
+            //             auto &v = reflect_field_cast<Vector3>(*e, field);
                     
-                    ui_input_f32(id, &v.x, style);
-                    id.index += 1;
-                    style.pos_text.x += max_width_f32 + atlas.space_advance_width;
+            //             ui_input_f32(id, &v.x, style);
+            //             id.index += 1;
+            //             style.pos.x += max_width_f32 + atlas.space_xadvance;
 
-                    ui_input_f32(id, &v.y, style);
-                    id.index += 1;
-                    style.pos_text.x += max_width_f32 + atlas.space_advance_width;
+            //             ui_input_f32(id, &v.y, style);
+            //             id.index += 1;
+            //             style.pos.x += max_width_f32 + atlas.space_xadvance;
 
-                    ui_input_f32(id, &v.z, style);
-                    id.index += 1;
-                    style.pos_text.x += max_width_f32 + atlas.space_advance_width;
+            //             ui_input_f32(id, &v.z, style);
+            //             id.index += 1;
+            //             style.pos.x += max_width_f32 + atlas.space_xadvance;
                     
-                    break;
-                }
-                case FIELD_QUAT: {
-                    auto &v = reflect_field_cast<quat>(*e, field);
+            //             break;
+            //         }
+            //         case FIELD_QUATERNION: {
+            //             auto &v = reflect_field_cast<Quaternion>(*e, field);
 
-                    ui_input_f32(id, &v.x, style);
-                    id.index += 1;
-                    style.pos_text.x += max_width_f32 + atlas.space_advance_width;
+            //             ui_input_f32(id, &v.x, style);
+            //             id.index += 1;
+            //             style.pos.x += max_width_f32 + atlas.space_xadvance;
 
-                    ui_input_f32(id, &v.y, style);
-                    id.index += 1;
-                    style.pos_text.x += max_width_f32 + atlas.space_advance_width;
+            //             ui_input_f32(id, &v.y, style);
+            //             id.index += 1;
+            //             style.pos.x += max_width_f32 + atlas.space_xadvance;
 
-                    ui_input_f32(id, &v.z, style);
-                    id.index += 1;
-                    style.pos_text.x += max_width_f32 + atlas.space_advance_width;
+            //             ui_input_f32(id, &v.z, style);
+            //             id.index += 1;
+            //             style.pos.x += max_width_f32 + atlas.space_xadvance;
 
-                    ui_input_f32(id, &v.w, style);
-                    id.index += 1;
-                    style.pos_text.x += max_width_f32 + atlas.space_advance_width;
+            //             ui_input_f32(id, &v.w, style);
+            //             id.index += 1;
+            //             style.pos.x += max_width_f32 + atlas.space_xadvance;
                     
-                    break;
-                }
-                }
+            //             break;
+            //         }
+            //         }
 
-                pos.y -= atlas.line_height;
-            }
-        }
+            //         pos.y -= atlas.line_height;
+            //     }
+            // }
         
-        if (game_state.selected_entity_property_to_change == PROPERTY_ROTATION) {
-            const f32 rotate_speed = shift ? 0.04f : 0.01f;
+            // if (game_state.selected_entity_property_to_change == PROPERTY_ROTATION) {
+            //     const f32 rotate_speed = shift ? 0.04f : 0.01f;
 
-            if (down(KEY_LEFT)) {
-                e->rotation *= quat_from_axis_angle(vec3_left, rotate_speed);
-            }
+            //     if (down(KEY_LEFT)) {
+            //         e->rotation *= make_quaternion_from_axis_angle(Vector3_left, rotate_speed);
+            //     }
 
-            if (down(KEY_RIGHT)) {
-                e->rotation *= quat_from_axis_angle(vec3_right, rotate_speed);
-            }
+            //     if (down(KEY_RIGHT)) {
+            //         e->rotation *= make_quaternion_from_axis_angle(Vector3_right, rotate_speed);
+            //     }
 
-            if (down(KEY_UP)) {
-                const vec3 direction = ctrl ? vec3_up : vec3_forward;
-                e->rotation *= quat_from_axis_angle(direction, rotate_speed);
-            }
+            //     if (down(KEY_UP)) {
+            //         const Vector3 direction = ctrl ? Vector3_up : Vector3_forward;
+            //         e->rotation *= make_quaternion_from_axis_angle(direction, rotate_speed);
+            //     }
 
-            if (down(KEY_DOWN)) {
-                const vec3 direction = ctrl ? vec3_down : vec3_back;
-                e->rotation *= quat_from_axis_angle(direction, rotate_speed);
-            }
-        } else if (game_state.selected_entity_property_to_change == PROPERTY_SCALE) {
-            const f32 scale_speed = shift ? 4.0f : 1.0f;
+            //     if (down(KEY_DOWN)) {
+            //         const Vector3 direction = ctrl ? Vector3_down : Vector3_back;
+            //         e->rotation *= make_quaternion_from_axis_angle(direction, rotate_speed);
+            //     }
+            // } else if (game_state.selected_entity_property_to_change == PROPERTY_SCALE) {
+            //     const f32 scale_speed = shift ? 4.0f : 1.0f;
                 
-            if (down(KEY_LEFT)) {
-                e->scale += scale_speed * dt * vec3_left;
-            }
+            //     if (down(KEY_LEFT)) {
+            //         e->scale += scale_speed * dt * Vector3_left;
+            //     }
 
-            if (down(KEY_RIGHT)) {
-                e->scale += scale_speed * dt * vec3_right;
-            }
+            //     if (down(KEY_RIGHT)) {
+            //         e->scale += scale_speed * dt * Vector3_right;
+            //     }
 
-            if (down(KEY_UP)) {
-                const vec3 direction = ctrl ? vec3_up : vec3_forward;
-                e->scale += scale_speed * dt * direction;
-            }
+            //     if (down(KEY_UP)) {
+            //         const Vector3 direction = ctrl ? Vector3_up : Vector3_forward;
+            //         e->scale += scale_speed * dt * direction;
+            //     }
 
-            if (down(KEY_DOWN)) {
-                const vec3 direction = ctrl ? vec3_down : vec3_back;
-                e->scale += scale_speed * dt * direction;
-            }
-        } else if (game_state.selected_entity_property_to_change == PROPERTY_LOCATION) {
-            const f32 move_speed = shift ? 4.0f : 1.0f;
+            //     if (down(KEY_DOWN)) {
+            //         const Vector3 direction = ctrl ? Vector3_down : Vector3_back;
+            //         e->scale += scale_speed * dt * direction;
+            //     }
+            // } else if (game_state.selected_entity_property_to_change == PROPERTY_LOCATION) {
+            //     const f32 move_speed = shift ? 4.0f : 1.0f;
 
-            if (down(KEY_LEFT)) {
-                e->location += move_speed * dt * vec3_left;
-            }
+            //     if (down(KEY_LEFT)) {
+            //         e->position += move_speed * dt * Vector3_left;
+            //     }
 
-            if (down(KEY_RIGHT)) {
-                e->location += move_speed * dt * vec3_right;
-            }
+            //     if (down(KEY_RIGHT)) {
+            //         e->position += move_speed * dt * Vector3_right;
+            //     }
 
-            if (down(KEY_UP)) {
-                const vec3 direction = ctrl ? vec3_up : vec3_forward;
-                e->location += move_speed * dt * direction;
-            }
+            //     if (down(KEY_UP)) {
+            //         const Vector3 direction = ctrl ? Vector3_up : Vector3_forward;
+            //         e->position += move_speed * dt * direction;
+            //     }
 
-            if (down(KEY_DOWN)) {
-                const vec3 direction = ctrl ? vec3_down : vec3_back;
-                e->location += move_speed * dt * direction;
-            }
+            //     if (down(KEY_DOWN)) {
+            //         const Vector3 direction = ctrl ? Vector3_down : Vector3_back;
+            //         e->position += move_speed * dt * direction;
+            //     }
+            // }
+        } else {
+            // @Cleanup: more like a temp hack, clear ui hot id if we are not in editor.
+            ui.id_hot = UIID_NONE;
         }
-    } else {
-        // @Cleanup: more like a temp hack, clear ui hot id if we are not in editor.
-        R_ui.id_hot = UIID_NONE;
-    }
 
-    // Create specific entity.
-    if (game_state.mode == MODE_EDITOR && Main_window.focused && !Main_window.cursor_locked) {
-        constexpr f32 Z = 0.0f;
+        // Create specific entity.
+        if (program_mode != MODE_GAME && window->focused && !window->cursor_locked) {
+        //     constexpr f32 Z = 0.0f;
         
-        constexpr String button_text = S("Add");
+        //     constexpr String button_text = S("Add");
 
-        const uiid button_id = { 0, 100, 0 };
-        const uiid combo_id  = { 0, 200, 0 };
+        //     const uiid button_id = { 0, 100, 0 };
+        //     const uiid combo_id  = { 0, 200, 0 };
         
-        const UI_Button_Style button_style = {
-            Z,
-            vec2(100.0f, 100.0f),
-            vec2(32.0f, 16.0f),
-            { rgba_white, rgba_pack(255, 255, 255, 200), rgba_white },
-            { rgba_black, rgba_pack(0, 0, 0, 200),       rgba_black },
-        };
+        //     const UI_Button_Style button_style = {
+        //         global_font_atlases.main_small,
+        //         Z,
+        //         Vector2(100.0f, 100.0f),
+        //         Vector2(32.0f, 16.0f),
+        //         Vector2_zero,
+        //         { rgba_black, rgba_pack(0, 0, 0, 200),       rgba_black },
+        //         { rgba_white, rgba_pack(255, 255, 255, 200), rgba_white },
+        //     };
         
-        const auto &atlas = R_ui.font_atlases[button_style.atlas_index];
-        const f32 width = (f32)get_line_width_px(atlas, button_text);
+        //     const auto &atlas = *button_style.font_atlas;
+        //     const f32 width = (f32)get_line_width_px(atlas, button_text);
     
-        const UI_Combo_Style combo_style = {
-            Z,
-            button_style.pos_text + vec2(width + 2 * button_style.padding.x + 4.0f, 0.0f),
-            button_style.padding,
-            button_style.color_text,
-            button_style.color_quad,
-            button_style.atlas_index,
-        };
+        //     const UI_Combo_Style combo_style = {
+        //         button_style.font_atlas,
+        //         Z,
+        //         button_style.pos + Vector2(width + 2 * button_style.padding.x + 4.0f, 0.0f),
+        //         button_style.padding,
+        //         button_style.margin,
+        //         button_style.back_color,
+        //         button_style.front_color,
+        //     };
 
-        const auto button_bits = ui_button(button_id, button_text, button_style);
+        //     const auto button_bits = ui_button(button_id, button_text, button_style);
 
-        constexpr u32 selection_offset = 2;
-        constexpr u32 option_count = COUNT(Entity_type_names) - selection_offset;
-        const String *options = Entity_type_names + selection_offset;
+        //     constexpr u32 selection_offset = 2;
+        //     constexpr u32 option_count = carray_count(Entity_type_names) - selection_offset;
+        //     const String *options = Entity_type_names + selection_offset;
 
-        static u32 selected_entity_type = 0;
-        ui_combo(combo_id, &selected_entity_type, option_count, options, combo_style);
+        //     static u32 selected_entity_type = 0;
+        //     ui_combo(combo_id, &selected_entity_type, option_count, options, combo_style);
         
-        if (button_bits & UI_FINISHED_BIT) {
-            selected_entity_type += selection_offset;
-            create_entity(World, (Entity_Type)(selected_entity_type));
+        //     if (button_bits & UI_FINISHED_BIT) {
+        //         selected_entity_type += selection_offset;
+        //         new_entity(manager, (Entity_Type)(selected_entity_type));
+        //     }
         }
     }
 
-    {   // Screen report.
-        Editor_report_time += dt;
+    // Screen report.
+    {
+        editor.report_time += dt;
 
         f32 fade_time = 0.0f;
-        if (Editor_report_time > EDITOR_REPORT_SHOW_TIME) {
-            fade_time = Editor_report_time - EDITOR_REPORT_SHOW_TIME;
+        if (editor.report_time > EDITOR_REPORT_SHOW_TIME) {
+            fade_time = editor.report_time - EDITOR_REPORT_SHOW_TIME;
             
             if (fade_time > EDITOR_REPORT_FADE_TIME) {
-                Editor_report_time = 0.0f;
-                Editor_report.length = 0;
+                editor.report_time = 0.0f;
+                editor.report_string.count = 0;
             }
         }
 
-        if (Editor_report.length > 0) {
+        if (editor.report_string.count > 0) {
             constexpr f32 Z = UI_MAX_Z;
-            const auto atlas_index = UI_SCREEN_REPORT_FONT_ATLAS_INDEX;
             
-            const auto &atlas = R_ui.font_atlases[UI_SCREEN_REPORT_FONT_ATLAS_INDEX];
-            const s32 width_px = get_line_width_px(atlas, Editor_report);
-            const vec2 pos = vec2(R_viewport.width * 0.5f - width_px * 0.5f,
-                                  R_viewport.height * 0.7f);
+            const auto &atlas = *global_font_atlases.main_medium;
+            const f32 width_px = get_line_width_px(atlas, editor.report_string);
+            const Vector2 pos = Vector2(screen_viewport.width * 0.5f - width_px * 0.5f,
+                                  screen_viewport.height * 0.7f);
 
             const f32 lerp_alpha = Clamp(fade_time / EDITOR_REPORT_FADE_TIME, 0.0f, 1.0f);
             const u32 alpha = (u32)Lerp(255, 0, lerp_alpha);
             const u32 color = rgba_pack(255, 255, 255, alpha);
 
-            const vec2 shadow_offset = vec2(atlas.font_size * 0.1f, -atlas.font_size * 0.1f);
+            const Vector2 shadow_offset = Vector2(atlas.px_height * 0.1f, -atlas.px_height * 0.1f);
             const u32 shadow_color = rgba_pack(0, 0, 0, alpha);
             
-            ui_text_with_shadow(Editor_report, pos, color, shadow_offset, shadow_color, Z, atlas_index);
+            ui_text_with_shadow(editor.report_string, pos, color, shadow_offset, shadow_color, Z, &atlas);
         }
     }
 }
 
-static void cb_queue_for_hot_reload(const File_Callback_Data *data) {
-    Scratch scratch = local_scratch();
-    defer { release(scratch); };
+static void cb_queue_for_hot_reload(const File_Callback_Data *data) {    
+    Assert(data->user_data);
+    auto catalog = (Hot_Reload_Catalog *)data->user_data;
+
+    // @Cleanup @Robustness: we allocate path in temp storage in hot reload thread, this
+    // data will be passed to main thread during hot reload check which may lead to bugs.
+    auto path  = copy_string(data->path, __temporary_allocator);
+    auto entry = find_by_path(&catalog->catalog, path);
     
-    const String relative_path = to_relative_asset_path(scratch.arena, data->path);
-    
-    auto &ast = Asset_source_table;
-    const auto sid = sid_intern(relative_path);
-    
-    if (auto *source = table_find(ast.table, sid)) {
-        if (source->last_write_time != data->last_write_time) {
-            auto &list = *(Hot_Reload_List *)data->user_data;
-            
-            Assert(list.reload_count < list.MAX_COUNT);
-            list.hot_reload_paths[list.reload_count] = sid;
-            list.reload_count += 1;
-            
-            source->last_write_time = data->last_write_time;
-        }
+    if (entry && entry->last_write_time != data->last_write_time) {
+        array_add(catalog->paths_to_hot_reload, path);
+        entry->last_write_time = data->last_write_time;
     }
 }
 
-static u32 proc_hot_reload(void *data) {
-    auto &list = *(Hot_Reload_List *)data;
+static u32 proc_hot_reload(void *data) {    
+    Assert(data);
+    auto catalog = (Hot_Reload_Catalog *)data;
 
     while (1) {
-        if (list.reload_count == 0) {
-            for (s32 i = 0; i < list.path_count; ++i) {
-                for_each_file(list.directory_paths[i], &cb_queue_for_hot_reload, &list);
+        reset_temporary_storage();
+
+        if (catalog->paths_to_hot_reload.count == 0) {
+            For (catalog->directories) {
+                visit_directory(it, cb_queue_for_hot_reload, true, catalog);
             }
         }
         
-        if (list.reload_count > 0) {
-            os_release_semaphore(list.semaphore, 1);
+        if (catalog->paths_to_hot_reload.count > 0) {
+            release_semaphore(catalog->semaphore, 1);
         }
     }
 }
 
-Thread start_hot_reload_thread(Hot_Reload_List &list) {
-    list.semaphore = os_create_semaphore(0, 1);
-    return os_create_thread(proc_hot_reload, THREAD_CREATE_IMMEDIATE, &list);
+static Hot_Reload_Catalog *hot_reload = null;
+
+void init_hot_reload() {
+    Assert(!hot_reload);
+    hot_reload = New(Hot_Reload_Catalog);
+    array_realloc(hot_reload->paths_to_hot_reload, 16);
 }
 
-void register_hot_reload_directory(Hot_Reload_List &list, const char *path) {
-	Assert(list.path_count < list.MAX_DIRS);
-    list.directory_paths[list.path_count] = path;
-    list.path_count += 1;
-	log("Registered hot reload directory %s", path);
+Thread start_hot_reload_thread() {
+    hot_reload->semaphore = create_semaphore(0, 1);
+    return create_thread(proc_hot_reload, 0, hot_reload);
 }
 
-void check_hot_reload(Hot_Reload_List &list) {
-    TM_SCOPE_ZONE(__FUNCTION__);
+void add_hot_reload_directory(String path) {
+    array_add(hot_reload->directories, path);
+    add_directory_files(&hot_reload->catalog, path);
+	log("New hot reload directory %S", path);
+}
 
-    if (list.reload_count == 0) {
-        return;
-    }
+void update_hot_reload() {
+    Profile_Zone(__func__);
 
-    Scratch scratch = local_scratch();
-    defer { release(scratch); };
-    
-    os_wait_semaphore(list.semaphore, WAIT_INFINITE);
+    if (hot_reload->paths_to_hot_reload.count == 0) return;
 
-    for (u16 i = 0; i < list.reload_count; ++i) {
-        START_SCOPE_TIMER(asset);
+    wait_semaphore(hot_reload->semaphore, WAIT_INFINITE);
 
-        Scratch scratch = local_scratch();
-        defer { release(scratch); };
-        
-        const auto &sid = list.hot_reload_paths[i];
-        const auto &asset = *find_asset(sid);
+    For (hot_reload->paths_to_hot_reload) {
+        const auto ext = get_extension(it);
 
-        const String path = str_copy(scratch.arena, sid_str(sid));
-
-        const u32 max_data_size = get_asset_max_file_size(asset.type);
-        void *data = push(scratch.arena, max_data_size);
-
-        u64 data_size = os_read_file(path.value, max_data_size, data);
-
-        ((char *)data)[data_size] = '\0';
-
-        bool hot_reloaded = true;
-        switch (asset.type) {
-        case ASSET_SHADER: {
-            const String s = parse_shader_includes(scratch.arena, String { (char *)data, asset.pak_data_size });
-            r_recreate_shader(asset.index, s);
-            
-            break;
-        }
-        case ASSET_TEXTURE: {
-            const auto &tx = R_table.textures[asset.index];
-            
-            s32 w, h, cc;
-            data = stbi_load_from_memory((u8 *)data, (s32)data_size, &w, &h, &cc, 0);
-
-            const u16 format = r_format_from_channel_count(cc);
-
-            // @Cleanup: some values are default, not really fine.
-            r_recreate_texture(asset.index, R_TEXTURE_2D, format, w, h,
-                               tx.wrap, tx.min_filter, tx.mag_filter, data);
-            
-            break;
-        }
-        /*
-        case ASSET_MATERIAL: {
-            auto &material = asset_table.materials[hot_reload_asset.sid];
-            const char *relative_path = sid_str(material.sid_path);
-            convert_to_full_asset_path(path, relative_path);
-            
-            void *buffer = allocp(MAX_MATERIAL_SIZE);
-            defer { freel(MAX_MATERIAL_SIZE); };
-            
-            u64 bytes_read = 0;
-            if (os_file_read(path, buffer, MAX_MATERIAL_SIZE, &bytes_read)) {
-                init_material_asset(&material, buffer);
-                log("Hot reloaded material %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(asset));
-            }
-            
-            break;
-        }
-        case ASSET_MESH: {
-            auto &mesh = asset_table.meshes[hot_reload_asset.sid];
-            const char *relative_path = sid_str(mesh.sid_path);
-            convert_to_full_asset_path(path, relative_path);
-            
-            void *buffer = allocp(MAX_MESH_SIZE);
-            defer { freel(MAX_MESH_SIZE); };
-            
-            u64 bytes_read = 0;
-            if (os_file_read(path, buffer, MAX_MATERIAL_SIZE, &bytes_read)) {
-                init_mesh_asset(&mesh, buffer);
-                log("Hot reloaded mesh %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(asset));
-            }
-            
-            break;
-        }
-        case ASSET_FLIP_BOOK: {
-            auto &flip_book = asset_table.flip_books[hot_reload_asset.sid];
-            const char *relative_path = sid_str(flip_book.sid_path);
-            convert_to_full_asset_path(path, relative_path);
-            
-            void *buffer = allocp(MAX_MESH_SIZE);
-            defer { freel(MAX_MESH_SIZE); };
-            
-            u64 bytes_read = 0;
-            if (os_file_read(path, buffer, MAX_MATERIAL_SIZE, &bytes_read)) {
-                init_flip_book_asset(&flip_book, buffer);
-                log("Hot reloaded flip book %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(asset));
-            }
-            
-            break;
-        }
-        */
-        default: {
-            error("Unhandled hot reload asset type %d", asset.type);
-            hot_reloaded = false;
-            break;
-        }
+        bool success = true;
+        if (is_shader_source_path(it)) {
+            // Ensure we have fresh slang session for proper hot reload.
+            init_slang_local_session();
+            new_shader(it);
+        } else if (is_texture_path(it)) {
+            new_texture(it);
+        } else if (ext == FLIP_BOOK_EXT) {
+            new_flip_book(it);
+        } else if (ext == MATERIAL_EXT) {
+            new_material(it);
+        } else {
+            success = false;
         }
 
-        if (hot_reloaded) {
-            log("Hot reloaded %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(asset));
-        }
+        if (success) log("Hot reloaded %S", it);
     }
     
-    list.reload_count = 0;
+    array_clear(hot_reload->paths_to_hot_reload);
 }
 
-static Debug_Console Console;
+// console
 
-void console_init() {
-    Assert(!Console.history.value);
-    Assert(!Console.input.value);
+inline Console *console = null;
+
+Console *get_console () { Assert(console); return console; }
+
+void init_console() {
+    Assert(!console);
+    console = New(Console);
     
-    // @Cleanup: use own arena?
-    Console.history.value = arena_push_array(M_global, Console.MAX_HISTORY_SIZE, char);
-    Console.input.value   = arena_push_array(M_global, Console.MAX_INPUT_SIZE,   char);
+    console->history.data = (char *)alloc(console->MAX_HISTORY_SIZE);
+    console->input.data   = (char *)alloc(console->MAX_INPUT_SIZE);
     
-    console_on_viewport_resize(R_viewport.width, R_viewport.height);
+    on_console_viewport_resize(screen_viewport.width, screen_viewport.height);
 }
 
-void console_open() {
-    Assert(!Console.is_open);
-
-    Console.is_open = true;
-
-    push_input_layer(Input_layer_console);
+void open_console() {
+    Assert(!console->opened);
+    console->opened = true;
+    push_input_layer(input_layers[INPUT_LAYER_CONSOLE]);
 }
 
-void console_close() {
-    Assert(Console.is_open);
-    
-    Console.cursor_blink_dt = 0.0f;
-    Console.is_open = false;
-    
-    pop_input_layer();
+void close_console() {
+    Assert(console->opened);
+    console->opened = false;
+    console->cursor_blink_dt = 0.0f;
+    auto layer = pop_input_layer();
+    Assert(layer->type == INPUT_LAYER_CONSOLE);
 }
 
-void console_draw() {
-    TM_SCOPE_ZONE(__FUNCTION__);
+void update_console() {
+    if (!console->opened) return;
     
-    if (!Console.is_open) return;
+    auto &history = console->history;
+    auto &history_height = console->history_height;
+    auto &history_y = console->history_y;
+    auto &history_min_y = console->history_min_y;
+    auto &history_max_width = console->history_max_width;
+    auto &input = console->input;
+    auto &cursor_blink_dt = console->cursor_blink_dt;
     
-    auto &history = Console.history;
-    auto &history_height = Console.history_height;
-    auto &history_y = Console.history_y;
-    auto &history_min_y = Console.history_min_y;
-    auto &history_max_width = Console.history_max_width;
-    auto &input = Console.input;
-    auto &cursor_blink_dt = Console.cursor_blink_dt;
-    
-    const auto &atlas = R_ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
+    const auto &atlas = *global_font_atlases.main_small;
 
-    cursor_blink_dt += Delta_time;
+    cursor_blink_dt += get_delta_time();
         
-    const f32 ascent  = atlas.font->ascent  * atlas.px_h_scale;
-    const f32 descent = atlas.font->descent * atlas.px_h_scale;
+    const f32 ascent  = atlas.ascent  * atlas.px_h_scale;
+    const f32 descent = atlas.descent * atlas.px_h_scale;
     // @Cleanup: probably not ideal solution to get lower-case glyph height.
-    const f32 lower_case_height = (atlas.font->ascent + atlas.font->descent) * atlas.px_h_scale;
+    const f32 lower_case_height = (atlas.ascent + atlas.descent) * atlas.px_h_scale;
 
     constexpr f32 QUAD_Z = 0.0f;
-    const auto atlas_index = UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX;
 
     {   // History quad.
         
-        const vec2 p0 = vec2(Console.MARGIN, Console.MARGIN);
-        const vec2 p1 = vec2(R_viewport.width - Console.MARGIN, R_viewport.height - Console.MARGIN);
+        const Vector2 p0 = Vector2(console->MARGIN, console->MARGIN);
+        const Vector2 p1 = Vector2(screen_viewport.width - console->MARGIN, screen_viewport.height - console->MARGIN);
         const u32 color = rgba_pack(0, 0, 0, 200);
         ui_quad(p0, p1, color, QUAD_Z);
     }
 
     {   // Input quad.
-        const vec2 q0 = vec2(Console.MARGIN, Console.MARGIN);
-        const vec2 q1 = vec2(R_viewport.width - Console.MARGIN,
-                             Console.MARGIN + lower_case_height + 2 * Console.PADDING);
+        const Vector2 q0 = Vector2(console->MARGIN, console->MARGIN);
+        const Vector2 q1 = Vector2(screen_viewport.width - console->MARGIN,
+                             console->MARGIN + lower_case_height + 2 * console->PADDING);
         const u32 color = rgba_pack(0, 0, 0, 200);
         ui_quad(q0, q1, color, QUAD_Z);
     }
 
     {   // Input text.
-        const vec2 pos = vec2(Console.MARGIN + Console.PADDING, Console.MARGIN + Console.PADDING);
+        const Vector2 pos = Vector2(console->MARGIN + console->PADDING, console->MARGIN + console->PADDING);
         const u32 color = rgba_white;
-        ui_text(input, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
+        ui_text(input, pos, color, QUAD_Z + F32_EPSILON, &atlas);
     }
 
-    {   // History text.
-        const vec2 pos = vec2(Console.MARGIN + Console.PADDING,
-                              R_viewport.height - Console.MARGIN - Console.PADDING - ascent);
-        const u32 color = rgba_white;
+    {   // Cursor quad.
+        const f32 width_px = get_line_width_px(atlas, input);
+        const Vector2 p0 = Vector2(console->MARGIN + console->PADDING + width_px + 1,
+                             console->MARGIN + console->PADDING + descent);
+        const Vector2 p1 = Vector2(p0.x + atlas.space_xadvance, p0.y + ascent - descent);
+        u32 color = rgba_white;
+
+        if (cursor_blink_dt > console->CURSOR_BLINK_INTERVAL) {
+            if (cursor_blink_dt > 2 * console->CURSOR_BLINK_INTERVAL) {
+                cursor_blink_dt = 0.0f;
+            } else {
+                color = 0;
+            }
+        }
+
+        ui_quad(p0, p1, color, QUAD_Z);
+    }
         
-        const f32 max_height = R_viewport.height - 2 * Console.MARGIN - 3 * Console.PADDING;
+    {   // History text.        
+        const f32 max_height = screen_viewport.height - 2 * console->MARGIN - 3 * console->PADDING;
 
         history_height = 0.0f;
-        char *start = history.value;
-        f32 visible_height = history.length > 0 ? atlas.line_height : 0.0f;
+        char *start = history.data;
+        f32 visible_height = history.count > 0 ? atlas.line_height : 0.0f;
         f32 current_y = history_y;
         u64 draw_count = 0;
         
-        for (s32 i = 0; i < history.length; ++i) {
+        for (s32 i = 0; i < history.count; ++i) {
             if (current_y > history_min_y) {
                 start += 1;
                 visible_height = 0.0f;
             } else {
                 draw_count += 1;
-                if (draw_count >= Console.MAX_HISTORY_SIZE) {
-                    draw_count = Console.MAX_HISTORY_SIZE;
+                if (draw_count >= console->MAX_HISTORY_SIZE) {
+                    draw_count = console->MAX_HISTORY_SIZE;
                     break;
                 }
             }
             
-            if (history.value[i] == ASCII_NEW_LINE) {
+            if (history.data[i] == C_NEW_LINE) {
                 history_height += atlas.line_height;
                 visible_height += atlas.line_height;
                 current_y -= atlas.line_height;
@@ -840,700 +877,621 @@ void console_draw() {
             }
         }
 
-        ui_text(String { start, draw_count }, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
-    }
-    
-    {   // Cursor quad.
-        const s32 width_px = get_line_width_px(atlas, input);
-        const vec2 p0 = vec2(Console.MARGIN + Console.PADDING + width_px + 1,
-                             Console.MARGIN + Console.PADDING + descent);
-        const vec2 p1 = vec2(p0.x + atlas.space_advance_width, p0.y + ascent - descent);
-        u32 color = rgba_white;
-
-        if (cursor_blink_dt > Console.CURSOR_BLINK_INTERVAL) {
-            if (cursor_blink_dt > 2 * Console.CURSOR_BLINK_INTERVAL) {
-                cursor_blink_dt = 0.0f;
-            } else {
-                color = 0;
-            }
-        }
-
-        ui_quad(p0, p1, color, QUAD_Z + F32_EPSILON);
+        auto p = Vector2(console->MARGIN + console->PADDING, screen_viewport.height - console->MARGIN - console->PADDING - ascent);
+        auto c = rgba_white;
+        ui_text(make_string(start, draw_count), p, c, QUAD_Z + F32_EPSILON, &atlas);
     }
 }
 
-void console_add_to_history(String s) {
-    if (!Console.history.value) {
-        return;
-    }
+static void scroll_console(s32 delta) {
+    auto &history_height = console->history_height;
+    auto &history_y = console->history_y;
+    auto &history_min_y = console->history_min_y;
 
-    auto &history = Console.history;
-    auto &history_max_width = Console.history_max_width;
+    const auto atlas = global_font_atlases.main_small;
+    
+    history_y -= delta * atlas->line_height;
+    history_y = Clamp(history_y, history_min_y, history_min_y + history_height);
+}
 
-    const auto &atlas = R_ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
+void add_to_console_history(String s) {
+    auto &history = console->history;
+    auto &history_max_width = console->history_max_width;
 
-    f32 text_width = 0.0f; 
-    for (u32 i = 0; i < s.length; ++i) {
-        const char c = s.value[i];
+    const auto &atlas = *global_font_atlases.main_small;
+
+    f32 text_width = 0.0f;
+    for (u32 i = 0; i < s.count; ++i) { // @Speed
+        const char c = s.data[i];
 
         // @Cleanup: make better history overflow handling.
-        if (history.length > Console.MAX_HISTORY_SIZE) {
-            history.length = 0;
+        if (history.count > console->MAX_HISTORY_SIZE) {
+            history.count = 0;
         }
    
         if (text_width < history_max_width) {
             text_width += get_char_width_px(atlas, c);
-            if (c == ASCII_NEW_LINE) {
+            if (c == C_NEW_LINE) {
                 text_width = 0;
             }
         } else { // wrap lines that do not fit into debug console window
-            history.value[history.length] = ASCII_NEW_LINE;
-            history.length += 1;
+            history.data[history.count] = C_NEW_LINE;
+            history.count += 1;
 
             text_width = 0;
         }
 
-        history.value[history.length] = c;
-        history.length += 1; 
+        history.data[history.count] = c;
+        history.count += 1;
     }
 
-    history.value[history.length] = '\0';
+    history.data[history.count] = '\0';
 }
 
-static void console_scroll(s32 delta) {
-    auto &history_height = Console.history_height;
-    auto &history_y = Console.history_y;
-    auto &history_min_y = Console.history_min_y;
+void on_console_input(const Window_Event *e) {
+    auto window = get_window();
 
-    const auto &atlas = R_ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
-    
-    history_y -= delta * atlas.line_height;
-    history_y = Clamp(history_y, history_min_y, history_min_y + history_height);
-}
-
-void console_on_input(const Window_Event &event) {
-    const bool press = event.key_press;
-    const bool repeat = event.key_repeat;
-    const auto key = event.key_code;
-    const u32 character = event.character;
-
-    switch (event.type) {
+    switch (e->type) {
     case WINDOW_EVENT_KEYBOARD: {
-        if (press && key == KEY_CLOSE_WINDOW) {
-            os_close_window(Main_window);
-        } else if (press && key == KEY_SWITCH_CONSOLE) {
-            console_close();
+        const auto key    = e->key_code;
+        const auto press  = e->input_bits & WINDOW_EVENT_PRESS_BIT;
+        const auto repeat = e->input_bits & WINDOW_EVENT_REPEAT_BIT;
+
+        if (press && key == KEY_OPEN_CONSOLE) {
+            close_console();
         } else if ((press || repeat) && key == KEY_UP) {
-            console_scroll(1);
+            scroll_console(1);
         } else if ((press || repeat) && key == KEY_DOWN) {
-            console_scroll(-1);            
+            scroll_console(-1);            
         }
         
         break;
     }
     case WINDOW_EVENT_TEXT_INPUT: {
-        if (!Console.is_open) break;
+        const auto character = e->character;
+        
+        if (!console->opened) break;
 
-        if (character == ASCII_GRAVE_ACCENT) {
+        if (character == C_GRAVE_ACCENT) {
             break;
         }
 
-        auto &history = Console.history;
-        auto &history_y = Console.history_y;
-        auto &history_min_y = Console.history_min_y;
-        auto &input = Console.input;
-        auto &cursor_blink_dt = Console.cursor_blink_dt;
+        auto &history = console->history;
+        auto &history_y = console->history_y;
+        auto &history_min_y = console->history_min_y;
+        auto &input = console->input;
+        auto &cursor_blink_dt = console->cursor_blink_dt;
 
-        const auto &atlas = R_ui.font_atlases[UI_DEBUG_CONSOLE_FONT_ATLAS_INDEX];
+        const auto &atlas = *global_font_atlases.main_small;
 
         cursor_blink_dt = 0.0f;
     
-        if (character == ASCII_NEW_LINE || character == ASCII_CARRIAGE_RETURN) {
-            if (input.length > 0) {
-                Scratch scratch = local_scratch();
-                defer { release(scratch); };
-                
-                String_Builder sb;
-                
+        if (character == C_NEW_LINE || character == C_CARRIAGE_RETURN) {
+            if (input.count > 0) {                
                 // @Todo: make better history overflow handling.
-                if (history.length + input.length > Console.MAX_HISTORY_SIZE) {
-                    history.value[0] = '\0';
-                    history.length = 0;
+                if (history.count + input.count > console->MAX_HISTORY_SIZE) {
+                    history.data[0] = '\0';
+                    history.count = 0;
                 }
 
-                constexpr String DELIMITERS = S(" ");
-                String_Token_Iterator sti = STI(input, DELIMITERS);
-                String token = str_token(sti);
+                constexpr auto delims = S(" ");
+                const auto tokens = split(input, delims);
                 
-                if (is_valid(token)) {
-                    if (str_equal(token, CONSOLE_CMD_CLEAR)) {
-                        token = str_token(sti);
-                        if (!is_valid(token)) {
-                            history.value[0] = '\0';
-                            history.length = 0;
+                String_Builder builder;
+                if (tokens[0]) {
+                    if (tokens[0] == CONSOLE_CMD_CLEAR) {
+                        if (!tokens[1]) {
+                            history.data[0] = '\0';
+                            history.count = 0;
                             history_y = history_min_y;
                         } else {
-                            str_build(scratch.arena, sb, "usage: clear\n");
-                            console_add_to_history(str_build_finish(scratch.arena, sb));
+                            append(builder, "usage: clear\n");
+                            add_to_console_history(builder_to_string(builder));
                         }
-                    } else if (str_equal(token, CONSOLE_CMD_LEVEL)) {
-                        token = str_token(sti);
-                        if (is_valid(token)) {
-                            Scratch scratch = local_scratch();
-                            defer { release(scratch); };
-
-                            String_Builder sb;
-                            str_build(scratch.arena, sb, DIR_LEVELS);
-                            str_build(scratch.arena, sb, token);
-            
-                            String path = str_build_finish(scratch.arena, sb);
-                            load_level(World, path);
+                    } else if (tokens[0] == CONSOLE_CMD_LEVEL) {
+                        if (tokens[1]) {   
+                            //auto path = tprint("%S%S", PATH_LEVEL(""), tokens[1]);
+                            //load_level(World, path);
                         } else {
-                            str_build(scratch.arena, sb, "usage: level name_with_extension\n");
-                            console_add_to_history(str_build_finish(scratch.arena, sb));
+                            append(builder, "usage: level name_with_extension\n");
+                            add_to_console_history(builder_to_string(builder));
                         }
                     } else {
-                        str_build(scratch.arena, sb, CONSOLE_UNKNOWN_CMD_WARNING);
-                        str_build(scratch.arena, sb, input);
-                        str_build(scratch.arena, sb, "\n");
-                        console_add_to_history(str_build_finish(scratch.arena, sb));
+                        append(builder, CONSOLE_UNKNOWN_CMD_WARNING);
+                        append(builder, input);
+                        append(builder, '\n');
+                        add_to_console_history(builder_to_string(builder));
                     }
-   
                 }
                 
-                input.length = 0;
+                input.count = 0;
             }
         
             break;
         }
 
-        if (character == ASCII_BACKSPACE) {
-            input.length -= 1;
-            input.length = Max(0, input.length);
+        if (character == C_BACKSPACE) {
+            if (input.count > 0) {
+                input.count -= 1;
+            }
         }
 
-        if (is_ascii_printable(character)) {
-            if (input.length >= Console.MAX_INPUT_SIZE) {
+        if (Is_Printable(character)) {
+            if (input.count >= console->MAX_INPUT_SIZE) {
                 break;
             }
         
-            input.value[input.length] = (char)character;
-            input.length += 1;
+            input.data[input.count] = (char)character;
+            input.count += 1;
         }
         
         break;
     }
-    case WINDOW_EVENT_MOUSE: {
-        const s32 delta = Sign(event.scroll_delta);
-        console_scroll(delta);
+    case WINDOW_EVENT_MOUSE_WHEEL: {
+        const s32 delta = Sign(e->scroll_delta);
+        scroll_console(delta);
         break;
     }
     }
 }
 
-void console_on_viewport_resize(s16 width, s16 height) {
-    auto &history_y = Console.history_y;
-    auto &history_min_y = Console.history_min_y;
-    auto &history_max_width = Console.history_max_width;
+void on_console_viewport_resize(s16 width, s16 height) {
+    auto &history_y = console->history_y;
+    auto &history_min_y = console->history_min_y;
+    auto &history_max_width = console->history_max_width;
 
-    history_min_y = height - Console.MARGIN;
+    history_min_y = height - console->MARGIN;
     history_y = history_min_y;
 
-    history_max_width = width - 2 * Console.MARGIN;
+    history_max_width = width - 2 * console->MARGIN - 2 * console->PADDING;
 }
 
-void editor_report(const char *cs, ...) {
-    constexpr u32 N = 256;
-    static char buffer[N];
+void screen_report(const char *cs, ...) {
+    static char buffer[256];
 
-    Editor_report.value = buffer;
-    Editor_report_time = 0.0f;
+    editor.report_string.data = buffer;
+    editor.report_time = 0.0f;
 
-    va_list args;
-	va_start(args, cs);
-    Editor_report.length = stbsp_vsnprintf(buffer, N, cs, args);
-    va_end(args);
-}
-
-const Reflect_Field &get_entity_field(Entity_Type type, u32 index) {
-    switch (type) {
-    case E_PLAYER:           return REFLECT_FIELD_AT(Player, index);
-    case E_SKYBOX:           return REFLECT_FIELD_AT(Skybox, index);
-    case E_STATIC_MESH:      return REFLECT_FIELD_AT(Static_Mesh, index);
-    case E_DIRECT_LIGHT:     return REFLECT_FIELD_AT(Direct_Light, index);
-    case E_POINT_LIGHT:      return REFLECT_FIELD_AT(Point_Light, index);
-    case E_SOUND_EMITTER_2D: return REFLECT_FIELD_AT(Sound_Emitter_2D, index);
-    case E_SOUND_EMITTER_3D: return REFLECT_FIELD_AT(Sound_Emitter_3D, index);
-    case E_PORTAL:           return REFLECT_FIELD_AT(Portal, index);
-    }
-
-    // This should never happen, just make compiler happy.
-    return REFLECT_FIELD_AT(Entity, index);
-}
-
-void init_default_level(Game_World &w) {
-    constexpr String s = S("main.lvl");
-    mem_copy(w.name.value, s.value, s.length);
-    w.name.length = s.length;
-    
-	auto &player = *(Player *)create_entity(World, E_PLAYER);
-	{
-        const auto &texture = *find_texture(SID_TEXTURE_PLAYER_IDLE_SOUTH);
-        
-        const f32 scale_aspect = (f32)texture.width / texture.height;
-        const f32 y_scale = 1.0f * scale_aspect;
-        const f32 x_scale = y_scale * scale_aspect;
-        
-		player.scale = vec3(x_scale, y_scale, 1.0f);
-        player.location = vec3(0.0f, F32_MIN, 0.0f);
-
-		player.draw_data.sid_mesh     = SID_MESH_PLAYER;
-		player.draw_data.sid_material = SID_MATERIAL_PLAYER;
-
-        player.sid_sound_steps = SID_SOUND_PLAYER_STEPS;
-	}
-
-	auto &ground = *(Static_Mesh *)create_entity(World, E_STATIC_MESH);
-	{        
-		ground.scale = vec3(16.0f, 16.0f, 0.0f);
-        ground.rotation = quat_from_axis_angle(vec3_right, 90.0f);
-        ground.uv_scale = vec2(ground.scale.x, ground.scale.y);
-        
-        auto &aabb = w.aabbs[ground.aabb_index];
-        const vec3 aabb_offset = vec3(ground.scale.x * 2, 0.0f, ground.scale.y * 2);
-        aabb.min = ground.location - aabb_offset * 0.5f;
-		aabb.max = aabb.min + aabb_offset;
-
-        ground.draw_data.sid_mesh     = SID_MESH_QUAD;
-        ground.draw_data.sid_material = SID_MATERIAL_GROUND;
-	}
-
-	auto &cube = *(Static_Mesh *)create_entity(World, E_STATIC_MESH);
-	{                
-		cube.location = vec3(3.0f, 0.5f, 4.0f);
-
-        auto &aabb = w.aabbs[cube.aabb_index];
-		aabb.min = cube.location - cube.scale * 0.5f;
-		aabb.max = aabb.min + cube.scale;
-
-		cube.draw_data.sid_mesh     = SID_MESH_CUBE;
-		cube.draw_data.sid_material = SID_MATERIAL_CUBE;
-	}
-
-	auto &skybox = *(Skybox *)create_entity(World, E_SKYBOX);
-	{
-        skybox.location = vec3(0.0f, -2.0f, 0.0f);
-        skybox.uv_scale = vec2(8.0f, 4.0f);
-        
-		skybox.draw_data.sid_mesh     = SID_MESH_SKYBOX;
-		skybox.draw_data.sid_material = SID_MATERIAL_SKYBOX;
-	}
-    
-	{
-        auto &model = *(Static_Mesh *)create_entity(World, E_STATIC_MESH);
-		model.location = vec3(-2.0f, 0.0f, 2.0f);
-        model.rotation = quat_from_axis_angle(vec3_right, -90.0f);
-        //model.scale = vec3(3.0f);
-        
-        auto &aabb = w.aabbs[model.aabb_index];
-		aabb.min = model.location - model.scale * 0.5f;
-		aabb.max = aabb.min + model.scale;
-
-		model.draw_data.sid_mesh     = SID("/data/meshes/tower.obj");
-		model.draw_data.sid_material = SID("/data/materials/tower.mat");
-	}
-
-    auto &sound_emitter_2d = *(Sound_Emitter_2D *)create_entity(World, E_SOUND_EMITTER_2D);
-    {
-        sound_emitter_2d.location = vec3(0.0f, 2.0f, 0.0f);
-        sound_emitter_2d.sid_sound = SID_SOUND_WIND_AMBIENCE;
-    }
-    
-    if (1) {
-        auto &direct_light = *(Direct_Light *)create_entity(World, E_DIRECT_LIGHT);
-
-        direct_light.location = vec3(0.0f, 5.0f, 0.0f);
-        direct_light.rotation = quat_from_axis_angle(vec3_right, 0.0f);
-        direct_light.scale = vec3(0.1f);
-        
-        direct_light.ambient  = vec3(0.32f);
-        direct_light.diffuse  = vec3_black;
-        direct_light.specular = vec3_black;
-        
-        auto &aabb = w.aabbs[direct_light.aabb_index];
-		aabb.min = direct_light.location - direct_light.scale * 0.5f;
-		aabb.max = aabb.min + direct_light.scale;
-    }
-    
-    if (1) {
-        auto &point_light = *(Point_Light *)create_entity(World, E_POINT_LIGHT);
-        
-        point_light.location = vec3(0.0f, 2.0f, 0.0f);
-        point_light.scale = vec3(0.1f);
-        
-        point_light.ambient  = vec3(0.1f);
-        point_light.diffuse  = vec3(0.5f);
-        point_light.specular = vec3(1.0f);
-
-        point_light.attenuation_constant  = 1.0f;
-        point_light.attenuation_linear    = 0.09f;
-        point_light.attenuation_quadratic = 0.032f;
-                
-        auto &aabb = w.aabbs[point_light.aabb_index];
-		aabb.min = point_light.location - point_light.scale * 0.5f;
-		aabb.max = aabb.min + point_light.scale;
-    }
-
-    auto &camera = w.camera;
-	camera.mode = MODE_PERSPECTIVE;
-	camera.yaw = 90.0f;
-	camera.pitch = 0.0f;
-	camera.eye = player.location + player.camera_offset;
-	camera.at = camera.eye + forward(camera.yaw, camera.pitch);
-	camera.up = vec3(0.0f, 1.0f, 0.0f);
-	camera.fov = 60.0f;
-	camera.near = 0.001f;
-	camera.far = 1000.0f;
-	camera.left = 0.0f;
-	camera.right = (f32)Main_window.width;
-	camera.bottom = 0.0f;
-	camera.top = (f32)Main_window.height;
-
-	w.ed_camera = camera;
-}
-
-// telemetry
-
-static Tm_Context Tm_ctx;
-
-void telemetry_init() {
-    Tm_ctx.zones = arena_push_array(M_global, Tm_ctx.MAX_ZONES, Tm_Zone);
-    Tm_ctx.index_stack = arena_push_array(M_global, Tm_ctx.MAX_ZONES, u16);
-}
-
-void telemetry_open() {
-    Assert(!(Tm_ctx.bits & TM_OPEN_BIT));
-    
-    Tm_ctx.bits |= TM_OPEN_BIT;
-
-    push_input_layer(Input_layer_telemetry);
-}
-
-void telemetry_close() {
-    Assert(Tm_ctx.bits & TM_OPEN_BIT);
-    
-    Tm_ctx.bits &= ~TM_OPEN_BIT;
-
-    pop_input_layer();
-}
-
-void telemetry_on_input(const Window_Event &event) {
-    const bool press = event.key_press;
-    const auto key = event.key_code;
-        
-    switch (event.type) {
-    case WINDOW_EVENT_KEYBOARD: {
-        if (press && key == KEY_CLOSE_WINDOW) {
-            os_close_window(Main_window);
-        } else if (press && key == KEY_SWITCH_TELEMETRY) {
-            telemetry_close();
-        } else if (press && key == KEY_P) {
-            if (Tm_ctx.bits & TM_PAUSE_BIT) {
-                Tm_ctx.bits &= ~TM_PAUSE_BIT;
-            } else {
-                Tm_ctx.bits |= TM_PAUSE_BIT;
-            }
-        } else if (press && key == KEY_0) {
-            Tm_ctx.sort_type = TM_SORT_NONE;
-        } else if (press && key == KEY_1) {
-            Tm_ctx.sort_type = TM_SORT_NAME;
-        } else if (press && key == KEY_2) {
-            Tm_ctx.sort_type = TM_SORT_EXC;
-        } else if (press && key == KEY_3) {
-            Tm_ctx.sort_type = TM_SORT_INC;
-        } else if (press && key == KEY_4) {
-            Tm_ctx.sort_type = TM_SORT_CNT;
-        } else if (press && key == KEY_C) {
-            Tm_ctx.precision_type = TM_MICRO_SECONDS;
-        } else if (press && key == KEY_L) {
-            Tm_ctx.precision_type = TM_MILI_SECONDS;
-        } else if (press && key == KEY_S) {
-            Tm_ctx.precision_type = TM_SECONDS;
-        }
-        
-        break;
-    }
+    push_va_args(cs) {
+        editor.report_string.count = stbsp_vsnprintf(buffer, carray_count(buffer), cs, va_args);
     }
 }
 
-static inline bool telemetry_closed() {
-    return !(Tm_ctx.bits & TM_OPEN_BIT);
+// const Reflect_Field &get_entity_field(Entity_Type type, u32 index) {
+//     switch (type) {
+//     case E_PLAYER:        return REFLECT_FIELD_AT(Player,        index);
+//     case E_SKYBOX:        return REFLECT_FIELD_AT(Skybox,        index);
+//     case E_STATIC_MESH:   return REFLECT_FIELD_AT(Static_Mesh,   index);
+//     case E_DIRECT_LIGHT:  return REFLECT_FIELD_AT(Direct_Light,  index);
+//     case E_POINT_LIGHT:   return REFLECT_FIELD_AT(Point_Light,   index);
+//     case E_SOUND_EMITTER: return REFLECT_FIELD_AT(Sound_Emitter, index);
+//     case E_PORTAL:        return REFLECT_FIELD_AT(Portal,        index);
+//     }
+
+//     unreachable_code_path();
+//     return REFLECT_FIELD_AT(Entity, index);
+// }
+
+// profiler
+
+static Profiler *profiler = null;
+
+Profiler *get_profiler () { Assert(profiler); return profiler; }
+
+void init_profiler() {
+    Assert(!profiler);
+
+    profiler = New(Profiler);
+
+    array_realloc(profiler->all_zones,     MAX_PROFILE_ZONES);
+    array_realloc(profiler->active_zones,  MAX_PROFILE_ZONES);
+    table_realloc(profiler->zone_lookup,   MAX_PROFILE_ZONES);
 }
 
-static inline bool telemetry_paused() {
-    return Tm_ctx.bits & TM_PAUSE_BIT;
+void open_profiler() {
+    Assert(!profiler->opened);
+    profiler->opened = true;
+    push_input_layer(input_layers[INPUT_LAYER_PROFILER]);
 }
 
-static inline void telemetry_flush() {
-    Tm_ctx.zone_total_count = 0;
+void close_profiler() {
+    Assert(profiler->opened);
+    profiler->opened = false;
+    auto layer = pop_input_layer();
+    Assert(layer->type == INPUT_LAYER_PROFILER);
 }
 
-// @Todo: own stable sort.
-#include <algorithm>
+void update_profiler() {
+    using Time_Zone = Profiler::Time_Zone;
+    
+    // Store separate time zones to preserve data in case of pause.
+    static auto zones = Array <Time_Zone> {};
 
-void telemetry_draw() {
+    defer {
+        array_clear(profiler->all_zones);
+        array_clear(profiler->active_zones);
+        table_clear(profiler->zone_lookup);
+    };
+
+    if (profiler->all_zones.count) {
+        array_clear(zones);
+        array_realloc(zones, profiler->all_zones.count);
+        
+        copy(zones.items, profiler->all_zones.items, profiler->all_zones.count * sizeof(zones.items[0]));
+        zones.count = profiler->all_zones.count;
+    }
+
+    if (!profiler->opened) return;
+
+    // Common draw data.
+    
     constexpr f32 MARGIN  = 100.0f;
     constexpr f32 PADDING = 16.0f;
     constexpr f32 QUAD_Z = 0.0f;
 
-    constexpr u32 MAX_NAME_LENGTH  = 24;
-    constexpr u32 MAX_TIME_LENGTH  = 10;
-    constexpr u32 MAX_COUNT_LENGTH = 5;
-    constexpr u16 NCOL = 4;
+    constexpr u32 MAX_NAME_LENGTH = 24;
+
+    const auto atlas  = global_font_atlases.main_small;
+    const auto ascent  = atlas->ascent  * atlas->px_h_scale;
+    const auto descent = atlas->descent * atlas->px_h_scale;
+    const auto line_height    = atlas->line_height;
+    const auto space_width_px = atlas->space_xadvance;
+
+    // Update profiler mode.
     
-    constexpr f32 UPDATE_INTERVAL = 0.2f;
+    switch (profiler->view_mode) {
+    case PROFILER_RUNTIME: {
+        // Build parent-children relations for correct zone sort and draw.
+        struct Children_Per_Zone { u32 count = 0; u32 children[MAX_CHILDREN_PER_ZONE]; };
+        Array <u32>               roots    = { .allocator = __temporary_allocator };
+        Array <Children_Per_Zone> children = { .allocator = __temporary_allocator };
 
-    static f32 update_time = 0.0f;
-    static Tm_Zone *zones = arena_push_array(M_global, Tm_ctx.MAX_ZONES, Tm_Zone);
-    static u32 zone_count = 0;
-    
-    defer { telemetry_flush(); };
-
-    update_time += Delta_time;
-    if (update_time > UPDATE_INTERVAL) {
-        update_time = 0.0f;
-
-        if (Tm_ctx.zone_total_count > 0) {
-            mem_copy(zones, Tm_ctx.zones, Tm_ctx.zone_total_count * sizeof(Tm_ctx.zones[0]));
-            zone_count = Tm_ctx.zone_total_count;
+        array_realloc(children, MAX_PROFILE_ZONES);
+        children.count = MAX_PROFILE_ZONES;
+        
+        u32 zone_index = 0;
+        For (zones) {
+            if (it.parent == INDEX_NONE) {
+                array_add(roots, zone_index);
+            } else {
+                auto &cpz = children[it.parent];
+                cpz.children[cpz.count] = zone_index;
+                cpz.count += 1;
+            }
+        
+            zone_index += 1;
         }
-    }
-    
-    if (telemetry_closed()) return;
 
-    const auto atlas_index = UI_PROFILER_FONT_ATLAS_INDEX;
-    const auto &atlas = R_ui.font_atlases[atlas_index];
-    const f32 ascent  = atlas.font->ascent  * atlas.px_h_scale;
-    const f32 descent = atlas.font->descent * atlas.px_h_scale;
-    const s32 space_width_px = get_char_width_px(atlas, ASCII_SPACE);
+        // Prepare draw data.
+        
+        constexpr String titles[4] = {
+            S("Name"), S("Exc"), S("Inc"), S("Num"),
+        };
 
-    f32 offsets[NCOL];
-    offsets[0] = MARGIN + PADDING;
-    offsets[1] = offsets[0] + space_width_px * MAX_NAME_LENGTH;
-    offsets[2] = offsets[1] + space_width_px * MAX_TIME_LENGTH;
-    offsets[3] = offsets[2] + space_width_px * MAX_TIME_LENGTH;
+        const f32 max_lengths[carray_count(titles)] = {
+            24 * space_width_px,
+            10 * space_width_px,
+            10 * space_width_px,
+            5  * space_width_px,
+        };
 
-    {   // Profiler quad.
-        const vec2 p0 = vec2(MARGIN, R_viewport.height - MARGIN - 2 * PADDING - (zone_count + 1.5f) * atlas.line_height);
-        const vec2 p1 = vec2(offsets[NCOL - 1] + MAX_COUNT_LENGTH * space_width_px + PADDING, R_viewport.height - MARGIN);
-        const u32 color = rgba_pack(0, 0, 0, 200);
-        ui_quad(p0, p1, color, QUAD_Z);
-    }
+        f32 offsets[carray_count(titles)] = { MARGIN + PADDING };
+        for (auto i = 1; i < carray_count(titles); ++i) {
+            offsets[i] = offsets[i - 1] + max_lengths[i - 1];
+        }
+        
+        typedef bool (* Sort_Proc)(u32 a, u32 b);
+        constexpr Sort_Proc sort_procs[carray_count(titles)] = {
+            [] (u32 a, u32 b) { return (zones[a].name < zones[b].name); },
+            [] (u32 a, u32 b) { return (zones[b].exclusive - zones[a].exclusive) < 0; },
+            [] (u32 a, u32 b) { return (zones[b].inclusive - zones[a].inclusive) < 0; },
+            [] (u32 a, u32 b) { return (zones[b].calls - zones[a].calls) < 0; },
+        };
+        
+        const Sort_Proc sort_proc = sort_procs[profiler->time_sort];
 
-    switch (Tm_ctx.sort_type) {
-    case TM_SORT_NONE: {
-        break;
-    }
-    case TM_SORT_NAME: {
-        std::stable_sort(zones, zones + zone_count, [] (const auto &a, const auto &b) {
-            return str_compare(a.name, b.name) < 0;
-        });
-        break;
-    }
-    case TM_SORT_EXC: {
-        std::stable_sort(zones, zones + zone_count, [] (const auto &a, const auto &b) {
-            return (b.exclusive - a.exclusive) < 0;
-        });
-        break;
-    }
-    case TM_SORT_INC: {
-        std::stable_sort(zones, zones + zone_count, [] (const auto &a, const auto &b) {
-            return (b.inclusive - a.inclusive) < 0;
-        });
-        break;
-    }
-    case TM_SORT_CNT: {
-        std::stable_sort(zones, zones + zone_count, [] (const auto &a, const auto &b) {
-            return (b.calls - a.calls) < 0;
-        });
-        break;
-    }
-    }
-    
-    {   // Profiler scopes.
-        vec2 pos = vec2(MARGIN + PADDING, R_viewport.height - MARGIN - PADDING - ascent);
+        // Sort roots and children.
+        std::stable_sort(roots.items, roots.items + roots.count, sort_proc);
 
-        const char *titles[NCOL] = { "Name", "Exc", "Inc", "Num" };
-        for (u16 i = 0; i < NCOL; ++i) {
+        For (children) {
+            std::stable_sort(it.children, it.children + it.count, sort_proc);
+        }
+
+        // Build final draw order.
+        Array <u32> draw_order = { .allocator = __temporary_allocator };
+        const auto dfs = [&] (u32 index) -> void {
+            // Nested lambda for outer pretty usage.
+            const auto do_dfs = [&] (const auto &self, u32 index) -> void {
+                array_add(draw_order, index);
+
+                auto &cpz = children[index];
+                for (u32 i = 0; i < cpz.count; ++i) {
+                    self(self, cpz.children[i]);
+                }
+            };
+
+            do_dfs(do_dfs, index);
+        };
+
+        For (roots) dfs(it);
+
+        // Start actual draw.
+        
+        const auto &v = screen_viewport;
+
+        // Background quad.
+        const Vector2 p0 = Vector2(MARGIN, v.height - MARGIN - 2 * PADDING - (zones.count + 1.5f) * line_height);
+        const Vector2 p1 = Vector2(offsets[carray_count(offsets) - 1] + max_lengths[carray_count(max_lengths) - 1] + PADDING, v.height - MARGIN);
+        const u32 c = rgba_pack(0, 0, 0, 200);
+        ui_quad(p0, p1, c, QUAD_Z);
+
+        Vector2 p = Vector2(MARGIN + PADDING, v.height - MARGIN - PADDING - ascent);
+
+        // Columns headers.
+        for (auto sort = 0; sort < carray_count(titles); ++sort) {
             const f32 z = QUAD_Z + F32_EPSILON;
-            u32 color = rgba_white;
+            const u32 c = profiler->time_sort == sort ? rgba_yellow : rgba_white;
+            p.x = offsets[sort];
+            ui_text(titles[sort], p, c, z, atlas);
+        }
 
-            // Index plus one to ignore TM_SORT_NONE = 0.
-            if (i + 1 == Tm_ctx.sort_type) {
-                color = rgba_yellow;
+        p.y -= line_height * 1.5f;
+
+        const u64 hz = get_perf_hz_ms();
+        
+        // Columns data.
+        For (draw_order) {
+            const auto &zone = zones[it];
+            
+            const auto name  = zone.name;
+            const auto inc   = (f32)zone.inclusive / hz;
+            const auto exc   = (f32)zone.exclusive / hz;
+            const auto calls = zone.calls;
+            const auto depth = zone.depth;
+            const auto z     = QUAD_Z + F32_EPSILON;
+
+            const auto t = Clamp(inc / 5.5f, 0.0f, 1.0f);
+            const auto r = (u8)(255 * t);
+            const auto g = (u8)(255 * (1.0f - t));
+            const auto c = rgba_pack(r, g, 0, 255);
+
+            p.x = offsets[0] + depth * space_width_px;
+            ui_text(name, p, c, z, atlas);
+
+            p.x = offsets[1];
+            ui_text(tprint("%.2f", exc), p, c, z, atlas);
+
+            p.x = offsets[2];
+            ui_text(tprint("%.2f", inc), p, c, z, atlas);
+
+            p.x = offsets[3];
+            ui_text(tprint("%u", calls), p, c, z, atlas);
+            
+            p.y -= line_height;
+        }
+        
+        break;
+    }
+    case PROFILER_MEMORY: {
+        // Prepare draw data.
+        
+        const String titles[3] = {
+            S("Name"), S("Used"), S("Size")
+        };
+
+        const f32 max_lengths[carray_count(titles)] = {
+            24 * space_width_px,
+            10 * space_width_px,
+            10 * space_width_px,
+        };
+
+        f32 offsets[carray_count(titles)] = { MARGIN + PADDING };
+        for (auto i = 1; i < carray_count(titles); ++i) {
+            offsets[i] = offsets[i - 1] + max_lengths[i - 1];
+        }
+
+        extern Virtual_Arena virtual_arena;
+        const auto &va  = virtual_arena;
+        const auto &ts  = context.temporary_storage;
+        const auto &gpu = get_gpu_buffer();
+        
+        const struct Memory_Zone {
+            String name;
+            u64 used;
+            u64 size;
+        };
+
+        Array <Memory_Zone> zones = { .allocator = __temporary_allocator };
+        array_add(zones, { S("virtual_arena"),     va.used,      va.reserved    });
+        array_add(zones, { S("temporary_storage"), ts->occupied, ts->total_size });
+        array_add(zones, { S("gpu_memory"),        gpu->used,    gpu->size      });
+        
+        // Start actual draw.
+        
+        const auto &v = screen_viewport;
+
+        // Background quad.
+        const Vector2 p0 = Vector2(MARGIN, v.height - MARGIN - 2 * PADDING - (zones.count + 1.5f) * line_height);
+        const Vector2 p1 = Vector2(offsets[carray_count(offsets) - 1] + max_lengths[carray_count(max_lengths) - 1] + PADDING, v.height - MARGIN);
+        const u32 c = rgba_pack(0, 0, 0, 200);
+        ui_quad(p0, p1, c, QUAD_Z);
+
+        Vector2 p = Vector2(MARGIN + PADDING, v.height - MARGIN - PADDING - ascent);
+
+        // Columns headers.
+        for (auto sort = 0; sort < carray_count(titles); ++sort) {
+            const f32 z = QUAD_Z + F32_EPSILON;
+            const u32 c = rgba_white;
+            p.x = offsets[sort];
+            ui_text(titles[sort], p, c, z, atlas);
+        }
+
+        p.y -= line_height * 1.5f;
+
+        // Columns data.
+        For (zones) {
+            const auto name = it.name;
+            const auto used = To_Kilobytes(it.used);
+            const auto size = To_Kilobytes(it.size);
+            const auto z    = QUAD_Z + F32_EPSILON;
+
+            const auto t = Clamp((f32)used / size, 0.0f, 1.0f);
+            const auto r = (u8)(255 * t);
+            const auto g = (u8)(255 * (1.0f - t));
+            const auto c = rgba_pack(r, g, 0, 255);
+
+            p.x = offsets[0];
+            ui_text(name, p, c, z, atlas);
+
+            p.x = offsets[1];
+            ui_text(tprint("%llu", used), p, c, z, atlas);
+
+            p.x = offsets[2];
+            ui_text(tprint("%llu", size), p, c, z, atlas);
+            
+            p.y -= line_height;
+        }
+        
+        break;
+    }
+    default: unreachable_code_path();
+    }
+}
+
+void switch_profiler_view() {
+    profiler->view_mode = (Profiler_View_Mode)((profiler->view_mode + 1) % PROFILER_VIEW_COUNT);
+}
+
+void on_profiler_input(const Window_Event *e) {
+    switch (e->type) {
+    case WINDOW_EVENT_KEYBOARD: {
+        const auto key     = e->key_code;
+        const auto press   = e->input_bits & WINDOW_EVENT_PRESS_BIT;
+        const auto release = e->input_bits & WINDOW_EVENT_RELEASE_BIT;
+    
+        if (release) break; // do not handle keyboard release events at all
+
+        if (key == KEY_OPEN_PROFILER)        { close_profiler(); break; }
+        if (key == KEY_SWITCH_PROFILER_VIEW) { switch_profiler_view(); break; }
+        
+        switch (profiler->view_mode) {
+        case PROFILER_RUNTIME: {
+            switch (key) {
+            case KEY_P: { profiler->paused = !profiler->paused; break; }
+                
+            case KEY_1: { profiler->time_sort = 0; break; }
+            case KEY_2: { profiler->time_sort = 1; break; }
+            case KEY_3: { profiler->time_sort = 2; break; }
+            case KEY_4: { profiler->time_sort = 3; break; }
             }
             
-            pos.x = offsets[i];
-            ui_text(String(titles[i]), pos, color, z, atlas_index);
+            break;
         }
-            
-        pos.y -= atlas.line_height * 1.5f;
-
-        f32 time_threshold = 0.0f;
-        u64 hz = 0;
+        case PROFILER_MEMORY: {
+            // @Todo: no memory profiler specific keys for now.
+            break;
+        }
+        }
         
-        switch (Tm_ctx.precision_type) {
-        case TM_MICRO_SECONDS: {
-            time_threshold = 100.0f;
-            hz = os_perf_hz_us();
-            break;
-        }
-        case TM_MILI_SECONDS: {
-            time_threshold = 0.5f;
-            hz = os_perf_hz_ms();
-            break;
-        }
-        case TM_SECONDS: {
-            time_threshold = 0.1f;
-            hz = os_perf_hz();
-            break;
-        }
-        }
-
-        u64 count = 0;
-        char buffer[256];
-
-        for (u32 i = 0; i < zone_count; ++i) {
-            const auto &zone = zones[i];
-
-            const auto &name = zone.name;
-            const f32 inc = (f32)zone.inclusive / hz;
-            const f32 exc = (f32)zone.exclusive / hz;
-            const u32 calls = zone.calls;
-            const u32 depth = zone.depth;
-            
-            const f32 time_alpha = Clamp(exc / time_threshold, 0.0f, 1.0f);
-            const u8 r = (u8)(255 * time_alpha);
-            const u8 g = (u8)(255 * (1.0f - time_alpha));
-            
-            const u32 color = rgba_pack(r, g, 0, 255);
-                
-            pos.x = offsets[0];
-            pos.x += depth * space_width_px;
-            count = stbsp_snprintf(buffer, sizeof(buffer), "%.*s", name.length, name.value);
-            ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
-
-            pos.x = offsets[1];
-            count = stbsp_snprintf(buffer, sizeof(buffer), "%.2f", exc);
-            ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
-
-            pos.x = offsets[2];
-            count = stbsp_snprintf(buffer, sizeof(buffer), "%.2f", inc);
-            ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
-
-            pos.x = offsets[3];
-            count = stbsp_snprintf(buffer, sizeof(buffer), "%u", calls);
-            ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
-            
-            pos.y -= atlas.line_height;
-        }
+        break;
+    }
     }
 }
 
-void telemetry_push_zone(String name) {
-    if (telemetry_paused()) return;
+void push_profile_time_zone(const char *name) { push_profile_time_zone(make_string((char *)name)); }
     
-    Assert(Tm_ctx.zone_total_count < Tm_ctx.MAX_ZONES);
+void push_profile_time_zone(String name) {
+    if (profiler->paused) return;
 
-    Tm_Zone zone;
-    zone.name = name;
-    zone.depth = Tm_ctx.zone_active_count;
-    zone.calls = 1; // @Todo
-    zone.start = os_perf_counter();
+    Profiler::Time_Zone *zone = null;
+    const auto found = table_find(profiler->zone_lookup, name);
+    
+    if (!found) {
+        zone = &array_add(profiler->all_zones);
+        new (zone) Profiler::Time_Zone;
+            
+        zone->name  = name;
+        zone->depth = profiler->active_zones.count;
 
-    Tm_ctx.zones[Tm_ctx.zone_total_count] = zone;
-    Tm_ctx.index_stack[Tm_ctx.zone_active_count] = Tm_ctx.zone_total_count;
-    Tm_ctx.zone_active_count += 1;
-    Tm_ctx.zone_total_count  += 1;
+        table_add(profiler->zone_lookup, name, zone);
+    } else {
+        zone = *found;
+    }
+
+    Assert(zone->depth == profiler->active_zones.count, "For now zones must have unique names across different usage scopes");
+    
+    zone->calls += 1;
+    zone->start  = get_perf_counter();
+    
+    array_add(profiler->active_zones, zone);
 }
 
-void telemetry_pop_zone() {
-    if (telemetry_paused()) return;
-    
-    Assert(Tm_ctx.zone_active_count > 0);
+void pop_profile_time_zone() {
+    if (profiler->paused) return;
 
-    const s32 last_index = Tm_ctx.index_stack[Tm_ctx.zone_active_count - 1];
-    auto &last = Tm_ctx.zones[last_index];
-    last.inclusive = os_perf_counter() - last.start;
-    last.exclusive += last.inclusive;
-    
-    Tm_ctx.zone_active_count -= 1;
+    auto zone = array_pop(profiler->active_zones);
 
-    s32 parent_index = last_index - 1;
-    while (parent_index >= 0) {
-        auto &zone = Tm_ctx.zones[parent_index];
-        if (zone.depth < last.depth) {
-            zone.exclusive -= last.inclusive;
+    auto time = get_perf_counter() - zone->start;
+    auto exc  = time - zone->children;
+    
+    zone->exclusive += exc;
+    zone->inclusive += time;
+    
+    if (profiler->active_zones.count) {
+        auto last = profiler->active_zones[profiler->active_zones.count - 1];
+        last->children += time;
+    }
+
+    For (profiler->active_zones) {
+        if (it->depth + 1 == zone->depth) {
+            zone->parent = (s32)(it - profiler->all_zones.items);
             break;
         }
-
-        parent_index -= 1;
     }
 }
 
 // profile
 
-static Mprof_Context Mprof;
-
-void mprof_init() {
+void open(Memory_Profiler &prof) {
+    Assert(!prof.is_open);
+    prof.is_open = true;
+    //push_input_layer(Input_layer_mprof);
 }
 
-void mprof_open() {
-    Assert(!Mprof.is_open);
-    
-    Mprof.is_open = true;
-
-    push_input_layer(Input_layer_mprof);
-}
-
-void mprof_close() {
-    Assert(Mprof.is_open);
-
-    Mprof.is_open = false;
-
+void close(Memory_Profiler &prof) {
+    Assert(prof.is_open);
+    prof.is_open = false;
     pop_input_layer();
 }
 
-void mprof_on_input(const Window_Event &event) {
-    const bool press = event.key_press;
-    const auto key = event.key_code;
+void on_input(Memory_Profiler &prof, const Window_Event &event) {
+    auto window = get_window();
         
     switch (event.type) {
     case WINDOW_EVENT_KEYBOARD: {
-        if (press && key == KEY_CLOSE_WINDOW) {
-            os_close_window(Main_window);
-        } else if (press && key == KEY_SWITCH_MEMORY_PROFILER) {
-            mprof_close();
-        } else if (press && key == KEY_0) {
-            Mprof.sort_type = MPROF_SORT_NONE;
+        const auto key   = event.key_code;
+        const auto press = event.input_bits & WINDOW_EVENT_PRESS_BIT;
+
+        if (press && key == KEY_0) {
+            prof.sort_col = MEM_PROF_SORT_COL + 0;
         } else if (press && key == KEY_1) {
-            Mprof.sort_type = MPROF_SORT_NAME;
+            prof.sort_col = MEM_PROF_SORT_COL + 1;
         } else if (press && key == KEY_2) {
-            Mprof.sort_type = MPROF_SORT_USED;
+            prof.sort_col = MEM_PROF_SORT_COL + 2;
         } else if (press && key == KEY_3) {
-            Mprof.sort_type = MPROF_SORT_CAP;
+            prof.sort_col = MEM_PROF_SORT_COL + 3;
         } else if (press && key == KEY_4) {
-            Mprof.sort_type = MPROF_SORT_PERC;
+            prof.sort_col = MEM_PROF_SORT_COL + 4;
         } else if (press && key == KEY_B) {
-            Mprof.precision_type = MPROF_BYTES;
+            prof.precision_type = MEM_PREC_BYTES;
         } else if (press && key == KEY_K) {
-            Mprof.precision_type = MPROF_KILO_BYTES;
+            prof.precision_type = MEM_PREC_KB;
         } else if (press && key == KEY_M) {
-            Mprof.precision_type = MPROF_MEGA_BYTES;
+            prof.precision_type = MEM_PREC_MB;
         } else if (press && key == KEY_G) {
-            Mprof.precision_type = MPROF_GIGA_BYTES;
+            prof.precision_type = MEM_PREC_GB;
         } else if (press && key == KEY_T) {
-            Mprof.precision_type = MPROF_TERA_BYTES;
+            prof.precision_type = MEM_PREC_TB;
         }
         
         break;
@@ -1541,201 +1499,199 @@ void mprof_on_input(const Window_Event &event) {
     }
 }
 
-void mprof_draw() {
+void draw(Memory_Profiler &prof) {
+    /*
+    // @Todo: make custom struct that holds allocator ref and name and maybe other metadata.
+    static struct {
+        Allocator *allocator;
+        String name;
+    } scopes[3] = {
+        
+    };
+
+    constexpr u32 scope_count = carray_count(scopes);
+        
     constexpr f32 MARGIN  = 100.0f;
     constexpr f32 PADDING = 16.0f;
     constexpr f32 QUAD_Z = 0.0f;
 
     constexpr u32 NCOL = 4;
-    constexpr u32 MAX_SCOPE_COUNT = 6;
-
-    constexpr u32 MAX_NAME_LENGTH    = 12;
-    constexpr u32 MAX_MEMORY_LENGTH  = 16;
-    constexpr u32 MAX_PERCENT_LENGTH = 6;
     
-    if (!Mprof.is_open) return;
-
-    struct M_Scope {
-        String name;
-        s64 size = 0;
-        s64 capacity = 0;
-        f32 percent = 0.0f;
-    };
+    if (!prof.is_open) return;
     
-    M_Scope scopes[MAX_SCOPE_COUNT] = {
-        { S("M_global"), (s64)M_global.used,      (s64)M_global.reserved },
-        { S("M_frame"),  (s64)M_frame.used,       (s64)M_frame.reserved },
-        { S("M_world"),  (s64)World.arena.used,   (s64)World.arena.reserved },
-        { S("M_rtable"), (s64)R_table.arena.used, (s64)R_table.arena.reserved },
-        { S("R_vertex"), R_vertex_map_range.size, R_vertex_map_range.capacity },
-        { S("R_index"),  R_index_map_range.size,  R_index_map_range.capacity },
+    const auto &atlas = *global_font_atlases.main_small;
+    const f32 ascent  = atlas.ascent  * atlas.px_h_scale;
+    const f32 descent = atlas.descent * atlas.px_h_scale;
+    const f32 space_width_px = get_char_width_px(atlas, C_SPACE);
+    
+    constexpr u32 memory_lengths[MEM_PREC___ca] = { 14, 12, 10, 10, 10 };
+    constexpr f64 prec_scales[MEM_PREC___ca] = {
+        1.0, 1.0/1024, 1.0/1024/1024, 1.0/1024/1024/1024, 1.0/1024/1024/1024/1024
     };
 
-    for (u32 i = 0; i < MAX_SCOPE_COUNT; ++i) {
-        auto &scope = scopes[i];
-        scope.percent = (f32)scope.size / scope.capacity * 100.f;
-    }
-        
-    const auto atlas_index = UI_PROFILER_FONT_ATLAS_INDEX;
-    const auto &atlas = R_ui.font_atlases[atlas_index];
-    const f32 ascent  = atlas.font->ascent  * atlas.px_h_scale;
-    const f32 descent = atlas.font->descent * atlas.px_h_scale;
-    const u32 space_width_px = get_char_width_px(atlas, ASCII_SPACE);
+    const u32 memory_length = memory_lengths[prof.precision_type];
+    const f64 prec_scale    = prec_scales[prof.precision_type];
 
-    u32 memory_length = 16;
-    f64 prec_scale = 1.0;
-    
-    switch (Mprof.precision_type) {
-    case MPROF_BYTES: {
-        prec_scale = 1.0;
-        memory_length = 14;
-        break;
-    }
-    case MPROF_KILO_BYTES: {
-        prec_scale = 1.0 / 1024;
-        memory_length = 12;
-        break;
-    }
-    case MPROF_MEGA_BYTES: {
-        prec_scale = 1.0 / 1024 / 1024;
-        memory_length = 10;
-        break;
-    }
-    case MPROF_GIGA_BYTES: {
-        prec_scale = 1.0 / 1024 / 1024 / 1024;
-        memory_length = 8;
-        break;
-    }
-    case MPROF_TERA_BYTES: {
-        prec_scale = 1.0 / 1024 / 1024 / 1024 / 1024;
-        memory_length = 8;
-        break;
-    }
-    }
-        
+    constexpr String titles  [NCOL] = { S("Name"), S("Used"), S("Commited"), S("Reserved") };
+    const u32 max_col_lengths[NCOL] = { 24, memory_length, memory_length, memory_length };
+
     f32 offsets[NCOL];
     offsets[0] = MARGIN + PADDING;
-    offsets[1] = offsets[0] + space_width_px * MAX_NAME_LENGTH;
-    offsets[2] = offsets[1] + space_width_px * memory_length;
-    offsets[3] = offsets[2] + space_width_px * memory_length;
-        
+    offsets[1] = offsets[0] + space_width_px * max_col_lengths[0];
+    offsets[2] = offsets[1] + space_width_px * max_col_lengths[1];
+    offsets[3] = offsets[2] + space_width_px * max_col_lengths[2];
+    
     {   // Profiler quad.
-        const vec2 p0 = vec2(MARGIN, R_viewport.height - MARGIN - 2 * PADDING - (MAX_SCOPE_COUNT + 1.5f) * atlas.line_height);
-        const vec2 p1 = vec2(offsets[NCOL - 1] + MAX_PERCENT_LENGTH * space_width_px + PADDING, R_viewport.height - MARGIN);
+        const Vector2 p0 = Vector2(MARGIN, screen_viewport.height - MARGIN - 2 * PADDING - (scope_count + 3.0f) * atlas.line_height);
+        const Vector2 p1 = Vector2(offsets[NCOL - 1] + max_col_lengths[NCOL - 1] * space_width_px + PADDING, screen_viewport.height - MARGIN);
         const u32 color = rgba_pack(0, 0, 0, 200);
         ui_quad(p0, p1, color, QUAD_Z);
     }
 
-    switch (Mprof.sort_type) {
-    case MPROF_SORT_NONE: {
+    switch (prof.sort_col) {
+    case MEM_PROF_SORT_COL + 0: {
         break;
     }
-    case MPROF_SORT_NAME: {
-        std::stable_sort(scopes, scopes + MAX_SCOPE_COUNT, [] (const auto &a, const auto &b) {
-            return str_compare(a.name, b.name) < 0;
+    case MEM_PROF_SORT_COL + 1: {
+        std::stable_sort(scopes, scopes + scope_count, [] (const auto &a, const auto &b) {
+            return str_compare(a->name, b->name) < 0;
         });
         break;
     }
-    case MPROF_SORT_USED: {
-        std::stable_sort(scopes, scopes + MAX_SCOPE_COUNT, [] (const auto &a, const auto &b) {
-            return (b.size - a.size) < 0;
+    case MEM_PROF_SORT_COL + 2: {
+        std::stable_sort(scopes, scopes + scope_count, [] (const auto &a, const auto &b) {
+            return ((s64)b->allocator->used - (s64)a->allocator->used) < 0;
         });
         break;
     }
-    case MPROF_SORT_CAP: {
-        std::stable_sort(scopes, scopes + MAX_SCOPE_COUNT, [] (const auto &a, const auto &b) {
-            return (b.capacity - a.capacity) < 0;
+    case MEM_PROF_SORT_COL + 3: {
+        std::stable_sort(scopes, scopes + scope_count, [] (const auto &a, const auto &b) {
+            return ((s64)b->allocator->commited - (s64)a->allocator->commited) < 0;
         });
         break;
     }
-    case MPROF_SORT_PERC: {
-        std::stable_sort(scopes, scopes + MAX_SCOPE_COUNT, [] (const auto &a, const auto &b) {
-            return (b.percent - a.percent) < 0;
+    case MEM_PROF_SORT_COL + 4: {
+        std::stable_sort(scopes, scopes + scope_count, [] (const auto &a, const auto &b) {
+            return ((s64)b->allocator->reserved - (s64)a->allocator->reserved) < 0;
         });
         break;
     }
     }
+
+    u64 total_used = 0;
+    u64 total_commited = 0;
+    u64 total_reserved = 0;
     
-    {   // Profiler scopes.
-        vec2 pos = vec2(MARGIN + PADDING, R_viewport.height - MARGIN - PADDING - ascent);
-        
-        const char *titles[NCOL] = { "Name", "Used", "Cap", "Perc" };
-        for (u32 i = 0; i < NCOL; ++i) {
-            u32 color = rgba_white;
+    Vector2 pos = Vector2(MARGIN + PADDING, screen_viewport.height - MARGIN - PADDING - ascent);
+    
+    for (u32 i = 0; i < NCOL; ++i) {
+        u32 color = rgba_white;
 
-            // Index plus one to ignore MPROF_SORT_NONE = 0.
-            if (i + 1 == Mprof.sort_type) {
-                color = rgba_yellow;
-            }
-            
-            pos.x = offsets[i];
-            ui_text(String(titles[i]), pos, color, QUAD_Z + F32_EPSILON, atlas_index);
+        // Index plus one to ignore 0 which means no sort.
+        if (i + 1 == prof.sort_col) {
+            color = rgba_yellow;
         }
-
-        pos.y -= atlas.line_height * 1.5f;
-        
-        for (u32 i = 0; i < MAX_SCOPE_COUNT; ++i) {
-            const auto &scope = scopes[i];
-
-            const f32 alpha = Clamp((f32)scope.size / scope.capacity, 0.0f, 1.0f);
-            const u8 r = (u8)(255 * alpha);
-            const u8 g = (u8)(255 * (1.0f - alpha));
             
-            const u32 color = rgba_pack(r, g, 0, 255);
-            
-            char buffer[256];
-            u32 count = 0;
-
-            pos.x = offsets[0];
-            count = stbsp_snprintf(buffer, sizeof(buffer),
-                                   "%.*s", scope.name.length, scope.name.value);
-            ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
-
-            pos.x = offsets[1];
-            count = stbsp_snprintf(buffer, sizeof(buffer), "%.2f", (f64)scope.size * prec_scale);
-            ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
-
-            pos.x = offsets[2];
-            count = stbsp_snprintf(buffer, sizeof(buffer), "%.2f", (f64)scope.capacity * prec_scale);
-            ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
-            
-            pos.x = offsets[3];
-            count = stbsp_snprintf(buffer, sizeof(buffer), "%.2f", scope.percent);
-            ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, atlas_index);
-
-            pos.y -= atlas.line_height;
-        }
+        pos.x = offsets[i];
+        ui_text(titles[i], pos, color, QUAD_Z + F32_EPSILON, &atlas);
     }
+
+    pos.y -= atlas.line_height * 1.5f;
+    
+    for (u32 i = 0; i < scope_count; ++i) {
+        const auto &name      =  scopes[i].name;
+        const auto &allocator = *scopes[i].allocator;
+        
+        total_used     += allocator.used;
+        total_commited += allocator.commited;
+        total_reserved += allocator.reserved;
+        
+        const f32 alpha = Clamp((f32)allocator.used / allocator.reserved, 0.0f, 1.0f);
+        const u8 r = (u8)(255 * alpha);
+        const u8 g = (u8)(255 * (1.0f - alpha));
+        const u32 color = rgba_pack(r, g, 0, 255);
+            
+        char buffer[256];
+        u32 count = 0;
+
+        pos.x = offsets[0];
+        count = stbsp_snprintf(buffer, sizeof(buffer), "%S", name);
+        ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, &atlas);
+
+        pos.x = offsets[1];
+        count = stbsp_snprintf(buffer, sizeof(buffer), "%.2f", allocator.used * prec_scale);
+        ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, &atlas);
+
+        pos.x = offsets[2];
+        count = stbsp_snprintf(buffer, sizeof(buffer), "%.2f", allocator.commited * prec_scale);
+        ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, &atlas);
+            
+        pos.x = offsets[3];
+        count = stbsp_snprintf(buffer, sizeof(buffer), "%.2f", allocator.reserved * prec_scale);
+        ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, &atlas);
+
+        pos.y -= atlas.line_height;
+    }
+
+    {   // Total commited/reserved bytes.
+        pos.y -= atlas.line_height * 0.5f;
+
+        const f32 alpha = Clamp((f32)total_used / total_reserved, 0.0f, 1.0f);
+        const u8 r = (u8)(255 * alpha);
+        const u8 g = (u8)(255 * (1.0f - alpha));
+        const u32 color = rgba_pack(r, g, 0, 255);
+        
+        char buffer[256];
+        u32 count = 0;
+
+        pos.x = offsets[0];
+        count = stbsp_snprintf(buffer, sizeof(buffer), "Total");
+        ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, &atlas);
+
+        pos.x = offsets[1];
+        count = stbsp_snprintf(buffer, sizeof(buffer), "%.2f", total_used * prec_scale);
+        ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, &atlas);
+
+        pos.x = offsets[2];
+        count = stbsp_snprintf(buffer, sizeof(buffer), "%.2f", total_commited * prec_scale);
+        ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, &atlas);
+
+        pos.x = offsets[3];
+        count = stbsp_snprintf(buffer, sizeof(buffer), "%.2f", total_reserved * prec_scale);
+        ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, &atlas);
+    }
+    */
 }
 
 void draw_dev_stats() {
-    TM_SCOPE_ZONE(__FUNCTION__);
-
     constexpr f32 Z = UI_MAX_Z;
-    
-    const auto &atlas = R_ui.font_atlases[UI_DEFAULT_FONT_ATLAS_INDEX];
-	const auto &player = World.player;
-	const auto &camera = active_camera(World);
 
-	const f32 padding = atlas.font_size * 0.5f;
-	const vec2 shadow_offset = vec2(atlas.font_size * 0.1f, -atlas.font_size * 0.1f);
+    auto window  = get_window();
+    auto manager = get_entity_manager();
+    
+    const auto &atlas  = *global_font_atlases.main_small;
+	const auto player  = get_player(manager);
+	const auto &camera = manager->camera;
+
+	const f32 padding = atlas.px_height * 0.5f;
+	const Vector2 shadow_offset = Vector2(atlas.px_height * 0.1f, -atlas.px_height * 0.1f);
 
     char text[256];
 	u32 count = 0;
 
-	vec2 pos;
+	Vector2 pos;
     
 	{   // Entity.
         pos.x = padding;
-		pos.y = (f32)R_viewport.height - atlas.line_height;
+		pos.y = (f32)screen_viewport.height - atlas.line_height;
                 
-        if (Editor.mouse_picked_entity) {
-            const auto *e = Editor.mouse_picked_entity;
+        if (editor.mouse_picked_entity) {
+            const auto e = editor.mouse_picked_entity;
             const auto property_to_change = game_state.selected_entity_property_to_change;
 
             const char *change_prop_name = null;
             switch (property_to_change) {
-            case PROPERTY_LOCATION: change_prop_name = "location"; break;
+            case PROPERTY_LOCATION: change_prop_name = "position"; break;
             case PROPERTY_ROTATION: change_prop_name = "rotation"; break;
             case PROPERTY_SCALE:    change_prop_name = "scale"; break;
             }
@@ -1747,38 +1703,37 @@ void draw_dev_stats() {
         }
 	}
 
-	{   // Stats & states.
-        pos.y = (f32)R_viewport.height - atlas.line_height;
+	{   // Stats and states.
+        pos.y = (f32)screen_viewport.height - atlas.line_height;
 
-        count = stbsp_snprintf(text, sizeof(text),
-                               "%s %s", GAME_VERSION, Build_type_name);
-		pos.x = R_viewport.width - get_line_width_px(atlas, String { text, count }) - padding;
+        count = stbsp_snprintf(text, sizeof(text), "%s %s", GAME_VERSION, Build_type_name);
+		pos.x = screen_viewport.width - get_line_width_px(atlas, String { text, count }) - padding;
 		ui_text_with_shadow(String { text, count }, pos, rgba_white, shadow_offset, rgba_black, Z);
 		pos.y -= atlas.line_height;
 
-		count = stbsp_snprintf(text, sizeof(text),
-                               "%.2fms %.ffps", Average_dt * 1000.0f, Average_fps);
-        pos.x = R_viewport.width - get_line_width_px(atlas, String { text, count }) - padding;
+        const f32 ms = get_delta_time() * 1000.0f;
+		count = stbsp_snprintf(text, sizeof(text), "%.2fms %.ffps", ms, 1000.0f / ms);
+        pos.x = screen_viewport.width - get_line_width_px(atlas, String { text, count }) - padding;
         ui_text_with_shadow(String { text, count }, pos, rgba_white, shadow_offset, rgba_black, Z);
 		pos.y -= atlas.line_height;
         
-        count = stbsp_snprintf(text, sizeof(text),
-                               "window %dx%d", Main_window.width, Main_window.height);
-        pos.x = R_viewport.width - get_line_width_px(atlas, String { text, count }) - padding;
+        count = stbsp_snprintf(text, sizeof(text), "window %dx%d",
+                               window->width, window->height);
+        pos.x = screen_viewport.width - get_line_width_px(atlas, String { text, count }) - padding;
         ui_text_with_shadow(String { text, count }, pos, rgba_white, shadow_offset, rgba_black, Z);
 		pos.y -= atlas.line_height;
 
-        count = stbsp_snprintf(text, sizeof(text),
-                               "viewport %dx%d", R_viewport.width, R_viewport.height);
-        pos.x = R_viewport.width - get_line_width_px(atlas, String { text, count }) - padding;
+        count = stbsp_snprintf(text, sizeof(text), "viewport %dx%d",
+                               screen_viewport.width, screen_viewport.height);
+        pos.x = screen_viewport.width - get_line_width_px(atlas, String { text, count }) - padding;
         ui_text_with_shadow(String { text, count }, pos, rgba_white, shadow_offset, rgba_black, Z);
         pos.y -= atlas.line_height;
 
-        count = stbsp_snprintf(text, sizeof(text), "draw calls %d", Draw_call_count);
-        pos.x = R_viewport.width - get_line_width_px(atlas, String { text, count }) - padding;
+        count = stbsp_snprintf(text, sizeof(text), "draw calls %d", get_draw_call_count());
+        pos.x = screen_viewport.width - get_line_width_px(atlas, String { text, count }) - padding;
         ui_text_with_shadow(String { text, count }, pos, rgba_white, shadow_offset, rgba_black, Z);
 		pos.y -= atlas.line_height;
 	}
 
-    Draw_call_count = 0;
+    reset_draw_call_count();
 }

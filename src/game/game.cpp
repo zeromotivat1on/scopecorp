@@ -1,85 +1,342 @@
 #include "pch.h"
-#include "game/game.h"
-#include "game/world.h"
-
-#include "log.h"
+#include "game.h"
+#include "entity_manager.h"
+#include "world.h"
 #include "profile.h"
+#include "input.h"
 #include "input_stack.h"
-#include "asset.h"
+#include "game_pak.h"
+#include "file_system.h"
+#include "window.h"
+#include "editor.h"
+#include "console.h"
+#include "render.h"
+#include "shader_binding_model.h"
+#include "ui.h"
+#include "render_target.h"
+#include "viewport.h"
+#include "material.h"
+#include "texture.h"
+#include "flip_book.h"
+#include "audio_player.h"
 
-#include "math/math_basic.h"
+void game_logger_proc(String message, String ident, Log_Level level, void *logger_data) {
+    if (ident && ident == LOG_IDENT_GL) return;
+    
+    Assert(logger_data);
+    auto logger = (Game_Logger_Data *)logger_data;
 
-#include "os/file.h"
-#include "os/input.h"
-#include "os/window.h"
+    String s;
+    if (ident) {
+        s = tprint("[%S] %S\n", ident, message);
+    } else {
+        s = tprint("%S\n", message);
+    }
 
-#include "editor/editor.h"
-#include "editor/debug_console.h"
-#include "editor/telemetry.h"
-
-#include "render/render.h"
-#include "render/ui.h"
-#include "render/r_table.h"
-#include "render/r_target.h"
-#include "render/r_pass.h"
-#include "render/r_viewport.h"
-#include "render/r_uniform.h"
-#include "render/r_material.h"
-#include "render/r_texture.h"
-#include "render/r_storage.h"
-#include "render/r_flip_book.h"
-
-#include "audio/audio.h"
-#include "audio/au_sound.h"
-
-void on_window_resize(u16 width, u16 height) {
-    r_resize_viewport(R_viewport, width, height);
-    R_viewport.orthographic_projection = mat4_orthographic(0, R_viewport.width, 0, R_viewport.height, -1, 1);
-
-    const vec2 viewport_resolution = vec2(R_viewport.width, R_viewport.height);
-    r_set_uniform_block_value(uniform_block_viewport, 0, 0, r_uniform_type_size_gpu_aligned(R_F32_2), &viewport_resolution);
-    r_set_uniform_block_value(uniform_block_viewport, 1, 0, r_uniform_type_size_gpu_aligned(R_F32_4X4), &R_viewport.orthographic_projection);
-        
-    on_viewport_resize(World.camera, R_viewport);
-    World.ed_camera.aspect = World.camera.aspect;
-    World.ed_camera.left   = World.camera.left;
-    World.ed_camera.right  = World.camera.right;
-    World.ed_camera.bottom = World.camera.bottom;
-    World.ed_camera.top    = World.camera.top;
-
-    console_on_viewport_resize(R_viewport.width, R_viewport.height);
-
-    const auto &rt = R_table.targets[R_viewport.render_target];
-    const auto &mta = *find_asset(SID_MATERIAL_FRAME_BUFFER);
-    const vec2 resolution = vec2(rt.width, rt.height);
-    r_set_material_uniform(mta.index, SID("u_resolution"), 0, _sizeref(resolution));
+    append(logger->messages, s);
+    add_to_console_history(s);
 }
 
-void on_input_game(const Window_Event &event) {
-    const bool press = event.key_press;
-    const bool ctrl  = event.with_ctrl;
-    const bool alt   = event.with_alt;
-    const auto key   = event.key_code;
-        
-    switch (event.type) {
-	case WINDOW_EVENT_KEYBOARD: {
-        if (press && key == KEY_CLOSE_WINDOW) {
-            os_close_window(Main_window);
-        } else if (press && key == KEY_SWITCH_CONSOLE) {
-            console_open();
-        } else if (press && key == KEY_SWITCH_TELEMETRY) {
-            telemetry_open();
-        } else if (press && key == KEY_SWITCH_MEMORY_PROFILER) {
-            mprof_open();
-        } else if (press && key == KEY_SWITCH_EDITOR_MODE) {
-            game_state.mode = MODE_EDITOR;
-            push_input_layer(Input_layer_editor);
-            editor_report("Editor");
-        }  else if (press && key == KEY_SWITCH_POLYGON_MODE) {
-            if (game_state.polygon_mode == R_FILL) {
-                game_state.polygon_mode = R_LINE;
+void flush_game_logger() {
+    auto mega_message = builder_to_string(game_logger_data.messages);
+    print(mega_message);
+}
+
+void on_window_resize(u16 width, u16 height) {
+    resize(screen_viewport, width, height);
+
+    auto manager = get_entity_manager();
+    on_viewport_resize(manager->camera, screen_viewport);
+    
+    on_console_viewport_resize(screen_viewport.width, screen_viewport.height);
+}
+
+void init_asset_storages() {
+    add_directory_files(&texture_catalog,   PATH_TEXTURE(""),   true);
+    add_directory_files(&flip_book_catalog, PATH_FLIP_BOOK(""), true);
+    add_directory_files(&material_catalog,  PATH_MATERIAL(""),  true);
+    
+    table_realloc(texture_table,       texture_catalog.entries.count);
+    table_realloc(material_table,      64);
+    table_realloc(triangle_mesh_table, 64);
+    table_realloc(flip_book_table,     64);
+    table_realloc(font_atlas_table,    16);
+}
+
+void load_game_assets() {
+#if DEVELOPER
+    // Shaders.
+    {
+        static auto load_shader = [](const File_Callback_Data *data) {
+            START_TIMER(0);
+
+            const auto path = data->path;
+            const auto load_header = *(bool *)data->user_data;
+    
+            if (load_header && is_shader_header_path(path)) {
+                if (!new_shader_file(path)) return;
+            } else if (!load_header && is_shader_source_path(path)) {
+                if (!new_shader(path)) return;
             } else {
-                game_state.polygon_mode = R_FILL;
+                // Skip other file extensions.
+                return;
+            }
+
+            log("Created %S", path, CHECK_TIMER_MS(0));
+        };
+        
+        bool load_header = true;
+        visit_directory(PATH_SHADER(""), load_shader, true, &load_header);
+    
+        load_header = false;
+        visit_directory(PATH_SHADER(""), load_shader, true, &load_header);
+    }
+    
+    // Textures.
+    {
+        For (texture_catalog.entries) {
+            if (new_texture(it.path)) log("Created %S", it.path);
+        }
+    }
+
+    // Meshes.
+    {
+        visit_directory(PATH_MESH(""), [] (const File_Callback_Data *data) {
+            if (new_mesh(data->path)) log("Created %S", data->path);
+        });
+    }
+
+    // Sounds.
+    {
+        auto &sound_catalog = get_audio_player()->sound_catalog;
+        For (sound_catalog.entries) {
+            if (new_sound(it.path)) log("Created %S", it.path);
+        }
+    }
+
+    // Flip books.
+    {
+        For (flip_book_catalog.entries) {
+            if (new_flip_book(it.path)) log("Created %S", it.path);
+        }
+    }
+
+    // Materials.
+    {
+        For (material_catalog.entries) {
+            if (new_material(it.path)) log("Created %S", it.path);
+        }
+    }
+    
+    save_game_pak(GAME_PAK_PATH);  
+#endif
+    
+    load_game_pak(GAME_PAK_PATH);
+
+    // Materials.
+    // {
+    //     auto entity_shader = get_shader(S("entity"));
+    
+    //     auto cube = new_material(S("cube"), entity_shader);
+    //     cube->diffuse_texture = get_texture(S("stone"));
+    
+    //     auto ground = new_material(S("ground"), entity_shader);
+    //     ground->diffuse_texture = get_texture(S("grass"));
+    
+    //     auto player = new_material(S("player"), entity_shader);
+    //     player->diffuse_texture = get_texture(S("player_idle_back"));
+    //     player->use_blending    = true;
+    
+    //     auto tower = new_material(S("tower"), entity_shader);
+    //     tower->diffuse_texture = get_texture(S("stone"));
+
+    //     auto skybox = new_material(S("skybox"), get_shader(S("skybox")));
+    //     skybox->diffuse_texture = get_texture(S("skybox"));
+
+    //     new_material(S("frame_buffer"), get_shader(S("frame_buffer")));
+    //     new_material(S("geometry"),     get_shader(S("geometry")));
+    //     new_material(S("outline"),      get_shader(S("outline")));
+    //     new_material(S("ui_element"),   get_shader(S("ui_element")));
+    //     new_material(S("ui_text"),      get_shader(S("ui_text")));
+    // }
+
+    // Font atlases.
+    {
+        {
+            #include "better_vcr_16.h"
+            constexpr String name = S("better_vcr_16");
+
+            auto texture = get_texture(name);        
+            auto &atlas = font_atlas_table[name];
+            atlas.name           = name;
+            atlas.texture        = texture;
+            atlas.start_charcode = better_vcr_16_start_charcode;
+            atlas.end_charcode   = atlas.start_charcode + carray_count(better_vcr_16_cdata) - 1;
+            atlas.ascent         = better_vcr_16_ascent;
+            atlas.descent        = better_vcr_16_descent;
+            atlas.line_gap       = better_vcr_16_line_gap;
+            atlas.line_height    = better_vcr_16_line_height;
+            atlas.px_height      = 16;
+            atlas.px_h_scale     = better_vcr_16_px_h_scale;
+            atlas.space_xadvance = better_vcr_16_cdata[0].xadvance;
+            atlas.glyphs         = New(Glyph, carray_count(better_vcr_16_cdata));
+
+            copy(atlas.glyphs, better_vcr_16_cdata, sizeof(better_vcr_16_cdata));
+
+            global_font_atlases.main_small = &atlas;
+        }
+
+        {
+            #include "better_vcr_24.h"
+            constexpr String name = S("better_vcr_24");
+
+            auto texture = get_texture(name);        
+            auto &atlas = font_atlas_table[name];
+            atlas.name           = name;
+            atlas.texture        = texture;
+            atlas.start_charcode = better_vcr_24_start_charcode;
+            atlas.end_charcode   = atlas.start_charcode + carray_count(better_vcr_16_cdata) - 1;
+            atlas.ascent         = better_vcr_24_ascent;
+            atlas.descent        = better_vcr_24_descent;
+            atlas.line_gap       = better_vcr_24_line_gap;
+            atlas.line_height    = better_vcr_24_line_height;
+            atlas.px_height      = 24;
+            atlas.px_h_scale     = better_vcr_24_px_h_scale;
+            atlas.space_xadvance = better_vcr_24_cdata[0].xadvance;
+            atlas.glyphs         = New(Glyph, carray_count(better_vcr_24_cdata));
+
+            copy(atlas.glyphs, better_vcr_24_cdata, sizeof(better_vcr_24_cdata));
+        
+            global_font_atlases.main_medium = &atlas;
+        }
+    }
+
+    // Shader constants.
+    {
+        auto cb_global_parameters      = get_constant_buffer(S("Global_Parameters"));
+        auto cb_level_parameters       = get_constant_buffer(S("Level_Parameters"));
+        auto cb_frame_buffer_constants = get_constant_buffer(S("Frame_Buffer_Constants"));
+
+        cbi_global_parameters      = make_constant_buffer_instance(cb_global_parameters);
+        cbi_level_parameters       = make_constant_buffer_instance(cb_level_parameters);
+        cbi_frame_buffer_constants = make_constant_buffer_instance(cb_frame_buffer_constants);
+        
+        {
+            auto &table = cbi_global_parameters.value_table;
+            cv_viewport_cursor_pos = table_find(table, S("viewport_cursor_pos"));
+            cv_viewport_resolution = table_find(table, S("viewport_resolution"));
+            cv_viewport_ortho      = table_find(table, S("viewport_ortho"));
+            cv_camera_position     = table_find(table, S("camera_position"));
+            cv_camera_view         = table_find(table, S("camera_view"));
+            cv_camera_proj         = table_find(table, S("camera_proj"));
+            cv_camera_view_proj    = table_find(table, S("camera_view_proj"));
+        }
+
+        {
+            auto &table = cbi_level_parameters.value_table;
+            cv_direct_light_count = table_find(table, S("direct_light_count"));
+            cv_point_light_count  = table_find(table, S("point_light_count"));
+            cv_direct_lights      = table_find(table, S("direct_lights"));
+            cv_point_lights       = table_find(table, S("point_lights"));
+        }
+
+        {
+            auto &table = cbi_frame_buffer_constants.value_table;
+            cv_fb_transform                = table_find(table, S("transform"));
+            cv_resolution                  = table_find(table, S("resolution"));
+            cv_pixel_size                  = table_find(table, S("pixel_size"));
+            cv_curve_distortion_factor     = table_find(table, S("curve_distortion_factor"));
+            cv_chromatic_aberration_offset = table_find(table, S("chromatic_aberration_offset"));
+            cv_quantize_color_count        = table_find(table, S("quantize_color_count"));
+            cv_noise_blend_factor          = table_find(table, S("noise_blend_factor"));
+            cv_scanline_count              = table_find(table, S("scanline_count"));
+            cv_scanline_intensity          = table_find(table, S("scanline_intensity"));
+        }
+    }
+}
+
+void init_input() {
+    {
+        auto &layer = input_layers[INPUT_LAYER_GAME];
+        layer.type = INPUT_LAYER_GAME;
+        layer.on_input = on_game_input;
+        layer.on_push  = on_game_push;
+        layer.on_pop   = on_game_pop;
+    }
+
+    {
+        auto &layer = input_layers[INPUT_LAYER_EDITOR];
+        layer.type = INPUT_LAYER_EDITOR;
+        layer.on_input = on_editor_input;
+        layer.on_push  = on_editor_push;
+        layer.on_pop   = on_editor_pop;
+
+        push_input_layer(layer);
+    }
+
+    {
+        auto &layer = input_layers[INPUT_LAYER_CONSOLE];
+        layer.type = INPUT_LAYER_CONSOLE;
+        layer.on_input = on_console_input;
+    }
+
+    {
+        auto &layer = input_layers[INPUT_LAYER_PROFILER];
+        layer.type = INPUT_LAYER_PROFILER;
+        layer.on_input = on_profiler_input;
+    }    
+}
+
+static constexpr String player_move_flip_book_lut[DIRECTION_COUNT] = {
+    S("player_move_back"),
+    S("player_move_right"),
+    S("player_move_left"),
+    S("player_move_forward"),
+};
+
+static constexpr String player_idle_texture_lut[DIRECTION_COUNT] = {
+    S("player_idle_back"),
+    S("player_idle_right"),
+    S("player_idle_left"),
+    S("player_idle_forward"),
+};
+
+void on_game_push() {
+    screen_report("Game");
+}
+
+void on_game_pop() {
+    auto manager = get_entity_manager();
+
+    {
+        auto player = get_player(manager);
+        player->velocity = Vector3_zero;
+        // @Cleanup: it would be better to have an array of currently playing sounds.
+        stop_sound(player->move_sound);
+        get_material(player->material)->diffuse_texture = get_texture(player_idle_texture_lut[player->move_direction]);
+
+    }
+    
+    mouse_unpick_entity();
+}
+
+void on_game_input(const Window_Event *e) {
+    auto window = get_window();
+
+    switch (e->type) {
+	case WINDOW_EVENT_KEYBOARD: {
+        const auto key   = e->key_code;
+        const auto press = e->input_bits & WINDOW_EVENT_PRESS_BIT;
+        
+        if (press && key == KEY_OPEN_CONSOLE) {
+            open_console();
+        } else if (press && key == KEY_OPEN_PROFILER) {
+            open_profiler();
+        } else if (press && key == KEY_SWITCH_POLYGON_MODE) {
+            if (game_state.polygon_mode == POLYGON_FILL) {
+                game_state.polygon_mode = POLYGON_LINE;
+            } else {
+                game_state.polygon_mode = POLYGON_FILL;
             }
         } else if (press && key == KEY_SWITCH_COLLISION_VIEW) {
             if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
@@ -98,578 +355,562 @@ void on_input_game(const Window_Event &event) {
     }
 }
 
-void create_world(Game_World &w) {
-    w = {};
+// template <typename T>
+// static void read_sparse_array(File file, Sparse<T> *array) {
+//     // @Cleanup: read sparse array directly with replace or add read data to existing one?
+
+//     read_file(file, _sizeref(array->count));
+
+//     s32 capacity = 0;
+//     read_file(file, _sizeref(capacity));
+//     Assert(capacity <= array->capacity);
+
+//     read_file(file, capacity * sizeof(T),   array->items);
+//     read_file(file, capacity * sizeof(s32), array->dense);
+//     read_file(file, capacity * sizeof(s32), array->sparse);
+// }
+
+// template <typename T>
+// static void write_sparse_array(File file, Sparse<T> *array) {
+//     write_file(file, _sizeref(array->count));
+//     write_file(file, _sizeref(array->capacity));
+//     write_file(file, array->capacity * sizeof(T),   array->items);
+//     write_file(file, array->capacity * sizeof(s32), array->dense);
+//     write_file(file, array->capacity * sizeof(s32), array->sparse);
+// }
+
+// void save_level(Game_World &world) {
+//     START_TIMER(save);
     
-    reserve(w.arena, MB(8));
-
-    w.name = arena_push_string(w.arena, w.MAX_NAME_SIZE);
-    w.name.length = 0;
+//     auto path = tprint("%S%S", PATH_LEVEL(""), world.name);
     
-	sparse_reserve(w.arena, w.static_meshes,     w.MAX_STATIC_MESHES);
-    sparse_reserve(w.arena, w.point_lights,      w.MAX_POINT_LIGHTS);
-    sparse_reserve(w.arena, w.direct_lights,     w.MAX_DIRECT_LIGHTS);
-    sparse_reserve(w.arena, w.sound_emitters_2d, w.MAX_SOUND_EMITTERS_2D);
-    sparse_reserve(w.arena, w.sound_emitters_3d, w.MAX_SOUND_EMITTERS_3D);
-    sparse_reserve(w.arena, w.portals,           w.MAX_PORTALS);
-    sparse_reserve(w.arena, w.aabbs,             w.MAX_AABBS);
-
-    constexpr u32 MAX_MAIN_CMDS = 512;
-    r_create_command_list(MAX_MAIN_CMDS, w.main_cmd_list);
-}
-
-template <typename T>
-static void read_sparse_array(File file, Sparse<T> *array) {
-    // @Cleanup: read sparse array directly with replace or add read data to existing one?
-
-    os_read_file(file, _sizeref(array->count));
-
-    s32 capacity = 0;
-    os_read_file(file, _sizeref(capacity));
-    Assert(capacity <= array->capacity);
-
-    os_read_file(file, capacity * sizeof(T),   array->items);
-    os_read_file(file, capacity * sizeof(s32), array->dense);
-    os_read_file(file, capacity * sizeof(s32), array->sparse);
-}
-
-template <typename T>
-static void write_sparse_array(File file, Sparse<T> *array) {
-    os_write_file(file, _sizeref(array->count));
-    os_write_file(file, _sizeref(array->capacity));
-    os_write_file(file, array->capacity * sizeof(T),   array->items);
-    os_write_file(file, array->capacity * sizeof(s32), array->dense);
-    os_write_file(file, array->capacity * sizeof(s32), array->sparse);
-}
-
-void save_level(Game_World &world) {
-    START_SCOPE_TIMER(save);
-
-    Scratch scratch = local_scratch();
-    defer { release(scratch); };
+//     File file = open_file(path, FILE_WRITE_BIT);
+//     defer { close_file(file); };
     
-    String_Builder sb;
-    str_build(scratch.arena, sb, DIR_LEVELS);
-    str_build(scratch.arena, sb, world.name);
+//     if (file == FILE_NONE) {
+//         log("Level %S does not exist, creating new one", path);
+//         file = open_file(path, FILE_NEW_BIT | FILE_WRITE_BIT);
+//         if (file == FILE_NONE) {
+//             log(LOG_MINIMAL, "Failed to create new level %S", path);
+//             return;
+//         }
+//     }
 
-    String path = str_build_finish(scratch.arena, sb);
+//     write_file(file, world.MAX_NAME_SIZE, &world.name);
     
-    File file = os_open_file(path, FILE_OPEN_EXISTING, FILE_WRITE_BIT);
-    defer { os_close_file(file); };
+//     write_file(file, _sizeref(world.player));
+//     write_file(file, _sizeref(world.camera));
+//     write_file(file, _sizeref(world.ed_camera));
+//     write_file(file, _sizeref(world.skybox));
+
+//     // write_sparse_array(file, &world.static_meshes);
+//     // write_sparse_array(file, &world.point_lights);
+//     // write_sparse_array(file, &world.direct_lights);
+//     // write_sparse_array(file, &world.sound_emitters_2d);
+//     // write_sparse_array(file, &world.sound_emitters_3d);
+//     // write_sparse_array(file, &world.portals);
+//     // write_sparse_array(file, &world.aabbs);
     
-    if (file == FILE_NONE) {
-        log("Level %s does not exist, creating new one", path);
-        file = os_open_file(path, FILE_OPEN_NEW, FILE_WRITE_BIT);
-        if (file == FILE_NONE) {
-            error("Failed to create new level %s", path);
-            return;
+//     log("Saved level %S in %.2fms", path, CHECK_TIMER_MS(save));
+//     screen_report("Saved level %S", path);
+// }
+
+// static For_Result cb_init_entity_after_level_load(Entity *e, void *user_data) {
+//     auto *world = (Game_World *)user_data;
+
+//     if (e->eid != EID_NONE) {        
+//         // e->draw_data.eid_offset = get_head_position(R_eid_alloc_range);
+//         // *(eid *)r_alloc(R_eid_alloc_range, sizeof(eid)) = e->eid;
+//     }
+
+//     if (e->eid > eid_global_counter) {
+//         eid_global_counter = e->eid + 1;
+//     }
+    
+//     return CONTINUE;
+// }
+
+// void load_level(Game_World &world, String path) {
+//     START_TIMER(0);
+
+//     File file = open_file(path, FILE_READ_BIT);
+//     defer { close_file(file); };
+    
+//     if (file == FILE_NONE) {
+//         log(LOG_MINIMAL, "Failed to open level %S", path);
+//         return;
+//     }
+
+//     read_file(file, world.MAX_NAME_SIZE, &world.name);
+    
+//     read_file(file, _sizeref(world.player));
+//     read_file(file, _sizeref(world.camera));
+//     read_file(file, _sizeref(world.ed_camera));
+//     read_file(file, _sizeref(world.skybox));
+
+//     // read_sparse_array(file, &world.static_meshes);
+//     // read_sparse_array(file, &world.point_lights);
+//     // read_sparse_array(file, &world.direct_lights);
+//     // read_sparse_array(file, &world.sound_emitters_2d);
+//     // read_sparse_array(file, &world.sound_emitters_3d);
+//     // read_sparse_array(file, &world.portals);
+//     // read_sparse_array(file, &world.aabbs);
+
+//     for_each_entity(world, cb_init_entity_after_level_load, &world);
+    
+//     log("Loaded level %S in %.2fms", path, CHECK_TIMER_MS(0));
+//     screen_report("Loaded level %S", path);
+// }
+
+void simulate_game() {
+    Profile_Zone(__func__);
+
+    const f32 dt = get_delta_time();
+    
+    auto window      = get_window();
+    auto input       = get_input_table();
+    auto input_layer = get_current_input_layer();
+    auto manager     = get_entity_manager();
+    auto player      = get_player(manager);
+    auto &camera     = manager->camera;
+    auto &skybox     = manager->skybox;
+
+    // Update camera.
+    {
+        if (game_state.camera_behavior == STICK_TO_PLAYER) {
+            camera.position = player->position + player->camera_offset;
+            camera.look_at_position = camera.position + forward(camera.yaw, camera.pitch);
+        } else if (game_state.camera_behavior == FOLLOW_PLAYER) {
+            const Vector3 camera_dead_zone = player->camera_dead_zone;
+            const Vector3 dead_zone_min = camera.position - camera_dead_zone * 0.5f;
+            const Vector3 dead_zone_max = camera.position + camera_dead_zone * 0.5f;
+            const Vector3 desired_camera_eye = player->position + player->camera_offset;
+
+            Vector3 target_eye;
+            if (desired_camera_eye.x < dead_zone_min.x)
+                target_eye.x = desired_camera_eye.x + camera_dead_zone.x * 0.5f;
+            else if (desired_camera_eye.x > dead_zone_max.x)
+                target_eye.x = desired_camera_eye.x - camera_dead_zone.x * 0.5f;
+            else
+                target_eye.x = camera.position.x;
+
+            if (desired_camera_eye.y < dead_zone_min.y)
+                target_eye.y = desired_camera_eye.y + camera_dead_zone.y * 0.5f;
+            else if (desired_camera_eye.y > dead_zone_max.y)
+                target_eye.y = desired_camera_eye.y - camera_dead_zone.y * 0.5f;
+            else
+                target_eye.y = camera.position.y;
+
+            if (desired_camera_eye.z < dead_zone_min.z)
+                target_eye.z = desired_camera_eye.z + camera_dead_zone.z * 0.5f;
+            else if (desired_camera_eye.z > dead_zone_max.z)
+                target_eye.z = desired_camera_eye.z - camera_dead_zone.z * 0.5f;
+            else
+                target_eye.z = camera.position.z;
+
+            camera.position = Lerp(camera.position, target_eye, player->camera_follow_speed * dt);
+            camera.look_at_position = camera.position + forward(camera.yaw, camera.pitch);
         }
     }
-
-    os_write_file(file, world.MAX_NAME_SIZE, &world.name);
     
-    os_write_file(file, _sizeref(world.player));
-    os_write_file(file, _sizeref(world.camera));
-    os_write_file(file, _sizeref(world.ed_camera));
-    os_write_file(file, _sizeref(world.skybox));
+    // This can be used to force camera to look at specific position.
+    // camera.look_at_position = direction(camera.position, fixed_position);
 
-    write_sparse_array(file, &world.static_meshes);
-    write_sparse_array(file, &world.point_lights);
-    write_sparse_array(file, &world.direct_lights);
-    write_sparse_array(file, &world.sound_emitters_2d);
-    write_sparse_array(file, &world.sound_emitters_3d);
-    write_sparse_array(file, &world.portals);
-    write_sparse_array(file, &world.aabbs);
-    
-    log("Saved level %.*s in %.2fms", path.length, path.value, CHECK_SCOPE_TIMER_MS(save));
-    editor_report("Saved level %.*s", path.length, path.value);
-}
-
-static For_Result cb_init_entity_after_level_load(Entity *e, void *user_data) {
-    auto *world = (Game_World *)user_data;
-
-    if (e->eid != EID_NONE) {        
-        e->draw_data.eid_offset = head_pointer(R_eid_alloc_range);
-        *(eid *)r_alloc(R_eid_alloc_range, sizeof(eid)) = e->eid;
-    }
-
-    if (e->eid > eid_global_counter) {
-        eid_global_counter = e->eid + 1;
-    }
-    
-    return CONTINUE;
-}
-
-void load_level(Game_World &world, String path) {
-    START_SCOPE_TIMER(load);
-
-    File file = os_open_file(path, FILE_OPEN_EXISTING, FILE_READ_BIT);
-    defer { os_close_file(file); };
-    
-    if (file == FILE_NONE) {
-        error("Failed to open level %s", path);
-        return;
-    }
-
-    os_read_file(file, world.MAX_NAME_SIZE, &world.name);
-    
-    os_read_file(file, _sizeref(world.player));
-    os_read_file(file, _sizeref(world.camera));
-    os_read_file(file, _sizeref(world.ed_camera));
-    os_read_file(file, _sizeref(world.skybox));
-
-    read_sparse_array(file, &world.static_meshes);
-    read_sparse_array(file, &world.point_lights);
-    read_sparse_array(file, &world.direct_lights);
-    read_sparse_array(file, &world.sound_emitters_2d);
-    read_sparse_array(file, &world.sound_emitters_3d);
-    read_sparse_array(file, &world.portals);
-    read_sparse_array(file, &world.aabbs);
-
-    for_each_entity(world, cb_init_entity_after_level_load, &world);
-    
-    log("Loaded level %s in %.2fms", path, CHECK_SCOPE_TIMER_MS(load));
-    editor_report("Loaded level %s", path);
-}
-
-void tick_game(f32 dt) {
-    TM_SCOPE_ZONE(__func__);
-
-    // @Cleanup: looks more like a hack.
-    const auto *input_layer = get_current_input_layer();
-    if (!input_layer) {
-        push_input_layer(Input_layer_game);
-        input_layer = get_current_input_layer();
-    }
-    
-    auto &camera = active_camera(World);
-    auto &player = World.player;
-    auto &skybox = World.skybox;
-    
-	World.dt = dt;
-
-    au_set_listener_pos(player.location);
-
-    const auto &sna = *find_asset(SID_SOUND_WIND_AMBIENCE);
-    au_play_sound_or_continue(sna.index, player.location);
-
+    //camera.look_at_position = camera.position + direction(camera.position, player->position);
     update_matrices(camera);
-
-    r_set_uniform_block_value(uniform_block_camera, 0, 0, r_uniform_type_size_gpu_aligned(R_F32_3), &camera.eye);
-    r_set_uniform_block_value(uniform_block_camera, 1, 0, r_uniform_type_size_gpu_aligned(R_F32_4X4), &camera.view);
-    r_set_uniform_block_value(uniform_block_camera, 2, 0, r_uniform_type_size_gpu_aligned(R_F32_4X4), &camera.proj);
-    r_set_uniform_block_value(uniform_block_camera, 3, 0, r_uniform_type_size_gpu_aligned(R_F32_4X4), &camera.view_proj);
-
-    {   // Update skybox.
-        auto &aabb = World.aabbs[skybox.aabb_index];
-        const vec3 half_extent = (aabb.max - aabb.min) * 0.5f;
-        aabb.min = skybox.location - half_extent;
-        aabb.max = skybox.location + half_extent;
-        
-        auto *mta = find_asset(skybox.draw_data.sid_material);
-        if (mta) {
-            skybox.uv_offset = camera.eye;
-
-            const auto index = mta->index;
-            r_set_material_uniform(index, SID("u_uv_scale"),  0, _sizeref(skybox.uv_scale));
-            r_set_material_uniform(index, SID("u_uv_offset"), 0, _sizeref(skybox.uv_offset));
-        }
-    }
-
-    TM_PUSH_ZONE("direct_lights");
-    For (World.direct_lights) {
-        auto &aabb = World.aabbs[it.aabb_index];
-        const vec3 half_extent = (aabb.max - aabb.min) * 0.5f;
-        aabb.min = it.location - half_extent;
-        aabb.max = it.location + half_extent;
-
-        U_Direct_Light light;
-        light.direction = forward(it.rotation);
-        light.ambient   = it.ambient;
-        light.diffuse   = it.diffuse;
-        light.specular  = it.specular;
-
-        r_add(R_table.direct_light_block, light);
-    }
-
-    // @Cleanup: at some point we may need to submit on demand, oppose to immediate.
-    r_submit(R_table.direct_light_block);
-    TM_POP_ZONE();
-
-    TM_PUSH_ZONE("point_lights");
-    For (World.point_lights) {
-        auto &aabb = World.aabbs[it.aabb_index];
-        const vec3 half_extent = (aabb.max - aabb.min) * 0.5f;
-        aabb.min = it.location - half_extent;
-        aabb.max = it.location + half_extent;
-
-        U_Point_Light light;
-        light.location = it.location;
-        light.ambient  = it.ambient;
-        light.diffuse  = it.diffuse;
-        light.specular = it.specular;
-        light.attenuation_constant  = it.attenuation_constant;
-        light.attenuation_linear    = it.attenuation_linear;
-        light.attenuation_quadratic = it.attenuation_quadratic;
-        
-        r_add(R_table.point_light_block, light);
-    }
     
-    // @Cleanup: at some point we may need to submit on demand, oppose to immediate.
-    r_submit(R_table.point_light_block);
-    TM_POP_ZONE();
+    // Update player->
+    {
+        const f32 speed = player->move_speed * dt;
+        Vector3 velocity = Vector3_zero;;
 
-    TM_PUSH_ZONE("static_meshes");
-	For (World.static_meshes) {
-        // @Todo: take into account rotation and scale.
-        auto &aabb = World.aabbs[it.aabb_index];
-        const vec3 half_extent = (aabb.max - aabb.min) * 0.5f;
-        aabb.min = it.location - half_extent;
-        aabb.max = it.location + half_extent;
-
-        if (it.draw_data.sid_material == SID_NONE) continue;
-        
-        auto *mta = find_asset(it.draw_data.sid_material);
-        if (!mta) continue;
-
-        const auto &mt = R_table.materials[mta->index];
-        const mat4 model = mat4_transform(it.location, it.rotation, it.scale);
-        
-		r_set_material_uniform(mta->index, SID("u_model"),    0, _sizeref(model));
-        r_set_material_uniform(mta->index, SID("u_uv_scale"), 0, _sizeref(it.uv_scale));
-
-        r_set_material_uniform(mta->index, SID("u_material.ambient"),
-                               0, _sizeref(mt.light_params.ambient));
-        r_set_material_uniform(mta->index, SID("u_material.diffuse"),
-                               0, _sizeref(mt.light_params.diffuse));
-        r_set_material_uniform(mta->index, SID("u_material.specular"),
-                               0, _sizeref(mt.light_params.specular));
-        r_set_material_uniform(mta->index, SID("u_material.shininess"),
-                               0, _sizeref(mt.light_params.shininess));
-	}
-    TM_POP_ZONE();
-
-    // @Todo: fine-tuned sound play.
-    
-    For (World.sound_emitters_2d) {
-        auto &aabb = World.aabbs[it.aabb_index];
-        const vec3 half_extent = (aabb.max - aabb.min) * 0.5f;
-        aabb.min = it.location - half_extent;
-        aabb.max = it.location + half_extent;
-
-        const auto &sna = *find_asset(it.sid_sound);
-        au_play_sound_or_continue(sna.index, au_get_listener_pos());
-    }
-
-    For (World.sound_emitters_3d) {
-        auto &aabb = World.aabbs[it.aabb_index];
-        const vec3 half_extent = (aabb.max - aabb.min) * 0.5f;
-        aabb.min = it.location - half_extent;
-        aabb.max = it.location + half_extent;
-
-        const auto &sna = *find_asset(it.sid_sound);
-        au_play_sound_or_continue(sna.index, it.location);
-    }
-    
-    {   // Tick player.
-        if (input_layer->type != INPUT_LAYER_GAME) {
-            player.velocity = vec3_zero;
-        } else {
-            const f32 speed = player.move_speed * dt;
-            vec3 velocity;
-
-            // @Todo: use input action instead of direct key state.
+        if (input_layer->type == INPUT_LAYER_GAME) {
             if (game_state.player_movement_behavior == MOVE_INDEPENDENT) {
                 if (down(KEY_D)) {
                     velocity.x = speed;
-                    player.move_direction = EAST;
+                    player->move_direction = EAST;
                 }
 
                 if (down(KEY_A)) {
                     velocity.x = -speed;
-                    player.move_direction = WEST;
+                    player->move_direction = WEST;
                 }
 
                 if (down(KEY_W)) {
                     velocity.z = speed;
-                    player.move_direction = NORTH;
+                    player->move_direction = NORTH;
                 }
 
                 if (down(KEY_S)) {
                     velocity.z = -speed;
-                    player.move_direction = SOUTH;
+                    player->move_direction = SOUTH;
                 }
             } else if (game_state.player_movement_behavior == MOVE_RELATIVE_TO_CAMERA) {
-                auto &camera = World.camera;
-                const vec3 camera_forward = forward(camera.yaw, camera.pitch);
-                const vec3 camera_right = normalize(cross(camera.up, camera_forward));
+                auto &camera = manager->camera;
+                const Vector3 camera_forward = forward(camera.yaw, camera.pitch);
+                const Vector3 camera_right = normalize(cross(camera.up_vector, camera_forward));
 
                 if (down(KEY_D)) {
                     velocity += speed * camera_right;
-                    player.move_direction = EAST;
+                    player->move_direction = EAST;
                 }
 
                 if (down(KEY_A)) {
                     velocity -= speed * camera_right;
-                    player.move_direction = WEST;
+                    player->move_direction = WEST;
                 }
 
                 if (down(KEY_W)) {
                     velocity += speed * camera_forward;
-                    player.move_direction = NORTH;
+                    player->move_direction = NORTH;
                 }
 
                 if (down(KEY_S)) {
                     velocity -= speed * camera_forward;
-                    player.move_direction = SOUTH;
+                    player->move_direction = SOUTH;
                 }
             }
-
-            player.velocity = truncate(velocity, speed);
-        }
-
-        player.collide_aabb_index = INDEX_NONE;
-        auto &player_aabb = World.aabbs[player.aabb_index];
-        
-        for (s32 i = 0; i < World.aabbs.count; ++i) {
-            if (i == player.aabb_index) continue;
-
-            const auto &aabb = World.aabbs[i];
-            const vec3 resolved_velocity = resolve_moving_static(player_aabb, aabb, player.velocity);
-            if (resolved_velocity != player.velocity) {
-                player.velocity = resolved_velocity;
-                player.collide_aabb_index = i;
-                break;
-            }
         }
         
-        auto *mta = find_asset(player.draw_data.sid_material);
-        auto *mt  = sparse_find(R_table.materials, mta->index);
-        if (player.velocity == vec3_zero) {
-            if (mt) {
-                const auto &txa = *find_asset(sid_texture_player_idle[player.move_direction]);
-                mt->texture = txa.index;
-            }
+        player->velocity = truncate(velocity, speed);
+
+        auto &player_aabb = player->aabb;
+
+        auto material = get_material(player->material);
+        if (player->velocity == Vector3_zero) {
+            material->diffuse_texture = get_texture(player_idle_texture_lut[player->move_direction]);
         } else {
-            switch (player.move_direction) {
-            case WEST: {
-                player.sid_flip_book_move = SID_FLIP_BOOK_PLAYER_MOVE_LEFT;
-                break;
-            }
-            case EAST: {
-                player.sid_flip_book_move = SID_FLIP_BOOK_PLAYER_MOVE_RIGHT;
-                break;
-            }
-            case SOUTH: {
-                player.sid_flip_book_move = SID_FLIP_BOOK_PLAYER_MOVE_BACK;
-                break;
-            }
-            case NORTH: {
-                player.sid_flip_book_move = SID_FLIP_BOOK_PLAYER_MOVE_FORWARD;
-                break;
-            }
-            }
+            player->move_flip_book = player_move_flip_book_lut[player->move_direction];
 
-            const auto &fpa = *find_asset(player.sid_flip_book_move);
-            r_tick_flip_book(fpa.index, dt);
-
-            if (mt) {
-                const auto &frame = r_get_current_flip_book_frame(fpa.index);
-                mt->texture = frame.texture;
-            }
-        }
+            auto flip_book = get_flip_book(player->move_flip_book);
+            update(flip_book, dt);
             
-        player.location += player.velocity;
-    
-        const auto aabb_offset = vec3(player.scale.x * 0.5f, 0.0f, player.scale.x * 0.3f);
-        player_aabb.min = player.location - aabb_offset;
-        player_aabb.max = player.location + aabb_offset + vec3(0.0f, player.scale.y, 0.0f);
-
-        const auto &sna = *find_asset(player.sid_sound_steps);
-        if (player.velocity == vec3_zero) {
-            au_stop_sound(sna.index);
+            auto frame = get_current_frame(flip_book);
+            material->diffuse_texture = frame->texture;
+        }
+        
+        if (player->velocity == Vector3_zero) {
+            stop_sound(player->move_sound);
         } else {
-            au_play_sound_or_continue(sna.index);
+            play_sound(player->move_sound);
         }
 
-        if (mt) {
-            const mat4 model = mat4_transform(player.location, player.rotation, player.scale);
-
-            r_set_material_uniform(mta->index, SID("u_model"), 0, _sizeref(model));
-            r_set_material_uniform(mta->index, SID("u_uv_scale"),
-                                   0, _sizeref(player.uv_scale));
-
-            r_set_material_uniform(mta->index, SID("u_material.ambient"),
-                                   0, _sizeref(mt->light_params.ambient));
-            r_set_material_uniform(mta->index, SID("u_material.diffuse"),
-                                   0, _sizeref(mt->light_params.diffuse));
-            r_set_material_uniform(mta->index, SID("u_material.specular"),
-                                   0, _sizeref(mt->light_params.specular));
-            r_set_material_uniform(mta->index, SID("u_material.shininess"),
-                                   0, _sizeref(mt->light_params.shininess));
-        }
+        set_audio_listener_position(player->position);
     }
 
-    {   // Tick camera.
-        if (game_state.mode == MODE_GAME) {
-            if (game_state.camera_behavior == STICK_TO_PLAYER) {
-                auto &camera = World.camera;
-                camera.eye = player.location + player.camera_offset;
-                camera.at = camera.eye + forward(camera.yaw, camera.pitch);
-            } else if (game_state.camera_behavior == FOLLOW_PLAYER) {
-                auto &camera = World.camera;
-                const vec3 camera_dead_zone = player.camera_dead_zone;
-                const vec3 dead_zone_min = camera.eye - camera_dead_zone * 0.5f;
-                const vec3 dead_zone_max = camera.eye + camera_dead_zone * 0.5f;
-                const vec3 desired_camera_eye = player.location + player.camera_offset;
+    // @Cleanup @Speed: aabb collision resolve.
+    For (manager->entities) {
+        auto ea = &it;
+        //auto ea = player;
+        
+        For (manager->entities) {
+            auto eb = &it;
 
-                vec3 target_eye;
-                if (desired_camera_eye.x < dead_zone_min.x)
-                    target_eye.x = desired_camera_eye.x + camera_dead_zone.x * 0.5f;
-                else if (desired_camera_eye.x > dead_zone_max.x)
-                    target_eye.x = desired_camera_eye.x - camera_dead_zone.x * 0.5f;
-                else
-                    target_eye.x = camera.eye.x;
+            if (ea->eid != eb->eid) {
+                auto ba = AABB { .c = ea->aabb.c + ea->velocity * dt, .r = ea->aabb.r };
+                auto bb = AABB { .c = eb->aabb.c + eb->velocity * dt, .r = eb->aabb.r };
 
-                if (desired_camera_eye.y < dead_zone_min.y)
-                    target_eye.y = desired_camera_eye.y + camera_dead_zone.y * 0.5f;
-                else if (desired_camera_eye.y > dead_zone_max.y)
-                    target_eye.y = desired_camera_eye.y - camera_dead_zone.y * 0.5f;
-                else
-                    target_eye.y = camera.eye.y;
-
-                if (desired_camera_eye.z < dead_zone_min.z)
-                    target_eye.z = desired_camera_eye.z + camera_dead_zone.z * 0.5f;
-                else if (desired_camera_eye.z > dead_zone_max.z)
-                    target_eye.z = desired_camera_eye.z - camera_dead_zone.z * 0.5f;
-                else
-                    target_eye.z = camera.eye.z;
-
-                camera.eye = Lerp(camera.eye, target_eye, player.camera_follow_speed * dt);
-                camera.at = camera.eye + forward(camera.yaw, camera.pitch);
+                if (overlap(ba, bb)) {
+                    ea->bits |= E_OVERLAP_BIT;
+                    eb->bits |= E_OVERLAP_BIT;
+                    
+                    ea->velocity = Vector3_zero;
+                    eb->velocity = Vector3_zero;
+                }
             }
         }
     }
+
+    // @Speed: slow entity position update.
+    For (manager->entities) {
+        it.position += it.velocity * dt;
+    }
+    
+    // @Speed: slow entity aabb move and transform update.
+    For (manager->entities) {
+        move_aabb_along_with_entity(&it);            
+    }
+
+    // @Speed: slow entity transform update, final pass.
+    For (manager->entities) {
+        it.object_to_world = make_transform(it.position, it.orientation, it.scale);
+    }
+    
+    For_Entities (manager->entities, E_SOUND_EMITTER) {
+        if (it.sound_play_spatial) {
+            play_sound(it.sound, it.position);
+        } else {
+            play_sound(it.sound);
+        }
+    }
 }
 
-Camera &active_camera(Game_World &world) {
-	if (game_state.mode == MODE_GAME)   return world.camera;
-	if (game_state.mode == MODE_EDITOR) return world.ed_camera;
+void switch_campaign(Level_Set *set) {
+    current_level_set = set;
 
-	error("Unknown game mode %d, returning game camera", game_state.mode);
-	return world.camera;
+    if (!set->campaign_state) {
+        auto cs = New(Campaign_State);
+        cs->campaign_name = copy_string(set->name);
+        set->campaign_state = cs;
+    }
+
+    init_level_general(false);
 }
 
-Entity *create_entity(Game_World &w, Entity_Type e_type) {
-    Entity *e = null;
-    switch (e_type) {
-    case E_PLAYER: {
-        e = &w.player;
-        break;
-    }
-    case E_SKYBOX: {
-        e = &w.skybox;
-        break;
-    }
-    case E_STATIC_MESH: {
-        e = sparse_find(w.static_meshes, sparse_push(w.static_meshes));
-        break;
-    }
-    case E_DIRECT_LIGHT: {
-        e = sparse_find(w.direct_lights, sparse_push(w.direct_lights));
-        break;
-    }
-    case E_POINT_LIGHT: {
-        e = sparse_find(w.point_lights, sparse_push(w.point_lights));
-        break;
-    }
-    case E_SOUND_EMITTER_2D: {
-        e = sparse_find(w.sound_emitters_2d, sparse_push(w.sound_emitters_2d));
-        break;
-    }
-    case E_SOUND_EMITTER_3D: {
-        e = sparse_find(w.sound_emitters_3d, sparse_push(w.sound_emitters_3d));
-        break;
-    }
-    case E_PORTAL: {
-        e = sparse_find(w.portals, sparse_push(w.portals));
-        break;
-    }
+void init_level_general(bool reset) {
+    auto cs = get_campaign_state();
+    if (cs->entity_manager) {
+        if (reset) ::reset(cs->entity_manager);
+    } else {
+        cs->entity_manager = new_entity_manager();
+        reset = true;
     }
 
-    if (e) {
-        e->eid = eid_global_counter;
-        e->aabb_index = sparse_push(w.aabbs);
-
-        auto &aabb = w.aabbs[e->aabb_index];
-        const vec3 half_extent = e->scale * 0.5f;
-        aabb.min = e->location - half_extent;
-        aabb.max = e->location + half_extent;
-
-        e->draw_data.eid_offset = head_pointer(R_eid_alloc_range);
-        *(eid *)r_alloc(R_eid_alloc_range, sizeof(eid)) = e->eid;
-         
-        eid_global_counter += 1;
-    }
-    
-    return e;
+    auto manager = cs->entity_manager;
+    // @Todo
 }
 
-struct Find_Entity_By_Id_Data {
-    Entity *e = null;
-    eid eid = EID_NONE;
-};
-
-static For_Result cb_find_entity_by_eid(Entity *e, void *user_data) {
-    auto *data = (Find_Entity_By_Id_Data *)user_data;
-    
-    if (e->eid == data->eid) {
-        data->e = e;
-        return BREAK;
-    }
-
-    return CONTINUE;
- };
-
-Entity *find_entity_by_eid(Game_World &world, eid eid) {
-    Find_Entity_By_Id_Data find_data;
-    find_data.e  = null;
-    find_data.eid = eid;
-    
-    for_each_entity(world, cb_find_entity_by_eid, &find_data);
-
-    if (!find_data.e) {
-        warn("Haven't found entity in World by eid %u", eid);
-    }
-    
-    return find_data.e;
+Level_Set *get_level_set() {
+    auto set = current_level_set;
+    Assert(set);
+    return set;
 }
 
-void for_each_entity(Game_World &world, For_Each_Entity_Callback callback, void *user_data) {
-    if (callback(&world.player, user_data) == BREAK) return;
-    if (callback(&world.skybox, user_data) == BREAK) return;
+Campaign_State *get_campaign_state() {
+    auto set = get_level_set();
+    Assert(set->campaign_state)
+    return set->campaign_state;
+}
 
-    For (world.static_meshes) {
-        if (callback(&it, user_data) == BREAK) return;
+Entity_Manager *get_entity_manager() {
+    auto cs = get_campaign_state();
+    Assert(cs->entity_manager);
+    return cs->entity_manager;
+}
+
+Entity_Manager *new_entity_manager() {
+    auto &manager = array_add(entity_managers);
+    new (&manager) Entity_Manager;
+
+    // @Cleanup: reallocate some entity count here?
+    // Add default nil entity.
+    array_add(manager.entities, {});
+    
+    return &manager;
+}
+
+void reset(Entity_Manager *manager) {
+    array_clear(manager->entities);
+    array_clear(manager->entities_to_delete);
+    array_clear(manager->free_entities);
+
+    *manager = {};
+}
+
+void post_frame_cleanup(Entity_Manager *manager) {
+    For (manager->entities_to_delete) {
+        auto e = get_entity(manager, it);
+        e->bits |= E_DELETED_BIT;
+        
+        array_add(manager->free_entities, it);
     }
 
-    For (world.direct_lights) {
-        if (callback(&it, user_data) == BREAK) return;
+    array_clear(manager->entities_to_delete);
+
+    For (manager->entities) {
+        it.bits &= ~E_OVERLAP_BIT;
+    }
+}
+
+Pid new_entity(Entity_Manager *manager, Entity_Type type) {
+    auto &entities      = manager->entities;
+    auto &free_entities = manager->free_entities;
+
+    u32 index      = 0;
+    u16 generation = 0;
+    
+    if (free_entities.count) {
+        const auto eid = array_pop(free_entities);
+        index      = get_eid_index(eid);
+        generation = get_eid_generation(eid) + 1;
+    } else {
+        index      = entities.count;
+        generation = 1;
+        array_add(entities);
+    }
+
+    auto &e = entities[index];
+    e.type     = type;
+    e.bits    &= ~E_DELETED_BIT;
+    e.eid      = make_eid(index, generation);
+    e.scale    = Vector3(1.0f);
+    e.uv_scale = Vector2(1.0f);
+    
+    return e.eid;
+}
+
+void delete_entity(Entity_Manager *manager, Pid eid) {
+    array_add(manager->entities_to_delete, eid);
+}
+
+Entity *get_entity(Entity_Manager *manager, Pid eid) {
+    auto &entities = manager->entities;
+
+    const auto index      = get_eid_index(eid);
+    const auto generation = get_eid_generation(eid);
+    
+    if (index > 0 && index < entities.count && generation) {
+        auto &e = entities[index];
+        if (e.eid == eid && !(e.bits & E_DELETED_BIT)) return &e;
+    }
+
+    log(LOG_MINIMAL, "Failed to get entity by eid %u (%u %u) from entity manager 0x%X", eid, index, generation, manager);
+      
+    return &entities[0];
+}
+
+Entity *get_player(Entity_Manager *manager) {
+    return get_entity(manager, manager->player);
+}
+
+Entity *get_skybox(Entity_Manager *manager) {
+    return get_entity(manager, manager->skybox);
+}
+
+void move_aabb_along_with_entity(Pid eid) {
+    auto manager = get_entity_manager();
+    auto e = get_entity(manager, eid);
+    if (!e) return;
+    move_aabb_along_with_entity(e);
+}
+
+void move_aabb_along_with_entity(Entity *e) {
+    Assert(e);
+    
+    const auto dt = get_delta_time();
+    e->aabb.c += e->velocity * dt;
+}
+
+// game pak
+
+bool save_game_pak(String path) {
+    START_TIMER(0);
+
+    Create_Pak pak;
+    String_Builder builder = { .allocator = __temporary_allocator };
+
+    auto &sound_catalog = get_audio_player()->sound_catalog;
+    
+    {   // Add first entry with game pak metadata.
+        put(builder, (u32)GAME_PAK_MAGIC);
+        put(builder, (u32)GAME_PAK_VERSION);
+        put(builder, (u8 )4);
+
+        put(builder, (u8 )ASSET_SHADER);
+        put(builder, (u16)shader_platform.shader_file_table.count);
+
+        put(builder, (u8 )ASSET_TEXTURE);
+        put(builder, (u16)texture_catalog.entries.count);
+
+        put(builder, (u8 )ASSET_SOUND);
+        put(builder, (u16)sound_catalog.entries.count);
+
+        put(builder, (u8 )ASSET_FLIP_BOOK);
+        put(builder, (u16)flip_book_catalog.entries.count);
+
+        auto s = builder_to_string(builder);
+        add(pak, GAME_PAK_META_ENTRY_NAME, make_buffer(s));
     }
     
-    For (world.point_lights) {
-        if (callback(&it, user_data) == BREAK) return;
+    For (shader_platform.shader_file_table) {
+        const auto buffer = read_file(it.value.path, __temporary_allocator);
+        add(pak, it.value.path, buffer);
     }
 
-    For (world.sound_emitters_2d) {
-        if (callback(&it, user_data) == BREAK) return;
+    For (texture_catalog.entries) {
+        const auto buffer = read_file(it.path, __temporary_allocator);
+        add(pak, it.path, buffer);
     }
 
-    For (world.sound_emitters_3d) {
-        if (callback(&it, user_data) == BREAK) return;
+    For (sound_catalog.entries) {
+        const auto buffer = read_file(it.path, __temporary_allocator);
+        add(pak, it.path, buffer);
     }
 
-    For (world.portals) {
-        if (callback(&it, user_data) == BREAK) return;
+    For (flip_book_catalog.entries) {
+        const auto buffer = read_file(it.path, __temporary_allocator);
+        add(pak, it.path, buffer);
     }
+    
+    write(pak, path);
+    log("Saved %S in %.2fms", path, CHECK_TIMER_MS(0));
+    
+    return true;
+}
+
+bool load_game_pak(String path) {
+    START_TIMER(0);
+
+    Load_Pak pak;
+    
+    if (!load(pak, path)) {
+        log(LOG_MINIMAL, "Failed to load %S", path);
+        return false;
+    }
+
+    const auto &meta_entry = pak.entries[0];
+    if (meta_entry.name != GAME_PAK_META_ENTRY_NAME) {
+        log(LOG_MINIMAL, "First entry is not meta entry in game pak %S, it's name is %S", path, meta_entry.name);
+        return false;
+    }
+
+    void *meta_data = meta_entry.buffer.data;
+
+    const u32 magic = *Eat(&meta_data, u32);
+    if (magic != GAME_PAK_MAGIC) {
+        log(LOG_MINIMAL, "Invalid magic %u in game pak %S, expected %u", magic, path, GAME_PAK_MAGIC);
+        return false;
+    }
+
+    const u32 version = *Eat(&meta_data, u32);
+    if (version != GAME_PAK_VERSION) {
+        log(LOG_MINIMAL, "Invalid version %u in game pak %S, expected %u", version, path, GAME_PAK_VERSION);
+        return false;
+    }
+
+    const u8 pair_count = *Eat(&meta_data, u8);
+    if (pair_count == 0) {
+        log(LOG_MINIMAL, "Zero pair count in meta entry in game pak %S, it makes no sense", path);
+        return false;
+    }
+
+    struct Pair { u8 asset_type = 0; u16 asset_count = 0; };
+    auto *pairs = New(Pair, pair_count, __temporary_allocator);
+    for (u8 i = 0; i < pair_count; ++i) {
+        pairs[i].asset_type  = *Eat(&meta_data, u8);
+        pairs[i].asset_count = *Eat(&meta_data, u16);
+    }
+    
+    u32 load_count = 1; // 1 as we've already got predefined entry with meta data above
+    for (u8 i = 0; i < pair_count; ++i) {
+        const auto &pair = pairs[i];
+
+        for (u16 j = 0; j < pair.asset_count; ++j) {
+            const auto &entry = pak.entries[load_count + j];
+
+            // @Cleanup: ideally make sort of lookup table for create functions to call,
+            // so you can use it something like lut[type](...) instead of switch.
+            switch (pair.asset_type) {
+            case ASSET_SHADER:    new_shader   (entry.name, make_string(entry.buffer)); break;
+            case ASSET_TEXTURE:   new_texture  (entry.name, entry.buffer);              break;
+            case ASSET_SOUND:     new_sound    (entry.name, entry.buffer);              break;
+            case ASSET_FLIP_BOOK: new_flip_book(entry.name, make_string(entry.buffer)); break;
+            }
+        }
+
+        load_count += pair.asset_count;
+    }
+    
+    log("Loaded %S in %.2fms", path, CHECK_TIMER_MS(0));
+    return true;
 }

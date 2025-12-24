@@ -1,0 +1,10 @@
+#pragma once
+
+struct Camera_Data {
+    float3   position;
+    float4x4 view;
+    float4x4 proj;
+    float4x4 view_proj;
+};
+
+ConstantBuffer<Camera_Data> CB_camera;

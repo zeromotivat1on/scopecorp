@@ -1,8 +1,8 @@
 #pragma once
 
-#include "large.h"
-
-enum Input_Key : u8 {
+// Ensure convert tables in platform cpp files are update with this enum thanks
+// to C++ being unable to support old ass feature from C!!! { [1] = 10, [4] = 20 }
+enum Key_Code : u8 {
     KEY_NONE,
 
     // Printable keys.
@@ -129,13 +129,13 @@ enum Input_Key : u8 {
     KEY_RIGHT_ALT,
     KEY_RIGHT_SUPER,
     KEY_MENU,
+    
+    KEY_COUNT,
 
     // Mouse keys
     MOUSE_LEFT,
     MOUSE_RIGHT,
     MOUSE_MIDDLE,
-    
-    KEY_COUNT,
 };
 
 enum Gamepad_Button : u8 {
@@ -190,10 +190,6 @@ struct Input_Table {
     u256 keys_down; // keys pressed this frame
     u256 keys_up;   // keys released this frame
         
-    u16 virtual_keys[KEY_COUNT]; // key to virtual keycode
-    u16 scan_codes[KEY_COUNT];   // key to keyboard scancode
-    u8  key_codes[512];          // virtual keycode to key
-
     s16 mouse_x;
     s16 mouse_y;
     s16 mouse_last_x;
@@ -204,22 +200,12 @@ struct Input_Table {
     // @Todo: gamepads...
 };
 
-inline Input_Table input_table;
+Input_Table *get_input_table ();
 
-void init_input_table();
+Key_Code vkey_to_key_code (u32 vkey);
+u32      key_code_to_vkey (Key_Code key);
 
-inline bool down(Input_Key key) {
-    return check(input_table.keys.buckets, key);
-}
-
-inline bool up(Input_Key key) {
-    return !down(key);
-}
-
-inline bool down_now(Input_Key key) {
-    return check(input_table.keys_down.buckets, key);
-}
-
-inline bool up_now(Input_Key key) {
-    return check(input_table.keys_up.buckets, key);
-}
+inline bool down     (Key_Code key) { return check_bit(&get_input_table()->keys, key); }
+inline bool up       (Key_Code key) { return !down(key); }
+inline bool down_now (Key_Code key) { return check_bit(&get_input_table()->keys_down, key); }
+inline bool up_now   (Key_Code key) { return check_bit(&get_input_table()->keys_up,   key); }

@@ -1,44 +1,36 @@
 #include "pch.h"
-#include "log.h"
-#include "os/file.h"
+#include "file_system.h"
 
-Buffer os_read_file(Arena &a, String path) {
-    File file = os_open_file(path, FILE_OPEN_EXISTING, FILE_READ_BIT);
-	if (file == FILE_NONE) {
-		return BUFFER_NONE;
-	}
+Buffer read_file(String path, Allocator alc) {
+    auto file = open_file(path, FILE_READ_BIT);
+	if (file == FILE_NONE) return {};
 
-	defer { os_close_file(file); };
+	defer { close_file(file); };
 
-    const u64 size = os_file_size(file);
-    if (size == INDEX_NONE) {
-        return BUFFER_NONE;
-    }
-    
-    Buffer buffer = arena_push_buffer(a, size);
-    if (!os_read_file(file, buffer.size, buffer.data)) {
-        pop(a, size);
-        return BUFFER_NONE;
+    const u64 size = get_file_size(file);
+    if (size == INDEX_NONE) return {};
+
+    void *data = alloc(size, alc);
+    if (!read_file(file, size, data)) {
+        release(data);
+        return {};
     }
 
-    return buffer;
+    return { .data = (u8 *)data, .size = size };
 }
 
-String os_read_text_file(Arena &a, String path) {
-    Buffer buffer = os_read_file(a, path);
-    if (is_valid(buffer)) {
-        return String { (char *)buffer.data, buffer.size };
-    }
-
-    return STRING_NONE;
+String read_text_file(String path, Allocator alc) {
+    auto buffer = read_file(path, alc);
+    if (is_valid(buffer)) return make_string(buffer);
+    return {};
 }
 
-void fix_directory_delimiters(String &path) {
-    char *read  = path.value;
-    char *write = path.value;
+String fix_directory_delimiters(String path) {
+    char *read  = path.data;
+    char *write = path.data;
     bool last_was_slash = false;
     
-    while (read != path.value + path.length) {
+    while (read != path.data + path.count) {
         if (*read == '\\') *read = '/';
         if (*read == '/') {
             if (!last_was_slash) {
@@ -52,12 +44,17 @@ void fix_directory_delimiters(String &path) {
         read++;
     }
 
-    path.length = write - path.value;
+    path.count = write - path.data;
+    
+    return path;
 }
 
-void remove_extension(String &path) {
-    const s64 index = str_index(path, '.', S_SEARCH_REVERSE_BIT);
+String remove_extension(String path) {
+    const s64 index = find(path, '.', S_SEARCH_REVERSE_BIT);
     if (index != INDEX_NONE) {
-        path.length = index;
+        path.count = index;
+        return path;
     }
+
+    return {};
 }

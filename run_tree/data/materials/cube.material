@@ -1,0 +1,7 @@
+s data/shaders/entity.sl
+
+td data/textures/stone.png
+
+la  1.0  1.0  1.0
+ld  1.0  1.0  1.0
+ls  0.0  0.0  0.0

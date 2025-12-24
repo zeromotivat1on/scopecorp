@@ -1,190 +1,189 @@
 #pragma once
 
-// Basic linal vectors (2, 3, 4).
+// Basic vectors (2, 3, 4).
 
-#define vec2_zero vec2(0,  0)
+#define Vector2_zero Vector2(0,  0)
 
-#define vec3_zero    vec3( 0,  0,  0)
-#define vec3_right   vec3( 1,  0,  0)
-#define vec3_left    vec3(-1,  0,  0)
-#define vec3_up      vec3( 0,  1,  0)
-#define vec3_down    vec3( 0, -1,  0)
-#define vec3_forward vec3( 0,  0,  1)
-#define vec3_back    vec3( 0,  0, -1)
+#define Vector3_zero    Vector3( 0,  0,  0)
+#define Vector3_right   Vector3( 1,  0,  0)
+#define Vector3_left    Vector3(-1,  0,  0)
+#define Vector3_up      Vector3( 0,  1,  0)
+#define Vector3_down    Vector3( 0, -1,  0)
+#define Vector3_forward Vector3( 0,  0,  1)
+#define Vector3_back    Vector3( 0,  0, -1)
 
-#define vec3_red    vec3(1, 0, 0)
-#define vec3_green  vec3(0, 1, 0)
-#define vec3_blue   vec3(0, 0, 1)
-#define vec3_black  vec3(0, 0, 0)
-#define vec3_white  vec3(1, 1, 1)
-#define vec3_yellow vec3(1, 1, 0)
-#define vec3_purple vec3(1, 0, 1)
+#define Vector3_red    Vector3(1, 0, 0)
+#define Vector3_green  Vector3(0, 1, 0)
+#define Vector3_blue   Vector3(0, 0, 1)
+#define Vector3_black  Vector3(0, 0, 0)
+#define Vector3_white  Vector3(1, 1, 1)
+#define Vector3_yellow Vector3(1, 1, 0)
+#define Vector3_purple Vector3(1, 0, 1)
 
-#define vec4_red    vec4(1, 0, 0, 1)
-#define vec4_green  vec4(0, 1, 0, 1)
-#define vec4_blue   vec4(0, 0, 1, 1)
-#define vec4_black  vec4(0, 0, 0, 1)
-#define vec4_white  vec4(1, 1, 1, 1)
-#define vec4_yellow vec4(1, 1, 0, 1)
-#define vec4_purple vec4(1, 0, 1, 1)
+#define Vector4_red    Vector4(1, 0, 0, 1)
+#define Vector4_green  Vector4(0, 1, 0, 1)
+#define Vector4_blue   Vector4(0, 0, 1, 1)
+#define Vector4_black  Vector4(0, 0, 0, 1)
+#define Vector4_white  Vector4(1, 1, 1, 1)
+#define Vector4_yellow Vector4(1, 1, 0, 1)
+#define Vector4_purple Vector4(1, 0, 1, 1)
 
-struct vec2 {
+struct Vector2 {
     union {
         struct { f32 x, y; };
         f32 xy[2] = {0};
     };
     
-    vec2()             : x(0), y(0) {}
-    vec2(f32 a)        : x(a), y(a) {}
-    vec2(f32 x, f32 y) : x(x), y(y) {}
+    Vector2()             : x(0), y(0) {}
+    Vector2(f32 a)        : x(a), y(a) {}
+    Vector2(f32 x, f32 y) : x(x), y(y) {}
     
     inline f32 &operator[](s32 index)       { return xy[index]; }
     inline f32  operator[](s32 index) const { return xy[index]; }
 };
 
-struct vec3 {
+struct Vector3 {
     union {
         struct { f32 x, y, z; };
-        struct { vec2 xy; f32  y; };
-        struct { f32  x;  vec2 yz; };
+        struct { Vector2 xy; f32  y; };
+        struct { f32  x;  Vector2 yz; };
         f32 xyz[3] = {0};
     };
     
-    vec3()                     : x(0),   y(0),   z(0)   {}
-    vec3(f32 a)                : x(a),   y(a),   z(a)   {}
-    vec3(f32 x, f32 y)         : x(x),   y(y),   z(0)   {}
-    vec3(f32 x, f32 y, f32 z)  : x(x),   y(y),   z(z)   {}
-    vec3(const vec2 &v, f32 z) : x(v.x), y(v.y), z(z)   {}
-    vec3(f32 x, const vec2 &v) : x(x),   y(v.x), z(v.y) {}
+    Vector3()                     : x(0),   y(0),   z(0)   {}
+    Vector3(f32 a)                : x(a),   y(a),   z(a)   {}
+    Vector3(f32 x, f32 y)         : x(x),   y(y),   z(0)   {}
+    Vector3(f32 x, f32 y, f32 z)  : x(x),   y(y),   z(z)   {}
+    Vector3(const Vector2 &v, f32 z) : x(v.x), y(v.y), z(z)   {}
+    Vector3(f32 x, const Vector2 &v) : x(x),   y(v.x), z(v.y) {}
     
     inline f32 &operator[](s32 index)       { return xyz[index]; }
     inline f32  operator[](s32 index) const { return xyz[index]; }
 };
 
-struct vec4 {
+struct Vector4 {
     union {
         struct { f32 x, y, z, w; };
-        struct { vec3 xyz;   f32  w; };
-        struct { vec2 xy;    f32  z, w; };
-        struct { vec2 xy;    vec2 zw; };
-        struct { f32  x, y;  vec2 zw; };
-        struct { f32  x;     vec3 yzw; };
+        struct { Vector3 xyz;   f32  w; };
+        struct { Vector2 xy;    f32  z, w; };
+        struct { Vector2 xy;    Vector2 zw; };
+        struct { f32  x, y;  Vector2 zw; };
+        struct { f32  x;     Vector3 yzw; };
         f32 xyzw[4] = {0};
     };
     
-    vec4()                             : x(0),   y(0),   z(0),   w(0)   {}
-    vec4(f32 a)                        : x(a),   y(a),   z(a),   w(a)   {}
-    vec4(f32 x, f32 y)                 : x(x),   y(y),   z(0),   w(0)   {}
-    vec4(f32 x, f32 y, f32 z)          : x(x),   y(y),   z(z),   w(0)   {}
-    vec4(f32 x, f32 y, f32 z, f32 w)   : x(x),   y(y),   z(z),   w(w)   {}
-    vec4(const vec3 &v, f32 w)         : x(v.x), y(v.y), z(v.z), w(w)   {}
-    vec4(const vec2 &v, f32 z, f32 w)  : x(v.x), y(v.y), z(z),   w(w)   {}
-    vec4(const vec2 &a, const vec2 &b) : x(a.x), y(a.y), z(b.x), w(b.y) {}
-    vec4(f32 x, f32 y, const vec2 &v)  : x(x),   y(y),   z(v.x), w(v.y) {}
-    vec4(f32 x, const vec3 &v)         : x(x),   y(v.x), z(v.y), w(v.z) {}
+    Vector4()                             : x(0),   y(0),   z(0),   w(0)   {}
+    Vector4(f32 a)                        : x(a),   y(a),   z(a),   w(a)   {}
+    Vector4(f32 x, f32 y)                 : x(x),   y(y),   z(0),   w(0)   {}
+    Vector4(f32 x, f32 y, f32 z)          : x(x),   y(y),   z(z),   w(0)   {}
+    Vector4(f32 x, f32 y, f32 z, f32 w)   : x(x),   y(y),   z(z),   w(w)   {}
+    Vector4(const Vector3 &v, f32 w)         : x(v.x), y(v.y), z(v.z), w(w)   {}
+    Vector4(const Vector2 &v, f32 z, f32 w)  : x(v.x), y(v.y), z(z),   w(w)   {}
+    Vector4(const Vector2 &a, const Vector2 &b) : x(a.x), y(a.y), z(b.x), w(b.y) {}
+    Vector4(f32 x, f32 y, const Vector2 &v)  : x(x),   y(y),   z(v.x), w(v.y) {}
+    Vector4(f32 x, const Vector3 &v)         : x(x),   y(v.x), z(v.y), w(v.z) {}
     
     inline f32 &operator[](s32 index)       { return xyzw[index]; }
     inline f32  operator[](s32 index) const { return xyzw[index]; }
 };
 
-vec2 operator-(const vec2 &a);
-vec3 operator-(const vec3 &a);
-vec4 operator-(const vec4 &a);
+Vector2 operator-(const Vector2 &a);
+Vector3 operator-(const Vector3 &a);
+Vector4 operator-(const Vector4 &a);
 
-vec2 operator+(const vec2 &a, const vec2 &b);
-vec3 operator+(const vec3 &a, const vec3 &b);
-vec4 operator+(const vec4 &a, const vec4 &b);
+Vector2 operator+(const Vector2 &a, const Vector2 &b);
+Vector3 operator+(const Vector3 &a, const Vector3 &b);
+Vector4 operator+(const Vector4 &a, const Vector4 &b);
 
-vec2 operator-(const vec2 &a, const vec2 &b);
-vec3 operator-(const vec3 &a, const vec3 &b);
-vec4 operator-(const vec4 &a, const vec4 &b);
+Vector2 operator-(const Vector2 &a, const Vector2 &b);
+Vector3 operator-(const Vector3 &a, const Vector3 &b);
+Vector4 operator-(const Vector4 &a, const Vector4 &b);
 
-vec2 operator*(const vec2 &a, f32 b);
-vec3 operator*(const vec3 &a, f32 b);
-vec4 operator*(const vec4 &a, f32 b);
+Vector2 operator*(const Vector2 &a, f32 b);
+Vector3 operator*(const Vector3 &a, f32 b);
+Vector4 operator*(const Vector4 &a, f32 b);
 
-vec2 operator*(f32 a, const vec2 &b);
-vec3 operator*(f32 a, const vec3 &b);
-vec4 operator*(f32 a, const vec4 &b);
+Vector2 operator*(f32 a, const Vector2 &b);
+Vector3 operator*(f32 a, const Vector3 &b);
+Vector4 operator*(f32 a, const Vector4 &b);
 
-f32 operator*(const vec2 &a, const vec2 &b);
-f32 operator*(const vec3 &a, const vec3 &b);
-f32 operator*(const vec4 &a, const vec4 &b);
+f32 operator*(const Vector2 &a, const Vector2 &b);
+f32 operator*(const Vector3 &a, const Vector3 &b);
+f32 operator*(const Vector4 &a, const Vector4 &b);
 
-vec2 operator/(const vec2 &a, f32 b);
-vec3 operator/(const vec3 &a, f32 b);
-vec4 operator/(const vec4 &a, f32 b);
+Vector2 operator/(const Vector2 &a, f32 b);
+Vector3 operator/(const Vector3 &a, f32 b);
+Vector4 operator/(const Vector4 &a, f32 b);
 
-vec2 operator/(const vec2 &a, const vec2 &b);
-vec3 operator/(const vec3 &a, const vec3 &b);
-vec4 operator/(const vec4 &a, const vec4 &b);
+Vector2 operator/(const Vector2 &a, const Vector2 &b);
+Vector3 operator/(const Vector3 &a, const Vector3 &b);
+Vector4 operator/(const Vector4 &a, const Vector4 &b);
 
-vec2 &operator+=(vec2 &a, const vec2 &b);
-vec3 &operator+=(vec3 &a, const vec3 &b);
-vec4 &operator+=(vec4 &a, const vec4 &b);
+Vector2 &operator+=(Vector2 &a, const Vector2 &b);
+Vector3 &operator+=(Vector3 &a, const Vector3 &b);
+Vector4 &operator+=(Vector4 &a, const Vector4 &b);
 
-vec2 &operator-=(vec2 &a, const vec2 &b);
-vec3 &operator-=(vec3 &a, const vec3 &b);
-vec4 &operator-=(vec4 &a, const vec4 &b);
+Vector2 &operator-=(Vector2 &a, const Vector2 &b);
+Vector3 &operator-=(Vector3 &a, const Vector3 &b);
+Vector4 &operator-=(Vector4 &a, const Vector4 &b);
 
-vec2 &operator/=(vec2 &a, f32 b);
-vec3 &operator/=(vec3 &a, f32 b);
-vec4 &operator/=(vec4 &a, f32 b);
+Vector2 &operator/=(Vector2 &a, f32 b);
+Vector3 &operator/=(Vector3 &a, f32 b);
+Vector4 &operator/=(Vector4 &a, f32 b);
 
-vec2 &operator/=(vec2 &a, const vec2 &b);
-vec3 &operator/=(vec3 &a, const vec3 &b);
-vec4 &operator/=(vec4 &a, const vec4 &b);
+Vector2 &operator/=(Vector2 &a, const Vector2 &b);
+Vector3 &operator/=(Vector3 &a, const Vector3 &b);
+Vector4 &operator/=(Vector4 &a, const Vector4 &b);
 
-vec2 &operator*=(vec2 &a, f32 b);
-vec3 &operator*=(vec3 &a, f32 b);
-vec4 &operator*=(vec4 &a, f32 b);
+Vector2 &operator*=(Vector2 &a, f32 b);
+Vector3 &operator*=(Vector3 &a, f32 b);
+Vector4 &operator*=(Vector4 &a, f32 b);
 
-bool operator==(const vec2 &a, const vec2 &b);
-bool operator==(const vec3 &a, const vec3 &b);
-bool operator==(const vec4 &a, const vec4 &b);
+bool operator==(const Vector2 &a, const Vector2 &b);
+bool operator==(const Vector3 &a, const Vector3 &b);
+bool operator==(const Vector4 &a, const Vector4 &b);
 
-bool operator!=(const vec2 &a, const vec2 &b);
-bool operator!=(const vec3 &a, const vec3 &b);
-bool operator!=(const vec4 &a, const vec4 &b);
+bool operator!=(const Vector2 &a, const Vector2 &b);
+bool operator!=(const Vector3 &a, const Vector3 &b);
+bool operator!=(const Vector4 &a, const Vector4 &b);
     
-f32 length(const vec2 &a);
-f32 length(const vec3 &a);
-f32 length(const vec4 &a);
+f32 length(const Vector2 &a);
+f32 length(const Vector3 &a);
+f32 length(const Vector4 &a);
 
-f32 length_sqr(const vec2 &a);
-f32 length_sqr(const vec3 &a);
-f32 length_sqr(const vec4 &a);
+f32 length_sqr(const Vector2 &a);
+f32 length_sqr(const Vector3 &a);
+f32 length_sqr(const Vector4 &a);
 
-f32 dot(const vec2 &a, const vec2 &b);
-f32 dot(const vec3 &a, const vec3 &b);
-f32 dot(const vec4 &a, const vec4 &b);
+f32 dot(const Vector2 &a, const Vector2 &b);
+f32 dot(const Vector3 &a, const Vector3 &b);
+f32 dot(const Vector4 &a, const Vector4 &b);
 
-vec2 normalize(const vec2 &v);
-vec3 normalize(const vec3 &v);
-vec4 normalize(const vec4 &v);
+Vector2 normalize(const Vector2 &v);
+Vector3 normalize(const Vector3 &v);
+Vector4 normalize(const Vector4 &v);
 
-vec2 direction(const vec2 &a, const vec2 &b);
-vec3 direction(const vec3 &a, const vec3 &b);
-vec4 direction(const vec4 &a, const vec4 &b);
+Vector2 direction(const Vector2 &a, const Vector2 &b);
+Vector3 direction(const Vector3 &a, const Vector3 &b);
+Vector4 direction(const Vector4 &a, const Vector4 &b);
 
-vec2 Abs(const vec2 &a);
-vec3 Abs(const vec3 &a);
-vec4 Abs(const vec4 &a);
+Vector2 abs(const Vector2 &a);
+Vector3 abs(const Vector3 &a);
+Vector4 abs(const Vector4 &a);
 
-bool equal(const vec2 &a, const vec2 &b, f32 c = F32_EPSILON);
-bool equal(const vec3 &a, const vec3 &b, f32 c = F32_EPSILON);
-bool equal(const vec4 &a, const vec4 &b, f32 c = F32_EPSILON);
+bool equal(const Vector2 &a, const Vector2 &b, f32 c = F32_EPSILON);
+bool equal(const Vector3 &a, const Vector3 &b, f32 c = F32_EPSILON);
+bool equal(const Vector4 &a, const Vector4 &b, f32 c = F32_EPSILON);
 
-vec2 truncate(const vec2 &a, f32 b);
-vec3 truncate(const vec3 &a, f32 b);
-vec4 truncate(const vec4 &a, f32 b);
-    
-// Uses static 2d buffer internally, for debug purposes only.
-const char *to_string(const vec2 &v);
-const char *to_string(const vec3 &v);
-const char *to_string(const vec4 &v);
+Vector2 truncate(const Vector2 &a, f32 b);
+Vector3 truncate(const Vector3 &a, f32 b);
+Vector4 truncate(const Vector4 &a, f32 b);
 
-vec3 cross(const vec3 &a, const vec3 &b);
+String to_string(const Vector2 &v);
+String to_string(const Vector3 &v);
+String to_string(const Vector4 &v);
 
-vec3 forward(f32 yaw, f32 pitch);
-vec3 right(const vec3 &start, const vec3 &end, const vec3 &up);
+Vector3 cross(const Vector3 &a, const Vector3 &b);
+
+Vector3 forward(f32 yaw, f32 pitch);
+Vector3 right(const Vector3 &start, const Vector3 &end, const Vector3 &up);

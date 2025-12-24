@@ -1,55 +1,114 @@
 #pragma once
 
-#include "log.h"
-#include "os/time.h"
+#include "input.h"
+#include "cpu_time.h"
 
-enum Input_Key : u8;
+#define TIMER_NAME(name)     __concat(_timer_, name)
+#define START_TIMER(name)    const auto TIMER_NAME(name) = get_perf_counter()
+#define CHECK_TIMER(name)    (get_perf_counter() - TIMER_NAME(name)) / (f32)get_perf_hz()
+#define CHECK_TIMER_MS(name) (get_perf_counter() - TIMER_NAME(name)) / (f32)get_perf_hz_ms()
 
-extern Input_Key KEY_SWITCH_TELEMETRY;
-extern Input_Key KEY_SWITCH_MEMORY_PROFILER;
-
-#define SCOPE_TIMER_NAME(name) CONCAT(_st_, name)
-#define START_SCOPE_TIMER(name)    const auto SCOPE_TIMER_NAME(name) = os_perf_counter()
-#define CHECK_SCOPE_TIMER(name)    (os_perf_counter() - SCOPE_TIMER_NAME(name)) / (f32)os_perf_hz()
-#define CHECK_SCOPE_TIMER_MS(name) (os_perf_counter() - SCOPE_TIMER_NAME(name)) / (f32)os_perf_hz_ms()
-
-#define SCOPE_TIMER(info) const Scope_Timer SCOPE_TIMER_NAME(__LINE__)(info)
+#define SCOPE_TIMER(info) const Scope_Timer TIMER_NAME(__LINE__)(info)
 struct Scope_Timer {
     const char *info = null;
 	u64 start = 0;
     
-	Scope_Timer(const char *info) : info(info), start(os_perf_counter()) {}
-	~Scope_Timer() { log("%s %.2fms", info, (f32)(os_perf_counter() - start) / os_perf_hz_ms()); }
+	Scope_Timer(const char *info) : info(info), start(get_perf_counter()) {}
+	~Scope_Timer() { log("%s %.2fms", info, (f32)(get_perf_counter() - start) / get_perf_hz_ms()); }
 };
 
-enum Mprof_Sort_Type : u8 {
-    MPROF_SORT_NONE,
-    MPROF_SORT_NAME,
-    MPROF_SORT_USED,
-    MPROF_SORT_CAP,
-    MPROF_SORT_PERC,
+inline constexpr auto KEY_OPEN_PROFILER        = KEY_F5;
+inline constexpr auto KEY_SWITCH_PROFILER_VIEW = KEY_V;
+
+enum Profiler_View_Mode : u8 {
+    PROFILER_RUNTIME,
+    PROFILER_MEMORY,
+
+    PROFILER_VIEW_COUNT
 };
 
-enum Mprof_Precision_Type : u8 {
-    MPROF_BYTES,
-    MPROF_KILO_BYTES,
-    MPROF_MEGA_BYTES,
-    MPROF_GIGA_BYTES,
-    MPROF_TERA_BYTES,
+inline constexpr u32 MAX_PROFILE_ZONES     = 256;
+inline constexpr u32 MAX_CHILDREN_PER_ZONE = MAX_PROFILE_ZONES / 4;
+
+// struct Profile_Sample {
+//     s64 timestamp = 0;
+//     Array <String> callstack;
+// };
+
+// struct Profile_Event {
+//     enum Type { STARTED, FINISHED };
+    
+//     String name;
+//     s64 timestamp = 0;
+//     Type type;
+// };
+
+// @Todo: current limitation is that all zones must have unique names.
+struct Profiler {
+    struct Time_Zone {
+        String name;
+
+        u32 depth  = 0;
+        s32 calls  = 0;
+        s32 parent = INDEX_NONE;
+        
+        s64 start = 0;
+        s64 exclusive = 0;
+        s64 inclusive = 0;
+        s64 children  = 0;
+    };
+    
+    bool opened = false;
+    bool paused = false;
+
+    Profiler_View_Mode view_mode;
+
+    u8 time_sort = 0;
+    
+    Array <Time_Zone>           all_zones;
+    Array <Time_Zone *>         active_zones;
+    Table <String, Time_Zone *> zone_lookup;
 };
 
-struct Mprof_Context {
-    u8 sort_type = 0;
-    u8 precision_type = MPROF_MEGA_BYTES;
+Profiler *get_profiler ();
+
+void init_profiler        ();
+void open_profiler        ();
+void close_profiler       ();
+void update_profiler      ();
+void switch_profiler_view ();
+void on_profiler_input    (const Window_Event *e);
+
+void push_profile_time_zone (const char *name);
+void push_profile_time_zone (String name);
+void pop_profile_time_zone  ();
+
+#define Profile_Zone(x) push_profile_time_zone(x); defer { pop_profile_time_zone(); };
+
+
+void draw_dev_stats ();
+
+inline constexpr u8 MEM_PROF_SORT_COL = 0;
+
+enum Memory_Precision_Type : u8 {
+    MEM_PREC_BYTES,
+    MEM_PREC_KB,
+    MEM_PREC_MB,
+    MEM_PREC_GB,
+    MEM_PREC_TB,
+
+    MEM_PREC_COUNT
+};
+
+struct Memory_Profiler {
+    u8 sort_col = 0;
+    Memory_Precision_Type precision_type = MEM_PREC_MB;
     bool is_open = false;
 };
 
-struct Window_Event;
+inline Memory_Profiler Memory_profiler;
 
-void mprof_init();
-void mprof_open();
-void mprof_close();
-void mprof_draw();
-void mprof_on_input(const Window_Event &event);
-
-void draw_dev_stats();
+void open     (Memory_Profiler &prof);
+void close    (Memory_Profiler &prof);
+void draw     (Memory_Profiler &prof);
+void on_input (Memory_Profiler &prof, const struct Window_Event &event);

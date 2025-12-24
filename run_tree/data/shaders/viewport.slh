@@ -1,0 +1,8 @@
+#pragma once
+
+struct Viewport_Data {
+    float4   resolution;
+    float4x4 ortho;
+};
+
+ConstantBuffer<Viewport_Data> CB_viewport;

@@ -1,0 +1,48 @@
+#pragma once
+
+#include "globals.slh"
+
+struct Material {
+    float3 ambient;
+    float3 diffuse;
+    float3 specular;
+    float  shininess;
+};
+
+float3 get_direct_light(float3 normal, float3 view_direction, Direct_Light_Info light, Material material) {
+    light.direction = normalize(-light.direction);
+
+    const float3 ambient = light.ambient * material.ambient;
+    
+    const float diffuse_factor = max(dot(normal, light.direction), 0.0);
+    const float3 diffuse = light.diffuse * diffuse_factor * material.diffuse;
+    
+    const float3 reflected_direction = reflect(-light.direction, normal);
+    const float specular_factor = pow(max(dot(view_direction, reflected_direction), 0.0f), material.shininess);
+    const float3 specular = light.specular * specular_factor * material.specular;
+
+    return ambient + diffuse + specular;
+}
+
+float3 get_point_light(float3 normal, float3 view_direction, float3 pixel_world_position,
+                       Point_Light_Info light, Material material) {
+    const float3 light_direction = normalize(light.position - pixel_world_position);
+
+    float3 ambient = light.ambient * material.ambient;
+
+    const float diffuse_factor = max(dot(normal, light_direction), 0.0f);
+    float3 diffuse = light.diffuse * (diffuse_factor * material.diffuse);
+
+    const float3 reflected_direction = reflect(-light_direction, normal);
+    const float specular_factor = pow(max(dot(view_direction, reflected_direction), 0.0f), material.shininess);
+    float3 specular = light.specular * specular_factor * material.specular;
+
+    const float distance = length(light.position - pixel_world_position);
+    const float attenuation = 1.0f / (light.attenuation_constant + light.attenuation_linear * distance + light.attenuation_quadratic * distance * distance);
+
+    ambient  *= attenuation;
+    diffuse  *= attenuation;
+    specular *= attenuation;
+
+    return ambient + diffuse + specular;
+}

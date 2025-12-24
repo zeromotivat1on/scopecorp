@@ -1,264 +1,189 @@
 #include "pch.h"
-#include "log.h"
+#include "vector.h"
+#include "matrix.h"
+#include "Quaternion.h"
 #include "stb_sprintf.h"
 
-#include "math/math_basic.h"
-#include "math/vector.h"
-#include "math/matrix.h"
-#include "math/quat.h"
+// Vector2
 
-#include <math.h>
+Vector2 operator-(const Vector2 &a)                   { return { -a.x, -a.y }; }
+Vector2 operator+(const Vector2 &a, const Vector2 &b) { return { a.x + b.x, a.y + b.y }; }
+Vector2 operator-(const Vector2 &a, const Vector2 &b) { return { a.x - b.x, a.y - b.y }; }
+Vector2 operator*(const Vector2 &a, f32 b)            { return { a.x * b, a.y * b }; }
+Vector2 operator*(f32 a, const Vector2 &b)            { return b * a; }
+f32  operator*(const Vector2 &a, const Vector2 &b)    { return dot(a, b); }
+Vector2 operator/(const Vector2 &a, f32 b)            { return { a.x / b, a.y / b }; }
+Vector2 operator/(const Vector2 &a, const Vector2 &b) { return { a.x / b.x, a.y / b.y }; }
+Vector2 &operator+=(Vector2 &a, const Vector2 &b)     { a = a + b; return a; }
+Vector2 &operator-=(Vector2 &a, const Vector2 &b)     { a = a - b; return a; }
+Vector2 &operator/=(Vector2 &a, f32 b)                { a = a / b; return a; }
+Vector2 &operator/=(Vector2 &a, const Vector2 &b)     { a = a / b; return a; }
+Vector2 &operator*=(Vector2 &a, f32 b)                { a = a * b; return a; }
+bool operator==(const Vector2 &a, const Vector2 &b)   { return equal(a, b); }
+bool operator!=(const Vector2 &a, const Vector2 &b)   { return !(a == b); }
 
-// basic
+f32  length(const Vector2 &a)                         { return Sqrt(length_sqr(a)); }
+f32  length_sqr(const Vector2 &a)                     { return a.x * a.x + a.y * a.y; }
+f32  dot(const Vector2 &a, const Vector2 &b)          { return a.x * b.x + a.y * b.y; }
+Vector2 normalize(const Vector2 &a)                   { return a / length(a); }
+Vector2 direction(const Vector2 &a, const Vector2 &b) { return normalize(b - a); }
+Vector2 abs(const Vector2 &a)                         { return { Abs(a.x), Abs(a.y) }; }
 
-s32 Abs(s32 n) {
-	const s32 sign = n >> 31;
-	return (n ^ sign) - sign;
-}
-
-s64 Abs(s64 n) {
-	const s64 sign = n >> 63;
-	return (n ^ sign) - sign;
-}
-
-f32 Abs(f32 n) {
-	s32 tmp = *(s32 *)(&n);
-	tmp &= 0x7FFFFFFF; // clear sign bit
-	return *(f32 *)(&tmp);
-}
-
-f32 Sqrt(f32 n) {
-	return sqrtf(n);
-}
-
-f32 Sqrtr(f32 n) {
-	return 1 / sqrtf(n);
-}
-
-f32 Rad(f32 d) {
-	return d * (PI / 180.0f);
-}
-
-f32 Deg(f32 r) {
-	return r * (180.0f / PI);
-}
-
-f32 Cos(f32 r) {
-	return cosf(r);
-}
-
-f32 Sin(f32 r) {
-	return sinf(r);
-}
-
-f32 Tan(f32 r) {
-	return tanf(r);
-}
-
-// vec2
-
-vec2 operator-(const vec2 &a)                 { return vec2(-a.x, -a.y); }
-vec2 operator+(const vec2 &a, const vec2 &b)  { return vec2(a.x + b.x, a.y + b.y); }
-vec2 operator-(const vec2 &a, const vec2 &b)  { return vec2(a.x - b.x, a.y - b.y); }
-vec2 operator*(const vec2 &a, f32 b)          { return vec2(a.x * b, a.y * b); }
-vec2 operator*(f32 a, const vec2 &b)          { return b * a; }
-f32  operator*(const vec2 &a, const vec2 &b)  { return dot(a, b); }
-vec2 operator/(const vec2 &a, f32 b)          { return vec2(a.x / b, a.y / b); }
-vec2 operator/(const vec2 &a, const vec2 &b)  { return vec2(a.x / b.x, a.y / b.y); }
-vec2 &operator+=(vec2 &a, const vec2 &b)      { a = a + b; return a; }
-vec2 &operator-=(vec2 &a, const vec2 &b)      { a = a - b; return a; }
-vec2 &operator/=(vec2 &a, f32 b)              { a = a / b; return a; }
-vec2 &operator/=(vec2 &a, const vec2 &b)      { a = a / b; return a; }
-vec2 &operator*=(vec2 &a, f32 b)              { a = a * b; return a; }
-bool operator==(const vec2 &a, const vec2 &b) { return equal(a, b); }
-bool operator!=(const vec2 &a, const vec2 &b) { return !(a == b); }
-
-f32  length(const vec2 &a)                   { return Sqrt(length_sqr(a)); }
-f32  length_sqr(const vec2 &a)               { return a.x * a.x + a.y * a.y; }
-f32  dot(const vec2 &a, const vec2 &b)       { return a.x * b.x + a.y * b.y; }
-vec2 normalize(const vec2 &a)                { return a / length(a); }
-vec2 direction(const vec2 &a, const vec2 &b) { return normalize(b - a); }
-vec2 Abs(const vec2 &a)                      { return vec2(Abs(a.x), Abs(a.y)); }
-
-bool equal(const vec2 &a, const vec2 &b, f32 c) {
+bool equal(const Vector2 &a, const Vector2 &b, f32 c) {
     return Abs(a.x - b.x) <= c && Abs(a.y - b.y) <= c;
 }
 
-vec2 truncate(const vec2 &a, f32 b) {
-    if (b == 0.0f) return vec2{0.0f, 0.0f};
+Vector2 truncate(const Vector2 &a, f32 b) {
+    if (b == 0.0f) return Vector2{0.0f, 0.0f};
     const f32 lensqr = length_sqr(a);
-    if (lensqr > b * b) { const f32 s = b * Sqrtr(lensqr); return a * s; }
+    if (lensqr > b * b) { const f32 s = b * Rsqrt(lensqr); return a * s; }
     return a;
 }
 
-const char *to_string(const vec2 &a) {
-    static char buffers[4][32];
-    static s32 index = 0;
-    index = (index + 1) % 4;
+String to_string(const Vector2 &a) { return tprint("(%.3f %.3f)", a.x, a.y); }
 
-    char* buffer = buffers[index];
-    stbsp_snprintf(buffer, 32, "(%.3f %.3f)", a.x, a.y);
-    return buffer;
-}
+// Vector3
 
-// vec3
+Vector3 operator-(const Vector3 &a)                   { return { -a.x, -a.y, -a.z }; }
+Vector3 operator+(const Vector3 &a, const Vector3 &b) { return { a.x + b.x, a.y + b.y, a.z + b.z }; }
+Vector3 operator-(const Vector3 &a, const Vector3 &b) { return { a.x - b.x, a.y - b.y, a.z - b.z }; }
+Vector3 operator*(const Vector3 &a, f32 b)            { return { a.x * b, a.y * b, a.z * b }; }
+Vector3 operator*(f32 a, const Vector3 &b)            { return b * a; }
+f32  operator*(const Vector3 &a, const Vector3 &b)    { return dot(a, b); }
+Vector3 operator/(const Vector3 &a, f32 b)            { return { a.x / b, a.y / b, a.z / b }; }
+Vector3 operator/(const Vector3 &a, const Vector3 &b) { return { a.x / b.x, a.y / b.y, a.z / b.z }; }
+Vector3 &operator+=(Vector3 &a, const Vector3 &b)   { a = a + b; return a; }
+Vector3 &operator-=(Vector3 &a, const Vector3 &b)   { a = a - b; return a; }
+Vector3 &operator/=(Vector3 &a, f32 b)              { a = a / b; return a; }
+Vector3 &operator/=(Vector3 &a, const Vector3 &b)   { a = a / b; return a; }
+Vector3 &operator*=(Vector3 &a, f32 b)              { a = a * b; return a; }
+bool operator==(const Vector3 &a, const Vector3 &b) { return equal(a, b); }
+bool operator!=(const Vector3 &a, const Vector3 &b) { return !(a == b); }
 
-vec3 operator-(const vec3 &a)                 { return vec3(-a.x, -a.y, -a.z); }
-vec3 operator+(const vec3 &a, const vec3 &b)  { return vec3(a.x + b.x, a.y + b.y, a.z + b.z); }
-vec3 operator-(const vec3 &a, const vec3 &b)  { return vec3(a.x - b.x, a.y - b.y, a.z - b.z); }
-vec3 operator*(const vec3 &a, f32 b)          { return vec3(a.x * b, a.y * b, a.z * b); }
-vec3 operator*(f32 a, const vec3 &b)          { return b * a; }
-f32  operator*(const vec3 &a, const vec3 &b)  { return dot(a, b); }
-vec3 operator/(const vec3 &a, f32 b)          { return vec3(a.x / b, a.y / b, a.z / b); }
-vec3 operator/(const vec3 &a, const vec3 &b)  { return vec3(a.x / b.x, a.y / b.y, a.z / b.z); }
-vec3 &operator+=(vec3 &a, const vec3 &b)      { a = a + b; return a; }
-vec3 &operator-=(vec3 &a, const vec3 &b)      { a = a - b; return a; }
-vec3 &operator/=(vec3 &a, f32 b)              { a = a / b; return a; }
-vec3 &operator/=(vec3 &a, const vec3 &b)      { a = a / b; return a; }
-vec3 &operator*=(vec3 &a, f32 b)              { a = a * b; return a; }
-bool operator==(const vec3 &a, const vec3 &b) { return equal(a, b); }
-bool operator!=(const vec3 &a, const vec3 &b) { return !(a == b); }
+f32  length(const Vector3 &a)                         { return Sqrt(length_sqr(a)); }
+f32  length_sqr(const Vector3 &a)                     { return a.x * a.x + a.y * a.y + a.z * a.z; }
+f32  dot(const Vector3 &a, const Vector3 &b)          { return a.x * b.x + a.y * b.y + a.z * b.z; }
+Vector3 normalize(const Vector3 &a)                   { return a / length(a); }
+Vector3 direction(const Vector3 &a, const Vector3 &b) { return normalize(b - a); }
+Vector3 abs(const Vector3 &a)                         { return Vector3(Abs(a.x), Abs(a.y), Abs(a.z)); }
 
-f32  length(const vec3 &a)                   { return Sqrt(length_sqr(a)); }
-f32  length_sqr(const vec3 &a)               { return a.x * a.x + a.y * a.y + a.z * a.z; }
-f32  dot(const vec3 &a, const vec3 &b)       { return a.x * b.x + a.y * b.y + a.z * b.z; }
-vec3 normalize(const vec3 &a)                { return a / length(a); }
-vec3 direction(const vec3 &a, const vec3 &b) { return normalize(b - a); }
-vec3 Abs(const vec3 &a)                      { return vec3(Abs(a.x), Abs(a.y), Abs(a.z)); }
-
-bool equal(const vec3 &a, const vec3 &b, f32 c) {
+bool equal(const Vector3 &a, const Vector3 &b, f32 c) {
     return Abs(a.x - b.x) <= c && Abs(a.y - b.y) <= c && Abs(a.z - b.z) <= c;
 }
 
-vec3 truncate(const vec3&a, f32 b) {
-    if (b == 0.0f) return vec3{0.0f, 0.0f, 0.0f};
+Vector3 truncate(const Vector3&a, f32 b) {
+    if (b == 0.0f) return Vector3{0.0f, 0.0f, 0.0f};
     const f32 lensqr = length_sqr(a);
-    if (lensqr > b * b) { const f32 s = b * Sqrtr(lensqr); return a * s; }
+    if (lensqr > b * b) { const f32 s = b * Rsqrt(lensqr); return a * s; }
     return a;
 }
 
-vec3 cross(const vec3 &a, const vec3 &b) {
-    return vec3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
+Vector3 cross(const Vector3 &a, const Vector3 &b) {
+    return Vector3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
 }
 
-const char* to_string(const vec3 &a) {
-    static char buffers[4][32];
-    static s32 index = 0;
-    index = (index + 1) % 4;
+String to_string(const Vector3 &a) { return tprint("(%.3f %.3f %.3f)", a.x, a.y, a.z); }
 
-    char* buffer = buffers[index];
-    stbsp_snprintf(buffer, 32, "(%.3f %.3f %.3f)", a.x, a.y, a.z);
-    return buffer;
+Vector3 forward(f32 yaw, f32 pitch) {
+    const f32 ycos = Cos(To_Radians(yaw));
+    const f32 ysin = Sin(To_Radians(yaw));
+    const f32 pcos = Cos(To_Radians(pitch));
+    const f32 psin = Sin(To_Radians(pitch));
+    return normalize(Vector3(ycos * pcos, psin, ysin * pcos));
 }
 
-vec3 forward(f32 yaw, f32 pitch) {
-    const f32 ycos = Cos(Rad(yaw));
-    const f32 ysin = Sin(Rad(yaw));
-    const f32 pcos = Cos(Rad(pitch));
-    const f32 psin = Sin(Rad(pitch));
-    return normalize(vec3(ycos * pcos, psin, ysin * pcos));
-}
-
-vec3 right(const vec3 &start, const vec3 &end, const vec3 &up) {
+Vector3 right(const Vector3 &start, const Vector3 &end, const Vector3 &up) {
     return normalize(cross(up, end - start));
 }
 
-// vec4
+// Vector4
 
-vec4 operator-(const vec4 &a)                 { return vec4(-a.x, -a.y, -a.z, -a.w); }
-vec4 operator+(const vec4 &a, const vec4 &b)  { return vec4(a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w); }
-vec4 operator-(const vec4 &a, const vec4 &b)  { return vec4(a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w); }
-vec4 operator*(const vec4 &a, f32 b)          { return vec4(a.x * b, a.y * b, a.z * b, a.w * b); }
-vec4 operator*(f32 a, const vec4 &b)          { return b * a; }
-f32  operator*(const vec4 &a, const vec4 &b)  { return dot(a, b); }
-vec4 operator/(const vec4 &a, f32 b)          { return vec4(a.x / b, a.y / b, a.z / b, a.w / b); }
-vec4 operator/(const vec4 &a, const vec4 &b)  { return vec4(a.x / b.x, a.y / b.y, a.z / b.z, a.w / b.w); }
-vec4 &operator+=(vec4 &a, const vec4 &b)      { a = a + b; return a; }
-vec4 &operator-=(vec4 &a, const vec4 &b)      { a = a - b; return a; }
-vec4 &operator/=(vec4 &a, f32 b)              { a = a / b; return a; }
-vec4 &operator/=(vec4 &a, const vec4 &b)      { a = a / b; return a; }
-vec4 &operator*=(vec4 &a, f32 b)              { a = a * b; return a; }
-bool operator==(const vec4 &a, const vec4 &b) { return equal(a, b); }
-bool operator!=(const vec4 &a, const vec4 &b) { return !(a == b); }
+Vector4 operator-(const Vector4 &a)                   { return { -a.x, -a.y, -a.z, -a.w }; }
+Vector4 operator+(const Vector4 &a, const Vector4 &b) { return { a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w }; }
+Vector4 operator-(const Vector4 &a, const Vector4 &b) { return { a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w }; }
+Vector4 operator*(const Vector4 &a, f32 b)            { return { a.x * b, a.y * b, a.z * b, a.w * b }; }
+Vector4 operator*(f32 a, const Vector4 &b)            { return b * a; }
+f32  operator*(const Vector4 &a, const Vector4 &b)    { return dot(a, b); }
+Vector4 operator/(const Vector4 &a, f32 b)            { return { a.x / b, a.y / b, a.z / b, a.w / b }; }
+Vector4 operator/(const Vector4 &a, const Vector4 &b) { return { a.x / b.x, a.y / b.y, a.z / b.z, a.w / b.w }; }
+Vector4 &operator+=(Vector4 &a, const Vector4 &b)     { a = a + b; return a; }
+Vector4 &operator-=(Vector4 &a, const Vector4 &b)     { a = a - b; return a; }
+Vector4 &operator/=(Vector4 &a, f32 b)                { a = a / b; return a; }
+Vector4 &operator/=(Vector4 &a, const Vector4 &b)     { a = a / b; return a; }
+Vector4 &operator*=(Vector4 &a, f32 b)                { a = a * b; return a; }
+bool operator==(const Vector4 &a, const Vector4 &b)   { return equal(a, b); }
+bool operator!=(const Vector4 &a, const Vector4 &b)   { return !(a == b); }
 
-f32  length(const vec4 &a)                   { return Sqrt(length_sqr(a)); }
-f32  length_sqr(const vec4 &a)               { return a.x * a.x + a.y * a.y + a.z * a.z + a.w * a.w; }
-f32  dot(const vec4 &a, const vec4 &b)       { return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w; }
-vec4 normalize(const vec4 &a)                { return a / length(a); }
-vec4 direction(const vec4 &a, const vec4 &b) { return normalize(b - a); }
-vec4 Abs(const vec4 &a)                      { return vec4(Abs(a.x), Abs(a.y), Abs(a.z), Abs(a.w)); }
+f32  length(const Vector4 &a)                         { return Sqrt(length_sqr(a)); }
+f32  length_sqr(const Vector4 &a)                     { return a.x * a.x + a.y * a.y + a.z * a.z + a.w * a.w; }
+f32  dot(const Vector4 &a, const Vector4 &b)          { return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w; }
+Vector4 normalize(const Vector4 &a)                   { return a / length(a); }
+Vector4 direction(const Vector4 &a, const Vector4 &b) { return normalize(b - a); }
+Vector4 abs(const Vector4 &a)                         { return { Abs(a.x), Abs(a.y), Abs(a.z), Abs(a.w) }; }
 
-bool equal(const vec4 &a, const vec4 &b, f32 c) {
+bool equal(const Vector4 &a, const Vector4 &b, f32 c) {
     return Abs(a.x - b.x) <= c && Abs(a.y - b.y) <= c && Abs(a.z - b.z) <= c && Abs(a.w - b.w) <= c;
 }
 
-vec4 truncate(const vec4&a, f32 b) {
-    if (b == 0.0f) return vec4{0.0f, 0.0f, 0.0f, 0.0f};
+Vector4 truncate(const Vector4&a, f32 b) {
+    if (b == 0.0f) return Vector4{0.0f, 0.0f, 0.0f, 0.0f};
     const f32 lensqr = length_sqr(a);
-    if (lensqr > b * b) { const f32 s = b * Sqrtr(lensqr); return a * s; }
+    if (lensqr > b * b) { const f32 s = b * Rsqrt(lensqr); return a * s; }
     return a;
 }
 
-const char *to_string(const vec4 &a) {
-    static char buffers[4][32];
-    static s32 index = 0;
-    index = (index + 1) % 4;
+String to_string(const Vector4 &a) { return tprint("(%.3f %.3f %.3f %.3f)", a.x, a.y, a.z, a.w); }
 
-    char* buffer = buffers[index];
-    stbsp_snprintf(buffer, 32, "(%.3f %.3f %.3f %.3f)", a.x, a.y, a.z, a.w);
-    return buffer;
+// Matrix2
+
+Matrix2 Matrix2_identity() {
+	return Matrix2(Vector2(1, 0), Vector2(0, 1));
 }
 
-// mat2
+Matrix2 operator-(const Matrix2 &a)                   { return { -a[0], -a[1] }; }
+Matrix2 operator+(const Matrix2 &a, const Matrix2 &b) { return { a[0] + b[0], a[1] + b[1] }; }
+Matrix2 operator-(const Matrix2 &a, const Matrix2 &b) { return { a[0] - b[0], a[1] - b[1] }; }
 
-mat2 mat2_identity() {
-	return mat2(vec2(1, 0), vec2(0, 1));
+Matrix2 operator*(const Matrix2 &a, const Matrix2 &b) {
+	return { a[0][0] * b[0][0] + a[0][1] * b[1][0],
+             a[0][0] * b[0][1] + a[0][1] * b[1][1],
+             a[1][0] * b[0][0] + a[1][1] * b[1][0],
+             a[1][0] * b[0][1] + a[1][1] * b[1][1], };
 }
 
-mat2 operator-(const mat2 &a) { return mat2(-a[0], -a[1]); }
-mat2 operator+(const mat2 &a, const mat2 &b) { return mat2(a[0] + b[0], a[1] + b[1]); }
-mat2 operator-(const mat2 &a, const mat2 &b) { return mat2(a[0] - b[0], a[1] - b[1]); }
+Matrix2 operator*(const Matrix2 &a, f32 b) { return { a[0] * b, a[1] * b }; }
 
-mat2 operator*(const mat2 &a, const mat2 &b) {
-	return mat2(a[0][0] * b[0][0] + a[0][1] * b[1][0],
-                a[0][0] * b[0][1] + a[0][1] * b[1][1],
-                a[1][0] * b[0][0] + a[1][1] * b[1][0],
-                a[1][0] * b[0][1] + a[1][1] * b[1][1]);
+Vector2 operator*(const Matrix2 &a, const Vector2 &b) {
+	return { a[0][0] * b[0] + a[0][1] * b[1],
+             a[1][0] * b[0] + a[1][1] * b[1] };
 }
 
-mat2 operator*(const mat2 &a, f32 b) { return mat2(a[0] * b, a[1] * b); }
+Matrix2 &operator+=(Matrix2 &a, const Matrix2 &b) { a = a + b; return a; }
+Matrix2 &operator-=(Matrix2 &a, const Matrix2 &b) { a = a - b; return a; }
+Matrix2 &operator*=(Matrix2 &a, const Matrix2 &b) { a = a * b; return a; }
+Matrix2 &operator*=(Matrix2 &a, f32 b)             { a = a * b; return a; }
 
-vec2 operator*(const mat2 &a, const vec2 &b) {
-	return vec2(a[0][0] * b[0] + a[0][1] * b[1],
-                a[1][0] * b[0] + a[1][1] * b[1]);
-}
+bool operator==(const Matrix2 &a, const Matrix2 &b) { return equal(a, b); }
+bool operator!=(const Matrix2 &a, const Matrix2 &b) { return !(a == b); }
 
-mat2 &operator+=(mat2 &a, const mat2 &b) { a = a + b; return a; }
-mat2 &operator-=(mat2 &a, const mat2 &b) { a = a - b; return a; }
-mat2 &operator*=(mat2 &a, const mat2 &b) { a = a * b; return a; }
-mat2 &operator*=(mat2 &a, f32 b)         { a = a * b; return a; }
+Matrix2 operator*(f32 a, const Matrix2 &b)            { return b * a; }
+Vector2 operator*(const Vector2 &a, const Matrix2 &b) { return b * a; }
+Vector2 &operator*=(Vector2 &a, const Matrix2 &b)     { a = a * b; return a; }
 
-bool operator==(const mat2 &a, const mat2 &b) { return equal(a, b); }
-bool operator!=(const mat2 &a, const mat2 &b) { return !(a == b); }
-
-mat2 operator*(f32 a, const mat2 &b)         { return b * a; }
-vec2 operator*(const vec2 &a, const mat2 &b) { return b * a; }
-vec2 &operator*=(vec2 &a, const mat2 &b)     { a = a * b; return a; }
-
-bool equal(const mat2 &a, const mat2 &b, f32 c) {
+bool equal(const Matrix2 &a, const Matrix2 &b, f32 c) {
 	return equal(a[0], b[0], c) && equal(a[1], b[1], c);
 }
 
-bool identity (const mat2 &a, f32 b) { return equal(a, mat2_identity(), b); }
-bool symmetric(const mat2 &a, f32 b) { return Abs(a[0][1] - a[1][0]) < b; }
-bool diagonal (const mat2 &a, f32 b) { return Abs(a[0][1]) <= b && Abs(a[1][0]) <= b; }
+bool identity (const Matrix2 &a, f32 b) { return equal(a, Matrix2_identity(), b); }
+bool symmetric(const Matrix2 &a, f32 b) { return Abs(a[0][1] - a[1][0]) < b; }
+bool diagonal (const Matrix2 &a, f32 b) { return Abs(a[0][1]) <= b && Abs(a[1][0]) <= b; }
 
-mat2 transpose(const mat2 &a) { return mat2(a[0][0], a[1][0], a[0][1], a[1][1]); }
-f32  trace(const mat2 &a)     { return a[0][0] + a[1][1]; }
+Matrix2 transpose(const Matrix2 &a) { return { a[0][0], a[1][0], a[0][1], a[1][1] }; }
+f32     trace    (const Matrix2 &a) { return a[0][0] + a[1][1]; }
 
-// mat3
+// Matrix3
 
-mat3::mat3(const quat &a) {
+Matrix3::Matrix3(const Quaternion &a) {
     const f32 x2 = a.x + a.x;
     const f32 y2 = a.y + a.y;
     const f32 z2 = a.z + a.z;
@@ -288,16 +213,16 @@ mat3::mat3(const quat &a) {
     v[2][2] = 1.0f - (xx + yy);
 }
 
-mat3 mat3_identity() {
-	return mat3(vec3(1, 0, 0), vec3(0, 1, 0), vec3(0, 0, 1));
+Matrix3 Matrix3_identity() {
+	return { Vector3(1, 0, 0), Vector3(0, 1, 0), Vector3(0, 0, 1) };
 }
 
-mat3 operator-(const mat3 &a) { return mat3(-a[0], -a[1], -a[2]); }
-mat3 operator+(const mat3 &a, const mat3 &b) { return mat3(a[0] + b[0], a[1] + b[1], a[2] + b[2]); }
-mat3 operator-(const mat3 &a, const mat3 &b) { return mat3(a[0] - b[0], a[1] - b[1], a[2] - b[2]); }
+Matrix3 operator-(const Matrix3 &a)                   { return { -a[0], -a[1], -a[2] }; }
+Matrix3 operator+(const Matrix3 &a, const Matrix3 &b) { return { a[0] + b[0], a[1] + b[1], a[2] + b[2] }; }
+Matrix3 operator-(const Matrix3 &a, const Matrix3 &b) { return { a[0] - b[0], a[1] - b[1], a[2] - b[2] }; }
 
-mat3 operator*(const mat3 &a, const mat3 &b) {
-	mat3 r;
+Matrix3 operator*(const Matrix3 &a, const Matrix3 &b) {
+	Matrix3 r;
     
 	f32 *pr = r.e;
 	const f32* pa = a.e;
@@ -316,39 +241,39 @@ mat3 operator*(const mat3 &a, const mat3 &b) {
 	return r;
 }
 
-mat3 operator*(const mat3 &a, f32 b) { return mat3(a[0] * b, a[1] * b, a[2] * b); }
+Matrix3 operator*(const Matrix3 &a, f32 b) { return { a[0] * b, a[1] * b, a[2] * b }; }
 
-vec3 operator*(const mat3 &a, const vec3 &b) {
-	return vec3(a[0][0] * b[0] + a[0][1] * b[1] + a[0][2] * b[2],
-                a[1][0] * b[0] + a[1][1] * b[1] + a[1][2] * b[2],
-                a[2][0] * b[0] + a[2][1] * b[1] + a[2][2] * b[2]);
+Vector3 operator*(const Matrix3 &a, const Vector3 &b) {
+	return { a[0][0] * b[0] + a[0][1] * b[1] + a[0][2] * b[2],
+             a[1][0] * b[0] + a[1][1] * b[1] + a[1][2] * b[2],
+             a[2][0] * b[0] + a[2][1] * b[1] + a[2][2] * b[2], };
 }
 
-mat3 &operator+=(mat3 &a, const mat3 &b) { a = a + b; return a; }
-mat3 &operator-=(mat3 &a, const mat3 &b) { a = a - b; return a; }
-mat3 &operator*=(mat3 &a, const mat3 &b) { a = a * b; return a; }
-mat3 &operator*=(mat3 &a, f32 b)         { a = a * b; return a; }
+Matrix3 &operator+=(Matrix3 &a, const Matrix3 &b) { a = a + b; return a; }
+Matrix3 &operator-=(Matrix3 &a, const Matrix3 &b) { a = a - b; return a; }
+Matrix3 &operator*=(Matrix3 &a, const Matrix3 &b) { a = a * b; return a; }
+Matrix3 &operator*=(Matrix3 &a, f32 b)            { a = a * b; return a; }
 
-bool operator==(const mat3 &a, const mat3 &b) { return equal(a, b); }
-bool operator!=(const mat3 &a, const mat3 &b) { return !(a == b); }
+bool operator==(const Matrix3 &a, const Matrix3 &b) { return equal(a, b); }
+bool operator!=(const Matrix3 &a, const Matrix3 &b) { return !(a == b); }
 
-mat3 operator*(f32 a, const mat3 &b)         { return b * a; }
-vec3 operator*(const vec3 &a, const mat3 &b) { return b * a; }
-vec3 &operator*=(vec3 &a, const mat3 &b)     { a = a * b; return a; }
+Matrix3 operator*(f32 a, const Matrix3 &b)            { return b * a; }
+Vector3 operator*(const Vector3 &a, const Matrix3 &b) { return b * a; }
+Vector3 &operator*=(Vector3 &a, const Matrix3 &b)     { a = a * b; return a; }
 
-bool equal(const mat3 &a, const mat3 &b, f32 c) {
+bool equal(const Matrix3 &a, const Matrix3 &b, f32 c) {
 	return equal(a[0], b[0], c) && equal(a[1], b[1], c) && equal(a[2], b[2], c);
 }
 
-bool identity(const mat3 &a, f32 b) { return equal(a, mat3_identity(), b); }
+bool identity(const Matrix3 &a, f32 b) { return equal(a, Matrix3_identity(), b); }
 
-bool symmetric(const mat3 &a, f32 b) {
+bool symmetric(const Matrix3 &a, f32 b) {
     return Abs(a[0][1] - a[1][0]) <= b
         && Abs(a[0][2] - a[2][0]) <= b
         && Abs(a[1][2] - a[2][1]) <= b;
 }
 
-bool diagonal(const mat3 &a, f32 b) {
+bool diagonal(const Matrix3 &a, f32 b) {
     return Abs(a[0][1]) <= b
         && Abs(a[0][2]) <= b
         && Abs(a[1][0]) <= b
@@ -357,32 +282,32 @@ bool diagonal(const mat3 &a, f32 b) {
         && Abs(a[2][1]) <= b;
 }
 
-bool rotated(const mat3 &a) {
+bool rotated(const Matrix3 &a) {
 	return a[0][1] != 0.0f || a[0][2] != 0.0f
         || a[1][0] != 0.0f || a[1][2] != 0.0f
         || a[2][0] != 0.0f || a[2][1] != 0.0f;
 }
 
-mat3 transpose(const mat3 &a) {
-	return mat3(a[0][0], a[1][0], a[2][0],
-                a[0][1], a[1][1], a[2][1],
-                a[0][2], a[1][2], a[2][2]);
+Matrix3 transpose(const Matrix3 &a) {
+	return { a[0][0], a[1][0], a[2][0],
+             a[0][1], a[1][1], a[2][1],
+             a[0][2], a[1][2], a[2][2], };
 }
 
-f32 trace(const mat3 &a) { return a[0][0] + a[1][1] + a[2][2]; }
+f32 trace(const Matrix3 &a) { return a[0][0] + a[1][1] + a[2][2]; }
 
-// mat4
+// Matrix4
 
-mat4 mat4_identity() {
-	return mat4(vec4(1, 0, 0, 0), vec4(0, 1, 0, 0), vec4(0, 0, 1, 0), vec4(0, 0, 0, 1));
+Matrix4 Matrix4_identity() {
+	return { Vector4(1, 0, 0, 0), Vector4(0, 1, 0, 0), Vector4(0, 0, 1, 0), Vector4(0, 0, 0, 1) };
 }
 
-mat4 operator-(const mat4 &a) { return mat4(-a[0], -a[1], -a[2], -a[3]); }
-mat4 operator+(const mat4 &a, const mat4 &b) { return mat4(a[0] + b[0], a[1] + b[1], a[2] + b[2], a[3] + b[3]); }
-mat4 operator-(const mat4 &a, const mat4 &b) { return mat4(a[0] - b[0], a[1] - b[1], a[2] - b[2], a[3] - b[3]); }
+Matrix4 operator-(const Matrix4 &a)                   { return { -a[0], -a[1], -a[2], -a[3] }; }
+Matrix4 operator+(const Matrix4 &a, const Matrix4 &b) { return { a[0] + b[0], a[1] + b[1], a[2] + b[2], a[3] + b[3] }; }
+Matrix4 operator-(const Matrix4 &a, const Matrix4 &b) { return { a[0] - b[0], a[1] - b[1], a[2] - b[2], a[3] - b[3] }; }
 
-mat4 operator*(const mat4 &a, const mat4 &b) {
-	mat4 r;
+Matrix4 operator*(const Matrix4 &a, const Matrix4 &b) {
+	Matrix4 r;
     
 	f32 *pr = r.e;
 	const f32* pa = a.e;
@@ -402,80 +327,80 @@ mat4 operator*(const mat4 &a, const mat4 &b) {
 	return r;
 }
 
-mat4 operator*(const mat4 &a, f32 b) { return mat4(a[0] * b, a[1] * b, a[2] * b, a[3] * b); }
+Matrix4 operator*(const Matrix4 &a, f32 b) { return { a[0] * b, a[1] * b, a[2] * b, a[3] * b }; }
 
-vec4 operator*(const mat4 &a, const vec4 &b) {
-	return vec4(a[0][0] * b[0] + a[0][1] * b[1] + a[0][2] * b[2] + a[0][3] * b[3],
-                a[1][0] * b[0] + a[1][1] * b[1] + a[1][2] * b[2] + a[1][3] * b[3],
-                a[2][0] * b[0] + a[2][1] * b[1] + a[2][2] * b[2] + a[2][3] * b[3],
-                a[3][0] * b[0] + a[3][1] * b[1] + a[3][2] * b[2] + a[3][3] * b[3]);
+Vector4 operator*(const Matrix4 &a, const Vector4 &b) {
+	return { a[0][0] * b[0] + a[0][1] * b[1] + a[0][2] * b[2] + a[0][3] * b[3],
+             a[1][0] * b[0] + a[1][1] * b[1] + a[1][2] * b[2] + a[1][3] * b[3],
+             a[2][0] * b[0] + a[2][1] * b[1] + a[2][2] * b[2] + a[2][3] * b[3],
+             a[3][0] * b[0] + a[3][1] * b[1] + a[3][2] * b[2] + a[3][3] * b[3], };
 }
 
-vec3 operator*(const mat4 &a, const vec3 &b) {
+Vector3 operator*(const Matrix4 &a, const Vector3 &b) {
 	const f32 s = a[3][0] * b[0] + a[3][1] * b[1] + a[3][2] * b[2] + a[3][3];
 
-	if (s == 0.0f) return vec3_zero;
+	if (s == 0.0f) return Vector3_zero;
 
 	if (s == 1.0f) {
-		return vec3(a[0][0] * b[0] + a[0][1] * b[1] + a[0][2] * b[2] + a[0][3],
-                    a[1][0] * b[0] + a[1][1] * b[1] + a[1][2] * b[2] + a[1][3],
-                    a[2][0] * b[0] + a[2][1] * b[1] + a[2][2] * b[2] + a[2][3]);
+		return { a[0][0] * b[0] + a[0][1] * b[1] + a[0][2] * b[2] + a[0][3],
+                 a[1][0] * b[0] + a[1][1] * b[1] + a[1][2] * b[2] + a[1][3],
+                 a[2][0] * b[0] + a[2][1] * b[1] + a[2][2] * b[2] + a[2][3], };
 	}
 
 	const f32 sr = 1.0f / s;
-    return vec3((a[0][0] * b[0] + a[0][1] * b[1] + a[0][2] * b[2] + a[0][3]) * sr,
-                (a[1][0] * b[0] + a[1][1] * b[1] + a[1][2] * b[2] + a[1][3]) * sr,
-                (a[2][0] * b[0] + a[2][1] * b[1] + a[2][2] * b[2] + a[2][3]) * sr);
+    return { (a[0][0] * b[0] + a[0][1] * b[1] + a[0][2] * b[2] + a[0][3]) * sr,
+             (a[1][0] * b[0] + a[1][1] * b[1] + a[1][2] * b[2] + a[1][3]) * sr,
+             (a[2][0] * b[0] + a[2][1] * b[1] + a[2][2] * b[2] + a[2][3]) * sr, };
 }
 
-mat4 &operator+=(mat4 &a, const mat4 &b) { a = a + b; return a; }
-mat4 &operator-=(mat4 &a, const mat4 &b) { a = a - b; return a; }
-mat4 &operator*=(mat4 &a, const mat4 &b) { a = a * b; return a; }
-mat4 &operator*=(mat4 &a, f32 b)         { a = a * b; return a; }
+Matrix4 &operator+=(Matrix4 &a, const Matrix4 &b) { a = a + b; return a; }
+Matrix4 &operator-=(Matrix4 &a, const Matrix4 &b) { a = a - b; return a; }
+Matrix4 &operator*=(Matrix4 &a, const Matrix4 &b) { a = a * b; return a; }
+Matrix4 &operator*=(Matrix4 &a, f32 b)            { a = a * b; return a; }
 
-bool operator==(const mat4 &a, const mat4 &b) { return equal(a, b); }
-bool operator!=(const mat4 &a, const mat4 &b) { return !(a == b); }
+bool operator==(const Matrix4 &a, const Matrix4 &b) { return equal(a, b); }
+bool operator!=(const Matrix4 &a, const Matrix4 &b) { return !(a == b); }
 
-mat4 operator*(f32 a, const mat4 &b)         { return b * a; }
-vec3 operator*(const vec3 &a, const mat4 &b) { return b * a; }
-vec4 operator*(const vec4 &a, const mat4 &b) { return b * a; }
+Matrix4 operator*(f32 a, const Matrix4 &b)            { return b * a; }
+Vector3 operator*(const Vector3 &a, const Matrix4 &b) { return b * a; }
+Vector4 operator*(const Vector4 &a, const Matrix4 &b) { return b * a; }
 
-vec3 &operator*=(vec3 &a, const mat4 &b) { a = b * a; return a; }
-vec4 &operator*=(vec4 &a, const mat4 &b) { a = b * a; return a; }
+Vector3 &operator*=(Vector3 &a, const Matrix4 &b) { a = b * a; return a; }
+Vector4 &operator*=(Vector4 &a, const Matrix4 &b) { a = b * a; return a; }
 
-bool equal(const mat4 &a, const mat4 &b, f32 c) {
+bool equal(const Matrix4 &a, const Matrix4 &b, f32 c) {
 	return equal(a[0], b[0], c)
         && equal(a[1], b[1], c)
         && equal(a[2], b[2], c)
         && equal(a[3], b[3], c);
 }
 
-bool identity(const mat4 &a, f32 b) { return equal(a, mat4_identity(), b); }
+bool identity(const Matrix4 &a, f32 b) { return equal(a, Matrix4_identity(), b); }
 
-bool symmetric(const mat4 &a, f32 b) {
+bool symmetric(const Matrix4 &a, f32 b) {
 	for (s32 i = 1; i < 4; ++i)
 		for (s32 j = 0; j < i; ++j)
 			if (Abs(a[i][j] - a[j][i]) > b) return false;
 	return true;
 }
 
-bool diagonal(const mat4 &a, f32 b) {
+bool diagonal(const Matrix4 &a, f32 b) {
 	for (s32 i = 0; i < 4; ++i)
 		for (s32 j = 0; j < 4; ++j) 
 			if (i != j && Abs(a[i][j]) > b)  return false;
 	return true;
 }
 
-bool rotated(const mat4 &a) {
+bool rotated(const Matrix4 &a) {
 	return a[0][1] != 0.0f || a[0][2] != 0.0f
         || a[1][0] != 0.0f || a[1][2] != 0.0f
         || a[2][0] != 0.0f || a[2][1] != 0.0f;
 }
 
-mat4 &identity(mat4 &a) { a = mat4_identity(); return a; }
+Matrix4 &identity(Matrix4 &a) { a = Matrix4_identity(); return a; }
 
-mat4 transpose(const mat4 &a) {
-	mat4 r;
+Matrix4 transpose(const Matrix4 &a) {
+	Matrix4 r;
 	for(s32 i = 0; i < 4; ++i)
 		for(s32 j = 0; j < 4; ++j)
 			r[i][j] = a[j][i];
@@ -483,34 +408,38 @@ mat4 transpose(const mat4 &a) {
 	return r;
 }
 
-f32 trace(const mat4 &a) { return a[0][0] + a[1][1] + a[2][2] + a[3][3]; }
+f32 trace(const Matrix4 &a) { return a[0][0] + a[1][1] + a[2][2] + a[3][3]; }
 
-mat4 translate(const mat4 &a, const vec3 &b) {
-    mat4 r = a; r[3][0] = b.x; r[3][1] = b.y; r[3][2] = b.z; return r;
+Matrix4 translate(const Matrix4 &a, const Vector3 &b) {
+    auto r = a;
+    r[3][0] = b.x;
+    r[3][1] = b.y;
+    r[3][2] = b.z;
+    return r;
 }
 
-mat4 rotate(const mat4 &a, const mat4 &b) { return a * b; }
-mat4 rotate(const mat4 &a, const quat &b) { return a * mat4(b); }
+Matrix4 rotate(const Matrix4 &a, const Matrix4 &b)    { return a * b; }
+Matrix4 rotate(const Matrix4 &a, const Quaternion &b) { return a * Matrix4(b); }
 
-mat4 scale(const mat4 &a, const vec3 &b) {
-    mat4 r = a; r[0][0] = b.x; r[1][1] = b.y; r[2][2] = b.z; return r;
+Matrix4 scale(const Matrix4 &a, const Vector3 &b) {
+    Matrix4 r = a; r[0][0] = b.x; r[1][1] = b.y; r[2][2] = b.z; return r;
 }
 
-mat4 mat4_transform(const vec3 &t, const quat &r, const vec3 &s) {
-    return translate(rotate(scale(mat4_identity(), s), r), t);
+Matrix4 make_transform(const Vector3 &t, const Quaternion &r, const Vector3 &s) {
+    return translate(rotate(scale(Matrix4_identity(), s), r), t);
 }
 
-mat4 mat4_view(const vec3 &eye, const vec3 &at, const vec3 &up) {
-	const vec3 f = normalize(at - eye);
-	const vec3 r = normalize(cross(up, f));
-	const vec3 u = cross(f, r);
+Matrix4 make_view(const Vector3 &eye, const Vector3 &at, const Vector3 &up) {
+	const auto f = normalize(at - eye);
+	const auto s = normalize(cross(up, f));
+	const auto u = cross(f, s);
 
-	mat4 a;
+	Matrix4 a;
 
-	a[0][0] = r.x;
-	a[1][0] = r.y;
-	a[2][0] = r.z;
-	a[3][0] = -dot(r, eye);
+	a[0][0] = s.x;
+	a[1][0] = s.y;
+	a[2][0] = s.z;
+	a[3][0] = -dot(s, eye);
 
 	a[0][1] = u.x;
 	a[1][1] = u.y;
@@ -530,10 +459,10 @@ mat4 mat4_view(const vec3 &eye, const vec3 &at, const vec3 &up) {
 	return a;
 }
 
-mat4 mat4_perspective(f32 rfovy, f32 aspect, f32 n, f32 f) {
+Matrix4 make_perspective(f32 rfovy, f32 aspect, f32 n, f32 f) {
 	const f32 tan_half_fovy = Tan(rfovy * 0.5f);
 
-	mat4 a;
+	Matrix4 a;
 	a[0][0] = 1.0f / (aspect * tan_half_fovy); // x-axis scaling
 	a[1][1] = 1.0f / tan_half_fovy;			   // y-axis scaling
 	a[2][2] = -(f + n) / (f - n);			   // z-axis scaling
@@ -543,8 +472,8 @@ mat4 mat4_perspective(f32 rfovy, f32 aspect, f32 n, f32 f) {
 	return a;
 }
 
-mat4 mat4_orthographic(f32 l, f32 r, f32 b, f32 t, f32 n, f32 f) {
-	mat4 a;
+Matrix4 make_orthographic(f32 l, f32 r, f32 b, f32 t, f32 n, f32 f) {
+	Matrix4 a;
 	a[0][0] =  2.0f / (r - l);
 	a[1][1] =  2.0f / (t - b);
 	a[2][2] = -2.0f / (f - n);
@@ -555,8 +484,8 @@ mat4 mat4_orthographic(f32 l, f32 r, f32 b, f32 t, f32 n, f32 f) {
 	return a;
 }
 
-mat4 inverse(const mat4 &m) {
-    mat4 minv = m;
+Matrix4 inverse(const Matrix4 &m) {
+    auto minv = m;
     
 	// 2x2 sub-determinants required to calculate 4x4 determinant
 	const f32 det2_01_01 = minv[0][0] * minv[1][1] - minv[0][1] * minv[1][0];
@@ -574,9 +503,9 @@ mat4 inverse(const mat4 &m) {
 
 	const f32 det = ( - det3_201_123 * minv[3][0] + det3_201_023 * minv[3][1] - det3_201_013 * minv[3][2] + det3_201_012 * minv[3][3] );
 
-	if (Abs(det) < MATRIX_INV_EPSILON ) {
-        error("Failed to inverse mat4");
-		return mat4_identity();
+	if (Abs(det) < MATRIX_INV_EPSILON) {
+        log(LOG_MINIMAL, "Failed to inverse Matrix4");
+		return Matrix4_identity();
 	}
 
 	const f32 det_inv = 1.0f / det;
@@ -635,20 +564,20 @@ mat4 inverse(const mat4 &m) {
 	return minv;
 }
 
-// quat
+// Quaternion
 
-quat operator-(const quat &a)                { return quat(-a.x, -a.y, -a.z, -a.w); }
-quat operator+(const quat &a, const quat &b) { return quat(a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w); }
-quat operator-(const quat &a, const quat &b) { return quat(a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w); }
+Quaternion operator-(const Quaternion &a)                      { return { -a.x, -a.y, -a.z, -a.w }; }
+Quaternion operator+(const Quaternion &a, const Quaternion &b) { return { a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w }; }
+Quaternion operator-(const Quaternion &a, const Quaternion &b) { return { a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w }; }
 
-quat operator*(const quat &a, const quat &b) {
-	return quat(a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
-                a.w * b.y + a.y * b.w + a.z * b.x - a.x * b.z,
-                a.w * b.z + a.z * b.w + a.x * b.y - a.y * b.x,
-                a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z);
+Quaternion operator*(const Quaternion &a, const Quaternion &b) {
+	return { a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+             a.w * b.y + a.y * b.w + a.z * b.x - a.x * b.z,
+             a.w * b.z + a.z * b.w + a.x * b.y - a.y * b.x,
+             a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z, };
 }
 
-vec3 operator*(const quat &a, const vec3 &b) {
+Vector3 operator*(const Quaternion &a, const Vector3 &b) {
 	const f32 xxzz = a.x * a.x - a.z * a.z;
 	const f32 wwyy = a.w * a.w - a.y * a.y;
 
@@ -664,36 +593,36 @@ vec3 operator*(const quat &a, const vec3 &b) {
     const f32 zz = a.z * a.z;
     const f32 ww = a.w * a.w;
     
-	return vec3((xxzz + wwyy) * b.x + (xy2 + zw2) * b.y	        + (xz2 - yw2)   * b.z,
-                (xy2 - zw2)   * b.x + (yy + ww - xx - zz) * b.y + (yz2 + xw2)   * b.z,
-                (xz2 + yw2)   * b.x + (yz2 - xw2) * b.y         + (wwyy - xxzz) * b.z);
+	return { (xxzz + wwyy) * b.x + (xy2 + zw2)         * b.y + (xz2 - yw2)   * b.z,
+             (xy2 - zw2)   * b.x + (yy + ww - xx - zz) * b.y + (yz2 + xw2)   * b.z,
+             (xz2 + yw2)   * b.x + (yz2 - xw2)         * b.y + (wwyy - xxzz) * b.z, };
 }
 
-quat operator*(const quat &a, f32 b) { return quat(a.x * b, a.y * b, a.z * b, a.w * b); }
+Quaternion operator*(const Quaternion &a, f32 b) { return { a.x * b, a.y * b, a.z * b, a.w * b }; }
 
-quat &operator+=(quat &a, const quat &b) { a = a + b; return a; }
-quat &operator-=(quat &a, const quat &b) { a = a - b; return a; }
-quat &operator*=(quat &a, const quat &b) { a = a * b; return a; } 
-quat &operator*=(quat &a, f32 b)         { a = a * b; return a; }
+Quaternion &operator+=(Quaternion &a, const Quaternion &b) { a = a + b; return a; }
+Quaternion &operator-=(Quaternion &a, const Quaternion &b) { a = a - b; return a; }
+Quaternion &operator*=(Quaternion &a, const Quaternion &b) { a = a * b; return a; } 
+Quaternion &operator*=(Quaternion &a, f32 b)               { a = a * b; return a; }
 
-bool operator==(const quat &a, const quat &b) { return equal(a, b); }
-bool operator!=(const quat &a, const quat &b) { return !(a == b); }
+bool operator==(const Quaternion &a, const Quaternion &b) { return equal(a, b); }
+bool operator!=(const Quaternion &a, const Quaternion &b) { return !(a == b); }
 
-quat operator*(const f32 a, const quat &b)   { return b * a; }
-vec3 operator*(const vec3 &a, const quat &b) { return b * a; }
+Quaternion operator*(const f32 a, const Quaternion &b)   { return b * a; }
+Vector3 operator*(const Vector3 &a, const Quaternion &b) { return b * a; }
 
-bool equal(const quat &a, const quat &b, const f32 epsilon) {
-	return Abs(a.x - b.x) <= epsilon &&
-		   Abs(a.y - b.y) <= epsilon &&
-		   Abs(a.z - b.z) <= epsilon &&
-		   Abs(a.w - b.w) <= epsilon;
+bool equal(const Quaternion &a, const Quaternion &b, const f32 epsilon) {
+	return Abs(a.x - b.x) <= epsilon
+        && Abs(a.y - b.y) <= epsilon
+        && Abs(a.z - b.z) <= epsilon
+        && Abs(a.w - b.w) <= epsilon;
 }
 
-quat inverse(const quat &a) { return quat(-a.x, -a.y, -a.z, a.w); }
-f32  length(const quat &a)  { return Sqrt(a.x * a.x + a.y * a.y + a.z * a.z + a.w * a.w); }
+Quaternion inverse(const Quaternion &a) { return { -a.x, -a.y, -a.z, a.w }; }
+f32        length (const Quaternion &a)  { return Sqrt(a.x * a.x + a.y * a.y + a.z * a.z + a.w * a.w); }
 
-quat normalize(const quat &a) {
-    quat r = a;
+Quaternion normalize(const Quaternion &a) {
+    Quaternion r = a;
 	const f32 l = length(a);
 	if (l != 0.0f) {
 		const f32 lr = 1 / l;
@@ -702,28 +631,20 @@ quat normalize(const quat &a) {
 	return r;
 }
 
-vec3 forward(const quat &a) {
-    vec3 v;
+Vector3 forward(const Quaternion &a) {
+    Vector3 v;
     v.x = 0 + 2 * (a.x * a.z + a.w * a.y);
     v.y = 0 + 2 * (a.y * a.z - a.w * a.x);
     v.z = 1 - 2 * (a.x * a.x + a.y * a.y);
     return normalize(v);
 }
 
-f32 calc_w(const quat &a) { return Sqrt(Abs(1.0f - (a.x * a.x + a.y * a.y + a.z * a.z))); }
+f32 calc_w(const Quaternion &a) { return Sqrt(Abs(1.0f - (a.x * a.x + a.y * a.y + a.z * a.z))); }
 
-const char *to_string(const quat &q) {
-    static char buffers[4][32];
-    static s32 buffer_index = 0;
-    buffer_index = (buffer_index + 1) % 4;
+String to_string(const Quaternion &q) { return tprint("(%.3f %.3f %.3f %.3f)", q.x, q.y, q.z, q.w); }
 
-    char* buffer = buffers[buffer_index];
-    stbsp_snprintf(buffer, 32, "(%.3f %.3f %.3f %.3f)", q.x, q.y, q.z, q.w);
-    return buffer;
-}
-
-quat quat_from_axis_angle(const vec3 &axes, f32 deg) {
-    const f32 angle  = Rad(deg * 0.5f);
+Quaternion make_quaternion_from_axis_angle(const Vector3 &axes, f32 deg) {
+    const f32 angle  = To_Radians(deg * 0.5f);
     const f32 factor = Sin(angle);
 
     const f32 x = axes.x * factor;
@@ -732,5 +653,5 @@ quat quat_from_axis_angle(const vec3 &axes, f32 deg) {
 
     const f32 w = Cos(angle);
 
-    return normalize(quat(x, y, z, w));
+    return normalize(Quaternion(x, y, z, w));
 }

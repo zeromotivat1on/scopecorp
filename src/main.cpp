@@ -1,299 +1,313 @@
 #include "pch.h"
-#include "log.h"
-#include "font.h"
-#include "profile.h"
-#include "asset.h"
-#include "input_stack.h"
-#include "reflection.h"
+#include "virtual_arena.h"
 
+// @Todo: define stb related macros that allow to override usage of std.
+
+#define STB_SPRINTF_IMPLEMENTATION
 #include "stb_sprintf.h"
+#undef STB_SPRINTF_IMPLEMENTATION
+
+#define STBI_ASSERT(x)     Assert(x)
+#define STBI_MALLOC(n)     alloc  (n,    { .proc = __default_allocator_proc })
+#define STBI_REALLOC(p, n) resize (p, n, { .proc = __default_allocator_proc })
+#define STBI_FREE(p)       release(p,    { .proc = __default_allocator_proc })
+
+#define STBI_FAILURE_USERMSG
+#define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
+#undef STB_IMAGE_IMPLEMENTATION
 
-#include "os/system.h"
-#include "os/thread.h"
-#include "os/input.h"
-#include "os/window.h"
-#include "os/time.h"
-#include "os/file.h"
+#define STB_TRUETYPE_IMPLEMENTATION
+#include "stb_truetype.h"
+#undef STB_TRUETYPE_IMPLEMENTATION
 
-#include "math/math_basic.h"
+// @Todo: get rid of this.
+#define TINYOBJLOADER_IMPLEMENTATION
+#include "tiny_obj_loader.h"
+#undef TINYOBJLOADER_IMPLEMENTATION
 
-#include "render/render.h"
-#include "render/ui.h"
-#include "render/r_table.h"
-#include "render/r_command.h"
-#include "render/r_target.h"
-#include "render/r_pass.h"
-#include "render/r_stats.h"
-#include "render/r_storage.h"
-#include "render/r_geo.h"
-#include "render/r_viewport.h"
-#include "render/r_shader.h"
-#include "render/r_texture.h"
-#include "render/r_material.h"
-#include "render/r_uniform.h"
-#include "render/r_mesh.h"
-#include "render/r_flip_book.h"
+#include "basic.cpp"
+#include "camera.cpp"
+#include "collision.cpp"
+#include "font.cpp"
+#include "al.cpp"
+#include "audio.cpp"
+#include "editor.cpp"
+#include "game.cpp"
+#include "math.cpp"
+#include "os.cpp"
+#include "render.cpp"
+#include "ui.cpp"
 
-#include "audio/audio.h"
-#include "audio/au_table.h"
-#include "audio/au_sound.h"
+#ifdef WIN32
+#include "win32.cpp"
 
-#include "game/world.h"
-#include "game/game.h"
-
-#include "editor/editor.h"
-#include "editor/hot_reload.h"
-#include "editor/debug_console.h"
-#include "editor/telemetry.h"
-
-void on_window_event(const Window &window, const Window_Event &event) {
-    switch (event.type) {
-	case WINDOW_EVENT_RESIZE: {
-        on_window_resize(window.width, window.height);
-        break;
-	}
-    case WINDOW_EVENT_KEYBOARD:
-	case WINDOW_EVENT_TEXT_INPUT:
-	case WINDOW_EVENT_MOUSE: {
-        const auto *layer = get_current_input_layer();
-        if (layer) {
-            layer->on_input(event);
-        }
-        break;
-    }
-	case WINDOW_EVENT_QUIT: {
-		log("WINDOW_EVENT_QUIT");
-        break;
-	}
-    default: {
-        error("Unhandled window event %d", event.type);
-        break;
-    }
-    }
-}
-
-s32 main() {
-    START_SCOPE_TIMER(startup);
-
-    os_init();
-
-    if (!reserve(M_global, MB(4))) return 1;    
-    if (!reserve(M_frame,  MB(2))) return 1;
-    
-    defer { release(M_global); };
-    defer { release(M_frame); };
-
-    telemetry_init();
-    sid_init();
-
-    sid_texture_player_idle[SOUTH] = SID_TEXTURE_PLAYER_IDLE_SOUTH;
-    sid_texture_player_idle[EAST]  = SID_TEXTURE_PLAYER_IDLE_EAST;
-    sid_texture_player_idle[WEST]  = SID_TEXTURE_PLAYER_IDLE_WEST;
-    sid_texture_player_idle[NORTH] = SID_TEXTURE_PLAYER_IDLE_NORTH;
-    
-	init_input_table();
-
-    {
-        Input_layer_game.type = INPUT_LAYER_GAME;
-        Input_layer_game.on_input = on_input_game;
-
-        Input_layer_editor.type = INPUT_LAYER_EDITOR;
-        Input_layer_editor.on_input = on_input_editor;
-
-        Input_layer_console.type = INPUT_LAYER_CONSOLE;
-        Input_layer_console.on_input = console_on_input;
-
-        Input_layer_telemetry.type = INPUT_LAYER_TELEMETRY;
-        Input_layer_telemetry.on_input = telemetry_on_input;
-
-        Input_layer_mprof.type = INPUT_LAYER_MPROF;
-        Input_layer_mprof.on_input = mprof_on_input;
-
-        push_input_layer(Input_layer_editor);
-    }
-    
-	if (os_create_window(1920, 1080, GAME_NAME, 0, 0, Main_window) == false) {
-		error("Failed to create window");
-		return 1;
-	}
-
-	os_register_window_callback(Main_window, on_window_event);
-    defer { os_destroy_window(Main_window); };
-
-    if (!r_init_context(Main_window)) {
-        error("Failed to initialize render context");
-        return 1;
-    }
-
-    {
-        R_Pass pass;
-        pass.scissor.test = R_ENABLE;
-        pass.cull.test = R_ENABLE;
-        pass.blend.test = R_ENABLE;
-        pass.depth.test = R_ENABLE;
-        pass.stencil.test = R_ENABLE;
-
-        r_submit(pass);
-    }
-    
-    r_detect_capabilities();
-
-    {
-        const u32 map_bits = R_MAP_WRITE_BIT | R_MAP_PERSISTENT_BIT | R_MAP_COHERENT_BIT;
-        const u32 storage_bits = R_DYNAMIC_STORAGE_BIT | map_bits;
-        
-        static R_Storage vstorage;
-        r_create_storage(MB(32), storage_bits, vstorage);
-        R_vertex_map_range = r_map(vstorage, 0, MB(32), map_bits);
-
-        static R_Storage istorage;
-        r_create_storage(MB(2), storage_bits, istorage);
-        R_index_map_range = r_map(istorage, 0, MB(2), map_bits);
-
-#if DEVELOPER
-        R_eid_alloc_range = r_alloc(R_vertex_map_range, MB(1));
+#ifdef OPEN_GL
+#include "gl.cpp"
+#include "glad.cpp"
+#include "win32_gl.cpp"
+#else
+#error "Unsupported rendering backend"
 #endif
-    }
 
-    r_init_global_uniforms();
-    r_init_shader_compiler();
-    r_create_table(R_table);
-    defer { r_destroy_shader_compiler(); };
-    defer { r_destroy_table(R_table); };
+#else
+#error "Unsupported platform"
+#endif
+
+static void main_loop();
+static void do_one_frame();
+static void update_time();
+static void handle_window_events();
+
+Virtual_Arena virtual_arena;
+
+s32 main() {    
+    virtual_arena.reserve_size = Megabytes(2);
+    context.allocator = { .proc = virtual_arena_allocator_proc, .data = &virtual_arena };
     
-    au_init_context();
-    au_create_table(Au_table);
-    defer { au_destroy_table(Au_table); };
-    
-    os_lock_window_cursor(Main_window, true);
-    os_set_window_vsync(Main_window, true);
+    set_process_cwd(get_process_directory());
+    log("Current working directory %S", get_process_directory());
 
     stbi_set_flip_vertically_on_load(true);
 
-    init_asset_source_table();
-    init_asset_table();
-
-#if DEVELOPER
-    save_asset_pack(GAME_PAK_PATH);
-#endif
-    load_asset_pack(GAME_PAK_PATH);
-        
-    R_viewport.aspect_type = VIEWPORT_4X3;
-    R_viewport.resolution_scale = 1.0f;
-    R_viewport.quantize_color_count = 256;
-
-    const u16 cformats[] = { R_RGB_8, R_RED_32 };
-    R_viewport.render_target = r_create_render_target(Main_window.width, Main_window.height,
-                                                      COUNT(cformats), cformats,
-                                                      R_DEPTH_24_STENCIL_8);
-    
-#if 0
-    R_viewport.pixel_size                  = 1.0f;
-    R_viewport.curve_distortion_factor     = 0.25f;
-    R_viewport.chromatic_aberration_offset = 0.002f;
-    R_viewport.quantize_color_count        = 16;
-    R_viewport.noise_blend_factor          = 0.1f;
-    R_viewport.scanline_count              = 64;
-    R_viewport.scanline_intensity          = 0.95f;
-#endif
-    
-    r_resize_viewport(R_viewport, Main_window.width, Main_window.height);
-
-    ui_init();
-    r_geo_init();
-
-    console_init();
-    
-    // @Cleanup: just make it better.
-    extern void r_init_frame_buffer_draw();
-    r_init_frame_buffer_draw();
-    
-	Hot_Reload_List hot_reload_list = {};
-    // @Note: shader includes does not count as shader hot reload.
-	register_hot_reload_directory(hot_reload_list, DIR_SHADERS);
-	register_hot_reload_directory(hot_reload_list, DIR_TEXTURES);
-	register_hot_reload_directory(hot_reload_list, DIR_MATERIALS);
-	register_hot_reload_directory(hot_reload_list, DIR_MESHES);
-	register_hot_reload_directory(hot_reload_list, DIR_FLIP_BOOKS);
-
-    const Thread hot_reload_thread = start_hot_reload_thread(hot_reload_list);
-    defer { os_terminate_thread(hot_reload_thread); };
-    
-	create_world(World);
-
-#if 1
-    init_default_level(World);
-    save_level(World);
-#else
-    const String main_level_path = PATH_LEVEL("main.lvl");
-    load_level(World, main_level_path);
-#endif
-    
-    log("Startup took %.2fms", CHECK_SCOPE_TIMER_MS(startup));
-
-    u64 begin_counter = os_perf_counter();
-	while (os_window_alive(Main_window)) {
-        // @Note: event queue is NOT cleared after this call as some parts of the code
-        // want to know which events were polled. The queue is cleared during buffer swap.
-		os_poll_window_events(Main_window);
-
-        R_viewport.mouse_pos = vec2(Clamp((f32)input_table.mouse_x - R_viewport.x, 0.0f, R_viewport.width),
-                                  Clamp((f32)input_table.mouse_y - R_viewport.y, 0.0f, R_viewport.height));
-        
-        check_hot_reload(hot_reload_list);
-
-        tick_game(Delta_time);
-        tick_editor(Delta_time);
-        
-        draw_world(World);
-
-        ui_world_line(vec3_zero, vec3_zero + vec3(0.5f, 0.0f, 0.0f), rgba_red);
-        // ui_world_line(World.player.location,
-        //               World.player.location + normalize(World.player.velocity) * 1.0f,
-        //               rgba_red);
-
-#if DEVELOPER
-        r_geo_debug();
-        draw_dev_stats();
-        console_draw();
-        mprof_draw();
-#endif
-        
-#if 0
-        static f32 pixel_size_time = -1.0f;
-        if (pixel_size_time > 180.0f) pixel_size_time = 0.0f;
-        R_viewport.frame_buffer.pixel_size = (Sin(pixel_size_time) + 1.0f) * R_viewport.frame_buffer.width * 0.05f;
-        pixel_size_time += delta_time * 4.0f;
-#endif
-
-        r_world_flush();
-        r_geo_flush();
-        r_viewport_flush();
-        ui_flush(); // ui is drawn directly to screen
-        
-		os_swap_window_buffers(Main_window);
-        r_update_stats();
-
-#if DEVELOPER
-        // Queue telemetry profiler draw. We are doing it here, so
-        // telemetry zones will be listed in order of push by default.
-        telemetry_draw();
-#endif
-        
-        clear(M_frame);
-        
-		const u64 end_counter = os_perf_counter();
-		Delta_time = (f32)(end_counter - begin_counter) / os_perf_hz();
-		begin_counter = end_counter;
-        
-#if DEVELOPER
-        // If dt is too large, we could have resumed from a breakpoint.
-        if (Delta_time > 1.0f) {
-            Delta_time = 0.16f;
-        }
-#endif
+    auto window = main_window = new_window(1920, 1080, GAME_NAME);
+	if (!window) {
+		log(LOG_MINIMAL, "Failed to create window");
+		return 1;
 	}
+
+    defer { destroy(window); };
+
+    if (!init_render_context(window)) {
+        log(LOG_MINIMAL, "Failed to initialize render context");
+        return 1;
+    }
+    
+    lock_cursor(window, true);
+    set_vsync  (window, true);
+
+    if (!init_audio_player()) return 1;
+
+    init_asset_storages();
+
+    init_profiler();
+    init_render_frame();
+    init_shader_platform();
+
+    auto &viewport = screen_viewport;
+    viewport.aspect_type = VIEWPORT_4X3;
+    init(viewport, window->width, window->height);
+
+    init_console();
+    init_line_geometry();
+
+    load_game_assets();
+    init_ui(); // @Todo: check why loading ui before game assets causes a crash
+    
+    init_hot_reload();
+    // @Note: shader includes does not count in shader hot reload.
+	add_hot_reload_directory(PATH_SHADER(""));
+    add_hot_reload_directory(PATH_TEXTURE(""));
+    add_hot_reload_directory(PATH_FLIP_BOOK(""));
+    add_hot_reload_directory(PATH_MATERIAL(""));
+    add_hot_reload_directory(PATH_MESH(""));
+
+    const auto hot_reload_thread = start_hot_reload_thread();
+    defer { terminate_thread(hot_reload_thread); };
+
+    auto set = init_editor_level_set();
+    switch_campaign(set);
+    init_level_editor_hub();
+
+    init_input();
+    handle_window_events(); // handle events that were sent during init phase
+
+    game_logger_data.messages.allocator = __temporary_allocator;
+    context.logger = { .proc = game_logger_proc, .data = &game_logger_data };
+
+    log("Startup time %.2fs", (get_perf_counter() - __preload_counter) / (f32)get_perf_hz());
+    log("sizeof(Entity) %d", sizeof(Entity));
+
+    {
+        auto eid = get_player(get_entity_manager())->eid;
+        log("player eid %u (%u %u)", eid, get_eid_index(eid), get_eid_generation(eid));
+    }
+    
+    main_loop();
     
 	return 0;
+}
+
+static void main_loop() {
+    while (1) {
+        if (should_quit_game) return;
+        do_one_frame();
+    }
+}
+
+static void do_one_frame() {
+    frame_index += 1;
+
+    highest_water_mark = Max(highest_water_mark, context.temporary_storage->high_water_mark);
+    reset_temporary_storage();
+
+    update_time();
+
+    poll_events(get_window()); // accumulate latest window events
+    handle_window_events();    // and handle all of them at once
+
+    update_hot_reload();
+    
+    if (program_mode == MODE_GAME) {
+        simulate_game();
+    }
+    
+    update_editor();
+    render_one_frame();
+    update_audio();
+
+    // @Cleanup: move in game simulate and editor update?
+    post_frame_cleanup(get_entity_manager()); 
+    
+    update_profiler();
+    flush_game_logger();
+}
+
+static void update_time() {
+    auto &start = time_info.frame_start_counter;
+    auto &end   = time_info.frame_end_counter;
+    auto &dt    = time_info.delta_time;
+    
+    end   = get_perf_counter();
+    dt    = (f32)(end - start) / get_perf_hz();
+    start = end;
+
+#if DEVELOPER
+    // If dt is too large, we could have resumed from a breakpoint.
+    if (dt > 1.0f) dt = 0.16f;
+#endif
+}
+
+inline constexpr auto KEY_CLOSE_WINDOW        = KEY_ESCAPE;
+inline constexpr auto KEY_SWITCH_PROGRAM_MODE = KEY_F11;
+
+static void handle_window_events() {
+    auto window = get_window();
+    auto input  = get_input_table();
+    auto layer  = get_current_input_layer();
+    
+    // Populate input table with event data and handle non-input events.
+    For (window->events) {
+        switch (it.type) {
+        case WINDOW_EVENT_FOCUSED: {
+            break;
+        }
+        case WINDOW_EVENT_LOST_FOCUS: {
+            clear_bit(&input->keys, KEY_ALT);
+            break;
+        }
+        case WINDOW_EVENT_RESIZE: {
+            on_window_resize(window->width, window->height);
+            break;
+        }
+        case WINDOW_EVENT_KEYBOARD: {
+            const auto key     = it.key_code;
+            const auto press   = it.input_bits & WINDOW_EVENT_PRESS_BIT;
+            const auto release = it.input_bits & WINDOW_EVENT_RELEASE_BIT;
+
+            if      (press)   { set_bit  (&input->keys, key); }
+            else if (release) { clear_bit(&input->keys, key); }
+            
+            break;
+        }
+        case WINDOW_EVENT_MOUSE_MOVE: {
+            input->mouse_x = it.x;
+            input->mouse_y = it.y;
+            break;
+        }
+        case WINDOW_EVENT_QUIT: {
+            should_quit_game = true;
+            return;
+        }
+        }
+    }
+
+    // Update key states.
+    {
+        const u256 changes = input->keys ^ input->keys_last;
+        input->keys_down = changes &  input->keys;
+        input->keys_up   = changes & ~input->keys;
+        copy(&input->keys_last, &input->keys, sizeof(input->keys));
+    }
+
+    // Update mouse position.
+    {
+        input->mouse_offset_x = input->mouse_x - input->mouse_last_x;
+        input->mouse_offset_y = input->mouse_y - input->mouse_last_y;
+
+        if (window->cursor_locked) {
+            auto x = input->mouse_last_x = window->width  / 2;
+            auto y = input->mouse_last_y = window->height / 2;
+
+            if (input->mouse_x != x || input->mouse_y != y) {
+                set_cursor(window, x, y);
+            }
+        } else {
+            input->mouse_last_x = input->mouse_x;
+            input->mouse_last_y = input->mouse_y;
+        }
+    }
+
+    // Update mouse position in screen viewport.
+    {
+        auto &v = screen_viewport;
+        // @Cleanup: this is actually valid only for current 4x3 viewport.
+        v.mouse_pos = Vector2(Clamp((f32)input->mouse_x - v.x, 0.0f, v.width),
+                              Clamp((f32)input->mouse_y - v.y, 0.0f, v.height));
+    }
+    
+    // Handle and propagate input events.
+    For (window->events) {
+        switch (it.type) {
+        case WINDOW_EVENT_KEYBOARD:
+        case WINDOW_EVENT_TEXT_INPUT:
+        case WINDOW_EVENT_MOUSE_CLICK:
+        case WINDOW_EVENT_MOUSE_WHEEL: {
+            if (it.type == WINDOW_EVENT_KEYBOARD) {
+                const auto key   = it.key_code;
+                const auto press = it.input_bits & WINDOW_EVENT_PRESS_BIT;
+
+                // Handle general inputs.
+                if (press && key == KEY_CLOSE_WINDOW) {
+                    close(window);
+                    break;
+                } else if (press && key == KEY_SWITCH_PROGRAM_MODE) {
+                    program_mode = (Program_Mode)((program_mode + 1) % PROGRAM_MODE_COUNT);
+
+                    // @Cleanup @Hack: replace game/editor input layers.
+                    for (u32 i = 0; i < input_stack.layer_count; ++i) {
+                        auto &layer = input_stack.layers[i];
+
+                        if (layer.type == INPUT_LAYER_EDITOR) {
+                            if (layer.on_pop) layer.on_pop();
+                            layer = input_layers[INPUT_LAYER_GAME];
+                            if (layer.on_push) layer.on_push();
+                            break;
+                        }
+
+                        if (layer.type == INPUT_LAYER_GAME) {
+                            if (layer.on_pop) layer.on_pop();
+                            layer = input_layers[INPUT_LAYER_EDITOR];
+                            if (layer.on_push) layer.on_push();
+                            break;
+                        }
+                    }
+                }
+            }
+
+            layer->on_input(&it);
+            break;
+        }
+        }
+    }
 }

@@ -1,15 +1,11 @@
-- Fix telemetry sort for nested zones.
+- Use Unordered Access View (UAV) to implement mouse pick.
+
+- Add sampled profiling zones for runtime stats.
+
+- Use bindless/virtual textures to reduce gfx api calls.
 
 - UI input functions for non-text are basically the same, cleanup.
 
-- Asset save/load/hot-reload code has a lot of duplications, cleanup.
-
-- Get rid of runtime font atlas baking, do it offline and save to asset pak instead of fonts.
-
-- Custom .mat files require new line at eof to be parsed correctly, avoid it?
-
 - Separate aabb arrays for collision, editor visuals etc.
-
-- Use structs in shaders for light data.
 
 - Synchronize logging.

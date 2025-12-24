@@ -1,25 +1,36 @@
 #pragma once
 
-enum Input_Key : u8;
+#include "input.h"
 
-extern Input_Key KEY_CLOSE_WINDOW;
-extern Input_Key KEY_SWITCH_EDITOR_MODE;
-extern Input_Key KEY_SWITCH_POLYGON_MODE;
-extern Input_Key KEY_SWITCH_COLLISION_VIEW;
+inline constexpr auto KEY_SWITCH_EDITOR_MODE     = KEY_F11;
+inline constexpr auto KEY_SWITCH_POLYGON_MODE    = KEY_F1;
+inline constexpr auto KEY_SWITCH_COLLISION_VIEW  = KEY_F2;
 
-struct Game_World;
+inline constexpr f32 EDITOR_REPORT_SHOW_TIME = 2.0f;
+inline constexpr f32 EDITOR_REPORT_FADE_TIME = 0.5f;
+
 struct Entity;
 struct Window_Event;
+struct Level_Set;
 
-struct Game_Editor {
+struct Editor {
     Entity *mouse_picked_entity = null;
+
+    String report_string;
+    f32    report_time = 0.0f;
+
+    f32 camera_speed = 4.0f;
 };
 
-inline Game_Editor Editor;
+inline Editor editor;
 
-void on_input_editor(const Window_Event &event);
-void tick_editor(f32 dt);
-void editor_report(const char *cs, ...);
+inline Level_Set *editor_level_set = null;
 
-struct Game_World;
-void init_default_level(Game_World &w);
+Level_Set *init_editor_level_set ();
+
+void update_editor   ();
+void on_editor_input (const Window_Event *e);
+void on_editor_push  ();
+void on_editor_pop   ();
+
+void screen_report   (const char *cs, ...);

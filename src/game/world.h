@@ -1,64 +1,59 @@
 #pragma once
 
-#include "camera.h"
-#include "sparse.h"
-#include "collision.h"
+// #include "collision.h"
+// #include "entity.h"
+// #include "render_batch.h"
 
-#include "game/entity.h"
+// typedef For_Result (*For_Each_Entity_Callback)(Entity *e, void *user_data);
 
-#include "render/r_command.h"
+// struct Game_World {
+//     static constexpr u32 MAX_NAME_SIZE = 64;
 
-typedef For_Result (*For_Each_Entity_Callback)(Entity *e, void *user_data);
-
-struct Game_World {
-    static constexpr u32 MAX_NAME_SIZE = 64;
-
-    static constexpr u32 MAX_STATIC_MESHES     = 1024;
-    static constexpr u32 MAX_DIRECT_LIGHTS     = 4;
-    static constexpr u32 MAX_POINT_LIGHTS      = 32;
-    static constexpr u32 MAX_SOUND_EMITTERS_2D = 32;
-    static constexpr u32 MAX_SOUND_EMITTERS_3D = 128;
-    static constexpr u32 MAX_PORTALS           = 128;
-    static constexpr u32 MAX_AABBS = 2048;
-
-    Arena arena;
+//     static constexpr u32 MAX_STATIC_MESHES     = 1024;
+//     static constexpr u32 MAX_DIRECT_LIGHTS     = ::MAX_DIRECT_LIGHTS;
+//     static constexpr u32 MAX_POINT_LIGHTS      = ::MAX_POINT_LIGHTS;
+//     static constexpr u32 MAX_SOUND_EMITTERS_2D = 32;
+//     static constexpr u32 MAX_SOUND_EMITTERS_3D = 128;
+//     static constexpr u32 MAX_PORTALS           = 128;
+//     static constexpr u32 MAX_ENTITIES          = MAX_STATIC_MESHES + MAX_DIRECT_LIGHTS
+//         + MAX_POINT_LIGHTS + MAX_SOUND_EMITTERS_2D + MAX_SOUND_EMITTERS_3D + MAX_PORTALS;
+//     static constexpr u32 MAX_AABBS = 2048;
     
-    String name;
+//     String name;
 
-	f32 dt;
+// 	f32 dt;
 
-	Player player;
-	Camera camera;
-	Camera ed_camera;
+// 	Player player;
+// 	Camera camera;
+// 	Camera ed_camera;
 
-	Skybox skybox;
+// 	Skybox skybox;
 
-	Sparse<Static_Mesh>      static_meshes;
-	Sparse<Point_Light>      point_lights;
-	Sparse<Direct_Light>     direct_lights;
-	Sparse<Sound_Emitter_2D> sound_emitters_2d;
-	Sparse<Sound_Emitter_3D> sound_emitters_3d;
-	Sparse<Portal>           portals;
+// 	Array <Static_Mesh>      static_meshes;
+//     Array <Point_Light>      point_lights;
+//     Array <Direct_Light>     direct_lights;
+//     Array <Sound_Emitter_2D> sound_emitters_2d;
+//     Array <Sound_Emitter_3D> sound_emitters_3d;
+//     Array <Portal>           portals;
     
-	Sparse<AABB> aabbs;
+// 	Array <AABB> aabbs;
+    
+//     Render_Batch opaque_batch;
+//     Render_Batch transparent_batch;
+// };
 
-    R_Command_List main_cmd_list;
-};
+// inline Game_World World;
 
-inline Game_World World;
+// void init       (Game_World &world);
+// void save_level (Game_World &world);
+// void load_level (Game_World &world, String path);
 
-void create_world(Game_World &world);
-void save_level(Game_World &world);
-void load_level(Game_World &world, String path);
+// Camera &active_camera(Game_World &world);
 
-Camera &active_camera(Game_World &world);
+// Entity *create_entity(Game_World &world, Entity_Type e_type);
+// Entity *find_entity_by_eid(Game_World &world, eid eid);
 
-Entity *create_entity(Game_World &world, Entity_Type e_type);
-Entity *find_entity_by_eid(Game_World &world, eid eid);
+// void draw (Game_World &world);
+// void draw (Entity &e);
 
-void draw_world(const Game_World &world);
-void draw_entity(const Entity &e);
-
-void for_each_entity(Game_World &world, For_Each_Entity_Callback callback, void *user_data = null);
-
-void r_world_flush();
+// void for_each_entity(Game_World &world, For_Each_Entity_Callback callback, void *user_data = null);
