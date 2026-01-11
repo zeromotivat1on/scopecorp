@@ -3,10 +3,15 @@
 *.pdb
 *.obj
 *.rdi
+*.sln
 
-run_tree/build
-run_tree/cmake
-run_tree/data/sounds
-run_tree/data/textures
+run_tree/.vs
+run_tree/bin
+run_tree/captures
 run_tree/data/fonts
 run_tree/data/levels
+run_tree/data/meshes
+run_tree/data/sounds
+run_tree/data/textures
+
+src/codegen
