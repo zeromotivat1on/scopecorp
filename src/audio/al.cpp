@@ -16,7 +16,7 @@ void update_audio() {
 static void al_check_error(Source_Code_Location loc = __location) {
     ALenum al_error = alGetError();
     while (al_error != AL_NO_ERROR) {
-        log(LOG_MINIMAL, "OpenAL error 0x%X at %s:%d", al_error, loc.file, loc.line);
+        log(LOG_ERROR, "OpenAL error 0x%X at %s:%d", al_error, loc.file, loc.line);
         al_error = alGetError();
     }
 }
@@ -30,7 +30,7 @@ bool init_audio_player() {
     
     auto device = alcOpenDevice(null);
 	if (!device) {
-		log(LOG_MINIMAL, "Failed to open default audio device");
+		log(LOG_ERROR, "Failed to open default audio device");
         return false;
 	}
 
@@ -38,14 +38,14 @@ bool init_audio_player() {
     
     auto context = alcCreateContext(device, null);
 	if (!context) {
-		log(LOG_MINIMAL, "Failed to create alc context");
+		log(LOG_ERROR, "Failed to create alc context");
         return false;
 	}
 
     player->audio_context._p = context;
     
 	if (!alcMakeContextCurrent(context)) {
-		log(LOG_MINIMAL, "Failed to make alc context current");
+		log(LOG_ERROR, "Failed to make alc context current");
         return false;
 	}
 
@@ -62,7 +62,7 @@ static s32 to_al_audio_format(s32 channel_count, s32 bit_rate) {
 	else if (channel_count == 2 && bit_rate == 8)  return AL_FORMAT_STEREO8;
 	else if (channel_count == 2 && bit_rate == 16) return AL_FORMAT_STEREO16;
 	else {
-		log(LOG_MINIMAL, "Unknown audio format with channel count %d and bit rate %d", channel_count, bit_rate);
+		log(LOG_ERROR, "Unknown audio format with channel count %d and bit rate %d", channel_count, bit_rate);
 		return 0;
 	}
 }

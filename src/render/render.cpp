@@ -5,13 +5,10 @@
 #include "ui.h"
 #include "shader_globals.h"
 #include "shader_binding_model.h"
-#include "command_buffer.h"
-#include "render_target.h"
 #include "render_frame.h"
 #include "render_batch.h"
 #include "viewport.h"
-#include "vertex_descriptor.h"
-#include "debug_geometry.h"
+#include "line_geometry.h"
 #include "texture.h"
 #include "shader.h"
 #include "material.h"
@@ -33,38 +30,191 @@
 extern bool init_render_backend(Window *window);
 extern bool post_init_render_backend();
 
-void *gpu_allocator_proc(Allocator_Mode mode, u64 size, u64 old_size, void *old_memory, void *allocator_data) {
-    Assert(allocator_data);
-    auto buffer = (Gpu_Buffer *)allocator_data;
-
-    switch (mode) {
-    case ALLOCATE: { return alloc(buffer, size); }
-    case RESIZE:   { Assert(0, "Gpu allocator does not support memory resize"); }
-    case FREE:     { Assert(0, "Gpu allocator does not support memory release"); }
-    case FREE_ALL: { Assert(0, "Gpu allocator does not support all memory release"); }
-    default:       { unreachable_code_path(); return null; }
-    }
-}
-
 bool init_render_context(Window *window) {
     if (!init_render_backend(window)) return false;
 
-    // @Cleanup @Speed: gpu data read is used extremely small portion of the buffer,
-    // it would be nice to have separate general buffers (read/write only, read and write).
-    constexpr u32 gpu_bits = GPU_DYNAMIC_BIT | GPU_READ_BIT | GPU_WRITE_BIT | GPU_PERSISTENT_BIT | GPU_COHERENT_BIT;
+    gpu_init_backend();
+
+    log(S("GPU"), "%S | %S | %S | %S", gpu.vendor, gpu.renderer, gpu.backend_version, gpu.shader_language_version);
     
-     gpu_main_buffer = New(Gpu_Buffer);
-    *gpu_main_buffer = make_gpu_buffer(Megabytes(16), gpu_bits);
-
-    map(gpu_main_buffer);
-    if (!gpu_main_buffer->mapped_pointer) return false;
-
-    gpu_allocator = { .proc = gpu_allocator_proc, .data = gpu_main_buffer };
+    gpu_init_frontend();
     
     if (!post_init_render_backend()) return false;
     
     return true;
 }
+
+void gpu_init_frontend() {
+    array_realloc(gpu.buffers,            64);
+    array_realloc(gpu.images,             64);
+    array_realloc(gpu.image_views,        64);
+    array_realloc(gpu.samplers,           64);
+    array_realloc(gpu.shaders,            64);
+    array_realloc(gpu.framebuffers,       64);
+    array_realloc(gpu.cmd_buffers,        64);
+    array_realloc(gpu.vertex_inputs,      64);
+    array_realloc(gpu.descriptors,        64);
+    array_realloc(gpu.free_buffers,       16);
+    array_realloc(gpu.free_images,        16);
+    array_realloc(gpu.free_image_views,   16);
+    array_realloc(gpu.free_samplers,      16);
+    array_realloc(gpu.free_shaders,       16);
+    array_realloc(gpu.free_framebuffers,  16);
+    array_realloc(gpu.free_cmd_buffers,   16);
+    array_realloc(gpu.free_vertex_inputs, 16);
+    array_realloc(gpu.free_descriptors,   16);
+    
+    array_add(gpu.framebuffers,  {});
+    array_add(gpu.cmd_buffers,   {});
+    array_add(gpu.vertex_inputs, {});
+    array_add(gpu.descriptors,   {});
+    array_add(gpu.pipelines,     {});
+    
+    u8 pixels[] = { 0,0,0,       205,117,132, 0,0,
+                    205,117,132, 0,0,0,       0,0,};
+    const auto default_image_contents = make_buffer(pixels, sizeof(pixels));
+
+    gpu.default_image      = gpu_new_image(GPU_IMAGE_TYPE_2D, GPU_IMAGE_FORMAT_RGB_8, 1, 2, 2, 1, default_image_contents);
+    gpu.default_image_view = gpu_new_image_view(gpu.default_image, GPU_IMAGE_TYPE_2D, GPU_IMAGE_FORMAT_RGB_8, 0, 1, 0, 1);
+     gpu.sampler_default_color = gpu_new_sampler(GPU_SAMPLER_FILTER_NEAREST_MIPMAP_LINEAR,
+                                                 GPU_SAMPLER_FILTER_NEAREST,
+                                                 GPU_SAMPLER_WRAP_REPEAT,
+                                                 GPU_SAMPLER_WRAP_REPEAT,
+                                                 GPU_SAMPLER_WRAP_REPEAT,
+                                                 GPU_SAMPLER_COMPARE_MODE_NONE,
+                                                 GPU_SAMPLER_COMPARE_FUNCTION_NONE,
+                                                 -1000.0f, 1000.0f, COLOR4F_BLACK);
+    gpu.sampler_default_depth_stencil = gpu_new_sampler(GPU_SAMPLER_FILTER_NEAREST_MIPMAP_LINEAR,
+                                                        GPU_SAMPLER_FILTER_NEAREST,
+                                                        GPU_SAMPLER_WRAP_REPEAT,
+                                                        GPU_SAMPLER_WRAP_REPEAT,
+                                                        GPU_SAMPLER_WRAP_REPEAT,
+                                                        GPU_SAMPLER_COMPARE_MODE_REF_TO_IMAGE,
+                                                        GPU_SAMPLER_COMPARE_FUNCTION_LESS,
+                                                        -1000.0f, 1000.0f, COLOR4F_BLACK);
+    
+    gpu_write_allocator.buffer = gpu_new_buffer(GPU_BUFFER_TYPE_STAGING_UNCACHED, Megabytes(8));
+    gpu_read_allocator.buffer  = gpu_new_buffer(GPU_BUFFER_TYPE_STAGING_CACHED,   Megabytes(1));
+
+    {
+        Gpu_Vertex_Binding bindings[3];
+        bindings[0].input_rate = GPU_VERTEX_INPUT_RATE_VERTEX;
+        bindings[0].index      = 0;
+        bindings[0].stride     = 12;
+        bindings[1].input_rate = GPU_VERTEX_INPUT_RATE_VERTEX;
+        bindings[1].index      = 1;
+        bindings[1].stride     = 12;
+        bindings[2].input_rate = GPU_VERTEX_INPUT_RATE_VERTEX;
+        bindings[2].index      = 2;
+        bindings[2].stride     = 8;
+
+        Gpu_Vertex_Attribute attributes[3];
+        attributes[0].type    = GPU_VERTEX_ATTRIBUTE_TYPE_V3;
+        attributes[0].index   = 0;
+        attributes[0].binding = 0;
+        attributes[0].offset  = 0;
+        attributes[1].type    = GPU_VERTEX_ATTRIBUTE_TYPE_V3;
+        attributes[1].index   = 1;
+        attributes[1].binding = 1;
+        attributes[1].offset  = 0;
+        attributes[2].type    = GPU_VERTEX_ATTRIBUTE_TYPE_V2;
+        attributes[2].index   = 2;
+        attributes[2].binding = 2;
+        attributes[2].offset  = 0;
+        
+        gpu.vertex_input_entity = gpu_new_vertex_input(bindings, carray_count(bindings), attributes, carray_count(attributes));
+    }
+    
+    {
+        Gpu_Descriptor_Binding bindings[3];
+        bindings[0].type  = GPU_DESCRIPTOR_BINDING_TYPE_UNIFORM_BUFFER;
+        bindings[0].index = 0;
+        bindings[0].count = 1;
+        bindings[1].type  = GPU_DESCRIPTOR_BINDING_TYPE_UNIFORM_BUFFER;
+        bindings[1].index = 1;
+        bindings[1].count = 2;
+        bindings[2].type  = GPU_DESCRIPTOR_BINDING_TYPE_UNIFORM_BUFFER;
+        bindings[2].index = 2;
+        bindings[2].count = 1;
+        
+        gpu.descriptor_global = gpu_new_descriptor(bindings, carray_count(bindings));
+    }
+
+    {
+        Gpu_Descriptor_Binding bindings[3];
+        bindings[0].type  = GPU_DESCRIPTOR_BINDING_TYPE_UNIFORM_BUFFER;
+        bindings[0].index = 3;
+        bindings[0].count = 1;
+        bindings[1].type  = GPU_DESCRIPTOR_BINDING_TYPE_SAMPLED_IMAGE;
+        bindings[1].index = 4;
+        bindings[1].count = 1;
+        bindings[2].type  = GPU_DESCRIPTOR_BINDING_TYPE_STORAGE_BUFFER;
+        bindings[2].index = 5;
+        bindings[2].count = 1;
+        
+        gpu.descriptor_entity = gpu_new_descriptor(bindings, carray_count(bindings));
+    }
+}
+
+Gpu_Allocation gpu_alloc(u64 size, Gpu_Allocator *alc) {
+    auto &buffer = gpu.buffers[alc->buffer];
+    Assert(alc->used + size <= buffer.size);
+    
+    Gpu_Allocation memory;
+    memory.buffer      = alc->buffer;
+    memory.size        = size;
+    memory.used        = 0;
+    memory.offset      = alc->used;
+    memory.mapped_data = (u8 *)buffer.mapped_data + alc->used;
+
+    alc->used += size;
+    
+    return memory;
+}
+
+Gpu_Allocation gpu_alloc(u64 size, u64 alignment, Gpu_Allocator *alc) {
+    size = Align(size, alignment);
+    return gpu_alloc(size, alc);
+}
+
+void gpu_release(Gpu_Allocation *memory, Gpu_Allocator *alc) {
+    Assert(alc->used >= memory->size);
+    Assert(memory->offset + memory->size == alc->used); // ensure it's last allocation
+    
+    alc->used -= memory->size;
+    
+    *memory = {};
+}
+
+void gpu_append(Gpu_Allocation *memory, const void *data, u64 size) {
+    Assert(memory->used + size <= memory->size);
+
+    auto gpu_data = (u8 *)memory->mapped_data + memory->used;
+    copy(gpu_data, data, size);
+    
+    memory->used += size;
+}
+
+u32 gpu_max_mipmap_count(u32 width, u32 height) {
+    return (u32)Floor(Log2((f32)Max(width, height))) + 1;
+}
+
+template <typename T>
+static T *gpu_get_resource(u32 index, Array <T> &resources) {
+    if (index >= resources.count) return &resources[0];
+    return &resources[index];
+}
+
+Gpu_Buffer         *gpu_get_buffer         (u32 index) { return gpu_get_resource(index, gpu.buffers); }
+Gpu_Image          *gpu_get_image          (u32 index) { return gpu_get_resource(index, gpu.images);}
+Gpu_Image_View     *gpu_get_image_view     (u32 index) { return gpu_get_resource(index, gpu.image_views);}
+Gpu_Sampler        *gpu_get_sampler        (u32 index) { return gpu_get_resource(index, gpu.samplers); }
+Gpu_Shader         *gpu_get_shader         (u32 index) { return gpu_get_resource(index, gpu.shaders); }
+Gpu_Framebuffer    *gpu_get_framebuffer    (u32 index) { return gpu_get_resource(index, gpu.framebuffers); }
+Gpu_Command_Buffer *gpu_get_command_buffer (u32 index) { return gpu_get_resource(index, gpu.cmd_buffers); }
+Gpu_Vertex_Input   *gpu_get_vertex_input   (u32 index) { return gpu_get_resource(index, gpu.vertex_inputs); }
+Gpu_Descriptor     *gpu_get_descriptor     (u32 index) { return gpu_get_resource(index, gpu.descriptors); }
+Gpu_Pipeline       *gpu_get_pipeline       (u32 index) { return gpu_get_resource(index, gpu.pipelines); }
 
 static Render_Frame *render_frame = null;
 
@@ -73,20 +223,21 @@ void init_render_frame() {
 
     frame->opaque_batch      = make_render_batch(256);
     frame->transparent_batch = make_render_batch(128);
-    frame->hud_batch         = make_render_batch(128);
+    frame->hud_batch         = make_render_batch(4096);
 
     for (auto i = 0; i < RENDER_FRAMES_IN_FLIGHT; ++i) {
-        frame->syncs           [i] = GPU_HANDLE_NONE;
-        frame->command_buffers [i] = make_command_buffer (512,           context.allocator);
-        frame->indirect_buffers[i] = make_indirect_buffer(Kilobytes(64), gpu_allocator);
+        frame->syncs           [i] = {};
+        frame->command_buffers [i] = gpu_new_command_buffer(512);
+        frame->gpu_indirect_allocations[i] = gpu_alloc(Kilobytes(64), &gpu_write_allocator);
     }
 
     // @Cleanup: align data here to ensure submit buffers alignment for cbuffers, which is
     // kinda annoying, maybe create separate gpu buffer for cbuffer data submit.
-    gpu_main_buffer->used = Align(gpu_main_buffer->used, CBUFFER_OFFSET_ALIGNMENT);
+    auto write_buffer = gpu_get_buffer(gpu_write_allocator.buffer);
+    write_buffer->used = Align(write_buffer->used, (u64)gpu_uniform_buffer_offset_alignment());
     
     for (auto i = 0; i < RENDER_FRAMES_IN_FLIGHT; ++i) {
-        frame->submit_buffers[i] = make_wrap_buffer(Kilobytes(32), gpu_allocator);
+        frame->gpu_submit_allocations[i] = gpu_alloc(Kilobytes(32), &gpu_write_allocator);
     }
 }
 
@@ -96,51 +247,35 @@ void             reset_draw_call_count () { render_frame->draw_call_count  = 0; 
 Render_Batch    *get_opaque_batch      () { return &render_frame->opaque_batch; }
 Render_Batch    *get_transparent_batch () { return &render_frame->transparent_batch; }
 Render_Batch    *get_hud_batch         () { return &render_frame->hud_batch; }
-Gpu_Handle      *get_render_frame_sync () { return &render_frame->syncs[frame_index % RENDER_FRAMES_IN_FLIGHT]; }
-Command_Buffer  *get_command_buffer    () { return &render_frame->command_buffers[frame_index % RENDER_FRAMES_IN_FLIGHT]; }
-Indirect_Buffer *get_indirect_buffer   () { return &render_frame->indirect_buffers[frame_index % RENDER_FRAMES_IN_FLIGHT]; }
-Wrap_Buffer     *get_submit_buffer     () { return &render_frame->submit_buffers[frame_index % RENDER_FRAMES_IN_FLIGHT]; }
+Handle          *get_render_frame_sync () { return &render_frame->syncs[frame_index % RENDER_FRAMES_IN_FLIGHT]; }
+u32             get_command_buffer     () { return render_frame->command_buffers[frame_index % RENDER_FRAMES_IN_FLIGHT]; }
+Gpu_Allocation *get_gpu_indirect_allocation () { return &render_frame->gpu_indirect_allocations[frame_index % RENDER_FRAMES_IN_FLIGHT]; }
+Gpu_Allocation *get_gpu_submit_allocation   () { return &render_frame->gpu_submit_allocations[frame_index % RENDER_FRAMES_IN_FLIGHT]; }
 
 void post_render_cleanup() {
-    auto indirect = get_indirect_buffer();
-    auto submit   = get_submit_buffer();
+    auto indirect = get_gpu_indirect_allocation();
+    auto submit   = get_gpu_submit_allocation();
     
-    reset(indirect);
-    reset(submit);
+    indirect->used = 0;
+    submit->used   = 0;
     
     ui.line_render.line_count = 0;
     ui.quad_render.quad_count = 0;
     ui.text_render.char_count = 0;
 }
 
-Gpu_Buffer *get_gpu_buffer        () { Assert(gpu_main_buffer); return gpu_main_buffer; }
-u64         get_gpu_buffer_mark   () { return get_gpu_buffer()->used; }
-Gpu_Handle  get_gpu_buffer_handle () { return get_gpu_buffer()->handle; }
-
-u64 get_gpu_buffer_offset(const void *p) {
-    auto buffer = get_gpu_buffer();
-    Assert(p >= buffer->mapped_pointer);
-    return (u8 *)p - (u8 *)buffer->mapped_pointer;
-}
-
-void *get_gpu_buffer_data(u64 offset, u64 size) {
-    auto buffer = get_gpu_buffer();
-    Assert(offset + size <= buffer->used);
-    return (u8 *)buffer->mapped_pointer + offset;
-}
-
 void render_one_frame() {
     Profile_Zone(__func__);
 
     auto frame_sync = get_render_frame_sync();
-    if (is_valid(*frame_sync)) {
+    if (frame_sync && *frame_sync) {
         auto res = wait_client_sync(*frame_sync, GPU_WAIT_INFINITE);
-        if (res == GPU_WAIT_FAILED) {
-            log(LOG_MINIMAL, "Failed to wait on render frame gpu sync 0x%X", frame_sync);
+        if (res == GPU_SYNC_RESULT_WAIT_FAILED) {
+            log(LOG_ERROR, "Failed to wait on render frame gpu sync 0x%X", frame_sync);
         }
 
         delete_gpu_sync(*frame_sync);
-        *frame_sync = GPU_HANDLE_NONE;
+        *frame_sync = {};
     }
     
     auto window            = get_window();
@@ -151,11 +286,10 @@ void render_one_frame() {
     auto hud_batch         = get_hud_batch();
     
     auto &viewport = screen_viewport;
-    auto &target   = viewport.render_target;
     auto &geo      = line_geometry;
     
     {
-        const auto &res    = Vector2(screen_viewport.width, screen_viewport.height);
+        const auto &res    = Vector2((f32)screen_viewport.width, (f32)screen_viewport.height);
         const auto &ortho  = screen_viewport.orthographic_projection;
         const auto &camera = manager->camera;
         
@@ -202,8 +336,10 @@ void render_one_frame() {
     }
 
     {
-        const auto &target     = viewport.render_target;
-        const auto &resolution = Vector2(target.width, target.height);
+        const auto framebuffer = gpu_get_framebuffer(viewport.framebuffer);
+        const auto image_view  = gpu_get_image_view(framebuffer->color_attachments[0]);
+        const auto image       = gpu_get_image(image_view->image);
+        const auto &resolution = Vector2((f32)image->width, (f32)image->height);
 
         set_constant_value(cv_fb_transform,                viewport.transform);
         set_constant_value(cv_resolution,                  resolution);
@@ -233,24 +369,24 @@ void render_one_frame() {
             const auto c  = player->position + Vector3(0.0f, player->scale.y * 0.5f, 0.0f);
             const auto vn = normalize(player->velocity);
 
-            draw_arrow(c, c + vn * 0.5f, rgba_red);
+            draw_arrow(c, c + vn * 0.5f, COLOR32_RED);
         }
     
         if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
-            constexpr u32 color_from_e_type[E_COUNT] = {
-                rgba_black,
-                rgba_red,
-                rgba_cyan,
-                rgba_red,
-                rgba_white,
-                rgba_white,
-                rgba_blue,
-                rgba_purple,
+            constexpr Color32 color_from_e_type[E_COUNT] = {
+                COLOR32_BLACK,
+                COLOR32_RED,
+                COLOR32_CYAN,
+                COLOR32_RED,
+                COLOR32_WHITE,
+                COLOR32_WHITE,
+                COLOR32_BLUE,
+                COLOR32_PURPLE,
             };
             
             For (manager->entities) {
                 if (it.bits & E_OVERLAP_BIT) {
-                    draw_aabb(it.aabb, rgba_green);
+                    draw_aabb(it.aabb, COLOR32_GREEN);
                 } else {
                     draw_aabb(it.aabb, color_from_e_type[it.type]);
                 }
@@ -264,34 +400,40 @@ void render_one_frame() {
         Profile_Zone("render_dev_stuff");
         draw_dev_stats();
         update_console();
-        draw(Memory_profiler);
     }
 #endif
 
     {
         Profile_Zone("flush_game_world");
-        
-        set_render_target(buf, &viewport.render_target);
-        set_polygon      (buf, game_state.polygon_mode);
-        set_topology     (buf, TOPOLOGY_TRIANGLES);
-        set_viewport     (buf, 0, 0, target.width, target.height);
-        set_scissor      (buf, 0, 0, target.width, target.height);
-        set_cull         (buf, CULL_BACK, WINDING_CCW);
-        set_blend_func   (buf, BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA);
-        set_depth_write  (buf, true);
-        set_depth_func   (buf, DEPTH_LESS);
-        set_stencil_mask (buf, 0x00);
-        set_stencil_func (buf, STENCIL_ALWAYS, 1, 0xFF);
-        set_stencil_op   (buf, STENCIL_KEEP, STENCIL_REPLACE, STENCIL_KEEP);
-        clear            (buf, 1.0f, 1.0f, 1.0f, 1.0f, CLEAR_ALL_BITS);
 
-        set_cbuffer_instance(buf, &cbi_global_parameters);
-        set_cbuffer_instance(buf, &cbi_level_parameters);
+        const auto framebuffer = gpu_get_framebuffer(viewport.framebuffer);
+        const auto image_view  = gpu_get_image_view(framebuffer->color_attachments[0]);
+        const auto image       = gpu_get_image(image_view->image);
         
-        set_blend_write(buf, false);
+        gpu_cmd_framebuffer (buf, viewport.framebuffer);
+        gpu_cmd_polygon     (buf, game_state.polygon_mode);
+        gpu_cmd_viewport    (buf, 0, 0, image->width, image->height);
+        gpu_cmd_scissor     (buf, 0, 0, image->width, image->height);
+        gpu_cmd_cull_face   (buf, GPU_CULL_FACE_BACK);
+        gpu_cmd_winding     (buf, GPU_WINDING_COUNTER_CLOCKWISE);
+        gpu_cmd_blend_func  (buf, GPU_BLEND_FUNCTION_SRC_ALPHA, GPU_BLEND_FUNCTION_ONE_MINUS_SRC_ALPHA);
+        gpu_cmd_depth_write (buf, true);
+        gpu_cmd_depth_func  (buf, GPU_DEPTH_FUNCTION_LESS);
+        gpu_cmd_stencil_mask(buf, 0x00);
+        gpu_cmd_stencil_func(buf, GPU_STENCIL_FUNCTION_ALWAYS, 1, 0xFF);
+        gpu_cmd_stencil_op  (buf, GPU_STENCIL_FUNCTION_KEEP, GPU_STENCIL_FUNCTION_REPLACE, GPU_STENCIL_FUNCTION_KEEP);
+        // @Temp: clear only color and depth, as no stencil buffer usage for now.
+        gpu_cmd_scissor_test(buf, false);
+        gpu_cmd_clear       (buf, COLOR4F_WHITE, GPU_CLEAR_COLOR_AND_DEPTH_BITS);
+        gpu_cmd_scissor_test(buf, true);
+        
+        gpu_cmd_cbuffer_instance(buf, &cbi_global_parameters);
+        gpu_cmd_cbuffer_instance(buf, &cbi_level_parameters);
+        
+        gpu_cmd_blend_test(buf, false);
         flush(opaque_batch);
         
-        set_blend_write(buf, true);
+        gpu_cmd_blend_test(buf, true);
         flush(transparent_batch);
     }
     
@@ -300,10 +442,12 @@ void render_one_frame() {
                 
         static auto shader = get_shader(S("geometry"));
         
-        set_topology         (buf, TOPOLOGY_LINES);
-        set_shader           (buf, shader);
-        set_vertex_descriptor(buf, &geo.vertex_descriptor);
-        draw                 (buf, geo.vertex_count, 1, 0, 0);
+        gpu_cmd_shader       (buf, shader);
+        gpu_cmd_vertex_input (buf, geo.vertex_input);
+        gpu_cmd_vertex_buffer(buf, gpu_write_allocator.buffer, 0, geo.positions_offset, 12);
+        gpu_cmd_vertex_buffer(buf, gpu_write_allocator.buffer, 1, geo.colors_offset, 4);
+        gpu_cmd_index_buffer (buf, gpu_write_allocator.buffer);
+        gpu_cmd_draw         (buf, GPU_TOPOLOGY_LINES, geo.vertex_count, 1, 0, 0);
 
         geo.vertex_count = 0;
     }
@@ -311,23 +455,37 @@ void render_one_frame() {
     {
         static auto shader = get_shader(S("frame_buffer"));
         static auto quad   = get_mesh(S("quad"));
-        
-        const auto attachment = viewport.render_target.color_attachments[0];
 
-        set_render_target    (buf, &screen_render_target);
-        set_topology         (buf, TOPOLOGY_TRIANGLES);
-        set_polygon          (buf, POLYGON_FILL);
-        set_viewport         (buf, viewport.x, viewport.y, viewport.width, viewport.height);
-        set_scissor          (buf, viewport.x, viewport.y, viewport.width, viewport.height);
-        clear                (buf, 0.0f, 0.0f, 0.0f, 1.0f, CLEAR_ALL_BITS);
-        set_depth_write      (buf, false);
-        set_shader           (buf, shader);
-        set_vertex_descriptor(buf, &quad->vertex_descriptor);
-        set_cbuffer_instance (buf, &cbi_frame_buffer_constants);
+        const auto framebuffer = gpu_get_framebuffer(viewport.framebuffer);
+        
+        gpu_cmd_framebuffer      (buf, gpu.default_framebuffer);
+        gpu_cmd_polygon          (buf, GPU_POLYGON_FILL);
+        gpu_cmd_viewport         (buf, viewport.x, viewport.y, viewport.width, viewport.height);
+        gpu_cmd_scissor          (buf, viewport.x, viewport.y, viewport.width, viewport.height);
+        // @Temp: clear only color and depth, as no stencil buffer usage for now.
+        gpu_cmd_scissor_test     (buf, false);
+        gpu_cmd_clear            (buf, COLOR4F_BLACK, GPU_CLEAR_COLOR_AND_DEPTH_BITS);
+        gpu_cmd_scissor_test     (buf, true);
+        gpu_cmd_depth_write      (buf, false);
+        gpu_cmd_shader           (buf, shader);
+        gpu_cmd_vertex_input     (buf, quad->vertex_input);
+
+        // @Cleanup
+        const auto vertex_input = gpu_get_vertex_input(quad->vertex_input);
+        for (u32 i = 0; i < vertex_input->binding_count; ++i) {
+            const auto &binding = vertex_input->bindings[i];
+            const auto offset = quad->vertex_offsets[i];
+            
+            gpu_cmd_vertex_buffer(buf, gpu_write_allocator.buffer, binding.index, offset, binding.stride);
+            gpu_cmd_index_buffer(buf, gpu_write_allocator.buffer);
+        }
+            
+        gpu_cmd_cbuffer_instance (buf, &cbi_frame_buffer_constants);
         // @Cleanup: 1 because cbuffer before sampler takes 0 in shader right now,
         // its hardcoded which is kinda bad.
-        set_texture          (buf, 1, attachment);
-        draw_indexed         (buf, quad->index_count, 1, quad->first_index, 0);
+        gpu_cmd_image_view       (buf, 1, framebuffer->color_attachments[0]);
+        gpu_cmd_sampler          (buf, 1, gpu.sampler_default_color);
+        gpu_cmd_draw_indexed     (buf, GPU_TOPOLOGY_TRIANGLES, quad->index_count, 1, quad->first_index, 0);
 
         if (0) {
             static auto cbi = make_constant_buffer_instance(cbi_frame_buffer_constants.constant_buffer);
@@ -335,42 +493,43 @@ void render_one_frame() {
                 set_constant(&cbi, it.value.constant->name, it.value.data, it.value.constant->size);
             }
 
-            const auto &target     = viewport.render_target;
-            const auto &resolution = Vector2(target.width, target.height);
+            //const auto &target     = viewport.render_target;
+            //const auto &resolution = Vector2(target.width, target.height);
 
             const auto scale = Vector3(0.51f);
             const auto pos   = Vector3(0.0f);
             const auto transform = make_transform(pos, {}, scale);
             set_constant(&cbi, S("transform"),  transform);
-            set_constant(&cbi, S("resolution"), Vector2(resolution.x * scale.x, resolution.y * scale.y));
+            //set_constant(&cbi, S("resolution"), Vector2(resolution.x * scale.x, resolution.y * scale.y));
 
-            const auto attachment = viewport.render_target.color_attachments[1];
-            set_cbuffer_instance (buf, &cbi);
+            //const auto attachment = viewport.render_target.color_attachments[1];
+            gpu_cmd_cbuffer_instance(buf, &cbi);
             // @Cleanup: 1 because cbuffer before sampler takes 0 in shader right now,
             // its hardcoded which is kinda bad.
-            set_texture          (buf, 1, attachment);
-            draw_indexed         (buf, quad->index_count, 1, quad->first_index, 0);
+            //set_texture         (buf, 1, attachment);
+            gpu_cmd_draw_indexed        (buf, GPU_TOPOLOGY_TRIANGLES, quad->index_count, 1, quad->first_index, 0);
         }
     }
 
     {
         Profile_Zone("flush_hud");
                 
-        set_polygon         (buf, POLYGON_FILL);
-        set_viewport        (buf, viewport.x, viewport.y, viewport.width, viewport.height);
-        set_scissor         (buf, viewport.x, viewport.y, viewport.width, viewport.height);
-        set_cull            (buf, CULL_BACK, WINDING_CCW);
-        set_blend_write     (buf, true);
-        set_blend_func      (buf, BLEND_SRC_ALPHA, BLEND_ONE_MINUS_SRC_ALPHA);
-        set_depth_write     (buf, false);
-        set_cbuffer_instance(buf, &cbi_global_parameters);
+        gpu_cmd_polygon         (buf, GPU_POLYGON_FILL);
+        gpu_cmd_viewport        (buf, viewport.x, viewport.y, viewport.width, viewport.height);
+        gpu_cmd_scissor         (buf, viewport.x, viewport.y, viewport.width, viewport.height);
+        gpu_cmd_cull_face       (buf, GPU_CULL_FACE_BACK);
+        gpu_cmd_winding         (buf, GPU_WINDING_COUNTER_CLOCKWISE);
+        gpu_cmd_blend_test      (buf, true);
+        gpu_cmd_blend_func      (buf, GPU_BLEND_FUNCTION_SRC_ALPHA, GPU_BLEND_FUNCTION_ONE_MINUS_SRC_ALPHA);
+        gpu_cmd_depth_write     (buf, false);
+        gpu_cmd_cbuffer_instance(buf, &cbi_global_parameters);
         
         flush(hud_batch);
     }
 
     {
         Profile_Zone("flush_command_buffer");
-        flush(buf);
+        gpu_flush_cmd_buffer(buf);
     }
 
     *frame_sync = gpu_fence_sync();
@@ -379,12 +538,9 @@ void render_one_frame() {
     post_render_cleanup();
 }
 
-void init(Viewport &viewport, u16 width, u16 height) {
+void init(Viewport &viewport, u32 width, u32 height) {
     viewport.resolution_scale = 1.0f;
     viewport.quantize_color_count = 256;
-
-    const Texture_Format_Type formats[] = { TEX_RGB_8 };
-    viewport.render_target = make_render_target(width, height, formats, carray_count(formats), TEX_DEPTH_24_STENCIL_8);
     
 #if 0
     viewport.pixel_size                  = 1.0f;
@@ -399,7 +555,7 @@ void init(Viewport &viewport, u16 width, u16 height) {
     resize(viewport, width, height);
 }
 
-void resize(Viewport &viewport, u16 width, u16 height) {
+void resize(Viewport &viewport, u32 width, u32 height) {
 	switch (viewport.aspect_type) {
     case VIEWPORT_FILL_WINDOW:
         viewport.width = width;
@@ -419,17 +575,24 @@ void resize(Viewport &viewport, u16 width, u16 height) {
 
 		break;
 	default:
-		log(LOG_MINIMAL, "Failed to resize viewport with unknown aspect type %d", viewport.aspect_type);
+		log(LOG_ERROR, "Failed to resize viewport with unknown aspect type %d", viewport.aspect_type);
 		break;
 	}
 
-    viewport.orthographic_projection = make_orthographic(0, viewport.width, 0, viewport.height, -1, 1);
+    viewport.orthographic_projection = make_orthographic(0, (f32)viewport.width, 0, (f32)viewport.height, -1, 1);
     
-    const u16 target_width  = (u16)((f32)viewport.width  * viewport.resolution_scale);
-    const u16 target_height = (u16)((f32)viewport.height * viewport.resolution_scale);
+    const auto internal_width  = (u32)((f32)viewport.width  * viewport.resolution_scale);
+    const auto internal_height = (u32)((f32)viewport.height * viewport.resolution_scale);
+
+    if (viewport.framebuffer) gpu_delete_framebuffer(viewport.framebuffer);
     
-    resize(viewport.render_target, target_width, target_height);
-    log("Resized viewport 0x%X to %dx%d", &viewport, target_width, target_height);
+    const Gpu_Image_Format color_formats[] = { GPU_IMAGE_FORMAT_RGB_8 };
+    viewport.framebuffer = gpu_new_framebuffer(color_formats, carray_count(color_formats),
+                                               internal_width, internal_height,
+                                               GPU_IMAGE_FORMAT_DEPTH_24_STENCIL_8,
+                                               internal_width, internal_height);
+    
+    log("Resized viewport 0x%X to %dx%d", &viewport, internal_width, internal_height);
 }
 
 static Render_Key get_entity_render_key(Entity *e) {
@@ -482,11 +645,11 @@ void render_entity(Entity *e) {
 
     auto shader     = material->shader;
     auto &cbi_table = material->cbi_table;
-    auto &vertex_descriptor = mesh->vertex_descriptor;
     
     Render_Primitive prim;
-    prim.topology_mode = TOPOLOGY_TRIANGLES;
-    prim.vertex_descriptor = &vertex_descriptor;
+    prim.topology = GPU_TOPOLOGY_TRIANGLES;
+    prim.vertex_input = mesh->vertex_input;
+    prim.vertex_offsets = mesh->vertex_offsets;
     prim.shader = shader;
 
     if (material->diffuse_texture) {
@@ -525,12 +688,10 @@ void render_entity(Entity *e) {
         prim.element_count = mesh->vertex_count;
     }
 
-    auto submit_buffer = get_submit_buffer();
+    auto submit = get_gpu_submit_allocation();
     prim.is_entity  = true;
-    prim.eid_offset = get_gpu_buffer_offset(submit_buffer->data) + submit_buffer->used;
-
-    auto gpu_eid = alloc(submit_buffer, sizeof(Pid));
-    *(Pid *)gpu_eid = e->eid;
+    prim.eid_offset = submit->offset + submit->used;
+    gpu_append(submit, e->eid);
 
     auto render_batch = has_transparency(material) ? get_transparent_batch() : get_opaque_batch();
     add_primitive(render_batch, prim, get_entity_render_key(e));
@@ -563,7 +724,7 @@ void render_entity(Entity *e) {
         command.stencil.mask                = 0x00;
         
         const auto *camera = desired_camera(world);
-        const u32 color = rgba_yellow;
+        const Color32 color = rgba_yellow;
         const mat4 mvp = mat4_transform(e->position, e->rotation, e->scale * 1.02f) * camera->view_proj;
 
         auto &material = asset_table.materials[SID_MATERIAL_OUTLINE];
@@ -579,46 +740,49 @@ void render_entity(Entity *e) {
 
 void init_line_geometry() {
     auto &geo = line_geometry;
-    
-    const u64 position_buffer_offset = get_gpu_buffer_mark();
-    geo.positions = Gpu_New(Vector3, geo.MAX_VERTICES);
-    
-    const u64 color_buffer_offset = get_gpu_buffer_mark();;
-    geo.colors = Gpu_New(u32,  geo.MAX_VERTICES);
+
+    auto gpu_allocation = gpu_alloc(geo.MAX_VERTICES * sizeof(Vector3), &gpu_write_allocator);
+    const auto position_buffer_offset = gpu_allocation.offset;
+    geo.positions_offset = gpu_allocation.offset;
+    geo.positions = (Vector3 *)gpu_allocation.mapped_data;
+
+    gpu_allocation = gpu_alloc(geo.MAX_VERTICES * sizeof(u32), &gpu_write_allocator);
+    const auto color_buffer_offset = gpu_allocation.offset;
+    geo.colors_offset = gpu_allocation.offset;
+    geo.colors = (Color32 *)gpu_allocation.mapped_data;
     
     geo.vertex_count = 0;
 
-    const Vertex_Binding bindings[2] = {
-        {
-            .binding_index = 0,
-            .offset = position_buffer_offset,
-            .component_count = 1,
-            .components = {
-                { .type = VC_F32_3, .advance_rate = 0, .normalize = false }
-            },
-        },
-        {
-            .binding_index = 1,
-            .offset = color_buffer_offset,
-            .component_count = 1,
-            .components = {
-                { .type = VC_U32, .advance_rate = 0, .normalize = false }
-            },
-        },
-    };
+    Gpu_Vertex_Binding bindings[2];
+    bindings[0].input_rate = GPU_VERTEX_INPUT_RATE_VERTEX;
+    bindings[0].index      = 0;
+    bindings[0].stride     = 12;
+    bindings[1].input_rate = GPU_VERTEX_INPUT_RATE_VERTEX;
+    bindings[1].index      = 1;
+    bindings[1].stride     = 4;
+
+    Gpu_Vertex_Attribute attributes[2];
+    attributes[0].type    = GPU_VERTEX_ATTRIBUTE_TYPE_V3;
+    attributes[0].index   = 0;
+    attributes[0].binding = 0;
+    attributes[0].offset  = 0;
+    attributes[1].type    = GPU_VERTEX_ATTRIBUTE_TYPE_U32;
+    attributes[1].index   = 1;
+    attributes[1].binding = 1;
+    attributes[1].offset  = 0;
     
-    geo.vertex_descriptor = make_vertex_descriptor(bindings, carray_count(bindings));;
+    geo.vertex_input = gpu_new_vertex_input(bindings, carray_count(bindings), attributes, carray_count(attributes));
 }
 
-void draw_line(Vector3 start, Vector3 end, u32 color) {
+void draw_line(Vector3 start, Vector3 end, Color32 color) {
     auto &geo = line_geometry;
     if (geo.vertex_count + 2 > geo.MAX_VERTICES) {
-        log(LOG_MINIMAL, "Can't draw more line geometry, limit of %d lines is reached", geo.MAX_LINES);
+        log(LOG_ERROR, "Can't draw more line geometry, limit of %d lines is reached", geo.MAX_LINES);
         return;
     }
 
-    Vector3 *vl = geo.positions + geo.vertex_count;
-    u32  *vc = geo.colors    + geo.vertex_count;
+    auto vl = geo.positions + geo.vertex_count;
+    auto vc = geo.colors    + geo.vertex_count;
         
     vl[0] = start;
     vl[1] = end;
@@ -628,7 +792,7 @@ void draw_line(Vector3 start, Vector3 end, u32 color) {
     geo.vertex_count += 2;
 }
 
-void draw_arrow(Vector3 start, Vector3 end, u32 color) {
+void draw_arrow(Vector3 start, Vector3 end, Color32 color) {
     static const f32 size = 0.04f;
     static const f32 arrow_step = 30.0f; // in degrees
     static const f32 arrow_sin[45] = {
@@ -676,12 +840,12 @@ void draw_arrow(Vector3 start, Vector3 end, u32 color) {
 }
 
 void draw_cross(Vector3 position, f32 size) {
-    draw_arrow(position, position + Vector3_up * size,      rgba_blue);
-    draw_arrow(position, position + Vector3_right * size,   rgba_green);
-    draw_arrow(position, position + Vector3_forward * size, rgba_red);
+    draw_arrow(position, position + Vector3_up * size,      COLOR32_BLUE);
+    draw_arrow(position, position + Vector3_right * size,   COLOR32_GREEN);
+    draw_arrow(position, position + Vector3_forward * size, COLOR32_RED);
 }
 
-void draw_box(const Vector3 points[8], u32 color) {
+void draw_box(const Vector3 points[8], Color32 color) {
     for (int i = 0; i < 4; ++i) {
         draw_line(points[i],     points[(i + 1) % 4],       color);
         draw_line(points[i + 4], points[((i + 1) % 4) + 4], color);
@@ -689,7 +853,7 @@ void draw_box(const Vector3 points[8], u32 color) {
     }
 }
 
-void draw_aabb(const AABB &aabb, u32 color) {
+void draw_aabb(const AABB &aabb, Color32 color) {
     const Vector3 bb[2] = { aabb.c - aabb.r, aabb.c + aabb.r };
     Vector3 points[8];
 
@@ -702,7 +866,7 @@ void draw_aabb(const AABB &aabb, u32 color) {
     draw_box(points, color);
 }
 
-void draw_ray(const Ray &ray, f32 length, u32 color) {
+void draw_ray(const Ray &ray, f32 length, Color32 color) {
     const Vector3 start = ray.origin;
     const Vector3 end   = ray.origin + ray.direction * length;
     draw_line(start, end, color);
@@ -720,7 +884,7 @@ static void preload_mesh(const File_Callback_Data *data) {
 void preload_all_meshes() {
     SCOPE_TIMER("Preloaded all meshes in");
     
-    constexpr String path = PATH_MESH("");
+    const auto path = PATH_MESH("");
     visit_directory(path, preload_mesh);
 }
 
@@ -736,18 +900,18 @@ bool operator==(const Obj_Vertex_Key& a, const Obj_Vertex_Key& b) {
 }
 
 Triangle_Mesh *new_mesh(String path, Buffer contents) {
-    constexpr String obj_ext = S("obj"); 
+    const auto obj_ext = S("obj"); 
     
     path = copy_string(path);
     auto name = get_file_name_no_ext(path);
     auto ext  = get_extension(path);
 
-    auto &tri_mesh = triangle_mesh_table[name];
+    auto &tri_mesh = mesh_table[name];
     tri_mesh.path = path;
     tri_mesh.name = name;
     
     if (ext == obj_ext) {
-        constexpr auto LOG_IDENT_TINYOBJ = S("tinyobj");
+        const auto LOG_IDENT_TINYOBJ = S("tinyobj");
         const auto obj_data = std::string((const char *)contents.data, contents.size);
 
         std::istringstream stream(obj_data);
@@ -756,22 +920,22 @@ Triangle_Mesh *new_mesh(String path, Buffer contents) {
         std::vector<tinyobj::material_t> materials;
         std::string warning;
         std::string err;
-        tinyobj::MaterialFileReader mat_file_reader(PATH_MATERIAL("").data);
+        tinyobj::MaterialFileReader mat_file_reader((char *)PATH_MATERIAL("").data);
         
         const bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warning, &err, &stream, &mat_file_reader);
 
         if (!warning.empty()) {
-            log(LOG_IDENT_TINYOBJ, LOG_VERBOSE, "%s", warning.c_str());
+            log(LOG_IDENT_TINYOBJ, LOG_WARNING, "%s", warning.c_str());
         }
 
         if (!err.empty()) {
-            log(LOG_IDENT_TINYOBJ, LOG_MINIMAL, "%s", err.c_str());
-            return null;
+            log(LOG_IDENT_TINYOBJ, LOG_ERROR, "%s", err.c_str());
+            return &tri_mesh;
         }
 
         if (!ret) {
-            log(LOG_MINIMAL, "Failed to load %S", path);
-            return null;
+            log(LOG_ERROR, "Failed to load %S", path);
+            return &tri_mesh;
         }
 
         tri_mesh.index_count = 0;
@@ -867,77 +1031,52 @@ Triangle_Mesh *new_mesh(String path, Buffer contents) {
         const u32 normals_size   = normals  .count * sizeof(normals  [0]);
         const u32 uvs_size       = uvs      .count * sizeof(uvs      [0]);
 
-        const auto positions_offset = get_gpu_buffer_mark();
-        auto gpu_positions = alloc(positions_size, gpu_allocator);
+        auto gpu_allocation = gpu_alloc(positions_size, &gpu_write_allocator);
+        const auto positions_offset = gpu_allocation.offset;
+        auto gpu_positions = gpu_allocation.mapped_data;
+        
+        gpu_allocation = gpu_alloc(normals_size, &gpu_write_allocator);
+        const auto normals_offset = gpu_allocation.offset;
+        auto gpu_normals = gpu_allocation.mapped_data;
 
-        const auto normals_offset = get_gpu_buffer_mark();
-        auto gpu_normals = alloc(normals_size, gpu_allocator);
-
-        const auto uvs_offset = get_gpu_buffer_mark();
-        auto gpu_uvs = alloc(uvs_size, gpu_allocator);
+        gpu_allocation = gpu_alloc(uvs_size, &gpu_write_allocator);
+        const auto uvs_offset = gpu_allocation.offset;
+        auto gpu_uvs = gpu_allocation.mapped_data;
 
         copy(gpu_positions, positions.items, positions_size);
         copy(gpu_normals, normals.items, normals_size);
         copy(gpu_uvs, uvs.items, uvs_size);
-        
-        const Vertex_Binding bindings[] = {
-            {
-                .binding_index = 0,
-                .offset = positions_offset,
-                .component_count = 1,
-                .components = {
-                    { .type = VC_F32_3, .advance_rate = 0, .normalize = false },
-                },
-            },
-            {
-                .binding_index = 1,
-                .offset = normals_offset,
-                .component_count = 1,
-                .components = {
-                    { .type = VC_F32_3, .advance_rate = 0, .normalize = false },
-                },
-            },
-            {
-                .binding_index = 2,
-                .offset = uvs_offset,
-                .component_count = 1,
-                .components = {
-                    { .type = VC_F32_2, .advance_rate = 0, .normalize = false },
-                },
-            },
-        };
+
+        tri_mesh.vertex_input = gpu.vertex_input_entity;
+        tri_mesh.vertex_offsets    = New(u64, 3);
+        tri_mesh.vertex_offsets[0] = positions_offset;
+        tri_mesh.vertex_offsets[1] = normals_offset;
+        tri_mesh.vertex_offsets[2] = uvs_offset;
         
         tri_mesh.vertex_count = positions.count;
-        tri_mesh.vertex_descriptor = make_vertex_descriptor(bindings, carray_count(bindings));
 
-        const u64 index_offset = get_gpu_buffer_mark();
-        const u32 indices_size = indices.count * sizeof(indices[0]);
+        gpu_allocation = gpu_alloc(indices.count * sizeof(indices[0]), &gpu_write_allocator);
+        const auto index_offset = gpu_allocation.offset;
+        const auto indices_size = indices.count * sizeof(indices[0]);
 
-        auto gpu_indices = alloc(indices_size, gpu_allocator);
+        auto gpu_indices = gpu_allocation.mapped_data;
         copy(gpu_indices, indices.items, indices_size);
 
-        tri_mesh.first_index = (u32)(index_offset) / sizeof(u32);
+        tri_mesh.index_offset = index_offset;
+        tri_mesh.first_index  = (u32)(index_offset) / sizeof(u32);
     } else {
-        table_remove(triangle_mesh_table, name);
-        log(LOG_MINIMAL, "Unsupported mesh extension in %S", path);
-        return null;
+        log(LOG_ERROR, "Unsupported mesh extension in %S", path);
     }
 
     return &tri_mesh;
 }
 
 Triangle_Mesh *get_mesh(String name) {
-    return table_find(triangle_mesh_table, name);
-}
+    auto mesh = table_find(mesh_table, name);
+    if (mesh) return mesh;
 
-u16 get_vertex_component_dimension(Vertex_Component_Type type) {
-    constexpr u16 lut[VC_COUNT] = { 0, 1, 1, 1, 2, 3, 4 };
-    return lut[type];
-}
-
-u16 get_vertex_component_size(Vertex_Component_Type type) {
-    constexpr u16 lut[VC_COUNT] = { 0, 4, 4, 4, 8, 12, 16 };
-    return lut[type];
+    log(LOG_ERROR, "Failed to find mesh %S", name);
+    return global_meshes.missing;
 }
 
 Render_Batch make_render_batch(u32 capacity, Allocator alc) {
@@ -952,32 +1091,32 @@ void flush(Render_Batch *batch) {
     std::stable_sort(batch->entries, batch->entries + batch->count);
     
     auto buf             = get_command_buffer();
-    auto indirect        = get_indirect_buffer();
-    auto indirect_offset = indirect->used;
+    auto indirect        = get_gpu_indirect_allocation();
+    auto indirect_offset = (u32)(indirect->offset + indirect->used);
             
     for (u32 i = 0; i < batch->count; ++i) {
         const auto prim = batch->entries[i].primitive;
         if (prim->indexed) {
-            Assert(prim->instance_count != 0);
+            Assert(prim->instance_count);
             
-            Indirect_Draw_Indexed_Command cmd;
+            Gpu_Indirect_Draw_Indexed_Command cmd;
             cmd.index_count    = prim->element_count;
             cmd.instance_count = prim->instance_count;
             cmd.first_index    = prim->first_element;
             cmd.vertex_offset  = 0;
             cmd.first_instance = prim->first_instance;
 
-            add_command(indirect, cmd);
+            gpu_append(indirect, cmd);
         } else {
-            Assert(prim->instance_count != 0);
+            Assert(prim->instance_count);
 
-            Indirect_Draw_Command cmd;
+            Gpu_Indirect_Draw_Command cmd;
             cmd.vertex_count   = prim->element_count;
             cmd.instance_count = prim->instance_count;
             cmd.first_vertex   = prim->first_element;
             cmd.first_instance = prim->first_instance;
 
-            add_command(indirect, cmd);
+            gpu_append(indirect, cmd);
         }
     }
 
@@ -1000,37 +1139,48 @@ void flush(Render_Batch *batch) {
                     
                     // @Cleanup: find first available texture slot, it will cause
                     // bugs if shader has several texture slots.
-                    set_texture(buf, it.value.binding, prim->texture);
+                    gpu_cmd_image_view(buf, it.value.binding, prim->texture->image_view);
+                    gpu_cmd_sampler   (buf, it.value.binding, prim->texture->sampler);
                 }
             }
         }
 
-        set_topology         (buf, prim->topology_mode);
-        set_shader           (buf, prim->shader);
-        set_vertex_descriptor(buf, prim->vertex_descriptor);
+        gpu_cmd_shader      (buf, prim->shader);
+        gpu_cmd_vertex_input(buf, prim->vertex_input);
+        
+        // @Cleanup
+        const auto vertex_input = gpu_get_vertex_input(prim->vertex_input);
+        for (u32 j = 0; j < vertex_input->binding_count; ++j) {
+            const auto &binding = vertex_input->bindings[j];
+            const auto offset = prim->vertex_offsets[j];
             
+            gpu_cmd_vertex_buffer(buf, gpu_write_allocator.buffer, binding.index, offset, binding.stride);
+            gpu_cmd_index_buffer (buf, gpu_write_allocator.buffer);
+        }
+        
         if (prim->is_entity) {
+            // @Todo
             // For entity render we need extra vertex binding for eid.
-            auto binding = New(Vertex_Binding, 1, __temporary_allocator);
+            // auto binding = New(Vertex_Binding, 1, __temporary_allocator);
 
-            binding->binding_index = prim->vertex_descriptor->binding_count;
-            binding->offset = prim->eid_offset;
-            binding->component_count = 1;
-            binding->components[0] = { .type = VC_U32, .advance_rate = 99 };
+            // binding->binding_index = prim->vertex_descriptor->binding_count;
+            // binding->offset = prim->eid_offset;
+            // binding->component_count = 1;
+            // binding->components[0] = { .type = VC_U32, .advance_rate = 1 };
             
-            set_vertex_binding(buf, binding, prim->vertex_descriptor->handle);
+            // gpu_cmd_vertex_binding(buf, binding, prim->vertex_descriptor->handle);
         }
 
         For (prim->cbis) {
-            set_cbuffer_instance(buf, it);
+            gpu_cmd_cbuffer_instance(buf, it);
         }
         
         if (prim->indexed) {
-            draw_indirect_indexed(buf, indirect, indirect_offset, merge_count, 0);
-            indirect_offset += merge_count * sizeof(Indirect_Draw_Indexed_Command);
+            gpu_cmd_draw_indirect_indexed(buf, prim->topology, indirect->mapped_data, indirect_offset, merge_count, 0);
+            indirect_offset += merge_count * sizeof(Gpu_Indirect_Draw_Indexed_Command);
         } else {            
-            draw_indirect(buf, indirect, indirect_offset, merge_count, 0);
-            indirect_offset += merge_count * sizeof(Indirect_Draw_Command);
+            gpu_cmd_draw_indirect(buf, prim->topology, indirect->mapped_data, indirect_offset, merge_count, 0);
+            indirect_offset += merge_count * sizeof(Gpu_Indirect_Draw_Command);
         };
     }
     
@@ -1049,288 +1199,343 @@ void add_primitive(Render_Batch *batch, const Render_Primitive &prim, Render_Key
 bool can_be_merged(const Render_Primitive &a, const Render_Primitive &b) {
     return a.shader            == b.shader
         && a.texture           == b.texture
-        && a.vertex_descriptor == b.vertex_descriptor
-        && a.topology_mode     == b.topology_mode
-        && a.indexed           == b.indexed;
+        && a.vertex_input      == b.vertex_input
+        && a.topology          == b.topology
+        && a.indexed           == b.indexed
+        // @Cleanup: this one should not be here, implement correct draw of merged primitives.
+        && a.vertex_offsets[0] == b.vertex_offsets[0];
 }
 
 bool can_be_merged(const Render_Batch_Entry &a, const Render_Batch_Entry &b) {
     return can_be_merged(*a.primitive, *b.primitive);
 }
 
-Command_Buffer make_command_buffer(u32 capacity, Allocator alc) {
-    Command_Buffer buffer;
-    buffer.capacity = capacity;
-    buffer.commands = New(Command, capacity, alc);
+void gpu_add_cmds(u32 cmd_buffer, Gpu_Command *cmds, u32 count) {    
+    auto buffer = gpu_get_command_buffer(cmd_buffer);
+    Assert(buffer->count + count <= buffer->capacity);
     
-    return buffer;
+    copy(buffer->commands + buffer->count, cmds, count * sizeof(cmds[0]));
+    buffer->count += count;
 }
 
-void add_cmd(Command_Buffer *buf, const Command &cmd) {
-    Assert(cmd.type != CMD_NONE);
-    Assert(buf->count < buf->capacity);
-    
-    buf->commands[buf->count] = cmd;
-    buf->count += 1;
-}
-
-void set_polygon(Command_Buffer *buf, Polygon_Mode mode) {
+void gpu_cmd_polygon(u32 cmd_buffer, Gpu_Polygon_Mode mode) {
     // Unfortunately, C++ designated initializers can't even be used in a bit more
     // complicated scenario, so this snippet produces internal compiler error...
     //
     // add_cmd(buf, { .type = CMD_POLYGON, .polygon_mode = mode });
 
-    Command cmd;
-    cmd.type = CMD_POLYGON;
-    cmd.polygon_mode = mode;
+    Gpu_Command cmd;
+    cmd.type    = GPU_CMD_POLYGON;
+    cmd.polygon = mode;
     
-    add_cmd(buf, cmd);
+    gpu_add_cmds(cmd_buffer, &cmd, 1);
 }
 
-void set_topology(Command_Buffer *buf, Topology_Mode mode) {
-    Command cmd;
-    cmd.type = CMD_TOPOLOGY;
-    cmd.topology_mode = mode;
+void gpu_cmd_viewport(u32 cmd_buffer, s32 x, s32 y, u32 w, u32 h) {
+    Gpu_Command cmd;
+    cmd.type = GPU_CMD_VIEWPORT;
+    cmd.x    = x;
+    cmd.y    = y;
+    cmd.w    = w;
+    cmd.h    = h;
     
-    add_cmd(buf, cmd);
+    gpu_add_cmds(cmd_buffer, &cmd, 1);
 }
 
-void set_viewport(Command_Buffer *buf, s32 x, s32 y, u32 w, u32 h) {
-    Command cmd;
-    cmd.type = CMD_VIEWPORT;
-    cmd.x = x;
-    cmd.y = y;
-    cmd.w = w;
-    cmd.h = h;
+void gpu_cmd_scissor(u32 cmd_buffer, s32 x, s32 y, u32 w, u32 h) {
+    Gpu_Command cmd;
+    cmd.type = GPU_CMD_SCISSOR;
+    cmd.x    = x;
+    cmd.y    = y;
+    cmd.w    = w;
+    cmd.h    = h;
     
-    add_cmd(buf, cmd);
+    gpu_add_cmds(cmd_buffer, &cmd, 1);
 }
 
-void set_scissor(Command_Buffer *buf, s32 x, s32 y, u32 w, u32 h) {
-    Command cmd;
-    cmd.type = CMD_SCISSOR;
-    cmd.x = x;
-    cmd.y = y;
-    cmd.w = w;
-    cmd.h = h;
-    
-    add_cmd(buf, cmd);
-}
-
-void set_cull(Command_Buffer *buf, Cull_Face face, Winding_Type winding) {
-    Command cmd;
-    cmd.type = CMD_CULL;
+void gpu_cmd_cull_face(u32 cmd_buffer, Gpu_Cull_Face face) {
+    Gpu_Command cmd;
+    cmd.type      = GPU_CMD_CULL_FACE;
     cmd.cull_face = face;
-    cmd.cull_winding = winding;
     
-    add_cmd(buf, cmd);
+    gpu_add_cmds(cmd_buffer, &cmd, 1);
 }
 
-void set_blend_write(Command_Buffer *buf, bool write) {
-    Command cmd;
-    cmd.type = CMD_BLEND_WRITE;
-    cmd.blend_write = write;
+void gpu_cmd_winding(u32 cmd_buffer, Gpu_Winding_Type winding) {
+    Gpu_Command cmd;
+    cmd.type    = GPU_CMD_WINDING;
+    cmd.winding = winding;
     
-    add_cmd(buf, cmd);
+    gpu_add_cmds(cmd_buffer, &cmd, 1);
 }
 
-void set_blend_func(Command_Buffer *buf, Blend_Func src, Blend_Func dst) {
-    Command cmd;
-    cmd.type = CMD_BLEND_FUNC;
+void gpu_cmd_scissor_test(u32 cmd_buffer, bool test) {
+    Gpu_Command cmd;
+    cmd.type         = GPU_CMD_SCISSOR_TEST;
+    cmd.scissor_test = test;
+    
+    gpu_add_cmds(cmd_buffer, &cmd, 1);
+}
+
+void gpu_cmd_blend_test(u32 cmd_buffer, bool test) {
+    Gpu_Command cmd;
+    cmd.type       = GPU_CMD_BLEND_TEST;
+    cmd.blend_test = test;
+    
+    gpu_add_cmds(cmd_buffer, &cmd, 1);
+}
+
+void gpu_cmd_blend_func(u32 cmd_buffer, Gpu_Blend_Function src, Gpu_Blend_Function dst) {
+    Gpu_Command cmd;
+    cmd.type      = GPU_CMD_BLEND_FUNC;
     cmd.blend_src = src;
     cmd.blend_dst = dst;
     
-    add_cmd(buf, cmd);
+    gpu_add_cmds(cmd_buffer, &cmd, 1);
 }
 
-void set_depth_write(Command_Buffer *buf, bool write) {
-    Command cmd;
-    cmd.type = CMD_DEPTH_WRITE;
+void gpu_cmd_depth_test(u32 cmd_buffer, bool test) {
+    Gpu_Command cmd;
+    cmd.type       = GPU_CMD_DEPTH_TEST;
+    cmd.depth_test = test;
+    
+    gpu_add_cmds(cmd_buffer, &cmd, 1);
+}
+
+void gpu_cmd_depth_write(u32 cmd_buffer, bool write) {
+    Gpu_Command cmd;
+    cmd.type        = GPU_CMD_DEPTH_WRITE;
     cmd.depth_write = write;
     
-    add_cmd(buf, cmd);
+    gpu_add_cmds(cmd_buffer, &cmd, 1);
 }
 
-void set_depth_func(Command_Buffer *buf, Depth_Func func) {
-    Command cmd;
-    cmd.type = CMD_DEPTH_FUNC;
+void gpu_cmd_depth_func(u32 cmd_buffer, Gpu_Depth_Function func) {
+    Gpu_Command cmd;
+    cmd.type       = GPU_CMD_DEPTH_FUNC;
     cmd.depth_func = func;
     
-    add_cmd(buf, cmd);
+    gpu_add_cmds(cmd_buffer, &cmd, 1);
 }
 
-void set_stencil_mask(Command_Buffer *buf, u32 mask) {
-    Command cmd;
-    cmd.type = CMD_STENCIL_MASK;
+void gpu_cmd_stencil_mask(u32 cmd_buffer, u32 mask) {
+    Gpu_Command cmd;
+    cmd.type                = GPU_CMD_STENCIL_MASK;
+    cmd.stencil_global_mask = mask;
+    
+    gpu_add_cmds(cmd_buffer, &cmd, 1);
+}
+
+void gpu_cmd_stencil_func(u32 cmd_buffer, Gpu_Stencil_Function func, u32 cmp, u32 mask) {
+    Gpu_Command cmd;
+    cmd.type         = GPU_CMD_STENCIL_FUNC;
+    cmd.stencil_test = func;
+    cmd.stencil_ref  = cmp;
     cmd.stencil_mask = mask;
     
-    add_cmd(buf, cmd);
+    gpu_add_cmds(cmd_buffer, &cmd, 1);
 }
 
-void set_stencil_func(Command_Buffer *buf, Stencil_Func func, u32 cmp, u32 mask) {
-    Command cmd;
-    cmd.type = CMD_STENCIL_FUNC;
-    cmd.stencil_func = func;
-    cmd.stencil_func_cmp = cmp;
-    cmd.stencil_func_mask = mask;
+void gpu_cmd_stencil_op(u32 cmd_buffer, Gpu_Stencil_Function fail, Gpu_Stencil_Function pass, Gpu_Stencil_Function depth_fail) {
+    Gpu_Command cmd;
+    cmd.type                = GPU_CMD_STENCIL_OP;
+    cmd.stencil_fail        = fail;
+    cmd.stencil_pass        = pass;
+    cmd.stencil_depth_fail = depth_fail;
     
-    add_cmd(buf, cmd);
+    gpu_add_cmds(cmd_buffer, &cmd, 1);
 }
 
-void set_stencil_op(Command_Buffer *buf, Stencil_Func fail, Stencil_Func pass, Stencil_Func depth_fail) {
-    Command cmd;
-    cmd.type = CMD_STENCIL_OP;
-    cmd.stencil_op_fail = fail;
-    cmd.stencil_op_pass = pass;
-    cmd.stencil_op_depth_fail = depth_fail;
+void gpu_cmd_clear(u32 cmd_buffer, Color4f color, u32 bits) {
+    Gpu_Command cmd;
+    cmd.type        = GPU_CMD_CLEAR;
+    cmd.clear_color = color;
+    cmd.clear_bits  = bits;
     
-    add_cmd(buf, cmd);
+    gpu_add_cmds(cmd_buffer, &cmd, 1);
 }
 
-void clear(Command_Buffer *buf, f32 r, f32 g, f32 b, f32 a, u32 bits) {
-    Command cmd;
-    cmd.type = CMD_CLEAR;
-    cmd.clear_r = r;
-    cmd.clear_g = g;
-    cmd.clear_b = b;
-    cmd.clear_a = a;
-    cmd.clear_bits = bits;
+void gpu_cmd_shader(u32 cmd_buffer, Shader *shader) {
+    Gpu_Command cmd;
+    cmd.type            = GPU_CMD_SHADER;
+    cmd.resource_handle = shader->linked_program;
     
-    add_cmd(buf, cmd);
+    gpu_add_cmds(cmd_buffer, &cmd, 1);
 }
 
-void set_shader(Command_Buffer *buf, Shader *shader) {
-    Command cmd;
-    cmd.type = CMD_SHADER;
-    cmd.shader = shader;
+// void gpu_cmd_shader(u32 cmd_buffer, u32 shader) {
+//     Gpu_Command cmd;
+//     cmd.type = GPU_CMD_SHADER;
+//     cmd.bind_resource = shader;
     
-    add_cmd(buf, cmd);
-}
+//     gpu_add_cmds(cmd_buffer, &cmd, 1);
+// }
 
-void set_texture(Command_Buffer *buf, u32 binding, Texture *texture) {
-    Command cmd;
-    cmd.type = CMD_TEXTURE;
-    cmd.texture = texture;
-    cmd.texture_binding = binding;
+void gpu_cmd_image_view(u32 cmd_buffer, u32 binding, u32 image_view) {
+    Gpu_Command cmd;
+    cmd.type          = GPU_CMD_IMAGE_VIEW;
+    cmd.bind_index    = binding;
+    cmd.bind_resource = image_view;
     
-    add_cmd(buf, cmd);
+    gpu_add_cmds(cmd_buffer, &cmd, 1);
 }
 
-void set_vertex_descriptor(Command_Buffer *buf, Vertex_Descriptor *descriptor) {
-    Command cmd;
-    cmd.type = CMD_VERTEX_DESCRIPTOR;
-    cmd.vertex_descriptor = descriptor;
+void gpu_cmd_sampler(u32 cmd_buffer, u32 binding, u32 sampler) {
+    Gpu_Command cmd;
+    cmd.type          = GPU_CMD_SAMPLER;
+    cmd.bind_index    = binding;
+    cmd.bind_resource = sampler;
     
-    add_cmd(buf, cmd);
+    gpu_add_cmds(cmd_buffer, &cmd, 1);
 }
 
-void set_vertex_binding(Command_Buffer *buf, Vertex_Binding *binding, Gpu_Handle descriptor_handle) {
-    Command cmd;
-    cmd.type = CMD_VERTEX_BINDING;
-    cmd.vertex_binding = binding;
-    cmd.vertex_descriptor_handle = descriptor_handle;
+void gpu_cmd_vertex_input(u32 cmd_buffer, u32 vertex_input) {
+    Gpu_Command cmd;
+    cmd.type          = GPU_CMD_VERTEX_INPUT;
+    cmd.bind_resource = vertex_input;
     
-    add_cmd(buf, cmd);
+    gpu_add_cmds(cmd_buffer, &cmd, 1);
 }
 
-void set_render_target(Command_Buffer *buf, Render_Target *target) {
-    Command cmd;
-    cmd.type = CMD_RENDER_TARGET;
-    cmd.render_target = target;
+// void set_vertex_binding(u32 cmd_buffer, Vertex_Binding *binding, Handle descriptor_handle) {
+//     Gpu_Command cmd;
+//     cmd.type = GPU_CMD_VERTEX_BINDING;
+//     cmd.vertex_binding = binding;
+//     cmd.vertex_descriptor_handle = descriptor_handle;
     
-    add_cmd(buf, cmd);
-}
+//     gpu_add_cmds(cmd_buffer, &cmd, 1);
+// }
 
-void set_cbuffer_instance(Command_Buffer *buf, Constant_Buffer_Instance *instance) {
-    Command cmd;
-    cmd.type = CMD_CBUFFER_INSTANCE;
-    cmd.cbuffer_instance = instance;
+void gpu_cmd_vertex_buffer(u32 cmd_buffer, u32 buffer, u32 binding, u64 offset, u32 stride) {
+    Gpu_Command cmd;
+    cmd.type          = GPU_CMD_VERTEX_BUFFER;
+    cmd.bind_index    = binding;
+    cmd.bind_resource = buffer;
+    cmd.bind_offset   = offset;
+    cmd.bind_stride   = stride;
     
-    add_cmd(buf, cmd);    
+    gpu_add_cmds(cmd_buffer, &cmd, 1);
 }
 
-void draw(Command_Buffer *buf, u32 vertex_count, u32 instance_count, u32 first_vertex, u32 first_instance) {
-    Command cmd;
-    cmd.type = CMD_DRAW;
-    cmd.vertex_count = vertex_count;
+void gpu_cmd_index_buffer(u32 cmd_buffer, u32 buffer) {
+    Gpu_Command cmd;
+    cmd.type          = GPU_CMD_INDEX_BUFFER;
+    cmd.bind_resource = buffer;
+    
+    gpu_add_cmds(cmd_buffer, &cmd, 1);
+}
+
+void gpu_cmd_framebuffer(u32 cmd_buffer, u32 framebuffer) {
+    Gpu_Command cmd;
+    cmd.type          = GPU_CMD_FRAMEBUFFER;
+    cmd.bind_resource = framebuffer;
+    
+    gpu_add_cmds(cmd_buffer, &cmd, 1);
+}
+
+void gpu_cmd_cbuffer_instance(u32 cmd_buffer, Constant_Buffer_Instance *instance) {
+    auto cbi = instance;
+    auto cb  = cbi->constant_buffer;
+
+    auto submit = get_gpu_submit_allocation();
+    // Ensure next allocation for submit data is properly 
+    // aligned with cbuffer offset requirements.
+    submit->used = Align(submit->used, (u64)gpu_uniform_buffer_offset_alignment());
+    const auto offset = submit->offset + submit->used;
+
+    For (cbi->value_table) {
+        auto data = it.value.data;
+        auto c    = it.value.constant;
+
+        auto gpu_data = (u8 *)submit->mapped_data + submit->used + c->offset;
+        copy(gpu_data, data, c->size);
+                
+        //
+        // This is an interesting discover about difference between updating gpu
+        // memory through mapped pointer or by using direct gl call. The former
+        // updates data as is and memory is visible at gpu execution time, not at
+        // submission time, so there was a bug that all entities used last set
+        // entity parameters data. The latter copies data into drivers internal
+        // staging area from which gpu will read. So in some cases like frequent
+        // update of the same gpu memory region its better to use direct gl call
+        // to ensure correct data will be used by gpu later.
+        //
+        //                                                   -alex, Nov 24 2025
+        //
+        // Turned out that the latter version (glNamedBufferSubData) was slow...
+        //
+    }
+
+    submit->used += cb->size;
+
+    const auto buffer = gpu_get_buffer(submit->buffer);
+    
+    Gpu_Command cmd;
+    cmd.type          = GPU_CMD_CBUFFER_INSTANCE;
+    cmd.bind_resource = submit->buffer;
+    cmd.bind_index    = cb->binding;
+    cmd.bind_offset   = offset;
+    cmd.bind_size     = cb->size;
+    
+    gpu_add_cmds(cmd_buffer, &cmd, 1);
+}
+
+void gpu_cmd_draw(u32 cmd_buffer, Gpu_Topology_Mode topology, u32 vertex_count, u32 instance_count, u32 first_vertex, u32 first_instance) {
+    Gpu_Command cmd;
+    cmd.type           = GPU_CMD_DRAW;
+    cmd.topology       = topology;
+    cmd.draw_count     = vertex_count;
     cmd.instance_count = instance_count;
-    cmd.first_vertex = first_vertex;
+    cmd.first_draw     = first_vertex;
     cmd.first_instance = first_instance;
     
-    add_cmd(buf, cmd);
+    gpu_add_cmds(cmd_buffer, &cmd, 1);
 }
 
-void draw_indexed(Command_Buffer *buf, u32 index_count, u32 instance_count, u32 first_index, u32 first_instance) {
-    Command cmd;
-    cmd.type = CMD_DRAW_INDEXED;
-    cmd.index_count = index_count;
+void gpu_cmd_draw_indexed(u32 cmd_buffer, Gpu_Topology_Mode topology, u32 index_count, u32 instance_count, u32 first_index, u32 first_instance) {
+    Gpu_Command cmd;
+    cmd.type           = GPU_CMD_DRAW_INDEXED;
+    cmd.topology       = topology;
+    cmd.draw_count     = index_count;
     cmd.instance_count = instance_count;
-    cmd.first_index = first_index;
+    cmd.first_draw     = first_index;
     cmd.first_instance = first_instance;
     
-    add_cmd(buf, cmd);
+    gpu_add_cmds(cmd_buffer, &cmd, 1);
 }
 
-void draw_indirect(Command_Buffer *buf, Indirect_Buffer *indirect, u32 offset, u32 count, u32 stride) {
-    Command cmd;
-    cmd.type = CMD_DRAW_INDIRECT;
-    cmd.indirect_buffer = indirect;
+void gpu_cmd_draw_indirect(u32 cmd_buffer, Gpu_Topology_Mode topology, void *data, u32 offset, u32 count, u32 stride) {
+    Gpu_Command cmd;
+    cmd.type            = GPU_CMD_DRAW_INDIRECT;
+    cmd.topology        = topology;
+    cmd.indirect_data   = data;
     cmd.indirect_offset = offset;
     cmd.indirect_count  = count;
     cmd.indirect_stride = stride;
     
-    add_cmd(buf, cmd);
+    gpu_add_cmds(cmd_buffer, &cmd, 1);
 }
 
-void draw_indirect_indexed(Command_Buffer *buf, Indirect_Buffer *indirect, u32 offset, u32 count, u32 stride) {
-    Command cmd;
-    cmd.type = CMD_DRAW_INDEXED_INDIRECT;
-    cmd.indirect_buffer = indirect;
+void gpu_cmd_draw_indirect_indexed(u32 cmd_buffer, Gpu_Topology_Mode topology, void *data, u32 offset, u32 count, u32 stride) {
+    Gpu_Command cmd;
+    cmd.type            = GPU_CMD_DRAW_INDEXED_INDIRECT;
+    cmd.topology        = topology;
+    cmd.indirect_data   = data;
     cmd.indirect_offset = offset;
     cmd.indirect_count  = count;
     cmd.indirect_stride = stride;
     
-    add_cmd(buf, cmd);
+    gpu_add_cmds(cmd_buffer, &cmd, 1);
 }
 
-void map(Gpu_Buffer *buffer) {
-    // Map using the same bits that were used to create the buffer,
-    // except for dynamic one which is buffer storage exclusive.
-    const u32 bits = buffer->bits & ~GPU_DYNAMIC_BIT;
-    map(buffer, buffer->size, bits);
+u32 gpu_vertex_attribute_size(Gpu_Vertex_Attribute_Type type) {
+    constexpr u32 lut[] = { 0, 4, 4, 4, 8, 12, 16 };
+    return lut[type];
 }
 
-void *alloc(Gpu_Buffer *buffer, u64 size) {
-    Assert(buffer->mapped_pointer);
-    Assert(buffer->used + size < buffer->size);
-    auto data = (u8 *)buffer->mapped_pointer + buffer->used;
-    buffer->used += size;
-    return data;
-}
-
-Indirect_Buffer make_indirect_buffer(u32 size, Allocator alc) {
-    Indirect_Buffer indirect;
-    indirect.data = alloc(size, alc);
-    indirect.size = size;
-    indirect.used = 0;
-    
-    return indirect;
-}
-
-void reset(Indirect_Buffer *buffer) {
-    buffer->used = 0;
-}
-
-void add_command(Indirect_Buffer *buffer, const Indirect_Draw_Command &cmd) {
-    Assert(buffer->used + sizeof(cmd) < buffer->size);
-    *(Indirect_Draw_Command *)((u8 *)buffer->data + buffer->used) = cmd;
-    buffer->used += sizeof(cmd);
-}
-
-void add_command(Indirect_Buffer *buffer, const Indirect_Draw_Indexed_Command &cmd) {
-    Assert(buffer->used + sizeof(cmd) < buffer->size);
-    *(Indirect_Draw_Indexed_Command *)((u8 *)buffer->data + buffer->used) = cmd;
-    buffer->used += sizeof(cmd);
+u32 gpu_vertex_attribute_dimension(Gpu_Vertex_Attribute_Type type) {
+    constexpr u32 lut[] = { 0, 1, 1, 1, 2, 3, 4 };
+    return lut[type];
 }
 
 // flip book
@@ -1343,6 +1548,8 @@ Flip_Book *new_flip_book(String path) {
 
 Flip_Book *new_flip_book(String path, String contents) {
     Text_File_Handler text;
+    text.allocator = __temporary_allocator;
+    
     defer { reset(&text); };
     init_from_memory(&text, contents);
 
@@ -1358,23 +1565,23 @@ Flip_Book *new_flip_book(String path, String contents) {
         auto line = read_line(&text);        
         if (!line) break;
 
-        constexpr auto delims = S(" ");
+        const auto delims = S(" ");
         auto tokens = split(line, delims);
         Assert(tokens.count == 3, "Wrong flip book text data layout");
 
-        constexpr auto frame_token = S("f");
+        const auto frame_token = S("f");
 
         if (tokens[0] == frame_token) {
             auto frame_time   = string_to_float(tokens[1]);
             auto texture_name = get_file_name_no_ext(tokens[2]);
 
             Flip_Book_Frame frame;
-            frame.texture    = get_texture(texture_name);
+            frame.texture    = get_texture(make_atom(texture_name));
             frame.frame_time = (f32)frame_time;
 
             array_add(book.frames, frame);
         } else {
-            log(LOG_MINIMAL, "First token is not known flip book token in %S", path);
+            log(LOG_ERROR, "First token is not known flip book token in %S", path);
         }
     }
 
@@ -1439,8 +1646,9 @@ void init_slang_local_session() {
 #endif
     target_desc.flags = 0;
 
-    constexpr String dir = PATH_SHADER("");
-
+    const auto dir = PATH_SHADER("");
+    const auto cdir = (const char *)dir.data;
+    
     char s_max_direct_lights[16];
     char s_max_point_lights [16];
 
@@ -1456,7 +1664,7 @@ void init_slang_local_session() {
     session_desc.targets = &target_desc;
     session_desc.targetCount = 1;
     session_desc.compilerOptionEntryCount = 0;
-    session_desc.searchPaths = &dir.data;
+    session_desc.searchPaths = &cdir;
     session_desc.searchPathCount = 1;
     session_desc.preprocessorMacros = macros;
     session_desc.preprocessorMacroCount = carray_count(macros);
@@ -1487,7 +1695,11 @@ Shader *new_shader(Shader_File &shader_file) {
 }
 
 Shader *get_shader(String name) {
-    return table_find(shader_platform.shader_table, name);
+    auto shader = table_find(shader_platform.shader_table, name);
+    if (shader) return shader;
+
+    log(LOG_ERROR, "Failed to find shader %S", name);
+    return global_shaders.missing;
 }
 
 static Shader_Type get_shader_type(SlangStage stage) {
@@ -1499,7 +1711,7 @@ static Shader_Type get_shader_type(SlangStage stage) {
     case SLANG_STAGE_FRAGMENT: return SHADER_PIXEL;
     case SLANG_STAGE_COMPUTE:  return SHADER_COMPUTE;
     default:
-        log(LOG_MINIMAL, "Failed to get shader type from slang shader stage %d", stage);
+        log(LOG_ERROR, "Failed to get shader type from slang shader stage %d", stage);
         return SHADER_NONE;
     }
 }
@@ -1507,7 +1719,7 @@ static Shader_Type get_shader_type(SlangStage stage) {
 Shader_File *new_shader_file(String path) {
     const auto source = read_text_file(path);
     if (!is_valid(source)) {
-        log(LOG_MINIMAL, "Failed to read shader file %S", path);
+        log(LOG_ERROR, "Failed to read shader file %S", path);
         return null;
     }
 
@@ -1526,7 +1738,7 @@ Shader_File *new_shader_file(String path, String source) {
         shader_file.type = SHADER_SOURCE;
     } else {
         table_remove(platform.shader_file_table, path);
-        log(LOG_MINIMAL, "Invalid extension in shader file path %S", path);
+        log(LOG_ERROR, "Invalid extension in shader file path %S", path);
         return null;
     }
 
@@ -1535,15 +1747,15 @@ Shader_File *new_shader_file(String path, String source) {
 
     const char *cpath = temp_c_string(path);
     Slang::ComPtr<slang::IBlob> diagnostics;
-    auto *module = slang_loadModuleFromSource(slang_local_session, cpath, cpath, source.data, source.count, diagnostics.writeRef());
+    auto *module = slang_loadModuleFromSource(slang_local_session, cpath, cpath, (char *)source.data, source.size, diagnostics.writeRef());
 
     if (diagnostics) {
-        log(LOG_MINIMAL, "Slang: %s", (const char *)diagnostics->getBufferPointer());
+        log(LOG_ERROR, "Slang: %s", (const char *)diagnostics->getBufferPointer());
     }
 
     if (!module) {
         table_remove(platform.shader_file_table, path);
-        log(LOG_MINIMAL, "Failed to load slang shader module from %S", path);
+        log(LOG_ERROR, "Failed to load slang shader module from %S", path);
         return null;
     }
     
@@ -1657,7 +1869,7 @@ Compiled_Shader compile_shader_file(Shader_File &shader_file) {
         slang_local_session->createCompositeComponentType(components, carray_count(components), program.writeRef());
 
         if (!program) {
-            log(LOG_MINIMAL, "Failed to create shader program %s from %S", cname, path);
+            log(LOG_ERROR, "Failed to create shader program %s from %S", cname, path);
             return {};
         }
 
@@ -1666,11 +1878,11 @@ Compiled_Shader compile_shader_file(Shader_File &shader_file) {
         program->link(linked_program.writeRef(), diagnostics.writeRef());
 
         if (diagnostics) {
-            log(LOG_MINIMAL, "Slang: %s", (const char *)diagnostics->getBufferPointer());
+            log(LOG_ERROR, "Slang: %s", (const char *)diagnostics->getBufferPointer());
         }
 
         if (!linked_program) {
-            log(LOG_MINIMAL, "Failed to link shader program %s for %S", cname, path);
+            log(LOG_ERROR, "Failed to link shader program %s for %S", cname, path);
             return {};
         }
         
@@ -1713,7 +1925,7 @@ Compiled_Shader compile_shader_file(Shader_File &shader_file) {
                         
                         auto cb = new_constant_buffer(name, size, binding, field_count);
                         if (!cb) {
-                            log(LOG_MINIMAL, "Failed to create constant buffer %S for shader %S", name, path);
+                            log(LOG_ERROR, "Failed to create constant buffer %S for shader %S", name, path);
                             continue;
                         }
                             
@@ -1782,11 +1994,11 @@ Compiled_Shader compile_shader_file(Shader_File &shader_file) {
                                           kernel_blob.writeRef(), diagnostics.writeRef());
     
         if (diagnostics) {
-            log(LOG_MINIMAL, "Slang: %s", (const char *)diagnostics->getBufferPointer());
+            log(LOG_ERROR, "Slang: %s", (const char *)diagnostics->getBufferPointer());
         }
 
         if (!kernel_blob) {
-            log(LOG_MINIMAL, "Failed to get compiled shader code from %S", path);
+            log(LOG_ERROR, "Failed to get compiled shader code from %S", path);
             return {};
         }
     
@@ -1804,7 +2016,7 @@ Compiled_Shader compile_shader_file(Shader_File &shader_file) {
 bool is_shader_source_path(String path) {
     const auto ext = slice(path, '.', S_SEARCH_REVERSE_BIT);
     if (!is_valid(ext)) {
-        log(LOG_MINIMAL, "Failed to find shader extension from path %S", path);
+        log(LOG_ERROR, "Failed to find shader extension from path %S", path);
         return false;
     }
     
@@ -1814,7 +2026,7 @@ bool is_shader_source_path(String path) {
 bool is_shader_header_path(String path) {
     const auto ext = slice(path, '.', S_SEARCH_REVERSE_BIT);
     if (!is_valid(ext)) {
-        log(LOG_MINIMAL, "Failed to find shader extension from path %S", path);
+        log(LOG_ERROR, "Failed to find shader extension from path %S", path);
         return false;
     }
     
@@ -1832,14 +2044,17 @@ bool is_valid(const Compiled_Shader &compiled_shader) {
 
 bool is_valid(const Shader &shader) {
     const auto *shader_file = shader.shader_file;
-    return shader.linked_program != GPU_HANDLE_NONE && shader_file && is_valid(*shader_file);
+    return is_valid(shader.linked_program) && shader_file && is_valid(*shader_file);
 }
 
 Constant_Buffer *new_constant_buffer(String name, u32 size, u16 binding, u16 constant_count) {
-    // @Todo: maybe it should be done automatically in backend implementation.
+    // @Cleanup @Memory: calculate cbuffer aligned memory size,
+    //                   current alignment to cbuffer offset is a hack.
+    //                   All constants should be passed here then.
+    
     // As we store all constant buffers in one big gpu buffer, we need to respect
     // provided alignment rules by a backend.
-    size = Align(size, CBUFFER_OFFSET_ALIGNMENT);
+    size = Align(size, gpu_uniform_buffer_offset_alignment());
     
     auto &platform = shader_platform;
     auto &cb = platform.constant_buffer_table[name];
@@ -1865,14 +2080,14 @@ Constant *add_constant(Constant_Buffer *cb, String name, Constant_Type type, u16
     Constant c;
 
     if (type == CT_ERROR) {
-        log(LOG_MINIMAL, "Can't add constant %S to constant buffer %S (0x%X), it's type is CT_ERROR", name, cb->name, cb);
+        log(LOG_ERROR, "Can't add constant %S to constant buffer %S (0x%X), it's type is CT_ERROR", name, cb->name, cb);
         return null;
     }
         
     if (type != CT_CUSTOM) {
         const u32 calc_size = c.type_sizes[type] * count; 
         if (size != calc_size) {
-            log(LOG_MINIMAL, "Given constant %S size %u does not correspond to it's size %u, inferred from type %u and count %u",
+            log(LOG_ERROR, "Given constant %S size %u does not correspond to it's size %u, inferred from type %u and count %u",
                   name, size, calc_size, type, count);
             return null;
         }
@@ -1912,7 +2127,7 @@ void set_constant(Constant_Buffer_Instance *cbi, String name, const void *data, 
     auto cv = table_find(cbi->value_table, name);
     
     if (!cv) {
-        log(LOG_MINIMAL, "Failed to find constant value %S in constant buffer instance %S 0x%X", name, cb->name, cbi);
+        log(LOG_ERROR, "Failed to find constant value %S in constant buffer instance %S 0x%X", name, cb->name, cbi);
         return;
     }
 
@@ -1935,81 +2150,66 @@ static void preload_texture(const File_Callback_Data *data) {
     log("Created %S in %.2fms", path, CHECK_TIMER_MS(0));
 }
 
-void preload_all_textures() {    
-    SCOPE_TIMER("Preloaded all textures in");
-    constexpr String path = PATH_TEXTURE("");
-    visit_directory(path, preload_texture);
-
-    global_textures.error = get_texture(S("error"));
+Gpu_Image_Format gpu_image_format_from_channel_count(u32 channel_count) {
+    switch (channel_count) {
+    case 1: return GPU_IMAGE_FORMAT_RED_8;
+    case 3: return GPU_IMAGE_FORMAT_RGB_8;
+    case 4: return GPU_IMAGE_FORMAT_RGBA_8;
+    default:
+        log(S("GPU"), LOG_ERROR, "Failed to get image format from channel count %d", channel_count);
+        return GPU_IMAGE_FORMAT_NONE;
+    }
 }
 
 Texture *new_texture(String path) {
-    const auto loaded_texture = load_texture(path);
-    if (!is_valid(loaded_texture)) return null;    
-    return new_texture(loaded_texture);
-}
-
-Texture *new_texture(String path, Buffer contents) {
-    const auto loaded_texture = load_texture(path, contents);
-    if (!is_valid(loaded_texture)) return null;
-    return new_texture(loaded_texture);
-}
-
-Texture *get_texture(String name) {
-    return table_find(texture_table, name);
-}
-
-static Texture_Format_Type get_texture_format_from_channel_count(s32 channel_count) {
-    switch (channel_count) {
-    case 1: return TEX_RED_8;
-    case 3: return TEX_RGB_8;
-    case 4: return TEX_RGBA_8;
-    default:
-        log(LOG_MINIMAL, "Failed to get texture format from channel count %d", channel_count);
-        return TEX_FORMAT_NONE;
-    }
-}
-
-Loaded_Texture load_texture(String path) {
     auto contents = read_file(path, __temporary_allocator);
-    if (!is_valid(contents)) return {};
-    return load_texture(path, contents);
+    auto name = get_file_name_no_ext(path);
+    auto atom = make_atom(name);
+    return new_texture(atom, contents);
 }
 
-Loaded_Texture load_texture(String path, Buffer contents) {
-    s32 width, height, channel_count;
-    u8 *data = stbi_load_from_memory(contents.data, (s32)contents.size, &width, &height, &channel_count, 0);
-    if (!data) {
-        log(S("stbi"), LOG_MINIMAL, "%s", stbi_failure_reason());
-    }
+Texture *new_texture(Atom name, Buffer file_contents) {
+    s32 width = 0, height = 0, depth = 1, channel_count = 0;
+    u8 *data = stbi_load_from_memory(file_contents.data, (s32)file_contents.size, &width, &height, &channel_count, 0);
     
-    Loaded_Texture tex;
-    tex.path = path;
-    tex.contents.data = data;
-    tex.contents.size = width * height * channel_count;
-    tex.width  = width;
-    tex.height = height;
-    tex.type   = TEX_2D; // @Todo: actually detect somehow
-    tex.format = get_texture_format_from_channel_count(channel_count);
+    if (!data) log(S("stbi"), LOG_ERROR, "%s", stbi_failure_reason());
 
-    return tex;
+    auto &texture = texture_table[name];
+
+    if (texture.image_view) gpu_delete_image_view(texture.image_view);
+    if (texture.sampler)    gpu_delete_sampler(texture.sampler);
+
+    // @Cleanup: for now assume its just 2D image.
+    const auto type   = GPU_IMAGE_TYPE_2D;
+    const auto format = gpu_image_format_from_channel_count(channel_count);
+    const auto mipmap_count = gpu_max_mipmap_count(width, height);
+
+    const auto contents = make_buffer(data, width * height * depth * channel_count);
+    const auto image = gpu_new_image(type, format, mipmap_count, width, height, depth, contents);
+    texture.image_view = gpu_new_image_view(image, type, format, 0, mipmap_count, 0, depth);
+
+    texture.sampler = gpu.sampler_default_color;
+    
+    return &texture;
 }
 
-bool is_valid(const Loaded_Texture &loaded_texture) {
-    return is_valid(loaded_texture.path)
-        && is_valid(loaded_texture.contents)
-        && loaded_texture.width > 0 && loaded_texture.height > 0
-        && loaded_texture.type   != TEX_TYPE_NONE
-        && loaded_texture.format != TEX_FORMAT_NONE;
+Texture *new_texture(Atom name, u32 image_view, u32 sampler) {
+    auto &texture = texture_table[name];
+
+    if (texture.image_view) gpu_delete_image_view(texture.image_view);
+    
+    texture.image_view = image_view;
+    texture.sampler    = sampler;
+    
+    return &texture;
 }
 
-bool is_valid(const Texture &texture) {
-    // @Todo: check texture address.
-    return is_valid(texture.path)
-        && texture.handle != GPU_HANDLE_NONE
-        && texture.width > 0 && texture.height > 0
-        && texture.type   != TEX_TYPE_NONE
-        && texture.format != TEX_FORMAT_NONE;
+Texture *get_texture(Atom name) {
+    auto tex = table_find(texture_table, name);
+    if (tex) return tex;
+
+    log(LOG_ERROR, "Failed to find texture %S", get_string(name));
+    return global_textures.missing;
 }
 
 bool is_texture_path(String path) {
@@ -2032,12 +2232,25 @@ Material *new_material(String path) {
 }
 
 Material *new_material(String path, String contents) {
+    const auto shader_token           = S("s");
+    const auto color_token            = S("c");
+    const auto ambient_texture_token  = S("ta");
+    const auto diffuse_texture_token  = S("td");
+    const auto specular_texture_token = S("ts");
+    const auto ambient_light_token    = S("la");
+    const auto diffuse_light_token    = S("ld");
+    const auto specular_light_token   = S("ls");
+    const auto shininess_token        = S("shine");
+    const auto blend_token            = S("blend");
+
     Text_File_Handler text;
+    text.allocator = __temporary_allocator;
+    
     defer { reset(&text); };
     init_from_memory(&text, contents);
 
     if (get_extension(path) != MATERIAL_EXT) {
-        log(LOG_MINIMAL, "Failed to create new material with unsupported extension %S", path);
+        log(LOG_ERROR, "Failed to create new material with unsupported extension %S", path);
         return null;
     }
     
@@ -2055,22 +2268,14 @@ Material *new_material(String path, String contents) {
         auto line = read_line(&text);        
         if (!line) break;
 
-        constexpr auto delims = S(" ");
+        const auto delims = S(" ");
         auto tokens = split(line, delims);
-
-        constexpr auto shader_token           = S("s");
-        constexpr auto color_token            = S("c");
-        constexpr auto ambient_texture_token  = S("ta");
-        constexpr auto diffuse_texture_token  = S("td");
-        constexpr auto specular_texture_token = S("ts");
-        constexpr auto ambient_light_token    = S("la");
-        constexpr auto diffuse_light_token    = S("ld");
-        constexpr auto specular_light_token   = S("ls");
-        constexpr auto shininess_token        = S("shine");
-        constexpr auto blend_token            = S("blend");
-
+        
         if (tokens[0] == shader_token) {
-            auto shader_name = get_file_name_no_ext(tokens[1]);
+            // @Cleanup @Hack: this trim should not be here, its a temp fix of an issue
+            // when returned token contains part of new line character '\' due to not
+            // fully correct *split* function implementation.
+            auto shader_name = trim(get_file_name_no_ext(tokens[1]));
             material.shader = get_shader(shader_name);
 
             // @Cleanup: not sure whether its a good idea to create cbuffer instance for
@@ -2080,7 +2285,7 @@ Material *new_material(String path, String contents) {
                 if (it.value.type == GPU_CONSTANT_BUFFER) {
                     auto cb = get_constant_buffer(it.key);
                     if (!cb) {
-                        log(LOG_MINIMAL, "Failed to find cbuffer %S during new material %S creation", it.key, name);
+                        log(LOG_ERROR, "Failed to find cbuffer %S during new material %S creation", it.key, name);
                         continue;
                     }
                     
@@ -2094,14 +2299,17 @@ Material *new_material(String path, String contents) {
             auto a = (f32)string_to_float(tokens[3]);
             material.base_color = Vector4(r, g, b, a);
         } else if (tokens[0] == ambient_texture_token) {
-            auto texture_name = get_file_name_no_ext(tokens[1]);
-            material.ambient_texture = get_texture(texture_name);
+            // @Cleanup @Hack
+            auto texture_name = trim(get_file_name_no_ext(tokens[1]));
+            material.ambient_texture = get_texture(make_atom(texture_name));
         } else if (tokens[0] == diffuse_texture_token) {
-            auto texture_name = get_file_name_no_ext(tokens[1]);
-            material.diffuse_texture = get_texture(texture_name);
+            // @Cleanup @Hack
+            auto texture_name = trim(get_file_name_no_ext(tokens[1]));
+            material.diffuse_texture = get_texture(make_atom(texture_name));
         } else if (tokens[0] == specular_texture_token) {
-            auto texture_name = get_file_name_no_ext(tokens[1]);
-            material.specular_texture = get_texture(texture_name);
+            // @Cleanup @Hack
+            auto texture_name = trim(get_file_name_no_ext(tokens[1]));
+            material.specular_texture = get_texture(make_atom(texture_name));
         } else if (tokens[0] == ambient_light_token) {
             auto x = (f32)string_to_float(tokens[1]);
             auto y = (f32)string_to_float(tokens[2]);
@@ -2126,7 +2334,7 @@ Material *new_material(String path, String contents) {
         } else {
             // @Hack: skip extra empty lines logging.
             if (tokens[0].data[0] != '\n' && tokens[0].data[0] != '\r') {
-                log(LOG_MINIMAL, "First token %S is not known material token in %S", tokens[0], path);
+                log(LOG_ERROR, "First token %S is not known material token in %S", tokens[0], path);
             }
         }
     }
@@ -2134,26 +2342,12 @@ Material *new_material(String path, String contents) {
     return &material;
 }
 
-// Material *new_material(String name, Shader *shader) {
-//     auto &material = material_table[name];
-//     material.shader = shader;
-//     material.name = copy_string(name);
-//     material.cbi_table.allocator = context.allocator;
-    
-//     table_clear  (material.cbi_table);
-//     table_realloc(material.cbi_table, 8);
-
-//     if (shader) {
-//         For (shader->constant_buffers) {
-//             material.cbi_table[it->name] = make_constant_buffer_instance(it);
-//         }
-//     }
-    
-//     return &material;
-// }
-
 Material *get_material(String name) {
-    return table_find(material_table, name);
+    auto mat = table_find(material_table, name);
+    if (mat) return mat;
+
+    log(LOG_ERROR, "Failed to find material %S", name);
+    return global_materials.missing;
 }
 
 bool has_transparency(const Material *material) {

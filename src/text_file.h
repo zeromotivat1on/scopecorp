@@ -49,7 +49,7 @@ inline String read_line(Text_File_Handler *text) {
     auto line = slice(s, S("\n"), S_LEFT_SLICE_BIT);
     if (!line) line = s; // get last part of string if did not find slice with new line
     
-    text->pos += line.count;
+    text->pos += line.size;
     
     return line;
 }

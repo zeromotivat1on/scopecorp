@@ -4,12 +4,13 @@
 #include "archive.h"
 #include "hash_table.h"
 #include "string_builder.h"
-#include "memory.h"
-#include "thread.h"
-#include "cpu_time.h"
-#include "game.h"
-#include "entity_manager.h"
+
+#define STB_SPRINTF_IMPLEMENTATION
 #include "stb_sprintf.h"
+#undef STB_SPRINTF_IMPLEMENTATION
+
+#include <stdio.h>
+#include <malloc.h>
 #include <string.h>
 #include <intrin.h>
 
@@ -82,7 +83,17 @@ s64 cstring_compare(const char *a, const char *b, u64 n) {
     return n == 0 ? 0 : (*(u8 *)a - *(u8 *)b);
 }
 
+f32 Floor(f32 f) {
+#if 0
+    f32 t = (f32) (int) value;
+    return (t != f) ? (t - 1.0f) : t;
+#else
+    return floorf(f);
+#endif
+}
+
 f32 Ceil(f32 f) {
+#if 0
     u32 input;
     copy(&input, &f, 4);
 
@@ -100,9 +111,12 @@ f32 Ceil(f32 f) {
     if (f > 0 && output != input) f += 1; // positive numbers need to be rounded up, not down
 
     return f;
+#else
+    return ceilf(f);
+#endif
 }
 
-f32 Sqrt (f32 f) { return f * Rsqrt(f); }
+f32 Sqrt(f32 f) { return f * Rsqrt(f); }
 
 f32 Rsqrt(f32 f) {    
 	const auto y = f * 0.5f;
@@ -116,14 +130,28 @@ f32 Rsqrt(f32 f) {
 	return r;
 }
 
+f32 Log2(f32 f) {
+    return log2f(f);
+}
+
 f32 Sin (f32 r) { return sinf(r); }
 f32 Cos (f32 r) { return cosf(r); }
 f32 Tan (f32 r) { return tanf(r); }
 
 void *__default_allocator_proc(Allocator_Mode mode, u64 size, u64 old_size, void *old_memory, void *allocator_data) {
     switch (mode) {
-    case ALLOCATE: { void *data = malloc(size); set(data, 0, size); return data; }
-    case RESIZE:   { return realloc(old_memory, size); }
+    case ALLOCATE: {
+        auto data = malloc(size);
+        set(data, 0, size);
+        return data;
+    }
+    case RESIZE:   {
+        auto data = realloc(old_memory, size);
+        if (old_size && size > old_size) {
+            set((u8 *)data + old_size, 0, size - old_size);
+        }
+        return data;
+    }
     case FREE:     { free(old_memory); return null; }
     case FREE_ALL: { return null; }
     default:       { unreachable_code_path(); return null; }
@@ -131,7 +159,7 @@ void *__default_allocator_proc(Allocator_Mode mode, u64 size, u64 old_size, void
 }
 
 void __default_logger_proc(String message, String ident, Log_Level level, void *logger_data) {
-    if (level > context.log_level) return;
+    if (level < context.log_level) return;
     
     if (ident) {
         print("[%S] %S\n", ident, message);
@@ -238,14 +266,80 @@ void *__default_temporary_storage_allocator_proc (Allocator_Mode mode, u64 size,
 Temporary_Storage __make_default_temporary_storage() {
     Temporary_Storage ts = {};
     ts.original_size = TEMPORARY_STORAGE_DEFAULT_SIZE;
+    // @Todo: fix this, as we are using malloc here now.
     // Here we are using platform heap alloc instead of crt as using malloc causes crash
     // when attaching from RenderDoc, probably due to crt is not initialized at the moment.
-    ts.original_data = (u8 *)heap_alloc(ts.original_size);
+    ts.original_data = (u8 *)malloc(ts.original_size);
     ts.size = ts.original_size;
     ts.data = ts.original_data;
     ts.total_size = ts.original_size;
     ts.overflow_allocator = __default_allocator;
     return ts;
+}
+
+Atom_Table __make_default_atom_table() {    
+    Atom_Table t = {};
+    t.capacity = ATOM_TABLE_DEFAULT_CAPACITY;
+    t.atoms    = (Atom *)  malloc(t.capacity * sizeof(Atom));
+    t.strings  = (String *)malloc(t.capacity * sizeof(String));
+    t.buffer.size = ATOM_TABLE_DEFAULT_BUFFER_SIZE;
+    t.buffer.data = (u8 *)malloc(ATOM_TABLE_DEFAULT_BUFFER_SIZE);
+
+    set(t.atoms,       0, t.capacity * sizeof(Atom));
+    set(t.strings,     0, t.capacity * sizeof(String));
+    set(t.buffer.data, 0, ATOM_TABLE_DEFAULT_BUFFER_SIZE);
+    
+    return t;
+}
+
+Atom make_atom(String s) {
+    auto table = context.atom_table;
+    auto hash  = hash_fnv(s);
+    auto index = hash % table->capacity;
+
+    // We merely do not believe in atom collision.
+    Assert(index < table->capacity);
+    
+    auto atom   = &table->atoms[index];    
+    auto string = &table->strings[index];
+
+    if (atom->hash) {
+        Assert(atom->string == *string);
+        return *atom;
+    }
+    
+    Assert(!string->data && !string->size);
+    Assert(table->used + s.size <= table->buffer.size);
+    
+    auto data = table->buffer.data + table->used;
+    copy(data, s.data, s.size);
+
+    table->count += 1;
+    table->used  += s.size;
+    
+    string->data  = data;
+    string->size = s.size;
+
+    atom->hash = hash;
+#if DEVELOPER
+    atom->string = *string;
+#endif
+    
+    return *atom;
+}
+
+String get_string(Atom atom) {
+    auto table = context.atom_table;
+    auto index = atom.hash % table->capacity;
+
+    auto string = table->strings + index;
+    Assert(*string);
+
+#if DEVELOPER
+    Assert(*string == atom.string);
+#endif
+    
+    return *string;
 }
 
 void set_temporary_storage_mark(u64 mark, Source_Code_Location loc) {
@@ -265,8 +359,8 @@ void __default_assert_proc(const char *condition, Source_Code_Location loc, cons
     static char log_buffer[1024];
 
     String message;
-    message.data  = log_buffer;
-    message.count = 0;
+    message.data = (u8 *)log_buffer;
+    message.size = 0;
     
     if (format) {
         static char format_buffer[1024];
@@ -275,17 +369,17 @@ void __default_assert_proc(const char *condition, Source_Code_Location loc, cons
             stbsp_vsnprintf(format_buffer, carray_count(format_buffer), format, va_args);
         }
 
-        message.count = stbsp_snprintf(log_buffer, carray_count(log_buffer), "Assertion failed (%s). %s\n", condition, format_buffer);
+        message.size = stbsp_snprintf(log_buffer, carray_count(log_buffer), "Assertion failed (%s). %s\n", condition, format_buffer);
     } else {
-        message.count = stbsp_snprintf(log_buffer, carray_count(log_buffer), "Assertion failed (%s)\n", condition);
+        message.size = stbsp_snprintf(log_buffer, carray_count(log_buffer), "Assertion failed (%s)\n", condition);
     }
 
-    fwrite(message.data, 1, message.count, stdout);
+    fwrite(message.data, 1, message.size, stdout);
     
     auto callstack = get_current_callstack();
     For (callstack) {
-        message.count = stbsp_snprintf(log_buffer, carray_count(log_buffer), "%s:%s:%d\n", it.file, it.function, it.line);
-        fwrite(message.data, 1, message.count, stdout);
+        message.size = stbsp_snprintf(log_buffer, carray_count(log_buffer), "%s:%s:%d\n", it.file, it.function, it.line);
+        fwrite(message.data, 1, message.size, stdout);
     }
     
 #ifdef _MSC_VER
@@ -295,114 +389,118 @@ void __default_assert_proc(const char *condition, Source_Code_Location loc, cons
 }
 
 thread_local Context __ctx_stack[8];
-thread_local u32     __ctx_count = 0;
+thread_local u32     __ctx_size = 0;
 
 void __push_context(const Context &ctx) {
-    Assert(__ctx_count < carray_count(__ctx_stack));
-    __ctx_stack[__ctx_count] = context;
-    __ctx_count += 1;
+    Assert(__ctx_size < carray_count(__ctx_stack));
+    __ctx_stack[__ctx_size] = context;
+    __ctx_size += 1;
     context = ctx;
 }
 
 void __pop_context() {
-    Assert(__ctx_count > 0);
-    __ctx_count -= 1;
-    context = __ctx_stack[__ctx_count];
+    Assert(__ctx_size > 0);
+    __ctx_size -= 1;
+    context = __ctx_stack[__ctx_size];
 }
 
-static thread_local Allocator __alc_stack[2 * carray_count(__ctx_stack)];
-static thread_local u32       __alc_count = 0;
+thread_local Allocator __alc_stack[2 * carray_count(__ctx_stack)];
+thread_local u32       __alc_size = 0;
 
 void __push_allocator(const Allocator &allocator) {
-    Assert(__alc_count < carray_count(__alc_stack));
-    __alc_stack[__alc_count] = context.allocator;
-    __alc_count += 1;
+    Assert(__alc_size < carray_count(__alc_stack));
+    __alc_stack[__alc_size] = context.allocator;
+    __alc_size += 1;
     context.allocator = allocator;
 }
 
 void __pop_allocator() {
-    Assert(__alc_count > 0);
-    __alc_count -= 1;
-    context.allocator = __alc_stack[__alc_count];
+    Assert(__alc_size > 0);
+    __alc_size -= 1;
+    context.allocator = __alc_stack[__alc_size];
 }
 
 void *alloc   (u64 size, Allocator alc)             { return alc.proc(ALLOCATE, size, 0, null, alc.data); }
 void *resize  (void *data, u64 size, Allocator alc) { return alc.proc(RESIZE, size, 0, data, alc.data); }
 void  release (void *data, Allocator alc)           { alc.proc(FREE, 0, 0, data, alc.data); }
 
-String copy_string (String s, Allocator alc)      { return copy_string(s.data, s.count, alc); }
-String copy_string (const char *s, Allocator alc) { return copy_string(s, cstring_count(s), alc); }
+String copy_string (String s, Allocator alc)    { return copy_string(s.data, s.size, alc); }
+String copy_string (const u8 *s, Allocator alc) { return copy_string(s, cstring_count((char *)s), alc); }
 
-String copy_string(const char *data, u64 count, Allocator alc) {
+String copy_string(const u8 *data, u64 size, Allocator alc) {
     String s;
-    s.count = count;
-    s.data  = (char *)alloc(count, alc);
-    copy(s.data, data, count);
+    s.size = size;
+    s.data  = (u8 *)alloc(size, alc);
+    copy(s.data, data, size);
     return s;
 }
 
-char *temp_c_string(String s) {    
-    char *buffer = (char *)talloc(s.count + 1);
-    copy(buffer, s.data, s.count);
-    buffer[s.count] = '\0';
+char *to_c_string(String s, Allocator alc) {
+    char *buffer = (char *)alloc(s.size + 1, alc);
+    copy(buffer, s.data, s.size);
+    buffer[s.size] = '\0';
     return buffer;
 }
 
+char *temp_c_string(String s) { return to_c_string(s, __temporary_allocator); }
+
 String trim(String s) {
     while (Is_Space(*(s.data)))               { s.data  += 1; }
-    while (Is_Space(*(s.data + s.count - 1))) { s.count -= 1; }
+    while (Is_Space(*(s.data + s.size - 1))) { s.size -= 1; }
     return s;
 }
 
 String slice(String s, s64 start) {
-    return slice(s, start, s.count - 1);
+    return slice(s, start, s.size - 1);
 }
 
 String slice(String s, s64 start, s64 end) {
     u64 ustart = Abs(start);
     u64 uend   = Abs(end);
 
-    if (ustart >= s.count) return {};
-    if (uend   >= s.count) return {};
+    if (ustart >= s.size) return {};
+    if (uend   >= s.size) return {};
 
-    if (start < 0) ustart = s.count - ustart;
-    if (end   < 0) uend   = s.count - uend;
+    if (start < 0) ustart = s.size - ustart;
+    if (end   < 0) uend   = s.size - uend;
 
     s.data  = s.data + ustart;
-    s.count = uend   - ustart;
+    s.size = uend   - ustart;
     
     return s;
 }
 
 String slice(String s, char c, u32 bits) {
-    return slice(s, make_string(&c, 1), bits);
+    u8 a = c;
+    return slice(s, make_string(&a, 1), bits);
 }
 
 String slice(String s, String sub, u32 bits) {
     const auto index = find(s, sub, bits);
-    if (index < 0 || index > (s64)s.count) return {};
+    if (index < 0 || index > (s64)s.size) return {};
     
     if (bits & S_LEFT_SLICE_BIT) {
-        s.count = index + 1;
+        s.size = index + 1;
     } else {
         s.data  = s.data  + index;
-        s.count = s.count - index;
+        s.size = s.size - index;
     }
 
     return s;
 }
 
 Array <String> split(String s, String delims, Allocator alc) {
-    Array <String> tokens = { .allocator = alc };
+    Array <String> tokens;
+    tokens.allocator = alc;
     
     u64 start = 0;
     while (1) {
-        while (start < s.count && find(delims, s.data[start]) != INDEX_NONE) start += 1;
+        while (start < s.size && find(delims, s.data[start]) != INDEX_NONE) start += 1;
     
-        if (start >= s.count) return tokens;
+        if (start >= s.size) break;
     
         auto end = start;
-        while (end < s.count && find(delims, s.data[end]) == INDEX_NONE) end += 1;
+        while (end < s.size && find(delims, s.data[end]) == INDEX_NONE) end += 1;
 
         const auto token = make_string(s.data + start, end - start);
         array_add(tokens, token);
@@ -413,23 +511,45 @@ Array <String> split(String s, String delims, Allocator alc) {
     return tokens;
 }
 
+Array <String> chop(String s, u64 chop_size, Allocator alc) {
+    Array <String> tokens;
+    tokens.allocator = alc;
+    
+    u64 start = 0;
+    while (1) {
+        if (start + chop_size >= s.size) {
+            const auto token = make_string(s.data + start, s.size - start);
+            array_add(tokens, token);
+            break;
+        }
+
+        const auto token = make_string(s.data + start, chop_size);
+        array_add(tokens, token);
+            
+        start += chop_size;
+    }
+    
+    return tokens;
+}
+
 s64 find(String s, char c, u32 bits) {
-    return find(s, String { &c, 1 }, bits);
+    u8 a = c;
+    return find(s, String { &a, 1 }, bits);
 }
 
 s64 find(String s, String sub, u32 bits) {
-    if (sub.count == 0)      return 0;
-    if (sub.count > s.count) return INDEX_NONE;
+    if (sub.size == 0)      return 0;
+    if (sub.size > s.size) return INDEX_NONE;
 
     s64 index = INDEX_NONE;
 
     if (bits & S_SEARCH_REVERSE_BIT) {
-        s64 start = s.count - 1;
+        s64 start = s.size - 1;
         // @Todo: should we ignore S_START_PLUS_ONE_BIT or handle and if so how?
 
-        for (s64 i = start - sub.count; i >= 0; --i) {
+        for (s64 i = start - sub.size; i >= 0; --i) {
             bool match = true;
-            for (s64 j = sub.count - 1; j >= 0; --j) {
+            for (s64 j = sub.size - 1; j >= 0; --j) {
                 if (s.data[i + j] != sub.data[j]) {
                     match = false;
                     break;
@@ -445,9 +565,9 @@ s64 find(String s, String sub, u32 bits) {
         s64 start = 0;
         if (bits & S_START_PLUS_ONE_BIT) start += 1;
 
-        for (s64 i = start; i + sub.count <= s.count; ++i) {
+        for (s64 i = start; i + sub.size <= s.size; ++i) {
             bool match = true;
-            for (u64 j = 0; j < sub.count; ++j) {
+            for (u64 j = 0; j < sub.size; ++j) {
                 if (s.data[i + j] != sub.data[j]) {
                     match = false;
                     break;
@@ -462,7 +582,7 @@ s64 find(String s, String sub, u32 bits) {
     }
     
     if (index == INDEX_NONE) {
-        if (bits & S_LENGTH_ON_FAIL_BIT) index = s.count;
+        if (bits & S_LENGTH_ON_FAIL_BIT) index = s.size;
     } else {
         if (bits & S_INDEX_PLUS_ONE_BIT)  index += 1;
         if (bits & S_INDEX_MINUS_ONE_BIT) index -= 1;
@@ -482,54 +602,54 @@ f64 string_to_float(String s) {
 }
 
 void print(String message) {
-    fwrite(message.data, 1, message.count, stdout);
+    fwrite(message.data, 1, message.size, stdout);
 }
 
 void print(const char *format, ...) {
     thread_local char buffer[4096];
 	push_va_args(format) {
-        const auto count = stbsp_vsnprintf(buffer, carray_count(buffer), format, va_args);
-        fwrite(buffer, 1, count, stdout);
+        const auto size = stbsp_vsnprintf(buffer, carray_count(buffer), format, va_args);
+        fwrite(buffer, 1, size, stdout);
     }
 }
 
 void log(const char *format, ...) {
-    push_va_args(format) { log(LOG_IDENT_NONE, LOG_DEFAULT, format, va_args); }
+    push_va_args(format) { log_va(LOG_IDENT_NONE, LOG_DEFAULT, format, va_args); }
 }
 
 void log(Log_Level level, const char *format, ...) {
-    push_va_args(format) { log(LOG_IDENT_NONE, level, format, va_args); }
+    push_va_args(format) { log_va(LOG_IDENT_NONE, level, format, va_args); }
 }
 
 void log(String ident, const char *format, ...) {
-    push_va_args(format) { log(ident, LOG_DEFAULT, format, va_args); }
+    push_va_args(format) { log_va(ident, LOG_DEFAULT, format, va_args); }
 }
 
 void log(String ident, Log_Level level, const char *format, ...) {
-    push_va_args(format) { log(ident, level, format, va_args); }
+    push_va_args(format) { log_va(ident, level, format, va_args); }
 }
 
-void log(String ident, Log_Level level, const char *format, va_list args) {
-    auto message = tprint(format, args);
+void log_va(String ident, Log_Level level, const char *format, va_list args) {
+    auto message = tprint_va(format, args);
     context.logger.proc(message, ident, level, context.logger.data);
 }
 
 String sprint(const char *format, ...) {
     String_Builder builder;
-    push_va_args(format) { print_to_builder(builder, format, va_args); }
+    push_va_args(format) { print_to_builder_va(builder, format, va_args); }
     return builder_to_string(builder);
 }
 
 String tprint(const char *format, ...) {
     String s;
-    push_va_args(format) { s = tprint(format, va_args); }
+    push_va_args(format) { s = tprint_va(format, va_args); }
     return s;
 }
 
-String tprint(const char *format, va_list args) {
+String tprint_va(const char *format, va_list args) {
     String_Builder builder;
     builder.allocator = __temporary_allocator;
-    print_to_builder(builder, format, args);
+    print_to_builder_va(builder, format, args);
     return builder_to_string(builder);
 }
 
@@ -544,7 +664,7 @@ u64 hash_fnv(String s) {
     constexpr u64 FNV_PRIME = 1099511628211;
 
     u64 hash = FNV_BASIS;
-    for (u64 i = 0; i < s.count; ++i) {
+    for (u64 i = 0; i < s.size; ++i) {
         hash ^= (u64)(u8)(s.data[i]);
         hash *= FNV_PRIME;
     }
@@ -556,6 +676,16 @@ void sort(void *data, u32 count, u32 size, s32 (*compare)(const void *, const vo
     qsort(data, count, size, compare);
 }
 
+String get_build_type_name() {
+#if DEBUG
+    return S("DEBUG");
+#elif RELEASE
+    return S("RELEASE");
+#else
+#error "Unknown build type"
+#endif
+}
+
 String get_file_name_no_ext(String path) {
     s64 start = find(path, '/', S_SEARCH_REVERSE_BIT | S_INDEX_PLUS_ONE_BIT);
     if (start == INDEX_NONE) start = 0;
@@ -563,51 +693,13 @@ String get_file_name_no_ext(String path) {
     s64 end = find(path, '.', S_SEARCH_REVERSE_BIT);
     if (end == INDEX_NONE) {
         if (start == 0) return path;
-        end = path.count - 1;
+        end = path.size - 1;
     }
 
     return slice(path, start, end);
 }
 
 String get_extension(String path) { return slice(path, '.', S_INDEX_PLUS_ONE_BIT); }
-
-const char *to_string(Program_Mode mode) {
-	switch (mode) {
-	case MODE_GAME:   return "GAME";
-	case MODE_EDITOR: return "EDITOR";
-	default:          return "UNKNOWN";
-	}
-}
-
-const char *to_string(Camera_Behavior behavior) {
-	switch (behavior) {
-	case IGNORE_PLAYER:   return "IGNORE_PLAYER";
-	case STICK_TO_PLAYER: return "STICK_TO_PLAYER";
-	case FOLLOW_PLAYER:   return "FOLLOW_PLAYER";
-	default:              return "UNKNOWN";
-	}
-}
-
-const char *to_string(Player_Movement_Behavior behavior) {
-	switch (behavior) {
-	case MOVE_INDEPENDENT:        return "MOVE_INDEPENDENT";
-	case MOVE_RELATIVE_TO_CAMERA: return "MOVE_RELATIVE_TO_CAMERA";
-	default:                      return "UNKNOWN";
-	}
-}
-
-const char *to_string(Entity_Type type) {
-    switch (type) {
-    case E_PLAYER:        return "E_PLAYER";
-    case E_SKYBOX:        return "E_SKYBOX";
-    case E_STATIC_MESH:   return "E_STATIC_MESH";
-    case E_DIRECT_LIGHT:  return "E_DIRECT_LIGHT";
-    case E_POINT_LIGHT:   return "E_POINT_LIGHT";
-    case E_SOUND_EMITTER: return "E_SOUND_EMITTER";
-    case E_PORTAL:        return "E_PORTAL";
-    default:              return "UNKNOWN";
-    }
-}
 
 static String_Builder_Node *add_node(String_Builder &builder) {
     auto new_node = (String_Builder_Node *)builder.allocator.proc(ALLOCATE, sizeof(String_Builder_Node), 0, null, builder.allocator.data);
@@ -626,26 +718,23 @@ static String_Builder_Node *add_node(String_Builder &builder) {
 void append(String_Builder &builder, const void *data, u64 size) {
     auto node = add_node(builder);
 
-    node->data = (char *)builder.allocator.proc(ALLOCATE, size, 0, null, builder.allocator.data);
+    node->data = (u8 *)builder.allocator.proc(ALLOCATE, size, 0, null, builder.allocator.data);
     node->size = size;
 
     copy(node->data, data, size);
 }
 
-void append (String_Builder &builder, const char *s)            { append(builder, s, strlen(s)); }
-void append (String_Builder &builder, const char *s, u64 count) { append(builder, (const u8 *)s, count); }
-void append (String_Builder &builder, char c)                   { append(builder, &c, 1); }
-void append (String_Builder &builder, Buffer buffer)            { append(builder, buffer.data, buffer.size); }
-void append (String_Builder &builder, String string)            { append(builder, string.data, string.count); }
+void append (String_Builder &builder, const char *s)           { append(builder, s, strlen(s)); }
+void append (String_Builder &builder, const char *s, u64 size) { append(builder, (const u8 *)s, size); }
+void append (String_Builder &builder, char c)                  { append(builder, &c, 1); }
+void append (String_Builder &builder, Buffer buffer)           { append(builder, buffer.data, buffer.size); }
+void append (String_Builder &builder, String string)           { append(builder, string.data, string.size); }
 
 void print_to_builder(String_Builder &builder, const char *format, ...) {    
-    va_list args;
-	va_start(args, format);
-    print_to_builder(builder, format, args);
-    va_end(args);
+    push_va_args(format) print_to_builder_va(builder, format, va_args);
 }
 
-void print_to_builder(String_Builder &builder, const char *format, va_list args) {
+void print_to_builder_va(String_Builder &builder, const char *format, va_list args) {
     // @Cleanup @Speed @Robustness: intermediate buffer allows us to be memory
     // efficient in terms of string builder allocations, but its slower due to 
     // extra memory copy.
@@ -654,13 +743,13 @@ void print_to_builder(String_Builder &builder, const char *format, va_list args)
     thread_local char buffer[size];
 
     String s;
-	s.count = stbsp_vsnprintf(buffer, size, format, args);
-    s.data  = (char *)builder.allocator.proc(ALLOCATE, s.count, 0, null, builder.allocator.data);
-    copy(s.data, buffer, s.count);
+	s.size = stbsp_vsnprintf(buffer, size, format, args);
+    s.data  = (u8 *)builder.allocator.proc(ALLOCATE, s.size, 0, null, builder.allocator.data);
+    copy(s.data, buffer, s.size);
 
     auto node = add_node(builder);
     node->data = s.data;
-    node->size = s.count;
+    node->size = s.size;
 }
 
 static inline u64 get_total_size(const String_Builder &builder) {
@@ -678,7 +767,7 @@ String builder_to_string(String_Builder &builder, Allocator allocator) {
     const auto size = get_total_size(builder);
     
     String s;
-    s.data = (char *)alloc(size, allocator);
+    s.data = (u8 *)alloc(size, allocator);
 
     auto data = s.data;
     auto node = builder.node;
@@ -686,8 +775,8 @@ String builder_to_string(String_Builder &builder, Allocator allocator) {
     while (node) {
         copy(data, node->data, node->size);
 
-        s.count += node->size;
-        data    += node->size;
+        s.size += node->size;
+        data   += node->size;
 
         release(node->data, allocator);
         
@@ -697,18 +786,19 @@ String builder_to_string(String_Builder &builder, Allocator allocator) {
         release(old_node, allocator);
     }
 
-    Assert(s.count == size);
+    Assert(s.size == size);
     
     builder.node = null;
 
     return s;
 }
 
-void add(Create_Pak &pak, String entry_name, Buffer entry_buffer) {
+void add(Create_Pak &pak, String entry_name, Buffer entry_buffer, u64 user_value) {
     auto &entry  = array_add(pak.entries);
     entry.name   = entry_name;
     entry.buffer = entry_buffer;
-
+    entry.user_value = user_value;
+    
     // We don't compute file offset here. It's computed during write to
     // allow the client to sort entries after all of them were added.
 }
@@ -740,7 +830,7 @@ bool write(Create_Pak &pak, String path) {
         Assert(check_offset == it.offset_from_file_start);
         
         if (!serialize(archive, it.buffer.data, it.buffer.size)) {
-            log(LOG_MINIMAL, "Failed to write entry %S buffer data to %S", it.name, path);
+            log(LOG_ERROR, "Failed to write entry %S buffer data to %S", it.name, path);
             return false;
         }
         
@@ -757,25 +847,26 @@ bool write(Create_Pak &pak, String path) {
     put(builder, toc);
     
     For (pak.entries) {
-        if (it.name.count > it.MAX_NAME_LENGTH) {
-            log(LOG_MINIMAL, "Pak entry name length is too long or corrupted (max length is %llu)", it.MAX_NAME_LENGTH);
+        if (it.name.size > it.MAX_NAME_LENGTH) {
+            log(LOG_ERROR, "Pak entry name length is too long or corrupted (max length is %llu)", it.MAX_NAME_LENGTH);
             return false;
         }
 
         // Compute entry read size, see pak.h for pak format specification.
-        const auto entry_read_size = sizeof(u16) + it.name.count + sizeof(u32) + sizeof(u64);
+        const auto entry_read_size = sizeof(u16) + it.name.size + sizeof(u32) + 2 * sizeof(u64);
         Assert(entry_read_size <= it.MAX_READ_SIZE);
         
         put   (builder, (u16)entry_read_size);
-        put   (builder, (u16)it.name.count);
-        append(builder, it.name.data, it.name.count);
+        put   (builder, (u16)it.name.size);
+        append(builder, it.name.data, it.name.size);
         put   (builder, (u32)it.buffer.size);
+        put   (builder, it.user_value);
         put   (builder, it.offset_from_file_start);
     }
 
     const auto s = builder_to_string(builder);
-    if (!serialize(archive, s.data, s.count)) {
-        log(LOG_MINIMAL, "Failed to write table of contents to pak %S", path);
+    if (!serialize(archive, s.data, s.size)) {
+        log(LOG_ERROR, "Failed to write table of contents to pak %S", path);
         return false;
     }
     
@@ -790,36 +881,36 @@ bool load(Load_Pak &pak, String path) {
     
     const u64 file_size = get_current_size(archive);
     if (file_size < sizeof(Pak_Header)) {
-        log(LOG_MINIMAL, "Pak %S is too small to even contain header, it's %llu bytes", path, file_size);
+        log(LOG_ERROR, "Pak %S is too small to even contain header, it's %llu bytes", path, file_size);
         return false;
     }
 
     serialize(archive, pak.header);
 
     if (pak.header.magic != PAK_MAGIC) {
-        log(LOG_MINIMAL, "Invalid pak file magic %u in %S, expected %u", pak.header.magic, path, PAK_MAGIC);
+        log(LOG_ERROR, "Invalid pak file magic %u in %S, expected %u", pak.header.magic, path, PAK_MAGIC);
         return false;
     }
 
     if (pak.header.version > PAK_VERSION) {
-        log(LOG_MINIMAL, "Invalid or newer version %d in pak %S, expected %u", pak.header.version, path, PAK_VERSION);
+        log(LOG_ERROR, "Invalid or newer version %d in pak %S, expected %u", pak.header.version, path, PAK_VERSION);
         return false;
     }
 
     if (pak.header.table_of_contents_offset > file_size) {
-        log(LOG_MINIMAL, "Invalid table of contents offset %llu in pak %S of size %llu", pak.header.table_of_contents_offset, path, file_size);
+        log(LOG_ERROR, "Invalid table of contents offset %llu in pak %S of size %llu", pak.header.table_of_contents_offset, path, file_size);
         return false;
     }
 
     if (!set_pointer(archive, pak.header.table_of_contents_offset)) {
-        log(LOG_MINIMAL, "Failed to set file pointer to %llu of pak %S", pak.header.table_of_contents_offset, path);
+        log(LOG_ERROR, "Failed to set file pointer to %llu of pak %S", pak.header.table_of_contents_offset, path);
         return false;
     }
 
     serialize(archive, pak.toc);
 
     if (pak.toc.magic != PAK_TOC_MAGIC) {
-        log(LOG_MINIMAL, "Invalid pak table of contents magic %u in %S at offset %llu, expected %u", pak.header.magic, path, pak.header.table_of_contents_offset, PAK_TOC_MAGIC);
+        log(LOG_ERROR, "Invalid pak table of contents magic %u in %S at offset %llu, expected %u", pak.header.magic, path, pak.header.table_of_contents_offset, PAK_TOC_MAGIC);
         return false;
     }
 
@@ -835,23 +926,24 @@ bool load(Load_Pak &pak, String path) {
 
         auto &entry = array_add(pak.entries);
         if (entry_read_size > entry.MAX_READ_SIZE) {
-            log(LOG_MINIMAL, "Invalid entry #%u read size %u, max possible size is %u", i, entry_read_size, entry.MAX_READ_SIZE);
+            log(LOG_ERROR, "Invalid entry #%u read size %u, max possible size is %u", i, entry_read_size, entry.MAX_READ_SIZE);
             return false;
         }
 
         serialize(archive, entry_read_data, entry_read_size);
 
         auto buffer = entry_read_data;
-        entry.name.count = *Eat(&buffer, u16);
-        entry.name.data = (char *)alloc(entry.name.count, pak.entry_data_allocator);
-        copy(entry.name.data, eat(&buffer, entry.name.count), entry.name.count);
+        entry.name.size = *Eat(&buffer, u16);
+        entry.name.data = (u8 *)alloc(entry.name.size, pak.entry_data_allocator);
+        copy(entry.name.data, eat(&buffer, entry.name.size), entry.name.size);
 
         entry.buffer.size = *Eat(&buffer, u32);
         
+        entry.user_value             = *Eat(&buffer, u64);
         entry.offset_from_file_start = *Eat(&buffer, u64);
 
         if (entry.offset_from_file_start >= pak.header.table_of_contents_offset) {
-            log(LOG_MINIMAL, "Invalid entry #%d data offset %llu, the data should be before table of contetns which offset is %llu", i, entry.offset_from_file_start, pak.header.table_of_contents_offset);
+            log(LOG_ERROR, "Invalid entry #%d data offset %llu, the data should be before table of contetns which offset is %llu", i, entry.offset_from_file_start, pak.header.table_of_contents_offset);
             return false;
         }
     }
@@ -880,7 +972,7 @@ Pak_Entry *find_entry(Load_Pak &pak, String name) {
 bool start_read(Archive &archive, String path) {
     File file = open_file(path, FILE_READ_BIT);
     if (file == FILE_NONE) {
-        log(LOG_MINIMAL, "Failed to start archive 0x%X read from %S", &archive, path);
+        log(LOG_ERROR, "Failed to start archive 0x%X read from %S", &archive, path);
         return false;
     }
 
@@ -891,11 +983,11 @@ bool start_read(Archive &archive, String path) {
 }
 
 bool start_write(Archive &archive, String path) {
-    File file = open_file(path, FILE_WRITE_BIT);
+    File file = open_file(path, FILE_WRITE_BIT, false);
     if (file == FILE_NONE) {
         file = open_file(path, FILE_NEW_BIT | FILE_WRITE_BIT);
         if (file == FILE_NONE) {
-            log(LOG_MINIMAL, "Failed to start archive 0x%X write to %S", &archive, path);
+            log(LOG_ERROR, "Failed to start archive 0x%X write to %S", &archive, path);
             return false;
         }
     }
@@ -921,7 +1013,7 @@ u64 serialize(Archive &archive, void *data, u64 size) {
         return write_file(archive.file, size, data);        
     }
 
-    log(LOG_MINIMAL, "Unknown mode %u in archive 0x%X", archive.mode, &archive);
+    log(LOG_ERROR, "Unknown mode %u in archive 0x%X", archive.mode, &archive);
     return 0;
 }
 

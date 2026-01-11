@@ -1,11 +1,11 @@
-- Use Unordered Access View (UAV) to implement mouse pick.
+- Change render target to be a gpu writable texture and current render target to swapchain.
 
 - Add sampled profiling zones for runtime stats.
 
-- Use bindless/virtual textures to reduce gfx api calls.
+- Use bindless/virtual textures to reduce render backend calls.
 
 - UI input functions for non-text are basically the same, cleanup.
 
-- Separate aabb arrays for collision, editor visuals etc.
+- Separate aabbs for collision, editor visuals etc.
 
 - Synchronize logging.

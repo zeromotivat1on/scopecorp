@@ -12,7 +12,6 @@
 #include "ui.h"
 #include "viewport.h"
 #include "render_frame.h"
-#include "render_target.h"
 #include "triangle_mesh.h"
 #include "shader.h"
 #include "texture.h"
@@ -58,7 +57,10 @@ void init_level_editor_hub() {
         auto texture = material->diffuse_texture;
 
         if (texture) {
-            const f32 scale_aspect = (f32)texture->width / texture->height;
+            const auto view  = gpu_get_image_view(texture->image_view);
+            const auto image = gpu_get_image(view->image);
+            
+            const f32 scale_aspect = (f32)image->width / image->height;
             const f32 y_scale = 1.0f * scale_aspect;
             const f32 x_scale = y_scale * scale_aspect;
         
@@ -240,18 +242,20 @@ void on_editor_input(const Window_Event *e) {
     
     switch (e->type) {
     case WINDOW_EVENT_KEYBOARD: {
+        // @Todo: handle repeat?
+        
         const auto key   = e->key_code;
-        const auto press = e->input_bits & WINDOW_EVENT_PRESS_BIT;
+        const auto press = e->press;
 
         if (press && key == KEY_OPEN_CONSOLE) {
             open_console();
         } else if (press && key == KEY_OPEN_PROFILER) {
             open_profiler();
         } else if (press && key == KEY_SWITCH_POLYGON_MODE) {
-            if (game_state.polygon_mode == POLYGON_FILL) {
-                game_state.polygon_mode = POLYGON_LINE;
+            if (game_state.polygon_mode == GPU_POLYGON_FILL) {
+                game_state.polygon_mode = GPU_POLYGON_LINE;
             } else {
-                game_state.polygon_mode = POLYGON_FILL;
+                game_state.polygon_mode = GPU_POLYGON_FILL;
             }
         } else if (press && key == KEY_SWITCH_COLLISION_VIEW) {
             if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
@@ -281,13 +285,11 @@ void on_editor_input(const Window_Event *e) {
             
         break;
     }
-    case WINDOW_EVENT_MOUSE_CLICK: {
+    case WINDOW_EVENT_MOUSE_BUTTON: {
         const auto key   = e->key_code;
-        const auto press = e->input_bits & WINDOW_EVENT_PRESS_BIT;
+        const auto press = e->press;
 
-        if (press && key == MOUSE_MIDDLE) {
-            lock_cursor(window, !window->cursor_locked);
-        } else if (press && key == MOUSE_RIGHT && !window->cursor_locked) {
+        if (press && key == MOUSE_RIGHT && !window->cursor_locked) {
             mouse_unpick_entity();
         } else if (press && key == MOUSE_LEFT && !window->cursor_locked && ui.id_hot == UIID_NONE) {
             // @Cleanup: specify memory barrier target.
@@ -322,7 +324,7 @@ void update_editor() {
     if (program_mode == MODE_EDITOR) {
         // Update camera.
         if (input_layer->type == INPUT_LAYER_EDITOR) {
-            const f32 mouse_sensitivity = 16.0f;
+            const f32 mouse_sensitivity = 32.0f;
 
             if (window->cursor_locked) {   
                 camera.yaw   -= input->mouse_offset_x * mouse_sensitivity * dt;
@@ -645,26 +647,25 @@ void update_editor() {
             
             if (fade_time > EDITOR_REPORT_FADE_TIME) {
                 editor.report_time = 0.0f;
-                editor.report_string.count = 0;
+                editor.report_string.size = 0;
             }
         }
 
-        if (editor.report_string.count > 0) {
-            constexpr f32 Z = UI_MAX_Z;
+        if (editor.report_string.size > 0) {
+            constexpr auto Z = UI_MAX_Z;
             
-            const auto &atlas = *global_font_atlases.main_medium;
-            const f32 width_px = get_line_width_px(atlas, editor.report_string);
-            const Vector2 pos = Vector2(screen_viewport.width * 0.5f - width_px * 0.5f,
-                                  screen_viewport.height * 0.7f);
+            const auto atlas    = global_font_atlases.main_medium;
+            const auto width_px = get_line_width_px(atlas, editor.report_string);
+            const auto pos      = Vector2(screen_viewport.width * 0.5f - width_px * 0.5f,
+                                          screen_viewport.height * 0.7f);
 
-            const f32 lerp_alpha = Clamp(fade_time / EDITOR_REPORT_FADE_TIME, 0.0f, 1.0f);
-            const u32 alpha = (u32)Lerp(255, 0, lerp_alpha);
-            const u32 color = rgba_pack(255, 255, 255, alpha);
-
-            const Vector2 shadow_offset = Vector2(atlas.px_height * 0.1f, -atlas.px_height * 0.1f);
-            const u32 shadow_color = rgba_pack(0, 0, 0, alpha);
+            const auto lerp_alpha    = Clamp(fade_time / EDITOR_REPORT_FADE_TIME, 0.0f, 1.0f);
+            const auto alpha         = (u32)Lerp(255, 0, lerp_alpha);
+            const auto color         = Color32 { .a = alpha, .b = 255, .g = 255, .r = 255 };
+            const auto shadow_color  = Color32 { .a = alpha, .b = 0,   .g = 0,   .r = 0   };
+            const auto shadow_offset = Vector2(atlas->px_height * 0.1f, -atlas->px_height * 0.1f);
             
-            ui_text_with_shadow(editor.report_string, pos, color, shadow_offset, shadow_color, Z, &atlas);
+            ui_text_with_shadow(editor.report_string, pos, color, shadow_offset, shadow_color, Z, atlas);
         }
     }
 }
@@ -755,177 +756,149 @@ void update_hot_reload() {
 
 // console
 
-inline Console *console = null;
+static Console console;
 
-Console *get_console () { Assert(console); return console; }
-
-void init_console() {
-    Assert(!console);
-    console = New(Console);
-    
-    console->history.data = (char *)alloc(console->MAX_HISTORY_SIZE);
-    console->input.data   = (char *)alloc(console->MAX_INPUT_SIZE);
-    
-    on_console_viewport_resize(screen_viewport.width, screen_viewport.height);
-}
+Console *get_console() { return &console; }
 
 void open_console() {
-    Assert(!console->opened);
-    console->opened = true;
+    Assert(!console.opened);
+    console.opened = true;
     push_input_layer(input_layers[INPUT_LAYER_CONSOLE]);
 }
 
 void close_console() {
-    Assert(console->opened);
-    console->opened = false;
-    console->cursor_blink_dt = 0.0f;
+    Assert(console.opened);
+    console.opened = false;
+    console.cursor_blink_dt = 0.0f;
     auto layer = pop_input_layer();
     Assert(layer->type == INPUT_LAYER_CONSOLE);
 }
 
 void update_console() {
-    if (!console->opened) return;
+    if (!console.opened) return;
     
-    auto &history = console->history;
-    auto &history_height = console->history_height;
-    auto &history_y = console->history_y;
-    auto &history_min_y = console->history_min_y;
-    auto &history_max_width = console->history_max_width;
-    auto &input = console->input;
-    auto &cursor_blink_dt = console->cursor_blink_dt;
+    auto &history = console.history;
+    auto &input   = console.input;
+    auto &cursor_blink_dt = console.cursor_blink_dt;
     
-    const auto &atlas = *global_font_atlases.main_small;
+    const auto atlas = global_font_atlases.main_small;
+
+    if (!input.data) input.data = (u8 *)alloc(console.MAX_INPUT_SIZE);
 
     cursor_blink_dt += get_delta_time();
         
-    const f32 ascent  = atlas.ascent  * atlas.px_h_scale;
-    const f32 descent = atlas.descent * atlas.px_h_scale;
+    const f32 ascent  = atlas->ascent  * atlas->px_h_scale;
+    const f32 descent = atlas->descent * atlas->px_h_scale;
     // @Cleanup: probably not ideal solution to get lower-case glyph height.
-    const f32 lower_case_height = (atlas.ascent + atlas.descent) * atlas.px_h_scale;
+    const f32 lower_case_height = (atlas->ascent + atlas->descent) * atlas->px_h_scale;
 
     constexpr f32 QUAD_Z = 0.0f;
 
+    f32 lowest_message_y = 0;
+
     {   // History quad.
         
-        const Vector2 p0 = Vector2(console->MARGIN, console->MARGIN);
-        const Vector2 p1 = Vector2(screen_viewport.width - console->MARGIN, screen_viewport.height - console->MARGIN);
-        const u32 color = rgba_pack(0, 0, 0, 200);
+        const auto p0 = Vector2(console.MARGIN, console.MARGIN);
+        const auto p1 = Vector2(screen_viewport.width - console.MARGIN, screen_viewport.height - console.MARGIN);
+        const auto color = Color32 { .hex = 0x000000AA };
         ui_quad(p0, p1, color, QUAD_Z);
     }
-
+    
     {   // Input quad.
-        const Vector2 q0 = Vector2(console->MARGIN, console->MARGIN);
-        const Vector2 q1 = Vector2(screen_viewport.width - console->MARGIN,
-                             console->MARGIN + lower_case_height + 2 * console->PADDING);
-        const u32 color = rgba_pack(0, 0, 0, 200);
+        const auto q0 = Vector2(console.MARGIN, console.MARGIN);
+        const auto q1 = Vector2(screen_viewport.width - console.MARGIN,
+                                console.MARGIN + lower_case_height + 2 * console.PADDING);
+        const auto color = Color32 { .hex = 0x000000AA };
         ui_quad(q0, q1, color, QUAD_Z);
+
+        lowest_message_y += q1.y;
     }
 
     {   // Input text.
-        const Vector2 pos = Vector2(console->MARGIN + console->PADDING, console->MARGIN + console->PADDING);
-        const u32 color = rgba_white;
-        ui_text(input, pos, color, QUAD_Z + F32_EPSILON, &atlas);
+        const auto pos = Vector2(console.MARGIN + console.PADDING, console.MARGIN + console.PADDING);
+        const auto color = COLOR32_WHITE;
+        ui_text(input, pos, color, QUAD_Z + F32_EPSILON, atlas);
     }
 
     {   // Cursor quad.
-        const f32 width_px = get_line_width_px(atlas, input);
-        const Vector2 p0 = Vector2(console->MARGIN + console->PADDING + width_px + 1,
-                             console->MARGIN + console->PADDING + descent);
-        const Vector2 p1 = Vector2(p0.x + atlas.space_xadvance, p0.y + ascent - descent);
-        u32 color = rgba_white;
+        const auto width_px = get_line_width_px(atlas, input);
+        const auto p0 = Vector2(console.MARGIN + console.PADDING + width_px + 1,
+                                console.MARGIN + console.PADDING + descent);
+        const auto p1 = Vector2(p0.x + atlas->space_xadvance, p0.y + ascent - descent);
+        auto color = COLOR32_WHITE;
 
-        if (cursor_blink_dt > console->CURSOR_BLINK_INTERVAL) {
-            if (cursor_blink_dt > 2 * console->CURSOR_BLINK_INTERVAL) {
+        if (cursor_blink_dt > console.CURSOR_BLINK_INTERVAL) {
+            if (cursor_blink_dt > 2 * console.CURSOR_BLINK_INTERVAL) {
                 cursor_blink_dt = 0.0f;
             } else {
-                color = 0;
+                color = {0};
             }
         }
 
         ui_quad(p0, p1, color, QUAD_Z);
     }
         
-    {   // History text.        
-        const f32 max_height = screen_viewport.height - 2 * console->MARGIN - 3 * console->PADDING;
+    {   // History text.
+        constexpr f32 z = QUAD_Z + F32_EPSILON;
+        constexpr Color32 color_lut[] = {
+            COLOR32_GRAY, COLOR32_WHITE, COLOR32_YELLOW, COLOR32_RED,
+        };
 
-        history_height = 0.0f;
-        char *start = history.data;
-        f32 visible_height = history.count > 0 ? atlas.line_height : 0.0f;
-        f32 current_y = history_y;
-        u64 draw_count = 0;
-        
-        for (s32 i = 0; i < history.count; ++i) {
-            if (current_y > history_min_y) {
-                start += 1;
-                visible_height = 0.0f;
-            } else {
-                draw_count += 1;
-                if (draw_count >= console->MAX_HISTORY_SIZE) {
-                    draw_count = console->MAX_HISTORY_SIZE;
-                    break;
-                }
-            }
+        auto p = Vector2(console.MARGIN + console.PADDING, screen_viewport.height - console.MARGIN - console.PADDING - ascent);
+
+        for (s32 i = console.scroll_pos; i < console.message_count; ++i) {
+            if (p.y < lowest_message_y) break;
             
-            if (history.data[i] == C_NEW_LINE) {
-                history_height += atlas.line_height;
-                visible_height += atlas.line_height;
-                current_y -= atlas.line_height;
-                
-                if (visible_height > max_height) {
-                    break;
-                }
-            }
-        }
+            const auto message = console.messages[i];
+            const auto level   = console.log_levels[i];
+            const auto color   = color_lut[level];
 
-        auto p = Vector2(console->MARGIN + console->PADDING, screen_viewport.height - console->MARGIN - console->PADDING - ascent);
-        auto c = rgba_white;
-        ui_text(make_string(start, draw_count), p, c, QUAD_Z + F32_EPSILON, &atlas);
+            // @Todo: handle too long message that goes beyond console quad.
+            ui_text(message, p, color, z, atlas);
+            p.y -= atlas->line_height;
+        }        
+    }
+}
+
+void add_to_console_history(String s) {
+    add_to_console_history(LOG_DEFAULT, s);
+}
+
+void add_to_console_history(Log_Level level, String s) {
+    static const auto add_message = [](Log_Level level, String s) {
+        console.log_levels[console.message_count] = level;
+
+        auto &message = console.messages[console.message_count];
+        message.data = (u8 *)console.history.data + console.history.size;
+        message.size = s.size;
+    
+        copy(message.data, s.data, s.size);
+
+        console.history.size += s.size;
+        console.message_count += 1;
+    };
+    
+    auto &history = console.history;
+    if (!history.data) console.history.data = (u8 *)alloc(console.MAX_HISTORY_SIZE);
+    
+    const auto delims = S("\n");
+    const auto tokens = split(s, delims);
+
+    if (history.size + s.size > console.MAX_HISTORY_SIZE ||
+        console.message_count + tokens.count > console.MAX_MESSAGE_COUNT) {
+        history.size = 0;
+        console.message_count = 0;
+    }
+
+    For (tokens) {
+        const auto pieces = chop(it, 128, __temporary_allocator);
+        For (pieces) add_message(level, it);
     }
 }
 
 static void scroll_console(s32 delta) {
-    auto &history_height = console->history_height;
-    auto &history_y = console->history_y;
-    auto &history_min_y = console->history_min_y;
-
-    const auto atlas = global_font_atlases.main_small;
-    
-    history_y -= delta * atlas->line_height;
-    history_y = Clamp(history_y, history_min_y, history_min_y + history_height);
-}
-
-void add_to_console_history(String s) {
-    auto &history = console->history;
-    auto &history_max_width = console->history_max_width;
-
-    const auto &atlas = *global_font_atlases.main_small;
-
-    f32 text_width = 0.0f;
-    for (u32 i = 0; i < s.count; ++i) { // @Speed
-        const char c = s.data[i];
-
-        // @Cleanup: make better history overflow handling.
-        if (history.count > console->MAX_HISTORY_SIZE) {
-            history.count = 0;
-        }
-   
-        if (text_width < history_max_width) {
-            text_width += get_char_width_px(atlas, c);
-            if (c == C_NEW_LINE) {
-                text_width = 0;
-            }
-        } else { // wrap lines that do not fit into debug console window
-            history.data[history.count] = C_NEW_LINE;
-            history.count += 1;
-
-            text_width = 0;
-        }
-
-        history.data[history.count] = c;
-        history.count += 1;
-    }
-
-    history.data[history.count] = '\0';
+    console.scroll_pos -= delta;
+    console.scroll_pos = Clamp(console.scroll_pos, 0, console.message_count);
 }
 
 void on_console_input(const Window_Event *e) {
@@ -933,16 +906,21 @@ void on_console_input(const Window_Event *e) {
 
     switch (e->type) {
     case WINDOW_EVENT_KEYBOARD: {
+        // @Todo: handle repeat?
+        
         const auto key    = e->key_code;
-        const auto press  = e->input_bits & WINDOW_EVENT_PRESS_BIT;
-        const auto repeat = e->input_bits & WINDOW_EVENT_REPEAT_BIT;
+        const auto press  = e->press;
+        const auto repeat = e->repeat;
 
         if (press && key == KEY_OPEN_CONSOLE) {
             close_console();
-        } else if ((press || repeat) && key == KEY_UP) {
-            scroll_console(1);
-        } else if ((press || repeat) && key == KEY_DOWN) {
-            scroll_console(-1);            
+        } else if (press && (key == KEY_UP || key == KEY_DOWN)) {
+            s32 delta = 1 - 2 * (key == KEY_DOWN);
+
+            if (down(KEY_CTRL))  delta *= console.message_count;
+            if (down(KEY_SHIFT)) delta *= 10;
+
+            scroll_console(delta);
         }
         
         break;
@@ -950,79 +928,71 @@ void on_console_input(const Window_Event *e) {
     case WINDOW_EVENT_TEXT_INPUT: {
         const auto character = e->character;
         
-        if (!console->opened) break;
+        if (!console.opened) break;
 
         if (character == C_GRAVE_ACCENT) {
             break;
         }
 
-        auto &history = console->history;
-        auto &history_y = console->history_y;
-        auto &history_min_y = console->history_min_y;
-        auto &input = console->input;
-        auto &cursor_blink_dt = console->cursor_blink_dt;
+        auto &history = console.history;
+        auto &input = console.input;
+        auto &cursor_blink_dt = console.cursor_blink_dt;
 
         const auto &atlas = *global_font_atlases.main_small;
 
         cursor_blink_dt = 0.0f;
     
         if (character == C_NEW_LINE || character == C_CARRIAGE_RETURN) {
-            if (input.count > 0) {                
-                // @Todo: make better history overflow handling.
-                if (history.count + input.count > console->MAX_HISTORY_SIZE) {
-                    history.data[0] = '\0';
-                    history.count = 0;
-                }
-
-                constexpr auto delims = S(" ");
+            if (input.size > 0) {
+                const auto delims = S(" ");
                 const auto tokens = split(input, delims);
-                
-                String_Builder builder;
+                if (!tokens.count) break;
+                                
                 if (tokens[0]) {
                     if (tokens[0] == CONSOLE_CMD_CLEAR) {
-                        if (!tokens[1]) {
-                            history.data[0] = '\0';
-                            history.count = 0;
-                            history_y = history_min_y;
+                        if (tokens.count == 1) {
+                            history.size = 0;
+                            console.message_count = 0;
                         } else {
-                            append(builder, "usage: clear\n");
-                            add_to_console_history(builder_to_string(builder));
+                            add_to_console_history(CONSOLE_CMD_USAGE_CLEAR);
                         }
                     } else if (tokens[0] == CONSOLE_CMD_LEVEL) {
-                        if (tokens[1]) {   
+                        if (tokens.count > 1) {   
                             //auto path = tprint("%S%S", PATH_LEVEL(""), tokens[1]);
                             //load_level(World, path);
                         } else {
-                            append(builder, "usage: level name_with_extension\n");
-                            add_to_console_history(builder_to_string(builder));
+                            add_to_console_history(CONSOLE_CMD_USAGE_LEVEL);
                         }
                     } else {
-                        append(builder, CONSOLE_UNKNOWN_CMD_WARNING);
+                        String_Builder builder;
+                        builder.allocator = __temporary_allocator;
+                        
+                        append(builder, CONSOLE_CMD_UNKNOWN_WARNING);
                         append(builder, input);
-                        append(builder, '\n');
+                        
                         add_to_console_history(builder_to_string(builder));
                     }
                 }
                 
-                input.count = 0;
+                input.size = 0;
             }
         
             break;
         }
 
         if (character == C_BACKSPACE) {
-            if (input.count > 0) {
-                input.count -= 1;
+            if (input.size > 0) {
+                input.size -= 1;
             }
         }
 
         if (Is_Printable(character)) {
-            if (input.count >= console->MAX_INPUT_SIZE) {
+            if (input.size >= console.MAX_INPUT_SIZE) {
                 break;
             }
         
-            input.data[input.count] = (char)character;
-            input.count += 1;
+            input.data[input.size] = (char)character;
+            input.size += 1;
         }
         
         break;
@@ -1035,25 +1005,14 @@ void on_console_input(const Window_Event *e) {
     }
 }
 
-void on_console_viewport_resize(s16 width, s16 height) {
-    auto &history_y = console->history_y;
-    auto &history_min_y = console->history_min_y;
-    auto &history_max_width = console->history_max_width;
-
-    history_min_y = height - console->MARGIN;
-    history_y = history_min_y;
-
-    history_max_width = width - 2 * console->MARGIN - 2 * console->PADDING;
-}
-
 void screen_report(const char *cs, ...) {
     static char buffer[256];
 
-    editor.report_string.data = buffer;
+    editor.report_string.data = (u8 *)buffer;
     editor.report_time = 0.0f;
 
     push_va_args(cs) {
-        editor.report_string.count = stbsp_vsnprintf(buffer, carray_count(buffer), cs, va_args);
+        editor.report_string.size = stbsp_vsnprintf(buffer, carray_count(buffer), cs, va_args);
     }
 }
 
@@ -1074,29 +1033,25 @@ void screen_report(const char *cs, ...) {
 
 // profiler
 
-static Profiler *profiler = null;
+static Profiler profiler;
 
-Profiler *get_profiler () { Assert(profiler); return profiler; }
+Profiler *get_profiler () { return &profiler; }
 
 void init_profiler() {
-    Assert(!profiler);
-
-    profiler = New(Profiler);
-
-    array_realloc(profiler->all_zones,     MAX_PROFILE_ZONES);
-    array_realloc(profiler->active_zones,  MAX_PROFILE_ZONES);
-    table_realloc(profiler->zone_lookup,   MAX_PROFILE_ZONES);
+    array_realloc(profiler.all_zones,    MAX_PROFILE_ZONES);
+    array_realloc(profiler.active_zones, MAX_PROFILE_ZONES);
+    table_realloc(profiler.zone_lookup,  MAX_PROFILE_ZONES);
 }
 
 void open_profiler() {
-    Assert(!profiler->opened);
-    profiler->opened = true;
+    Assert(!profiler.opened);
+    profiler.opened = true;
     push_input_layer(input_layers[INPUT_LAYER_PROFILER]);
 }
 
 void close_profiler() {
-    Assert(profiler->opened);
-    profiler->opened = false;
+    Assert(profiler.opened);
+    profiler.opened = false;
     auto layer = pop_input_layer();
     Assert(layer->type == INPUT_LAYER_PROFILER);
 }
@@ -1104,28 +1059,50 @@ void close_profiler() {
 void update_profiler() {
     using Time_Zone = Profiler::Time_Zone;
     
-    // Store separate time zones to preserve data in case of pause.
-    static auto zones = Array <Time_Zone> {};
+    static Array <Time_Zone> zone_arrays[180];
+    static u32 display_zones_index = 0;
+    static u32 active_zones_index  = 0;
+    static u32 zone_arrays_count   = 0;
 
     defer {
-        array_clear(profiler->all_zones);
-        array_clear(profiler->active_zones);
-        table_clear(profiler->zone_lookup);
+        array_clear(profiler.all_zones);
+        array_clear(profiler.active_zones);
+        table_clear(profiler.zone_lookup);
     };
+    
+    auto &zones = zone_arrays[display_zones_index];
 
-    if (profiler->all_zones.count) {
-        array_clear(zones);
-        array_realloc(zones, profiler->all_zones.count);
+    if (!profiler.paused) {
+        profiler.update_time += get_delta_time();
         
-        copy(zones.items, profiler->all_zones.items, profiler->all_zones.count * sizeof(zones.items[0]));
-        zones.count = profiler->all_zones.count;
+        if (profiler.update_time >= profiler.UPDATE_INTERVAL) {
+            profiler.update_time = 0.0f;
+
+            auto &zones = zone_arrays[active_zones_index];
+            array_clear(zones);
+            array_realloc(zones, profiler.all_zones.count);
+        
+            copy(zones.items, profiler.all_zones.items, profiler.all_zones.count * sizeof(zones.items[0]));
+            zones.count = profiler.all_zones.count;
+     
+            active_zones_index += 1;
+            display_zones_index = active_zones_index > 1 ? active_zones_index - 2 : 0;
+        
+            if (active_zones_index >= carray_count(zone_arrays)) {
+                active_zones_index  = 0;
+                display_zones_index = 0;
+            }
+        
+            zone_arrays_count += 1;
+            zone_arrays_count = Min(zone_arrays_count, carray_count(zone_arrays));
+        }
     }
 
-    if (!profiler->opened) return;
+    if (!profiler.opened) return;
 
     // Common draw data.
     
-    constexpr f32 MARGIN  = 100.0f;
+    constexpr f32 MARGIN  = 64.0f;
     constexpr f32 PADDING = 16.0f;
     constexpr f32 QUAD_Z = 0.0f;
 
@@ -1139,8 +1116,8 @@ void update_profiler() {
 
     // Update profiler mode.
     
-    switch (profiler->view_mode) {
-    case PROFILER_RUNTIME: {
+    switch (profiler.view_mode) {
+    case PROFILER_VIEW_RUNTIME: {
         // Build parent-children relations for correct zone sort and draw.
         struct Children_Per_Zone { u32 count = 0; u32 children[MAX_CHILDREN_PER_ZONE]; };
         Array <u32>               roots    = { .allocator = __temporary_allocator };
@@ -1164,7 +1141,7 @@ void update_profiler() {
 
         // Prepare draw data.
         
-        constexpr String titles[4] = {
+        const String titles[4] = {
             S("Name"), S("Exc"), S("Inc"), S("Num"),
         };
 
@@ -1180,15 +1157,14 @@ void update_profiler() {
             offsets[i] = offsets[i - 1] + max_lengths[i - 1];
         }
         
-        typedef bool (* Sort_Proc)(u32 a, u32 b);
-        constexpr Sort_Proc sort_procs[carray_count(titles)] = {
-            [] (u32 a, u32 b) { return (zones[a].name < zones[b].name); },
-            [] (u32 a, u32 b) { return (zones[b].exclusive - zones[a].exclusive) < 0; },
-            [] (u32 a, u32 b) { return (zones[b].inclusive - zones[a].inclusive) < 0; },
-            [] (u32 a, u32 b) { return (zones[b].calls - zones[a].calls) < 0; },
+        const std::function<bool(u32, u32)> sort_procs[carray_count(titles)] = {
+            [&] (u32 a, u32 b) { return (zones[a].name < zones[b].name); },
+            [&] (u32 a, u32 b) { return (zones[b].exclusive - zones[a].exclusive) < 0; },
+            [&] (u32 a, u32 b) { return (zones[b].inclusive - zones[a].inclusive) < 0; },
+            [&] (u32 a, u32 b) { return (zones[b].calls - zones[a].calls) < 0; },
         };
         
-        const Sort_Proc sort_proc = sort_procs[profiler->time_sort];
+        const auto sort_proc = sort_procs[profiler.time_sort];
 
         // Sort roots and children.
         std::stable_sort(roots.items, roots.items + roots.count, sort_proc);
@@ -1220,17 +1196,19 @@ void update_profiler() {
         const auto &v = screen_viewport;
 
         // Background quad.
-        const Vector2 p0 = Vector2(MARGIN, v.height - MARGIN - 2 * PADDING - (zones.count + 1.5f) * line_height);
-        const Vector2 p1 = Vector2(offsets[carray_count(offsets) - 1] + max_lengths[carray_count(max_lengths) - 1] + PADDING, v.height - MARGIN);
-        const u32 c = rgba_pack(0, 0, 0, 200);
+        auto p0 = Vector2(MARGIN, v.height - MARGIN - 2 * PADDING - (zones.count + 1.5f) * line_height); // top left
+        auto p1 = Vector2(offsets[carray_count(offsets) - 1] + max_lengths[carray_count(max_lengths) - 1] + PADDING, v.height - MARGIN); // bottom right
+        const auto c = Color32 { .hex = 0x000000AA };
         ui_quad(p0, p1, c, QUAD_Z);
 
-        Vector2 p = Vector2(MARGIN + PADDING, v.height - MARGIN - PADDING - ascent);
+        const auto columns_quad_width = Abs(p1.x - p0.x);
+        
+        auto p = Vector2(MARGIN + PADDING, v.height - MARGIN - PADDING - ascent);
 
         // Columns headers.
         for (auto sort = 0; sort < carray_count(titles); ++sort) {
-            const f32 z = QUAD_Z + F32_EPSILON;
-            const u32 c = profiler->time_sort == sort ? rgba_yellow : rgba_white;
+            const auto z = QUAD_Z + F32_EPSILON;
+            const auto c = profiler.time_sort == sort ? COLOR32_YELLOW : COLOR32_WHITE;
             p.x = offsets[sort];
             ui_text(titles[sort], p, c, z, atlas);
         }
@@ -1238,9 +1216,20 @@ void update_profiler() {
         p.y -= line_height * 1.5f;
 
         const u64 hz = get_perf_hz_ms();
+
+        auto &selected_zone_index = profiler.selected_zone_index;
+        selected_zone_index = Clamp(selected_zone_index, 0, (s32)draw_order.count - 1);
         
-        // Columns data.
+        // Rows data.
+        auto row_index = 0;
         For (draw_order) {
+            if (row_index == selected_zone_index) {
+                const auto q0 = Vector2(p0.x, p.y + atlas->line_height);
+                const auto q1 = Vector2(p1.x, p.y);
+                const auto c  = Color32 { .hex = 0xFFFFFF44 };
+                ui_quad(q0, q1, c, QUAD_Z);
+            }
+            
             const auto &zone = zones[it];
             
             const auto name  = zone.name;
@@ -1253,7 +1242,7 @@ void update_profiler() {
             const auto t = Clamp(inc / 5.5f, 0.0f, 1.0f);
             const auto r = (u8)(255 * t);
             const auto g = (u8)(255 * (1.0f - t));
-            const auto c = rgba_pack(r, g, 0, 255);
+            const auto c = Color32 { .a = 255, .b = 0, .g = g, .r = r };
 
             p.x = offsets[0] + depth * space_width_px;
             ui_text(name, p, c, z, atlas);
@@ -1268,11 +1257,93 @@ void update_profiler() {
             ui_text(tprint("%u", calls), p, c, z, atlas);
             
             p.y -= line_height;
+
+            row_index += 1;
+        }
+
+        // Draw simple graph of all collected zone arrays.
+
+        const auto zone_width_scale = 4;
+        const auto graph_height = 300.0f;
+        const auto graph_width  = zone_width_scale * carray_count(zone_arrays) + 2 * PADDING;
+
+        // Background quad.
+        p0 = Vector2(MARGIN + columns_quad_width + PADDING, p1.y); // top-left
+        p1 = Vector2(p0.x + graph_width, p0.y - graph_height);     // bottom-right
+        ui_quad(p0, p1, c, QUAD_Z);
+
+        // Max graph zone time.
+        const auto max_zone_time = profiler.max_graph_zone_time;
+        const auto text       = tprint("exc scope %.2fms", max_zone_time);
+        const auto text_pos   = Vector2(p0.x + PADDING, p1.y + PADDING);
+        const auto text_color = COLOR32_WHITE;
+        ui_text(text, text_pos, text_color, QUAD_Z + F32_EPSILON, atlas);
+
+        const auto start_of_line_y_offset = 2 * PADDING + atlas->line_height;
+        const auto start_of_line_y = p1.y + start_of_line_y_offset;
+        const auto max_zone_height = graph_height - start_of_line_y_offset - PADDING;
+        
+        // Update visualizer.
+        const auto lxa = p0.x + PADDING + active_zones_index * zone_width_scale;
+        const auto lya = start_of_line_y;
+        const auto lxb = lxa;
+        const auto lyb = lya + max_zone_height;
+        const auto lpa = Vector2(lxa, lya);
+        const auto lpb = Vector2(lxb, lyb);
+        const auto lc  = COLOR32_WHITE;
+        ui_line(lpa, lpb, lc, QUAD_Z + F32_EPSILON);
+
+        const Color32 color_cycle_table[] = {
+            COLOR32_RED, COLOR32_GREEN, COLOR32_BLUE,
+            COLOR32_YELLOW, COLOR32_PURPLE, COLOR32_CYAN
+        };
+
+        // Graph time zone data.
+        for (u32 i = 0; i < zone_arrays_count - 1; ++i) {
+            const auto &zone_array_a = zone_arrays[i + 0];
+            const auto &zone_array_b = zone_arrays[i + 1];
+            const auto zone_count    = Min(zone_array_a.count, zone_array_b.count);
+            
+            for (u32 j = 0; j < zone_count; ++j) {
+                const auto &zone_a = zone_array_a[j];
+                const auto &zone_b = zone_array_b[j];
+
+                const auto time_a  = (f32)zone_a.exclusive / hz;
+                const auto time_b  = (f32)zone_b.exclusive / hz;
+                const auto alpha_a = time_a / max_zone_time;
+                const auto alpha_b = time_b / max_zone_time;
+
+                auto height_a = Lerp(0.0f, max_zone_height, alpha_a);
+                auto height_b = Lerp(0.0f, max_zone_height, alpha_b);
+
+                if (height_a > max_zone_height && height_b > max_zone_height) continue;
+
+                // @Cleanup: these looks a bit meh...
+                if (height_a <= max_zone_height && height_a <= height_b)
+                    height_b = Min(height_b, max_zone_height);
+                if (height_b <= max_zone_height && height_b <= height_a)
+                    height_a = Min(height_a, max_zone_height);
+
+                const auto xa = p0.x + PADDING + i * zone_width_scale;
+                const auto xb = xa + zone_width_scale;
+                const auto ya = start_of_line_y + height_a;
+                const auto yb = start_of_line_y + height_b;
+                
+                const auto pa = Vector2(xa, ya);
+                const auto pb = Vector2(xb, yb);
+
+                const auto selected_index = draw_order[selected_zone_index];
+                
+                const auto ci = j % carray_count(color_cycle_table);
+                const auto c  = j == selected_index ? COLOR32_WHITE : color_cycle_table[ci];
+                
+                ui_line(pa, pb, c, QUAD_Z + F32_EPSILON);
+            }
         }
         
         break;
     }
-    case PROFILER_MEMORY: {
+    case PROFILER_VIEW_MEMORY: {
         // Prepare draw data.
         
         const String titles[3] = {
@@ -1293,7 +1364,6 @@ void update_profiler() {
         extern Virtual_Arena virtual_arena;
         const auto &va  = virtual_arena;
         const auto &ts  = context.temporary_storage;
-        const auto &gpu = get_gpu_buffer();
         
         const struct Memory_Zone {
             String name;
@@ -1301,27 +1371,31 @@ void update_profiler() {
             u64 size;
         };
 
+        const auto gpu_read_buffer  = gpu_get_buffer(gpu_read_allocator.buffer);
+        const auto gpu_write_buffer = gpu_get_buffer(gpu_write_allocator.buffer);
+        
         Array <Memory_Zone> zones = { .allocator = __temporary_allocator };
         array_add(zones, { S("virtual_arena"),     va.used,      va.reserved    });
         array_add(zones, { S("temporary_storage"), ts->occupied, ts->total_size });
-        array_add(zones, { S("gpu_memory"),        gpu->used,    gpu->size      });
+        array_add(zones, { S("gpu_read_memory"),   gpu_read_allocator.used,  gpu_read_buffer->size });
+        array_add(zones, { S("gpu_write_memory"),  gpu_write_allocator.used, gpu_write_buffer->size });
         
         // Start actual draw.
         
         const auto &v = screen_viewport;
 
         // Background quad.
-        const Vector2 p0 = Vector2(MARGIN, v.height - MARGIN - 2 * PADDING - (zones.count + 1.5f) * line_height);
-        const Vector2 p1 = Vector2(offsets[carray_count(offsets) - 1] + max_lengths[carray_count(max_lengths) - 1] + PADDING, v.height - MARGIN);
-        const u32 c = rgba_pack(0, 0, 0, 200);
+        const auto p0 = Vector2(MARGIN, v.height - MARGIN - 2 * PADDING - (zones.count + 1.5f) * line_height);
+        const auto p1 = Vector2(offsets[carray_count(offsets) - 1] + max_lengths[carray_count(max_lengths) - 1] + PADDING, v.height - MARGIN);
+        const auto c = Color32 { .hex = 0x000000AA };
         ui_quad(p0, p1, c, QUAD_Z);
 
-        Vector2 p = Vector2(MARGIN + PADDING, v.height - MARGIN - PADDING - ascent);
+        auto p = Vector2(MARGIN + PADDING, v.height - MARGIN - PADDING - ascent);
 
         // Columns headers.
         for (auto sort = 0; sort < carray_count(titles); ++sort) {
-            const f32 z = QUAD_Z + F32_EPSILON;
-            const u32 c = rgba_white;
+            const auto z = QUAD_Z + F32_EPSILON;
+            const auto c = COLOR32_WHITE;
             p.x = offsets[sort];
             ui_text(titles[sort], p, c, z, atlas);
         }
@@ -1338,7 +1412,7 @@ void update_profiler() {
             const auto t = Clamp((f32)used / size, 0.0f, 1.0f);
             const auto r = (u8)(255 * t);
             const auto g = (u8)(255 * (1.0f - t));
-            const auto c = rgba_pack(r, g, 0, 255);
+            const auto c = Color32 { .a = 255, .b = 0, .g = g, .r = r };
 
             p.x = offsets[0];
             ui_text(name, p, c, z, atlas);
@@ -1359,40 +1433,60 @@ void update_profiler() {
 }
 
 void switch_profiler_view() {
-    profiler->view_mode = (Profiler_View_Mode)((profiler->view_mode + 1) % PROFILER_VIEW_COUNT);
+    profiler.view_mode = (Profiler_View_Mode)((profiler.view_mode + 1) % PROFILER_VIEW_COUNT);
 }
 
 void on_profiler_input(const Window_Event *e) {
     switch (e->type) {
     case WINDOW_EVENT_KEYBOARD: {
-        const auto key     = e->key_code;
-        const auto press   = e->input_bits & WINDOW_EVENT_PRESS_BIT;
-        const auto release = e->input_bits & WINDOW_EVENT_RELEASE_BIT;
+        const auto key   = e->key_code;
+        const auto press = e->press;
     
-        if (release) break; // do not handle keyboard release events at all
+        if (!press) break; // do not handle keyboard release events at all
 
         if (key == KEY_OPEN_PROFILER)        { close_profiler(); break; }
         if (key == KEY_SWITCH_PROFILER_VIEW) { switch_profiler_view(); break; }
         
-        switch (profiler->view_mode) {
-        case PROFILER_RUNTIME: {
+        switch (profiler.view_mode) {
+        case PROFILER_VIEW_RUNTIME: {
             switch (key) {
-            case KEY_P: { profiler->paused = !profiler->paused; break; }
+            case KEY_P: { profiler.paused = !profiler.paused; break; }
                 
-            case KEY_1: { profiler->time_sort = 0; break; }
-            case KEY_2: { profiler->time_sort = 1; break; }
-            case KEY_3: { profiler->time_sort = 2; break; }
-            case KEY_4: { profiler->time_sort = 3; break; }
+            case KEY_1: { profiler.time_sort = 0; break; }
+            case KEY_2: { profiler.time_sort = 1; break; }
+            case KEY_3: { profiler.time_sort = 2; break; }
+            case KEY_4: { profiler.time_sort = 3; break; }
+
+            case KEY_UP:
+            case KEY_DOWN: {
+                auto &index = profiler.selected_zone_index;
+                const auto delta = 1 - 2 * (key == KEY_UP);
+                index += delta; // updated and used later in update_profiler
+                break;
+            }
             }
             
             break;
         }
-        case PROFILER_MEMORY: {
+        case PROFILER_VIEW_MEMORY: {
             // @Todo: no memory profiler specific keys for now.
             break;
         }
         }
         
+        break;
+    }
+    case WINDOW_EVENT_MOUSE_WHEEL: {
+        switch (profiler.view_mode) {
+        case PROFILER_VIEW_RUNTIME: {
+            auto delta = Sign(e->scroll_delta);
+            if (down(KEY_SHIFT)) delta *= 8;
+            if (down(KEY_CTRL))  delta *= 64;
+            profiler.max_graph_zone_time -= 0.002f * delta;
+            profiler.max_graph_zone_time = Clamp(profiler.max_graph_zone_time, 0.01f, 8.0f);
+            break;
+        }
+        }
         break;
     }
     }
@@ -1401,35 +1495,35 @@ void on_profiler_input(const Window_Event *e) {
 void push_profile_time_zone(const char *name) { push_profile_time_zone(make_string((char *)name)); }
     
 void push_profile_time_zone(String name) {
-    if (profiler->paused) return;
+    if (profiler.paused) return;
 
     Profiler::Time_Zone *zone = null;
-    const auto found = table_find(profiler->zone_lookup, name);
+    const auto found = table_find(profiler.zone_lookup, name);
     
     if (!found) {
-        zone = &array_add(profiler->all_zones);
+        zone = &array_add(profiler.all_zones);
         new (zone) Profiler::Time_Zone;
             
         zone->name  = name;
-        zone->depth = profiler->active_zones.count;
+        zone->depth = profiler.active_zones.count;
 
-        table_add(profiler->zone_lookup, name, zone);
+        table_add(profiler.zone_lookup, name, zone);
     } else {
         zone = *found;
     }
 
-    Assert(zone->depth == profiler->active_zones.count, "For now zones must have unique names across different usage scopes");
+    Assert(zone->depth == profiler.active_zones.count, "For now zones must have unique names across different usage scopes");
     
     zone->calls += 1;
     zone->start  = get_perf_counter();
     
-    array_add(profiler->active_zones, zone);
+    array_add(profiler.active_zones, zone);
 }
 
 void pop_profile_time_zone() {
-    if (profiler->paused) return;
+    if (profiler.paused) return;
 
-    auto zone = array_pop(profiler->active_zones);
+    auto zone = array_pop(profiler.active_zones);
 
     auto time = get_perf_counter() - zone->start;
     auto exc  = time - zone->children;
@@ -1437,230 +1531,17 @@ void pop_profile_time_zone() {
     zone->exclusive += exc;
     zone->inclusive += time;
     
-    if (profiler->active_zones.count) {
-        auto last = profiler->active_zones[profiler->active_zones.count - 1];
+    if (profiler.active_zones.count) {
+        auto last = profiler.active_zones[profiler.active_zones.count - 1];
         last->children += time;
     }
 
-    For (profiler->active_zones) {
+    For (profiler.active_zones) {
         if (it->depth + 1 == zone->depth) {
-            zone->parent = (s32)(it - profiler->all_zones.items);
+            zone->parent = (s32)(it - profiler.all_zones.items);
             break;
         }
     }
-}
-
-// profile
-
-void open(Memory_Profiler &prof) {
-    Assert(!prof.is_open);
-    prof.is_open = true;
-    //push_input_layer(Input_layer_mprof);
-}
-
-void close(Memory_Profiler &prof) {
-    Assert(prof.is_open);
-    prof.is_open = false;
-    pop_input_layer();
-}
-
-void on_input(Memory_Profiler &prof, const Window_Event &event) {
-    auto window = get_window();
-        
-    switch (event.type) {
-    case WINDOW_EVENT_KEYBOARD: {
-        const auto key   = event.key_code;
-        const auto press = event.input_bits & WINDOW_EVENT_PRESS_BIT;
-
-        if (press && key == KEY_0) {
-            prof.sort_col = MEM_PROF_SORT_COL + 0;
-        } else if (press && key == KEY_1) {
-            prof.sort_col = MEM_PROF_SORT_COL + 1;
-        } else if (press && key == KEY_2) {
-            prof.sort_col = MEM_PROF_SORT_COL + 2;
-        } else if (press && key == KEY_3) {
-            prof.sort_col = MEM_PROF_SORT_COL + 3;
-        } else if (press && key == KEY_4) {
-            prof.sort_col = MEM_PROF_SORT_COL + 4;
-        } else if (press && key == KEY_B) {
-            prof.precision_type = MEM_PREC_BYTES;
-        } else if (press && key == KEY_K) {
-            prof.precision_type = MEM_PREC_KB;
-        } else if (press && key == KEY_M) {
-            prof.precision_type = MEM_PREC_MB;
-        } else if (press && key == KEY_G) {
-            prof.precision_type = MEM_PREC_GB;
-        } else if (press && key == KEY_T) {
-            prof.precision_type = MEM_PREC_TB;
-        }
-        
-        break;
-    }
-    }
-}
-
-void draw(Memory_Profiler &prof) {
-    /*
-    // @Todo: make custom struct that holds allocator ref and name and maybe other metadata.
-    static struct {
-        Allocator *allocator;
-        String name;
-    } scopes[3] = {
-        
-    };
-
-    constexpr u32 scope_count = carray_count(scopes);
-        
-    constexpr f32 MARGIN  = 100.0f;
-    constexpr f32 PADDING = 16.0f;
-    constexpr f32 QUAD_Z = 0.0f;
-
-    constexpr u32 NCOL = 4;
-    
-    if (!prof.is_open) return;
-    
-    const auto &atlas = *global_font_atlases.main_small;
-    const f32 ascent  = atlas.ascent  * atlas.px_h_scale;
-    const f32 descent = atlas.descent * atlas.px_h_scale;
-    const f32 space_width_px = get_char_width_px(atlas, C_SPACE);
-    
-    constexpr u32 memory_lengths[MEM_PREC___ca] = { 14, 12, 10, 10, 10 };
-    constexpr f64 prec_scales[MEM_PREC___ca] = {
-        1.0, 1.0/1024, 1.0/1024/1024, 1.0/1024/1024/1024, 1.0/1024/1024/1024/1024
-    };
-
-    const u32 memory_length = memory_lengths[prof.precision_type];
-    const f64 prec_scale    = prec_scales[prof.precision_type];
-
-    constexpr String titles  [NCOL] = { S("Name"), S("Used"), S("Commited"), S("Reserved") };
-    const u32 max_col_lengths[NCOL] = { 24, memory_length, memory_length, memory_length };
-
-    f32 offsets[NCOL];
-    offsets[0] = MARGIN + PADDING;
-    offsets[1] = offsets[0] + space_width_px * max_col_lengths[0];
-    offsets[2] = offsets[1] + space_width_px * max_col_lengths[1];
-    offsets[3] = offsets[2] + space_width_px * max_col_lengths[2];
-    
-    {   // Profiler quad.
-        const Vector2 p0 = Vector2(MARGIN, screen_viewport.height - MARGIN - 2 * PADDING - (scope_count + 3.0f) * atlas.line_height);
-        const Vector2 p1 = Vector2(offsets[NCOL - 1] + max_col_lengths[NCOL - 1] * space_width_px + PADDING, screen_viewport.height - MARGIN);
-        const u32 color = rgba_pack(0, 0, 0, 200);
-        ui_quad(p0, p1, color, QUAD_Z);
-    }
-
-    switch (prof.sort_col) {
-    case MEM_PROF_SORT_COL + 0: {
-        break;
-    }
-    case MEM_PROF_SORT_COL + 1: {
-        std::stable_sort(scopes, scopes + scope_count, [] (const auto &a, const auto &b) {
-            return str_compare(a->name, b->name) < 0;
-        });
-        break;
-    }
-    case MEM_PROF_SORT_COL + 2: {
-        std::stable_sort(scopes, scopes + scope_count, [] (const auto &a, const auto &b) {
-            return ((s64)b->allocator->used - (s64)a->allocator->used) < 0;
-        });
-        break;
-    }
-    case MEM_PROF_SORT_COL + 3: {
-        std::stable_sort(scopes, scopes + scope_count, [] (const auto &a, const auto &b) {
-            return ((s64)b->allocator->commited - (s64)a->allocator->commited) < 0;
-        });
-        break;
-    }
-    case MEM_PROF_SORT_COL + 4: {
-        std::stable_sort(scopes, scopes + scope_count, [] (const auto &a, const auto &b) {
-            return ((s64)b->allocator->reserved - (s64)a->allocator->reserved) < 0;
-        });
-        break;
-    }
-    }
-
-    u64 total_used = 0;
-    u64 total_commited = 0;
-    u64 total_reserved = 0;
-    
-    Vector2 pos = Vector2(MARGIN + PADDING, screen_viewport.height - MARGIN - PADDING - ascent);
-    
-    for (u32 i = 0; i < NCOL; ++i) {
-        u32 color = rgba_white;
-
-        // Index plus one to ignore 0 which means no sort.
-        if (i + 1 == prof.sort_col) {
-            color = rgba_yellow;
-        }
-            
-        pos.x = offsets[i];
-        ui_text(titles[i], pos, color, QUAD_Z + F32_EPSILON, &atlas);
-    }
-
-    pos.y -= atlas.line_height * 1.5f;
-    
-    for (u32 i = 0; i < scope_count; ++i) {
-        const auto &name      =  scopes[i].name;
-        const auto &allocator = *scopes[i].allocator;
-        
-        total_used     += allocator.used;
-        total_commited += allocator.commited;
-        total_reserved += allocator.reserved;
-        
-        const f32 alpha = Clamp((f32)allocator.used / allocator.reserved, 0.0f, 1.0f);
-        const u8 r = (u8)(255 * alpha);
-        const u8 g = (u8)(255 * (1.0f - alpha));
-        const u32 color = rgba_pack(r, g, 0, 255);
-            
-        char buffer[256];
-        u32 count = 0;
-
-        pos.x = offsets[0];
-        count = stbsp_snprintf(buffer, sizeof(buffer), "%S", name);
-        ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, &atlas);
-
-        pos.x = offsets[1];
-        count = stbsp_snprintf(buffer, sizeof(buffer), "%.2f", allocator.used * prec_scale);
-        ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, &atlas);
-
-        pos.x = offsets[2];
-        count = stbsp_snprintf(buffer, sizeof(buffer), "%.2f", allocator.commited * prec_scale);
-        ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, &atlas);
-            
-        pos.x = offsets[3];
-        count = stbsp_snprintf(buffer, sizeof(buffer), "%.2f", allocator.reserved * prec_scale);
-        ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, &atlas);
-
-        pos.y -= atlas.line_height;
-    }
-
-    {   // Total commited/reserved bytes.
-        pos.y -= atlas.line_height * 0.5f;
-
-        const f32 alpha = Clamp((f32)total_used / total_reserved, 0.0f, 1.0f);
-        const u8 r = (u8)(255 * alpha);
-        const u8 g = (u8)(255 * (1.0f - alpha));
-        const u32 color = rgba_pack(r, g, 0, 255);
-        
-        char buffer[256];
-        u32 count = 0;
-
-        pos.x = offsets[0];
-        count = stbsp_snprintf(buffer, sizeof(buffer), "Total");
-        ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, &atlas);
-
-        pos.x = offsets[1];
-        count = stbsp_snprintf(buffer, sizeof(buffer), "%.2f", total_used * prec_scale);
-        ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, &atlas);
-
-        pos.x = offsets[2];
-        count = stbsp_snprintf(buffer, sizeof(buffer), "%.2f", total_commited * prec_scale);
-        ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, &atlas);
-
-        pos.x = offsets[3];
-        count = stbsp_snprintf(buffer, sizeof(buffer), "%.2f", total_reserved * prec_scale);
-        ui_text(String { buffer, count }, pos, color, QUAD_Z + F32_EPSILON, &atlas);
-    }
-    */
 }
 
 void draw_dev_stats() {
@@ -1669,12 +1550,12 @@ void draw_dev_stats() {
     auto window  = get_window();
     auto manager = get_entity_manager();
     
-    const auto &atlas  = *global_font_atlases.main_small;
+    const auto atlas   = global_font_atlases.main_small;
 	const auto player  = get_player(manager);
 	const auto &camera = manager->camera;
 
-	const f32 padding = atlas.px_height * 0.5f;
-	const Vector2 shadow_offset = Vector2(atlas.px_height * 0.1f, -atlas.px_height * 0.1f);
+	const auto padding = atlas->px_height * 0.5f;
+	const auto shadow_offset = Vector2(atlas->px_height * 0.1f, -atlas->px_height * 0.1f);
 
     char text[256];
 	u32 count = 0;
@@ -1683,7 +1564,7 @@ void draw_dev_stats() {
     
 	{   // Entity.
         pos.x = padding;
-		pos.y = (f32)screen_viewport.height - atlas.line_height;
+		pos.y = (f32)screen_viewport.height - atlas->line_height;
                 
         if (editor.mouse_picked_entity) {
             const auto e = editor.mouse_picked_entity;
@@ -1697,42 +1578,48 @@ void draw_dev_stats() {
             }
             
             count = stbsp_snprintf(text, sizeof(text),
-                                   "%s %u %s", to_string(e->type), e->eid, change_prop_name);
-            ui_text_with_shadow(String { text, count }, pos, rgba_white, shadow_offset, rgba_black, Z);
-            pos.y -= 4 * atlas.line_height;
+                                   "%s %u %s", "Entity", e->eid, change_prop_name);
+            ui_text_with_shadow(make_string(text, count), pos, COLOR32_WHITE, shadow_offset, COLOR32_BLACK, Z);
+            pos.y -= 4 * atlas->line_height;
         }
 	}
 
 	{   // Stats and states.
-        pos.y = (f32)screen_viewport.height - atlas.line_height;
+        pos.y = (f32)screen_viewport.height - atlas->line_height;
 
-        count = stbsp_snprintf(text, sizeof(text), "%s %s", GAME_VERSION, Build_type_name);
-		pos.x = screen_viewport.width - get_line_width_px(atlas, String { text, count }) - padding;
-		ui_text_with_shadow(String { text, count }, pos, rgba_white, shadow_offset, rgba_black, Z);
-		pos.y -= atlas.line_height;
+        count = stbsp_snprintf(text, sizeof(text), "%s %s", GAME_VERSION, get_build_type_name());
+		pos.x = screen_viewport.width - get_line_width_px(atlas, make_string(text, count)) - padding;
+		ui_text_with_shadow(make_string(text, count), pos, COLOR32_WHITE, shadow_offset, COLOR32_BLACK, Z);
+		pos.y -= atlas->line_height;
 
         const f32 ms = get_delta_time() * 1000.0f;
 		count = stbsp_snprintf(text, sizeof(text), "%.2fms %.ffps", ms, 1000.0f / ms);
-        pos.x = screen_viewport.width - get_line_width_px(atlas, String { text, count }) - padding;
-        ui_text_with_shadow(String { text, count }, pos, rgba_white, shadow_offset, rgba_black, Z);
-		pos.y -= atlas.line_height;
+        pos.x = screen_viewport.width - get_line_width_px(atlas, make_string(text, count)) - padding;
+        ui_text_with_shadow(make_string(text, count), pos, COLOR32_WHITE, shadow_offset, COLOR32_BLACK, Z);
+		pos.y -= atlas->line_height;
         
         count = stbsp_snprintf(text, sizeof(text), "window %dx%d",
                                window->width, window->height);
-        pos.x = screen_viewport.width - get_line_width_px(atlas, String { text, count }) - padding;
-        ui_text_with_shadow(String { text, count }, pos, rgba_white, shadow_offset, rgba_black, Z);
-		pos.y -= atlas.line_height;
+        pos.x = screen_viewport.width - get_line_width_px(atlas, make_string(text, count)) - padding;
+        ui_text_with_shadow(make_string(text, count), pos, COLOR32_WHITE, shadow_offset, COLOR32_BLACK, Z);
+		pos.y -= atlas->line_height;
 
         count = stbsp_snprintf(text, sizeof(text), "viewport %dx%d",
                                screen_viewport.width, screen_viewport.height);
-        pos.x = screen_viewport.width - get_line_width_px(atlas, String { text, count }) - padding;
-        ui_text_with_shadow(String { text, count }, pos, rgba_white, shadow_offset, rgba_black, Z);
-        pos.y -= atlas.line_height;
+        pos.x = screen_viewport.width - get_line_width_px(atlas, make_string(text, count)) - padding;
+        ui_text_with_shadow(make_string(text, count), pos, COLOR32_WHITE, shadow_offset, COLOR32_BLACK, Z);
+        pos.y -= atlas->line_height;
 
         count = stbsp_snprintf(text, sizeof(text), "draw calls %d", get_draw_call_count());
-        pos.x = screen_viewport.width - get_line_width_px(atlas, String { text, count }) - padding;
-        ui_text_with_shadow(String { text, count }, pos, rgba_white, shadow_offset, rgba_black, Z);
-		pos.y -= atlas.line_height;
+        pos.x = screen_viewport.width - get_line_width_px(atlas, make_string(text, count)) - padding;
+        ui_text_with_shadow(make_string(text, count), pos, COLOR32_WHITE, shadow_offset, COLOR32_BLACK, Z);
+		pos.y -= atlas->line_height;
+
+        const auto input = get_input_table();
+        count = stbsp_snprintf(text, sizeof(text), "cursor %d %d", input->mouse_x, input->mouse_y);
+        pos.x = screen_viewport.width - get_line_width_px(atlas, make_string(text, count)) - padding;
+        ui_text_with_shadow(make_string(text, count), pos, COLOR32_WHITE, shadow_offset, COLOR32_BLACK, Z);
+		pos.y -= atlas->line_height;
 	}
 
     reset_draw_call_count();

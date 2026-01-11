@@ -5,28 +5,22 @@
 struct Shader;
 struct Texture;
 struct Vertex_Descriptor;
-struct Command_Buffer;
-
-enum Topology_Mode : u8;
+struct Constant_Buffer_Instance;
 
 struct Render_Primitive {
-    Shader            *shader            = null;
-    Texture           *texture           = null;
-    Vertex_Descriptor *vertex_descriptor = null;
-
+    Shader                            *shader  = null;
+    Texture                           *texture = null;
+    u32                                vertex_input = 0;
+    u64                               *vertex_offsets = null; // per binding in vertex input
+    u32                                element_count  = 0;
+    u32                                instance_count = 1;
+    u32                                first_element  = 0;
+    u32                                first_instance = 0;
+    enum Gpu_Topology_Mode             topology;
+    bool                               indexed   = false;
+    bool                               is_entity = false;
+    u64                                eid_offset;
     Array <Constant_Buffer_Instance *> cbis = { .allocator = __temporary_allocator };
-    
-    u32 element_count  = 0;
-    u32 instance_count = 1;
-    u32 first_element  = 0;
-    u32 first_instance = 0;
-
-    Topology_Mode topology_mode;
-    
-    bool indexed = false;
-    
-    bool is_entity = false;
-    u64 eid_offset = 0;
 };
 
 struct Render_Batch_Entry {

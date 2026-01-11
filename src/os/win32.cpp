@@ -16,7 +16,7 @@
 #include <shlwapi.h>
 #include <intrin.h>
 
-static constexpr auto LOG_IDENT_WIN32 = S("win32");
+static const auto LOG_IDENT_WIN32 = S("win32");
 
 static constexpr u32 INVALID_THREAD_RESULT = ((DWORD)-1);
 
@@ -57,8 +57,8 @@ String get_process_directory() {
     auto s = copy_string(path, __temporary_allocator);
     s = fix_directory_delimiters(s);
     
-    s.data[s.count] = '/';
-    s.count += 1;
+    s.data[s.size] = '/';
+    s.size += 1;
     
     return s;
 }
@@ -83,7 +83,7 @@ static Source_Code_Location get_stack_frame_location(HANDLE process, void *addre
     const bool got_line = SymGetLineFromAddr(process, (DWORD64)address, &line_displacement, &line);
 
     if (!SymFromAddr(process, (DWORD64)address, &displacement.a, symbol)) {
-        log(LOG_IDENT_WIN32, LOG_MINIMAL, "[0x%X] Failed to retreive symbol from address 0x%X", GetLastError(), address);
+        log(LOG_IDENT_WIN32, LOG_ERROR, "[0x%X] Failed to retreive symbol from address 0x%X", GetLastError(), address);
         return {};
     }
 
@@ -102,12 +102,12 @@ Array <Source_Code_Location> get_current_callstack() {
     HANDLE process;
     
     if (!DuplicateHandle(current_process, current_process, current_process, &process, 0, FALSE, DUPLICATE_SAME_ACCESS)) {
-        log(LOG_IDENT_WIN32, LOG_MINIMAL, "[0x%X] Failed to duplicate process handle", GetLastError());
+        log(LOG_IDENT_WIN32, LOG_ERROR, "[0x%X] Failed to duplicate process handle", GetLastError());
         return {};
     }
 
     if (!SymInitialize(process, NULL, TRUE)) {
-        log(LOG_IDENT_WIN32, LOG_MINIMAL, "[0x%X] Failed to initialized sym", GetLastError());
+        log(LOG_IDENT_WIN32, LOG_ERROR, "[0x%X] Failed to initialized sym", GetLastError());
         return {};
     }
     
@@ -150,13 +150,13 @@ static u32 win32_open_type(u32 bits) {
     return OPEN_EXISTING;
 }
 
-File open_file(String path, u32 bits) {
+File open_file(String path, u32 bits, bool log_error) {
     const char *cpath = temp_c_string(path);
 	HANDLE handle = CreateFile(cpath, win32_access_bits(bits), win32_share_bits(bits),
                                NULL, win32_open_type(bits), FILE_ATTRIBUTE_NORMAL, NULL);
 
-    if (handle == INVALID_HANDLE_VALUE) {
-        log(LOG_IDENT_WIN32, LOG_MINIMAL, "[0x%X] Failed to open file %s", GetLastError(), cpath);
+    if (log_error && handle == INVALID_HANDLE_VALUE) {
+        log(LOG_IDENT_WIN32, LOG_ERROR, "[0x%X] Failed to open file %s", GetLastError(), cpath);
     }
     
     return handle;
@@ -192,6 +192,11 @@ bool set_file_ptr(File handle, s64 position) {
     return SetFilePointerEx(handle, move_distance, NULL, FILE_BEGIN);
 }
 
+bool path_file_exists(String path) {
+    const auto cpath = temp_c_string(path);
+    return PathFileExistsA(cpath);
+}
+
 void visit_directory(String path, void (*callback) (const File_Callback_Data *),
                      bool recursive, void *user_data) {
     WIN32_FIND_DATA find_data;
@@ -203,7 +208,7 @@ void visit_directory(String path, void (*callback) (const File_Callback_Data *),
     
     HANDLE file = FindFirstFileA(directory_mask, &find_data);
     if (file == INVALID_HANDLE_VALUE) {
-        log(LOG_IDENT_WIN32, LOG_MINIMAL, "[0x%X] Failed to search directory %s", GetLastError(), directory_mask);
+        log(LOG_IDENT_WIN32, LOG_ERROR, "[0x%X] Failed to search directory %s", GetLastError(), directory_mask);
         return;
     }
 
@@ -235,7 +240,11 @@ void visit_directory(String path, void (*callback) (const File_Callback_Data *),
     FindClose(file);
 }
 
-void extract_file_from_path(char *path) { PathStripPath(path); }
+String extract_file_from_path(String path, Allocator alc) {
+    auto cpath = to_c_string(path, alc);
+    PathStripPath(cpath);
+    return make_string(cpath);
+}
 
 s64 get_file_ptr(File handle) {
     LARGE_INTEGER position      = {0};
@@ -264,10 +273,10 @@ static BOOL win32_wait_res_check(void *handle, DWORD res) {
 		log(LOG_VERBOSE, "Wait time for object %p elapsed", handle);
 		return false;
 	case WAIT_FAILED:
-		log(LOG_MINIMAL, "Failed to wait for object %p with error code %u", handle, GetLastError());
+		log(LOG_ERROR, "Failed to wait for object %p with error code %u", handle, GetLastError());
 		return false;
 	default:
-		log(LOG_MINIMAL, "Unknown wait result %u for object %p", res, handle);
+		log(LOG_ERROR, "Unknown wait result %u for object %p", res, handle);
 		return false;
 	}
 }
@@ -366,8 +375,7 @@ static LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam, L
 	auto *w = (Window *)GetProp(hwnd, window_prop_name);
 	if (!w) return DefWindowProc(hwnd, umsg, wparam, lparam);
     
-	Window_Event event;
-    set(&event, 0, sizeof(event));
+	Window_Event event = {};
     
 	switch (umsg) {
     case WM_SETFOCUS: {
@@ -399,9 +407,14 @@ static LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam, L
 
         // Replace resize event if its present in array to skip unnecessary resizes.
 		s32 resize_event_index = INDEX_NONE;
+        s32 index = 0;
 		For (w->events) {
-			if (it.type == WINDOW_EVENT_RESIZE) break;
-            resize_event_index += 1;
+			if (it.type == WINDOW_EVENT_RESIZE) {
+                resize_event_index = index;
+                break;
+            }
+            
+            index += 1;
         }
         
 		if (resize_event_index == INDEX_NONE) {
@@ -415,7 +428,8 @@ static LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam, L
     case WM_SYSKEYDOWN:
 	case WM_KEYDOWN: {
         event.type = WINDOW_EVENT_KEYBOARD;
-        event.input_bits |= (lparam & 0x40000000) ? WINDOW_EVENT_REPEAT_BIT : WINDOW_EVENT_PRESS_BIT;
+        event.press  = true;
+        event.repeat = lparam & 0x40000000;
         event.key_code = vkey_to_key_code((u32)wparam);
         Assert(event.key_code > 0);
         array_add(w->events, event);
@@ -424,7 +438,7 @@ static LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam, L
     case WM_SYSKEYUP:
 	case WM_KEYUP: {
 		event.type = WINDOW_EVENT_KEYBOARD;
-		event.input_bits |= WINDOW_EVENT_RELEASE_BIT;
+        event.press = false;
 		event.key_code = vkey_to_key_code((u32)wparam);
 		Assert(event.key_code > 0);
         array_add(w->events, event);
@@ -436,50 +450,91 @@ static LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam, L
         array_add(w->events, event);
 		break;
 	}
-	case WM_LBUTTONDOWN:
-	case WM_LBUTTONUP: {
-		event.type = WINDOW_EVENT_MOUSE_CLICK;
-		event.input_bits |= (umsg == WM_LBUTTONDOWN) ? WINDOW_EVENT_PRESS_BIT : WINDOW_EVENT_RELEASE_BIT;
-		event.key_code = MOUSE_LEFT;
-        array_add(w->events, event);
-		break;
-	}
-	case WM_RBUTTONDOWN:
-	case WM_RBUTTONUP: {
-		event.type = WINDOW_EVENT_MOUSE_CLICK;
-		event.input_bits |= (umsg == WM_RBUTTONDOWN) ? WINDOW_EVENT_PRESS_BIT : WINDOW_EVENT_RELEASE_BIT;
-		event.key_code = MOUSE_RIGHT;
-        array_add(w->events, event);
-		break;
-	}
-	case WM_MBUTTONUP:
-	case WM_MBUTTONDOWN: {
-		event.type = WINDOW_EVENT_MOUSE_CLICK;
-		event.input_bits |= (umsg == WM_MBUTTONDOWN) ? WINDOW_EVENT_PRESS_BIT : WINDOW_EVENT_RELEASE_BIT;
-		event.key_code = MOUSE_MIDDLE;
-        array_add(w->events, event);
-		break;
-	}
-	case WM_MOUSEMOVE: {
-        event.type = WINDOW_EVENT_MOUSE_MOVE;
-		event.x = GET_X_LPARAM(lparam);
-		event.y = w->height - GET_Y_LPARAM(lparam) - 1;
+    case WM_INPUT: {
+        static BYTE lpb[sizeof(RAWINPUT)];
+
+        UINT dwSize = sizeof(RAWINPUT);
+        GetRawInputData((HRAWINPUT)lparam, RID_INPUT, lpb, &dwSize, sizeof(RAWINPUTHEADER));
+
+        auto raw = (RAWINPUT*)lpb;
         
-        // Replace mouse move event if its present in array to skip unnecessary move updates.
-		s32 move_event_index = INDEX_NONE;
-		For (w->events) {
-			if (it.type == WINDOW_EVENT_MOUSE_MOVE) break;
-            move_event_index += 1;
+        if (raw->header.dwType == RIM_TYPEMOUSE) {
+            auto mouse = raw->data.mouse;
+
+            if (mouse.usFlags & MOUSE_MOVE_ABSOLUTE) {
+                log(LOG_IDENT_WIN32, LOG_ERROR, "Mouse absolute move, unhandled");
+            } else if (mouse.lLastX != 0 || mouse.lLastY != 0) {
+                event.type = WINDOW_EVENT_MOUSE_MOVE;
+                event.x = mouse.lLastX;
+                event.y = mouse.lLastY;
+                array_add(w->events, event);
+            }
+
+            // @Cleanup: maaaybe we could use some sort of lookup table to skip some ifs...
+            if (mouse.usButtonFlags & RI_MOUSE_LEFT_BUTTON_DOWN) {
+                event.type = WINDOW_EVENT_MOUSE_BUTTON;
+                event.press = true;
+                event.key_code = MOUSE_LEFT;
+                array_add(w->events, event);
+            }
+
+            if (mouse.usButtonFlags & RI_MOUSE_LEFT_BUTTON_UP) {
+                event.type = WINDOW_EVENT_MOUSE_BUTTON;
+                event.press = false;
+                event.key_code = MOUSE_LEFT;
+                array_add(w->events, event);
+            }
+
+            if (mouse.usButtonFlags & RI_MOUSE_RIGHT_BUTTON_DOWN) {
+                event.type = WINDOW_EVENT_MOUSE_BUTTON;
+                event.press = true;
+                event.key_code = MOUSE_RIGHT;
+                array_add(w->events, event);
+            }
+
+            if (mouse.usButtonFlags & RI_MOUSE_RIGHT_BUTTON_UP) {
+                event.type = WINDOW_EVENT_MOUSE_BUTTON;
+                event.press = false;
+                event.key_code = MOUSE_RIGHT;
+                array_add(w->events, event);
+            }
+
+            if (mouse.usButtonFlags & RI_MOUSE_MIDDLE_BUTTON_DOWN) {
+                event.type = WINDOW_EVENT_MOUSE_BUTTON;
+                event.press = true;
+                event.key_code = MOUSE_MIDDLE;
+                array_add(w->events, event);
+            }
+
+            if (mouse.usButtonFlags & RI_MOUSE_MIDDLE_BUTTON_UP) {
+                event.type = WINDOW_EVENT_MOUSE_BUTTON;
+                event.press = false;
+                event.key_code = MOUSE_RIGHT;
+                array_add(w->events, event);
+            }
+
+            if ((mouse.usButtonFlags & RI_MOUSE_WHEEL) || (mouse.usButtonFlags & RI_MOUSE_HWHEEL)) {
+                short wheel_delta = (short)mouse.usButtonData;
+                float scroll_delta = (float)wheel_delta / WHEEL_DELTA;
+
+                if (mouse.usButtonFlags & RI_MOUSE_HWHEEL) {
+                    u64 scroll_chars = 1;
+                    SystemParametersInfo(SPI_GETWHEELSCROLLCHARS, 0, &scroll_chars, 0);
+                    scroll_delta *= scroll_chars;
+                } else {
+                    u64 scroll_lines = 3;
+                    SystemParametersInfo(SPI_GETWHEELSCROLLLINES, 0, &scroll_lines, 0);
+                    if (scroll_lines != WHEEL_PAGESCROLL) scroll_delta *= scroll_lines;
+
+                    event.type = WINDOW_EVENT_MOUSE_WHEEL;
+                    event.scroll_delta = (s32)scroll_delta;
+                    array_add(w->events, event);
+                }
+            }
         }
-        
-		if (move_event_index == INDEX_NONE) {
-            array_add(w->events, event);
-		} else {
-			w->events[move_event_index] = event;
-		}
-        
-		break;
-	}
+
+        break;
+    }
     case WM_MOUSEWHEEL: {
         event.type = WINDOW_EVENT_MOUSE_WHEEL;
         event.scroll_delta = GET_WHEEL_DELTA_WPARAM(wparam);
@@ -564,18 +619,28 @@ Window *new_window(u16 width, u16 height, const char *name, s16 x, s16 y) {
                                  NULL, NULL, win32->hinstance, NULL);
     
 	if (!win32->hwnd) {
-        log(LOG_IDENT_WIN32, LOG_MINIMAL, "[0x%X] Failed to create window", GetLastError());
+        log(LOG_IDENT_WIN32, LOG_ERROR, "[0x%X] Failed to create window", GetLastError());
         return {};
     }
 
 	win32->hdc = GetDC(win32->hwnd);
 	if (!win32->hdc) {
-        log(LOG_IDENT_WIN32, LOG_MINIMAL, "[0x%X] Failed to get device context", GetLastError());
+        log(LOG_IDENT_WIN32, LOG_ERROR, "[0x%X] Failed to get device context", GetLastError());
         return {};
     }
 
 	SetProp(win32->hwnd, window_prop_name, w);
-
+    
+    RAWINPUTDEVICE rids[1];
+    rids[0].usUsagePage = 0x01; // HID_USAGE_PAGE_GENERIC
+    rids[0].usUsage     = 0x02; // HID_USAGE_GENERIC_MOUSE
+    rids[0].dwFlags     = 0;
+    rids[0].hwndTarget  = win32->hwnd;
+    
+    if (RegisterRawInputDevices(rids, 1, sizeof(rids[0])) == FALSE) {
+        log(LOG_IDENT_WIN32, LOG_ERROR, "[0x%X] Failed to register raw input devices", GetLastError());
+    }
+    
 #if DEVELOPER
     DragAcceptFiles(win32->hwnd, TRUE);
 #endif
@@ -630,8 +695,8 @@ void lock_cursor(Window *w, bool lock) {
 		ShowCursor(false);
 
         POINT point;
-		point.x = input->mouse_x = input->mouse_last_x = w->width / 2;
-		point.y = input->mouse_y = input->mouse_last_y = w->height / 2;
+		point.x = input->mouse_x = w->width / 2;
+		point.y = input->mouse_y = w->height / 2;
 
 		ClientToScreen(win32->hwnd, &point);
 		SetCursorPos(point.x, point.y);
@@ -644,13 +709,22 @@ void lock_cursor(Window *w, bool lock) {
 	}
 }
 
-void set_cursor(Window *w, s16 x, s16 y) {
+void set_cursor(Window *w, s32 x, s32 y) {
     POINT point;
     point.x = x;
     point.y = y;
 
     ClientToScreen(w->win32->hwnd, &point);
     SetCursorPos(point.x, point.y);
+}
+
+void get_cursor(Window *w, s32 *x, s32 *y) {
+    POINT p;
+    GetCursorPos(&p); 
+    ScreenToClient(w->win32->hwnd, &p);
+
+    if (x) *x = p.x;
+    if (y) *y = p.y;
 }
 
 Input_Table *get_input_table () { static Input_Table input; return &input; }

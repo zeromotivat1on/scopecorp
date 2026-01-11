@@ -3,14 +3,10 @@
 
 // @Todo: define stb related macros that allow to override usage of std.
 
-#define STB_SPRINTF_IMPLEMENTATION
-#include "stb_sprintf.h"
-#undef STB_SPRINTF_IMPLEMENTATION
-
 #define STBI_ASSERT(x)     Assert(x)
-#define STBI_MALLOC(n)     alloc  (n,    { .proc = __default_allocator_proc })
-#define STBI_REALLOC(p, n) resize (p, n, { .proc = __default_allocator_proc })
-#define STBI_FREE(p)       release(p,    { .proc = __default_allocator_proc })
+#define STBI_MALLOC(n)     alloc  (n,    __default_allocator)
+#define STBI_REALLOC(p, n) resize (p, n, __default_allocator)
+#define STBI_FREE(p)       release(p,    __default_allocator)
 
 #define STBI_FAILURE_USERMSG
 #define STB_IMAGE_IMPLEMENTATION
@@ -59,27 +55,32 @@ static void do_one_frame();
 static void update_time();
 static void handle_window_events();
 
-Virtual_Arena virtual_arena;
+Virtual_Arena virtual_arena = { .reserve_size = Megabytes(2) };
 
-s32 main() {    
-    virtual_arena.reserve_size = Megabytes(2);
+s32 main() {
+    stbi_set_flip_vertically_on_load(true);
+
+    game_logger_data.allocator          = __temporary_allocator;
+    game_logger_data.messages.allocator = __temporary_allocator;
+
+    context.logger    = { .proc = game_logger_proc,             .data = &game_logger_data };
     context.allocator = { .proc = virtual_arena_allocator_proc, .data = &virtual_arena };
     
     set_process_cwd(get_process_directory());
-    log("Current working directory %S", get_process_directory());
 
-    stbi_set_flip_vertically_on_load(true);
+    const auto cwd = get_process_directory();
+    log("Current working directory %S", cwd);
 
     auto window = main_window = new_window(1920, 1080, GAME_NAME);
 	if (!window) {
-		log(LOG_MINIMAL, "Failed to create window");
+		log(LOG_ERROR, "Failed to create window");
 		return 1;
 	}
 
     defer { destroy(window); };
 
     if (!init_render_context(window)) {
-        log(LOG_MINIMAL, "Failed to initialize render context");
+        log(LOG_ERROR, "Failed to initialize render context");
         return 1;
     }
     
@@ -87,23 +88,22 @@ s32 main() {
     set_vsync  (window, true);
 
     if (!init_audio_player()) return 1;
-
+    
+    init_input();
     init_asset_storages();
-
     init_profiler();
     init_render_frame();
     init_shader_platform();
+    init_line_geometry();
 
     auto &viewport = screen_viewport;
     viewport.aspect_type = VIEWPORT_4X3;
     init(viewport, window->width, window->height);
 
-    init_console();
-    init_line_geometry();
-
     load_game_assets();
-    init_ui(); // @Todo: check why loading ui before game assets causes a crash
-    
+
+    init_ui();
+        
     init_hot_reload();
     // @Note: shader includes does not count in shader hot reload.
 	add_hot_reload_directory(PATH_SHADER(""));
@@ -119,26 +119,27 @@ s32 main() {
     switch_campaign(set);
     init_level_editor_hub();
 
-    init_input();
     handle_window_events(); // handle events that were sent during init phase
 
-    game_logger_data.messages.allocator = __temporary_allocator;
-    context.logger = { .proc = game_logger_proc, .data = &game_logger_data };
-
+    game_state.polygon_mode = GPU_POLYGON_FILL;
+    
     log("Startup time %.2fs", (get_perf_counter() - __preload_counter) / (f32)get_perf_hz());
     log("sizeof(Entity) %d", sizeof(Entity));
+    log("sizeof(Gpu_Command) %d", sizeof(Gpu_Command));
+    
+    auto eid = get_player(get_entity_manager())->eid;
+    log("player eid %u (%u %u)", eid, get_eid_index(eid), get_eid_generation(eid));
 
-    {
-        auto eid = get_player(get_entity_manager())->eid;
-        log("player eid %u (%u %u)", eid, get_eid_index(eid), get_eid_generation(eid));
-    }
-    
+    flush_game_logger();
     main_loop();
-    
+        
 	return 0;
 }
 
 static void main_loop() {
+    in_main_loop = true;
+    defer { in_main_loop = false; };
+    
     while (1) {
         if (should_quit_game) return;
         do_one_frame();
@@ -195,7 +196,10 @@ static void handle_window_events() {
     auto window = get_window();
     auto input  = get_input_table();
     auto layer  = get_current_input_layer();
-    
+
+    input->mouse_offset_x = 0;
+    input->mouse_offset_y = 0;
+            
     // Populate input table with event data and handle non-input events.
     For (window->events) {
         switch (it.type) {
@@ -210,19 +214,27 @@ static void handle_window_events() {
             on_window_resize(window->width, window->height);
             break;
         }
-        case WINDOW_EVENT_KEYBOARD: {
-            const auto key     = it.key_code;
-            const auto press   = it.input_bits & WINDOW_EVENT_PRESS_BIT;
-            const auto release = it.input_bits & WINDOW_EVENT_RELEASE_BIT;
+        case WINDOW_EVENT_KEYBOARD:
+        case WINDOW_EVENT_MOUSE_BUTTON: {
+            const auto key = it.key_code;
+            auto keys = &input->keys;
 
-            if      (press)   { set_bit  (&input->keys, key); }
-            else if (release) { clear_bit(&input->keys, key); }
+            if (it.press) set_bit(keys, key); else clear_bit(keys, key);
             
             break;
         }
         case WINDOW_EVENT_MOUSE_MOVE: {
-            input->mouse_x = it.x;
-            input->mouse_y = it.y;
+            input->mouse_offset_x =  it.x;
+            input->mouse_offset_y = -it.y;
+
+            if (window->cursor_locked) {
+                const auto x = input->mouse_x = window->width  / 2;
+                const auto y = input->mouse_y = window->height / 2;
+                set_cursor(window, x, y);
+            } else {
+                get_cursor(window, &input->mouse_x, &input->mouse_y);
+            }
+            
             break;
         }
         case WINDOW_EVENT_QUIT: {
@@ -240,24 +252,6 @@ static void handle_window_events() {
         copy(&input->keys_last, &input->keys, sizeof(input->keys));
     }
 
-    // Update mouse position.
-    {
-        input->mouse_offset_x = input->mouse_x - input->mouse_last_x;
-        input->mouse_offset_y = input->mouse_y - input->mouse_last_y;
-
-        if (window->cursor_locked) {
-            auto x = input->mouse_last_x = window->width  / 2;
-            auto y = input->mouse_last_y = window->height / 2;
-
-            if (input->mouse_x != x || input->mouse_y != y) {
-                set_cursor(window, x, y);
-            }
-        } else {
-            input->mouse_last_x = input->mouse_x;
-            input->mouse_last_y = input->mouse_y;
-        }
-    }
-
     // Update mouse position in screen viewport.
     {
         auto &v = screen_viewport;
@@ -271,11 +265,27 @@ static void handle_window_events() {
         switch (it.type) {
         case WINDOW_EVENT_KEYBOARD:
         case WINDOW_EVENT_TEXT_INPUT:
-        case WINDOW_EVENT_MOUSE_CLICK:
+        case WINDOW_EVENT_MOUSE_BUTTON:
         case WINDOW_EVENT_MOUSE_WHEEL: {
+            if (it.type == WINDOW_EVENT_MOUSE_BUTTON) {
+                if (input->mouse_y < 0) {
+                    // Cursor is on title bar, so we should ignore clicks there.
+                    break;
+                }
+
+                const auto key   = it.key_code;
+                const auto press = it.press;
+
+                // Handle general inputs.
+                if (press && key == MOUSE_MIDDLE) {
+                    lock_cursor(window, !window->cursor_locked);
+                    break;
+                }
+            }
+            
             if (it.type == WINDOW_EVENT_KEYBOARD) {
                 const auto key   = it.key_code;
-                const auto press = it.input_bits & WINDOW_EVENT_PRESS_BIT;
+                const auto press = it.press;
 
                 // Handle general inputs.
                 if (press && key == KEY_CLOSE_WINDOW) {

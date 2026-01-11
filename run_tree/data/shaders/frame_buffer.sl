@@ -26,7 +26,7 @@ struct Out_Pixel {
     float4 color : SV_Target0;
 };
 
-Sampler2D S2D;
+Sampler2D sampler;
 
 [shader("vertex")]
 Out_Vertex main_vertex(In_Vertex in) {
@@ -60,12 +60,12 @@ Out_Pixel main_pixel(Out_Vertex in) {
         uv = curve_uv;
     }
     
-    float4 color = S2D.Sample(uv);
+    float4 color = sampler.Sample(uv);
 
     {   // Chromatic aberration
-        color.r = S2D.Sample(uv + float2(chromatic_aberration_offset, 0.0)).r;
-        color.g = S2D.Sample(uv).g;
-        color.b = S2D.Sample(uv - float2(chromatic_aberration_offset, 0.0)).b;
+        color.r = sampler.Sample(uv + float2(chromatic_aberration_offset, 0.0)).r;
+        color.g = sampler.Sample(uv).g;
+        color.b = sampler.Sample(uv - float2(chromatic_aberration_offset, 0.0)).b;
     }
     
     {   // Quantize color
@@ -83,7 +83,7 @@ Out_Pixel main_pixel(Out_Vertex in) {
     }
     
     out.color = color;
-    //out.color = S2D.Sample(in.uv);
+    //out.color = sampler.Sample(in.uv);
     
     return out;
 }

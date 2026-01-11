@@ -1,8 +1,6 @@
 #pragma once
 
-#include "catalog.h"
-
-inline constexpr auto MATERIAL_EXT = S("material");
+inline const auto MATERIAL_EXT = S("material");
 
 struct Shader;
 struct Texture;
@@ -29,8 +27,12 @@ struct Material {
     bool use_blending = false;
 };
 
-inline Catalog material_catalog;
+struct Global_Materials {
+    Material *missing = null;
+};
+
 inline Table <String, Material> material_table;
+inline Global_Materials         global_materials;
 
 Material *new_material (String path);
 Material *new_material (String path, String contents);

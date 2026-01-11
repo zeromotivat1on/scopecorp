@@ -29,7 +29,7 @@ inline bool reserve(Virtual_Arena *arena, u64 size) {
     arena->base = virtual_reserve(null, size);
 
     if (!arena->base) {
-        log(LOG_MINIMAL, "Failed to reserve virtual memory of size %llu bytes for arena 0x%X", size, arena);
+        log(LOG_ERROR, "Failed to reserve virtual memory of size %llu bytes for arena 0x%X", size, arena);
         return false;
     }
 
@@ -44,13 +44,13 @@ inline bool commit(Virtual_Arena *arena, u64 size) {
     size = Align(size, arena->commit_alignment) - arena->commited;
 
     if (arena->commited + size > arena->reserved) {
-        log(LOG_MINIMAL, "Commit size of %llu bytes will result in overflow of reserved size %llu bytes in virtual arena 0x%X, commited %llu bytes", size, arena->reserved, arena, arena->commited);
+        log(LOG_ERROR, "Commit size of %llu bytes will result in overflow of reserved size %llu bytes in virtual arena 0x%X, commited %llu bytes", size, arena->reserved, arena, arena->commited);
         return false;
     }
     
     auto p = (u8 *)arena->base + arena->commited;
     if (!virtual_commit(p, size)) {
-        log(LOG_MINIMAL, "Failed to commit %llu bytes for virtual arena 0x%X", size, arena);
+        log(LOG_ERROR, "Failed to commit %llu bytes for virtual arena 0x%X", size, arena);
         return false;
     }
     
@@ -64,7 +64,7 @@ inline void *get(Virtual_Arena *arena, u64 size) {
     size = Align(size, arena->alignment);
 
     if (arena->used + size > arena->reserved) {
-        log(LOG_MINIMAL, "Alloc size of %llu bytes will result in overflow of reserved size %llu bytes in virtual arena 0x%X, used %llu bytes", size, arena->reserved, arena, arena->used);
+        log(LOG_ERROR, "Alloc size of %llu bytes will result in overflow of reserved size %llu bytes in virtual arena 0x%X, used %llu bytes", size, arena->reserved, arena, arena->used);
         return null;
     }
 
@@ -81,7 +81,7 @@ inline void *get(Virtual_Arena *arena, u64 size) {
 
 inline void reset(Virtual_Arena *arena) {
     if (!virtual_decommit(arena->base, arena->commited)) {
-        log(LOG_MINIMAL, "Failed to decommit virtual memory 0x%X of size %llu bytes in virtual arena 0x%X", arena->base, arena->commited, arena);
+        log(LOG_ERROR, "Failed to decommit virtual memory 0x%X of size %llu bytes in virtual arena 0x%X", arena->base, arena->commited, arena);
         return;
     }
 
@@ -93,7 +93,7 @@ inline void release(Virtual_Arena *arena) {
     reset(arena);
 
     if (!virtual_release(arena->base)) {
-        log(LOG_MINIMAL, "Failed to release virtual memory 0x%X of size %llu bytes in virtual arena 0x%X", arena->base, arena->reserved, arena);
+        log(LOG_ERROR, "Failed to release virtual memory 0x%X of size %llu bytes in virtual arena 0x%X", arena->base, arena->reserved, arena);
         return;
     }
 

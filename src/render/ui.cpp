@@ -2,7 +2,6 @@
 #include "viewport.h"
 #include "shader.h"
 #include "material.h"
-#include "vertex_descriptor.h"
 #include "input.h"
 #include "window.h"
 #include "world.h"
@@ -37,16 +36,16 @@ static Render_Key get_ui_render_key(f32 z) {
 }
 
 static char *get_or_alloc_input_buffer(uiid id, u32 size) {
-    char **v = table_find(ui.input_table, id);
+    auto v = table_find(ui.input_table, id);
     if (v == null) {        
-        Assert(size + ui.input_buffer.count < MAX_UI_INPUT_BUFFER_SIZE);
+        Assert(size + ui.input_buffer.size < MAX_UI_INPUT_BUFFER_SIZE);
 
-        char *text = ui.input_buffer.data + ui.input_buffer.count;
+        auto text = ui.input_buffer.data + ui.input_buffer.size;
         text[0] = '\0';
         text[size + 1] = '\0';
 
-        ui.input_buffer.count += size + 1;
-        return table_add(ui.input_table, id, text);
+        ui.input_buffer.size += size + 1;
+        return table_add(ui.input_table, id, (char *)text);
     }
     
     return *v;
@@ -56,70 +55,78 @@ void init_ui() {
     table_realloc (ui.input_table, 512);
     table_set_hash(ui.input_table, [] (const uiid &a) { return (u64)hash_pcg(a.owner + a.item + a.index); });
 
-    ui.input_buffer.data = (char *)alloc(MAX_UI_INPUT_BUFFER_SIZE);
+    ui.input_buffer.data = (u8 *)alloc(MAX_UI_INPUT_BUFFER_SIZE);
         
     {
         auto &render = ui.line_render;
 
-        const u64 pos_buffer_offset = get_gpu_buffer_mark();
-        render.positions = Gpu_New(Vector2, 2 * render.MAX_LINES);
-        
-        const u64 color_buffer_offset = get_gpu_buffer_mark();
-        render.colors = Gpu_New(u32, 2 * render.MAX_LINES);
+        auto gpu_allocation = gpu_alloc(2 * render.MAX_LINES * sizeof(Vector2), &gpu_write_allocator);
+        const auto pos_buffer_offset = gpu_allocation.offset;
+        render.positions_offset = gpu_allocation.offset;
+        render.positions = (Vector2 *)gpu_allocation.mapped_data;
 
-        const Vertex_Binding bindings[] = {
-            {
-                .binding_index = 0,
-                .offset = pos_buffer_offset,
-                .component_count = 1,
-                .components = {
-                    { .type = VC_F32_2, .advance_rate = 0, .normalize = false },
-                },
-            },
-            {
-                .binding_index = 1,
-                .offset = color_buffer_offset,
-                .component_count = 1,
-                .components = {
-                    { .type = VC_U32, .advance_rate = 0, .normalize = false },
-                },
-            },
-        };
-        
-        render.material = get_material(S("ui_element"));
-        render.vertex_descriptor = make_vertex_descriptor(bindings, carray_count(bindings));
+        gpu_allocation = gpu_alloc(2 * render.MAX_LINES * sizeof(u32), &gpu_write_allocator);
+        const auto color_buffer_offset = gpu_allocation.offset;
+        render.colors_offset = gpu_allocation.offset;
+        render.colors = (Color32 *)gpu_allocation.mapped_data;
+
+        Gpu_Vertex_Binding bindings[2];
+        bindings[0].input_rate = GPU_VERTEX_INPUT_RATE_VERTEX;
+        bindings[0].index      = 0;
+        bindings[0].stride     = 8;
+        bindings[1].input_rate = GPU_VERTEX_INPUT_RATE_VERTEX;
+        bindings[1].index      = 1;
+        bindings[1].stride     = 4;
+
+        Gpu_Vertex_Attribute attributes[2];
+        attributes[0].type    = GPU_VERTEX_ATTRIBUTE_TYPE_V2;
+        attributes[0].index   = 0;
+        attributes[0].binding = 0;
+        attributes[0].offset  = 0;
+        attributes[1].type    = GPU_VERTEX_ATTRIBUTE_TYPE_U32;
+        attributes[1].index   = 1;
+        attributes[1].binding = 1;
+        attributes[1].offset  = 0;
+
+        render.material_name = S("ui_element");
+        render.material = get_material(render.material_name);
+        render.vertex_input = gpu_new_vertex_input(bindings, carray_count(bindings), attributes, carray_count(attributes));
     }
         
     {
         auto &render = ui.quad_render;
 
-        const u64 pos_buffer_offset = get_gpu_buffer_mark();
-        render.positions = Gpu_New(Vector2, 4 * render.MAX_QUADS);
-                
-        const u64 color_buffer_offset = get_gpu_buffer_mark();
-        render.colors = Gpu_New(u32, 4 * render.MAX_QUADS);
+        auto gpu_allocation = gpu_alloc(4 * render.MAX_QUADS * sizeof(Vector2), &gpu_write_allocator);
+        const auto pos_buffer_offset = gpu_allocation.offset;
+        render.positions_offset = gpu_allocation.offset;
+        render.positions = (Vector2 *)gpu_allocation.mapped_data;
 
-        const Vertex_Binding bindings[] = {
-            {
-                .binding_index = 0,
-                .offset = pos_buffer_offset,
-                .component_count = 1,
-                .components = {
-                    { .type = VC_F32_2, .advance_rate = 0, .normalize = false },
-                },
-            },
-            {
-                .binding_index = 1,
-                .offset = color_buffer_offset,
-                .component_count = 1,
-                .components = {
-                    { .type = VC_U32, .advance_rate = 0, .normalize = false },
-                },
-            },
-        };
+        gpu_allocation = gpu_alloc(4 * render.MAX_QUADS * sizeof(u32), &gpu_write_allocator);
+        const auto color_buffer_offset = gpu_allocation.offset;
+        render.colors_offset = gpu_allocation.offset;
+        render.colors = (Color32 *)gpu_allocation.mapped_data;
+
+        Gpu_Vertex_Binding bindings[2];
+        bindings[0].input_rate = GPU_VERTEX_INPUT_RATE_VERTEX;
+        bindings[0].index      = 0;
+        bindings[0].stride     = 8;
+        bindings[1].input_rate = GPU_VERTEX_INPUT_RATE_VERTEX;
+        bindings[1].index      = 1;
+        bindings[1].stride     = 4;
+
+        Gpu_Vertex_Attribute attributes[2];
+        attributes[0].type    = GPU_VERTEX_ATTRIBUTE_TYPE_V2;
+        attributes[0].index   = 0;
+        attributes[0].binding = 0;
+        attributes[0].offset  = 0;
+        attributes[1].type    = GPU_VERTEX_ATTRIBUTE_TYPE_U32;
+        attributes[1].index   = 1;
+        attributes[1].binding = 1;
+        attributes[1].offset  = 0;
         
-        render.material = get_material(S("ui_element"));
-        render.vertex_descriptor = make_vertex_descriptor(bindings, carray_count(bindings));
+        render.material_name = S("ui_element");
+        render.material = get_material(render.material_name);
+        render.vertex_input = gpu_new_vertex_input(bindings, carray_count(bindings), attributes, carray_count(attributes));
     }
 
     {
@@ -127,84 +134,99 @@ void init_ui() {
         
         constexpr f32 vertices[8] = { 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f };
 
-        const u64 position_buffer_offset = get_gpu_buffer_mark();
-        render.positions = Gpu_New(f32, carray_count(vertices));
-
-        const u64 uv_rect_buffer_offset = get_gpu_buffer_mark();
-        render.uv_rects = Gpu_New(Vector4, render.MAX_CHARS);
-
-        const u64 color_buffer_offset = get_gpu_buffer_mark();
-        render.colors = Gpu_New(u32, render.MAX_CHARS);
-        
-        const u64 charmap_buffer_offset = get_gpu_buffer_mark();
-        render.charmap = Gpu_New(u32, render.MAX_CHARS);
-        
-        const u64 transform_buffer_offset = get_gpu_buffer_mark();
-        render.transforms = Gpu_New(Matrix4, render.MAX_CHARS);
-
+        auto gpu_allocation = gpu_alloc(carray_count(vertices) * sizeof(f32), &gpu_write_allocator);
+        const auto position_buffer_offset = gpu_allocation.offset;
+        render.positions_offset = gpu_allocation.offset;
+        render.positions = (f32 *)gpu_allocation.mapped_data;
         copy(render.positions, vertices, sizeof(vertices));
 
-        const Vertex_Binding bindings[] = {
-            {
-                .binding_index = 0,
-                .offset = position_buffer_offset,
-                .component_count = 1,
-                .components = {
-                    { .type = VC_F32_2, .advance_rate = 0, .normalize = false },
-                },
-            },
-            {
-                .binding_index = 1,
-                .offset = uv_rect_buffer_offset,
-                .component_count = 1,
-                .components = {
-                    { .type = VC_F32_4, .advance_rate = 1, .normalize = false },
-                },
-            },
-            {
-                .binding_index = 2,
-                .offset = color_buffer_offset,
-                .component_count = 1,
-                .components = {
-                    { .type = VC_U32, .advance_rate = 1, .normalize = false },
-                },
-            },
-            {
-                .binding_index = 3,
-                .offset = charmap_buffer_offset,
-                .component_count = 1,
-                .components = {
-                    { .type = VC_U32, .advance_rate = 1, .normalize = false },
-                },
-            },
-            {
-                .binding_index = 4,
-                .offset = transform_buffer_offset,
-                .component_count = 4,
-                .components = {
-                    { .type = VC_F32_4, .advance_rate = 1, .normalize = false },
-                    { .type = VC_F32_4, .advance_rate = 1, .normalize = false },
-                    { .type = VC_F32_4, .advance_rate = 1, .normalize = false },
-                    { .type = VC_F32_4, .advance_rate = 1, .normalize = false },
-                },
-            },
-        };
+        gpu_allocation = gpu_alloc(render.MAX_CHARS * sizeof(Vector4), &gpu_write_allocator);
+        const auto uv_rect_buffer_offset = gpu_allocation.offset;
+        render.uv_rects_offset = gpu_allocation.offset;
+        render.uv_rects = (Vector4 *)gpu_allocation.mapped_data;
+
+        gpu_allocation = gpu_alloc(render.MAX_CHARS * sizeof(u32), &gpu_write_allocator);
+        const auto color_buffer_offset = gpu_allocation.offset;
+        render.colors_offset = gpu_allocation.offset;
+        render.colors = (Color32 *)gpu_allocation.mapped_data;
+
+        gpu_allocation = gpu_alloc(render.MAX_CHARS * sizeof(u32), &gpu_write_allocator);
+        const auto charmap_buffer_offset = gpu_allocation.offset;
+        render.charmap_offset = gpu_allocation.offset;
+        render.charmap = (u32 *)gpu_allocation.mapped_data;
+
+        gpu_allocation = gpu_alloc(render.MAX_CHARS * sizeof(Matrix4), &gpu_write_allocator);
+        const auto transform_buffer_offset = gpu_allocation.offset;
+        render.transforms_offset = gpu_allocation.offset;
+        render.transforms = (Matrix4 *)gpu_allocation.mapped_data;
+
+        Gpu_Vertex_Binding bindings[5];
+        bindings[0].input_rate = GPU_VERTEX_INPUT_RATE_VERTEX;
+        bindings[0].index      = 0;
+        bindings[0].stride     = 8;
+        bindings[1].input_rate = GPU_VERTEX_INPUT_RATE_INSTANCE;
+        bindings[1].index      = 1;
+        bindings[1].stride     = 16;
+        bindings[2].input_rate = GPU_VERTEX_INPUT_RATE_INSTANCE;
+        bindings[2].index      = 2;
+        bindings[2].stride     = 4;
+        bindings[3].input_rate = GPU_VERTEX_INPUT_RATE_INSTANCE;
+        bindings[3].index      = 3;
+        bindings[3].stride     = 4;
+        bindings[4].input_rate = GPU_VERTEX_INPUT_RATE_INSTANCE;
+        bindings[4].index      = 4;
+        bindings[4].stride     = 64;
+
+        Gpu_Vertex_Attribute attributes[8];
+        attributes[0].type    = GPU_VERTEX_ATTRIBUTE_TYPE_V2;
+        attributes[0].index   = 0;
+        attributes[0].binding = 0;
+        attributes[0].offset  = 0;
+        attributes[1].type    = GPU_VERTEX_ATTRIBUTE_TYPE_V4;
+        attributes[1].index   = 1;
+        attributes[1].binding = 1;
+        attributes[1].offset  = 0;
+        attributes[2].type    = GPU_VERTEX_ATTRIBUTE_TYPE_U32;
+        attributes[2].index   = 2;
+        attributes[2].binding = 2;
+        attributes[2].offset  = 0;
+        attributes[3].type    = GPU_VERTEX_ATTRIBUTE_TYPE_U32;
+        attributes[3].index   = 3;
+        attributes[3].binding = 3;
+        attributes[3].offset  = 0;
+        attributes[4].type    = GPU_VERTEX_ATTRIBUTE_TYPE_V4;
+        attributes[4].index   = 4;
+        attributes[4].binding = 4;
+        attributes[4].offset  = 0;
+        attributes[5].type    = GPU_VERTEX_ATTRIBUTE_TYPE_V4;
+        attributes[5].index   = 5;
+        attributes[5].binding = 4;
+        attributes[5].offset  = 16;
+        attributes[6].type    = GPU_VERTEX_ATTRIBUTE_TYPE_V4;
+        attributes[6].index   = 6;
+        attributes[6].binding = 4;
+        attributes[6].offset  = 32;
+        attributes[7].type    = GPU_VERTEX_ATTRIBUTE_TYPE_V4;
+        attributes[7].index   = 7;
+        attributes[7].binding = 4;
+        attributes[7].offset  = 48;
         
-        render.material = get_material(S("ui_text"));
-        render.vertex_descriptor = make_vertex_descriptor(bindings, carray_count(bindings));
+        render.material_name = S("ui_text");
+        render.material = get_material(render.material_name);
+        render.vertex_input = gpu_new_vertex_input(bindings, carray_count(bindings), attributes, carray_count(attributes));
     }
 }
 
-u16 ui_button(uiid id, String text, const UI_Button_Style &style) {
-    const auto &atlas = *style.font_atlas;
-    const f32 width = get_line_width_px(atlas, text);
-    const s32 height = atlas.line_height;
-    const Vector2 p0 = style.pos - style.padding;
-    const Vector2 p1 = Vector2(p0.x + width + 2 * style.padding.x, p0.y + height + 2 * style.padding.y);
+u16 ui_button(uiid id, String text, UI_Button_Style style) {
+    const auto atlas = style.font_atlas;
+    const auto width  = get_line_width_px(atlas, text);
+    const auto height = atlas->line_height;
+    const auto p0 = style.pos - style.padding;
+    const auto p1 = Vector2(p0.x + width + 2 * style.padding.x, p0.y + height + 2 * style.padding.y);
 
     u16 bits = 0;
-    u32 text_color = style.front_color.cold;
-    u32 quad_color = style.back_color.cold;
+    auto text_color = style.front_color.cold;
+    auto quad_color = style.back_color.cold;
 
     if (inside(screen_viewport.mouse_pos, p0, p1)) {
         if (id != ui.id_hot) {
@@ -247,23 +269,22 @@ u16 ui_button(uiid id, String text, const UI_Button_Style &style) {
     return bits;
 }
 
-u16 ui_input_text(uiid id, char *text, u32 size, const UI_Input_Style &style) {
-    const auto &atlas = *style.font_atlas;
-    const f32 ascent  = atlas.ascent  * atlas.px_h_scale;
-    const f32 descent = atlas.descent * atlas.px_h_scale;
-    const f32 width = atlas.space_xadvance * size;
-    const s32 height = atlas.line_height;
+u16 ui_input_text(uiid id, char *text, u32 size, UI_Input_Style style) {
+    const auto atlas  = style.font_atlas;
+    const auto ascent  = atlas->ascent  * atlas->px_h_scale;
+    const auto descent = atlas->descent * atlas->px_h_scale;
+    const auto width   = atlas->space_xadvance * size;
+    const auto height  = atlas->line_height;
 
-    const Vector2 p0 = style.pos - style.padding;
-    const Vector2 p1 = Vector2(p0.x + width  + 2 * style.padding.x,
-                         p0.y + height + 2 * style.padding.y);
+    const auto p0 = style.pos - style.padding;
+    const auto p1 = Vector2(p0.x + width  + 2 * style.padding.x, p0.y + height + 2 * style.padding.y);
 
     u16 bits = 0;
-    u32 text_color = style.front_color.cold;
-    u32 quad_color = style.back_color.cold;
-    u32 cursor_color = style.cursor_color.cold;
+    auto text_color = style.front_color.cold;
+    auto quad_color = style.back_color.cold;
+    auto cursor_color = style.cursor_color.cold;
 
-    u32 count = (u32)String(text).count;
+    auto count = cstring_count(text);
 
     if (inside(screen_viewport.mouse_pos, p0, p1)) {
         if (id != ui.id_hot) {
@@ -324,10 +345,10 @@ u16 ui_input_text(uiid id, char *text, u32 size, const UI_Input_Style &style) {
     }
 
     ui_quad(p0, p1, quad_color, style.z);
-    ui_text(String { text, count }, style.pos, text_color, style.z + F32_EPSILON, style.font_atlas);
+    ui_text(make_string(text, count), style.pos, text_color, style.z + F32_EPSILON, style.font_atlas);
 
     if (id == ui.id_active) {
-        const f32 offset = (f32)atlas.space_xadvance * count;
+        const f32 offset = (f32)atlas->space_xadvance * count;
         const Vector2 p0 = Vector2(style.pos.x + offset, style.pos.y);
         const Vector2 p1 = Vector2(p0.x + 2.0f, p0.y + ascent - descent);
     
@@ -337,10 +358,10 @@ u16 ui_input_text(uiid id, char *text, u32 size, const UI_Input_Style &style) {
     return bits;
 }
 
-u16 ui_input_f32(uiid id, f32 *v, const UI_Input_Style &style) {
+u16 ui_input_f32(uiid id, f32 *v, UI_Input_Style style) {
     constexpr u32 size = UI_INPUT_BUFFER_SIZE_F32;
     
-    char *text = get_or_alloc_input_buffer(id, size);
+    auto text = get_or_alloc_input_buffer(id, size);
     
     const auto bits = ui_input_text(id, text, size, style);
     if (bits & UI_FINISHED_BIT) {
@@ -354,10 +375,10 @@ u16 ui_input_f32(uiid id, f32 *v, const UI_Input_Style &style) {
     return bits;
 }
 
-u16 ui_input_s8(uiid id, s8 *v, const UI_Input_Style &style) {
+u16 ui_input_s8(uiid id, s8 *v, UI_Input_Style style) {
     constexpr u32 size = UI_INPUT_BUFFER_SIZE_S8;
     
-    char *text = get_or_alloc_input_buffer(id, size);
+    auto text = get_or_alloc_input_buffer(id, size);
     
     const auto bits = ui_input_text(id, text, size, style);
     if (bits & UI_FINISHED_BIT) {
@@ -371,10 +392,10 @@ u16 ui_input_s8(uiid id, s8 *v, const UI_Input_Style &style) {
     return bits;
 }
 
-u16 ui_input_s16(uiid id, s16 *v, const UI_Input_Style &style) {
+u16 ui_input_s16(uiid id, s16 *v, UI_Input_Style style) {
     constexpr u32 size = UI_INPUT_BUFFER_SIZE_S16;
     
-    char *text = get_or_alloc_input_buffer(id, size);
+    auto text = get_or_alloc_input_buffer(id, size);
     
     const auto bits = ui_input_text(id, text, size, style);
     if (bits & UI_FINISHED_BIT) {
@@ -388,10 +409,10 @@ u16 ui_input_s16(uiid id, s16 *v, const UI_Input_Style &style) {
     return bits;
 }
 
-u16 ui_input_s32(uiid id, s32 *v, const UI_Input_Style &style) {
+u16 ui_input_s32(uiid id, s32 *v, UI_Input_Style style) {
     constexpr u32 size = UI_INPUT_BUFFER_SIZE_S32;
     
-    char *text = get_or_alloc_input_buffer(id, size);
+    auto text = get_or_alloc_input_buffer(id, size);
     
     const auto bits = ui_input_text(id, text, size, style);
     if (bits & UI_FINISHED_BIT) {
@@ -405,10 +426,10 @@ u16 ui_input_s32(uiid id, s32 *v, const UI_Input_Style &style) {
     return bits;
 }
 
-u16 ui_input_s64(uiid id, s64 *v, const UI_Input_Style &style) {
+u16 ui_input_s64(uiid id, s64 *v, UI_Input_Style style) {
     constexpr u32 size = UI_INPUT_BUFFER_SIZE_S64;
     
-    char *text = get_or_alloc_input_buffer(id, size);
+    auto text = get_or_alloc_input_buffer(id, size);
     
     const auto bits = ui_input_text(id, text, size, style);
     if (bits & UI_FINISHED_BIT) {
@@ -422,10 +443,10 @@ u16 ui_input_s64(uiid id, s64 *v, const UI_Input_Style &style) {
     return bits;
 }
 
-u16 ui_input_u8(uiid id, u8 *v, const UI_Input_Style &style) {
+u16 ui_input_u8(uiid id, u8 *v, UI_Input_Style style) {
     constexpr u32 size = UI_INPUT_BUFFER_SIZE_U8;
     
-    char *text = get_or_alloc_input_buffer(id, size);
+    auto text = get_or_alloc_input_buffer(id, size);
     
     const auto bits = ui_input_text(id, text, size, style);
     if (bits & UI_FINISHED_BIT) {
@@ -439,10 +460,10 @@ u16 ui_input_u8(uiid id, u8 *v, const UI_Input_Style &style) {
     return bits;
 }
 
-u16 ui_input_u16(uiid id, u16 *v, const UI_Input_Style &style) {
+u16 ui_input_u16(uiid id, u16 *v, UI_Input_Style style) {
     constexpr u32 size = UI_INPUT_BUFFER_SIZE_U16;
     
-    char *text = get_or_alloc_input_buffer(id, size);
+    auto text = get_or_alloc_input_buffer(id, size);
     
     const auto bits = ui_input_text(id, text, size, style);
     if (bits & UI_FINISHED_BIT) {
@@ -456,10 +477,10 @@ u16 ui_input_u16(uiid id, u16 *v, const UI_Input_Style &style) {
     return bits;
 }
 
-u16 ui_input_u32(uiid id, u32 *v, const UI_Input_Style &style) {
+u16 ui_input_u32(uiid id, u32 *v, UI_Input_Style style) {
     constexpr u32 size = UI_INPUT_BUFFER_SIZE_U32;
     
-    char *text = get_or_alloc_input_buffer(id, size);
+    auto text = get_or_alloc_input_buffer(id, size);
     
     const auto bits = ui_input_text(id, text, size, style);
     if (bits & UI_FINISHED_BIT) {
@@ -473,10 +494,10 @@ u16 ui_input_u32(uiid id, u32 *v, const UI_Input_Style &style) {
     return bits;
 }
 
-u16 ui_input_u64(uiid id, u64 *v, const UI_Input_Style &style) {
+u16 ui_input_u64(uiid id, u64 *v, UI_Input_Style style) {
     constexpr u32 size = UI_INPUT_BUFFER_SIZE_U64;
     
-    char *text = get_or_alloc_input_buffer(id, size);
+    auto text = get_or_alloc_input_buffer(id, size);
     
     const auto bits = ui_input_text(id, text, size, style);
     if (bits & UI_FINISHED_BIT) {
@@ -490,7 +511,7 @@ u16 ui_input_u64(uiid id, u64 *v, const UI_Input_Style &style) {
     return bits;
 }
 
-u16 ui_combo(uiid id, u32 *selected_index, u32 option_count, const String *options, const UI_Combo_Style &style) {
+u16 ui_combo(uiid id, u32 *selected_index, u32 option_count, const String *options, UI_Combo_Style style) {
     Assert(*selected_index < option_count);
 
     u16 bits = 0;
@@ -521,25 +542,33 @@ u16 ui_combo(uiid id, u32 *selected_index, u32 option_count, const String *optio
     return bits;
 }
 
-void ui_text(String text, Vector2 pos, u32 color, f32 z, const Baked_Font_Atlas *font_atlas) {
+void ui_text(String text, Vector2 pos, Color32 color, f32 z, const Font_Atlas *atlas) {
     if (!text) return;
-    if (rgba_get_a(color) == 0) return;
+    if (color.a == 0) return;
     
-    auto &trender = ui.text_render;
-    Assert(trender.char_count + text.count <= trender.MAX_CHARS);
+    auto &render = ui.text_render;
+    Assert(render.char_count + text.size <= render.MAX_CHARS);
 
-	const auto &atlas = *font_atlas;
-
-    auto material = trender.material;
+    const auto image_view = gpu_get_image_view(atlas->texture->image_view);
+    const auto image      = gpu_get_image(image_view->image);
+    
+    auto material = render.material;
+    if (!material) material = render.material = get_material(render.material_name);
     
     Render_Primitive prim;
-    prim.topology_mode = TOPOLOGY_TRIANGLE_STRIP;
+    prim.topology = GPU_TOPOLOGY_TRIANGLE_STRIP;
     prim.shader = material->shader;
-    prim.texture = atlas.texture;
-    prim.vertex_descriptor = &trender.vertex_descriptor;
+    prim.texture = atlas->texture;
+    prim.vertex_input = render.vertex_input;
+    prim.vertex_offsets = New(u64, 5, __temporary_allocator);
+    prim.vertex_offsets[0] = render.positions_offset;
+    prim.vertex_offsets[1] = render.uv_rects_offset;
+    prim.vertex_offsets[2] = render.colors_offset;
+    prim.vertex_offsets[3] = render.charmap_offset;
+    prim.vertex_offsets[4] = render.transforms_offset;
     prim.first_element = 0;
     prim.element_count = 4;
-    prim.first_instance = trender.char_count;
+    prim.first_instance = render.char_count;
     prim.instance_count = 0;
 
     // array_reserve(prim.cb_instances, material->cbi_table.count);
@@ -556,35 +585,35 @@ void ui_text(String text, Vector2 pos, u32 color, f32 z, const Baked_Font_Atlas 
 	f32 x = pos.x;
 	f32 y = pos.y;
 
-	for (u32 i = 0; i < text.count; ++i) {
-        if (trender.char_count >= trender.MAX_CHARS) break;
+	for (u32 i = 0; i < text.size; ++i) {
+        if (render.char_count >= render.MAX_CHARS) break;
         
 		char c = text.data[i];
 
 		if (c == C_SPACE) {
-			x += atlas.space_xadvance;
+			x += atlas->space_xadvance;
 			continue;
 		}
 
 		if (c == C_TAB) {
-			x += 4 * atlas.space_xadvance;
+			x += 4 * atlas->space_xadvance;
 			continue;
 		}
 
 		if (c == C_NEW_LINE) {
 			x = pos.x;
-			y -= atlas.line_height;
+			y -= atlas->line_height;
 			continue;
 		}
 
-        if (c < atlas.start_charcode || c > atlas.end_charcode) {
+        if (c < atlas->start_charcode || c > atlas->end_charcode) {
             constexpr char fallback = '?';
             log(LOG_VERBOSE, "Got unsupported character %d for text render, using '%c' as fallback", c, fallback);
             c = fallback;
         }
         
-		const auto ci = c - atlas.start_charcode;
-		const auto &glyph = atlas.glyphs[ci];
+		const auto ci = c - atlas->start_charcode;
+		const auto &glyph = atlas->glyphs[ci];
 
 		const auto cw = (f32)glyph.x1 - glyph.x0;
 		const auto ch = (f32)glyph.y1 - glyph.y0;
@@ -595,16 +624,16 @@ void ui_text(String text, Vector2 pos, u32 color, f32 z, const Baked_Font_Atlas 
         const auto cs = Vector3(cw, ch, 0.0f);
         const auto transform = translate(scale(Matrix4_identity(), cs), cp);
 
-        const auto u0 = (f32)glyph.x0 / atlas.texture->width;
-        const auto v0 = (f32)glyph.y0 / atlas.texture->height;
-        const auto u1 = (f32)glyph.x1 / atlas.texture->width;
-        const auto v1 = (f32)glyph.y1 / atlas.texture->height;
+        const auto u0 = (f32)glyph.x0 / image->width;
+        const auto v0 = (f32)glyph.y0 / image->height;
+        const auto u1 = (f32)glyph.x1 / image->width;
+        const auto v1 = (f32)glyph.y1 / image->height;
 
-        trender.uv_rects[trender.char_count] = Vector4(u0, v0, u1, v1);
-        trender.colors[trender.char_count] = color;
-        trender.charmap[trender.char_count] = ci;
-		trender.transforms[trender.char_count] = transform;
-        trender.char_count += 1;
+        render.uv_rects[render.char_count] = Vector4(u0, v0, u1, v1);
+        render.colors[render.char_count] = color;
+        render.charmap[render.char_count] = ci;
+		render.transforms[render.char_count] = transform;
+        render.char_count += 1;
 
         prim.instance_count += 1;
         
@@ -615,26 +644,30 @@ void ui_text(String text, Vector2 pos, u32 color, f32 z, const Baked_Font_Atlas 
     add_primitive(hud_batch, prim, get_ui_render_key(z));
 }
 
-void ui_text_with_shadow(String text, Vector2 pos, u32 color, Vector2 shadow_offset, u32 shadow_color, f32 z, const Baked_Font_Atlas *font_atlas) {
-	ui_text(text, pos + shadow_offset, shadow_color, z,               font_atlas);
-	ui_text(text, pos,                 color,        z + F32_EPSILON, font_atlas);
+void ui_text_with_shadow(String text, Vector2 pos, Color32 color, Vector2 shadow_offset, Color32 shadow_color, f32 z, const Font_Atlas *atlas) {
+	ui_text(text, pos + shadow_offset, shadow_color, z,               atlas);
+	ui_text(text, pos,                 color,        z + F32_EPSILON, atlas);
 }
 
-void ui_quad(Vector2 p0, Vector2 p1, u32 color, f32 z) {
-    if (rgba_get_a(color) == 0) return;
+void ui_quad(Vector2 p0, Vector2 p1, Color32 color, f32 z) {
+    if (color.a == 0) return;
 
-    auto &qrender = ui.quad_render;
-    Assert(qrender.quad_count < qrender.MAX_QUADS);
+    auto &render = ui.quad_render;
+    Assert(render.quad_count < render.MAX_QUADS);
 
-    auto material = qrender.material;
-    
+    auto material = render.material;
+    if (!material) material = render.material = get_material(render.material_name);
+        
     Render_Primitive prim;
-    prim.topology_mode = TOPOLOGY_TRIANGLE_STRIP;
+    prim.topology = GPU_TOPOLOGY_TRIANGLE_STRIP;
     prim.shader = material->shader;
-    prim.vertex_descriptor = &qrender.vertex_descriptor;
-    prim.first_element = 4 * qrender.quad_count;
+    prim.vertex_input = render.vertex_input;
+    prim.vertex_offsets = New(u64, 2, __temporary_allocator);
+    prim.vertex_offsets[0] = render.positions_offset;
+    prim.vertex_offsets[1] = render.colors_offset;
+    prim.first_element = 4 * render.quad_count;
     prim.element_count = 4;
-    prim.first_instance = qrender.quad_count;
+    prim.first_instance = render.quad_count;
     prim.instance_count = 1;
     
     auto hud_batch = get_hud_batch();
@@ -646,8 +679,8 @@ void ui_quad(Vector2 p0, Vector2 p1, u32 color, f32 z) {
     const auto x1 = Max(p0.x, p1.x);
     const auto y1 = Max(p0.y, p1.y);
     
-    auto vp = qrender.positions + 4 * qrender.quad_count;
-    auto vc = qrender.colors    + 4 * qrender.quad_count;
+    auto vp = render.positions + 4 * render.quad_count;
+    auto vc = render.colors    + 4 * render.quad_count;
 
     vp[0] = Vector2(x0, y0);
     vp[1] = Vector2(x1, y0);
@@ -661,29 +694,33 @@ void ui_quad(Vector2 p0, Vector2 p1, u32 color, f32 z) {
     vc[2] = color;
     vc[3] = color;
     
-    qrender.quad_count += 1;
+    render.quad_count += 1;
 }
 
-void ui_line(Vector2 start, Vector2 end, u32 color, f32 z) {
-    auto &lrender = ui.line_render;
-    Assert(lrender.line_count < lrender.MAX_LINES);
+void ui_line(Vector2 start, Vector2 end, Color32 color, f32 z) {
+    auto &render = ui.line_render;
+    Assert(render.line_count < render.MAX_LINES);
 
-    auto material = lrender.material;
+    auto material = render.material;
+    if (!material) material = render.material = get_material(render.material_name);
     
     Render_Primitive prim;
-    prim.topology_mode = TOPOLOGY_LINES;
+    prim.topology = GPU_TOPOLOGY_LINES;
     prim.shader = material->shader;
-    prim.vertex_descriptor = &lrender.vertex_descriptor;
-    prim.first_element = 2 * lrender.line_count;
+    prim.vertex_input = render.vertex_input;
+    prim.vertex_offsets = New(u64, 2, __temporary_allocator);
+    prim.vertex_offsets[0] = render.positions_offset;
+    prim.vertex_offsets[1] = render.colors_offset;
+    prim.first_element = 2 * render.line_count;
     prim.element_count = 2;
-    prim.first_instance = lrender.line_count;
+    prim.first_instance = render.line_count;
     prim.instance_count = 1;
     
     auto hud_batch = get_hud_batch();
     add_primitive(hud_batch, prim, get_ui_render_key(z));
     
-    Vector2 *vp = lrender.positions + 2 * lrender.line_count;
-    u32  *vc = lrender.colors    + 2 * lrender.line_count;
+    auto vp = render.positions + 2 * render.line_count;
+    auto vc = render.colors    + 2 * render.line_count;
         
     vp[0] = start;
     vp[1] = end;
@@ -691,10 +728,10 @@ void ui_line(Vector2 start, Vector2 end, u32 color, f32 z) {
     vc[0] = color;
     vc[1] = color;
 
-    lrender.line_count += 1;
+    render.line_count += 1;
 }
 
-void ui_world_line(Vector3 start, Vector3 end, u32 color, f32 z) {
+void ui_world_line(Vector3 start, Vector3 end, Color32 color, f32 z) {
     const auto manager = get_entity_manager();
     const auto &camera = manager->camera;
     const auto rect    = make_rect(screen_viewport);

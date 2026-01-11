@@ -2,7 +2,7 @@
 
 set RELEASE=false
 set BUILD_TOOLS=true
-set BAKE_FONTS=true
+set BAKE_ASSETS=true
 
 :: Possible graphics apis: OPEN_GL, DX12(Todo)
 set GFX_API=OPEN_GL
@@ -15,7 +15,7 @@ if not exist "%BIN_DIR%" (
 
 set COMPILER_FLAGS=-std:c++20 -Zc:__cplusplus -nologo -Zi -FC -W3 -WX -EHsc ^
                    -GR- -Gm- -GS- -permissive- ^
-                   -Isrc/ -Isrc/audio/ -Isrc/editor/ -Isrc/fonts/ -Isrc/game/ -Isrc/math/ -Isrc/os/ -Isrc/render/ -Isrc/vendor/ -Isrc/vendor/slang/ ^
+                   -Isrc/ -Isrc/audio/ -Isrc/codegen/ -Isrc/editor/ -Isrc/game/ -Isrc/math/ -Isrc/os/ -Isrc/render/ -Isrc/vendor/ -Isrc/vendor/slang/ ^
                    -Fd%BIN_DIR% -Fo%BIN_DIR% ^
                    -D_CRT_SECURE_NO_WARNINGS -D%GFX_API%
 
@@ -32,18 +32,19 @@ set LINK_LIBS=kernel32.lib user32.lib dbghelp.lib shlwapi.lib shell32.lib gdi32.
 if %BUILD_TOOLS% == true (
    echo.
    echo Building tools
-   cl %COMPILER_FLAGS% -DTOOL_BUILD src/tools/font_baker.cpp ^
-      -link %LINKER_FLAGS% -SUBSYSTEM:Console -Out:run_tree/font_baker.exe
+
+   cl %COMPILER_FLAGS% -DTOOL_BUILD src/tools/asset_baker.cpp ^
+      -link %LINKER_FLAGS% -SUBSYSTEM:Console -Out:run_tree/asset_baker.exe
 )
 
-if %BAKE_FONTS% == true (
+if %BAKE_ASSETS% == true (
    echo.
-   echo Baking fonts
-   "run_tree/font_baker.exe"
+   echo Baking assets
+   "run_tree/asset_baker.exe"
 )
 
 :: @Todo: use -SUBSYSTEM:Windows and handle windows console attach/detach
 echo.
 echo Building game
-cl %COMPILER_FLAGS% -DGAME_BUILD src/main.cpp ^
+cl %COMPILER_FLAGS% -DSPRINTF_CUSTOM_STRING src/main.cpp ^
    -link %LINKER_FLAGS% -SUBSYSTEM:Console %LINK_LIBS% -Out:run_tree/scopecorp.exe

@@ -1,8 +1,5 @@
 #pragma once
 
-#include "math/matrix.h"
-#include "render/render_target.h"
-
 enum Viewport_Aspect_Type {
     VIEWPORT_FILL_WINDOW,
     VIEWPORT_4X3,
@@ -13,17 +10,17 @@ struct Viewport {
 
     Matrix4 transform = Matrix4_identity();
     
-    u16 x = 0;
-    u16 y = 0;
-    u16 width  = 0;
-    u16 height = 0;
+    u32 x = 0;
+    u32 y = 0;
+    u32 width  = 0;
+    u32 height = 0;
     f32 resolution_scale = 1.0f;
 
     Vector2 mouse_pos = Vector2_zero;
     
     Matrix4 orthographic_projection;
 
-    Render_Target render_target;
+    u32 framebuffer = 0;
     
     f32 pixel_size                  = 1.0f;
     f32 curve_distortion_factor     = 0.0f;
@@ -36,5 +33,5 @@ struct Viewport {
 
 inline Viewport screen_viewport;
 
-void init   (Viewport &viewport, u16 width, u16 height);
-void resize (Viewport &viewport, u16 width, u16 height);
+void init   (Viewport &viewport, u32 width, u32 height);
+void resize (Viewport &viewport, u32 width, u32 height);

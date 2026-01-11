@@ -35,9 +35,10 @@ struct Pak_Entry {
     
     String name;
     Buffer buffer;
+    u64 user_value;
     u64 offset_from_file_start = 0;
-
-    static constexpr u16 MAX_READ_SIZE = sizeof(name.count) + MAX_NAME_LENGTH + sizeof(buffer.size) + sizeof(offset_from_file_start);
+    
+    static constexpr u16 MAX_READ_SIZE = sizeof(name.size) + MAX_NAME_LENGTH + sizeof(buffer.size) + sizeof(offset_from_file_start);
 };
 
 struct Pak_Toc {
@@ -59,7 +60,7 @@ struct Load_Pak {
     Table <String, Pak_Entry *> lookup  = { .allocator = __temporary_allocator };
 };
 
-void add   (Create_Pak &pak, String entry_name, Buffer entry_buffer);
+void add   (Create_Pak &pak, String entry_name, Buffer entry_buffer, u64 user_value = 0);
 bool write (Create_Pak &pak, String path);
 
 bool       load       (Load_Pak &pak, String path);

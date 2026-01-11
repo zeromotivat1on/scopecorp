@@ -1,12 +1,11 @@
 #pragma once
 
 #include "hash_table.h"
-#include "vertex_descriptor.h"
 
 struct Triangle_Shape {
     String name;
     
-    Vertex_Descriptor vertex_descriptor;
+    u32 vertex_input;
     u32 vertex_count = 0;
     u32 first_index  = 0;
     u32 index_count  = 0;
@@ -18,7 +17,10 @@ struct Triangle_Mesh {
     String path;
     String name;
 
-    Vertex_Descriptor vertex_descriptor;
+    u32 vertex_input  = 0;
+    u64 *vertex_offsets; // per binding in vertex input
+    u64 index_offset  = 0;
+
     u32 vertex_count = 0;
     u32 first_index  = 0;
     u32 index_count  = 0;
@@ -27,7 +29,12 @@ struct Triangle_Mesh {
     Array <Triangle_Shape> shapes;
 };
 
-inline Table <String, Triangle_Mesh> triangle_mesh_table;
+struct Global_Meshes {
+    Triangle_Mesh *missing = null;
+};
+
+inline Table <String, Triangle_Mesh> mesh_table;
+inline Global_Meshes global_meshes;
 
 Triangle_Mesh *new_mesh (String path);
 Triangle_Mesh *new_mesh (String path, Buffer contents);

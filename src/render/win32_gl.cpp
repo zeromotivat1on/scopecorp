@@ -9,7 +9,7 @@
 #error OpenGL implementation is included, but OPEN_GL macro is not defined
 #endif
 
-static constexpr auto LOG_IDENT_WGL = S("wgl");
+static const auto LOG_IDENT_WGL = S("wgl");
 
 PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB = null;
 PFNWGLCHOOSEPIXELFORMATARBPROC    wglChoosePixelFormatARB = null;
@@ -43,18 +43,18 @@ static void wgl_create_dummy_context(Win32_Window *win32) {
 
 	const s32 pf = ChoosePixelFormat(win32->hdc, &pfd);
 	if (pf == 0) {
-		log(LOG_IDENT_WGL, LOG_MINIMAL, "Failed to choose dummy pixel format");
+		log(LOG_IDENT_WGL, LOG_ERROR, "Failed to choose dummy pixel format");
 		return;
 	}
 
 	if (SetPixelFormat(win32->hdc, pf, &pfd) == FALSE) {
-		log(LOG_IDENT_WGL, LOG_MINIMAL, "Failed to set dummy pixel format");
+		log(LOG_IDENT_WGL, LOG_ERROR, "Failed to set dummy pixel format");
 		return;
 	}
 
 	win32->hglrc = wglCreateContext(win32->hdc);
 	if (wglMakeCurrent(win32->hdc, win32->hglrc) == FALSE) {
-		log(LOG_IDENT_WGL, LOG_MINIMAL, "Failed to make dummy context current");
+		log(LOG_IDENT_WGL, LOG_ERROR, "Failed to make dummy context current");
 		return;
 	}
 }
@@ -149,7 +149,7 @@ static inline const char *gl_debug_message_severity_string(GLenum severity) {
 
 static inline Log_Level get_log_level_from_gl_debug_message_severity(GLenum severity) {
     switch (severity) {
-    case GL_DEBUG_SEVERITY_HIGH:         return LOG_MINIMAL;
+    case GL_DEBUG_SEVERITY_HIGH:         return LOG_ERROR;
     case GL_DEBUG_SEVERITY_MEDIUM:       return LOG_DEFAULT;
     case GL_DEBUG_SEVERITY_LOW:          return LOG_VERBOSE;
     case GL_DEBUG_SEVERITY_NOTIFICATION: return LOG_VERBOSE;
@@ -177,7 +177,7 @@ bool init_render_backend(Window *w) {
 	wgl_create_dummy_context(&dummy_win32);
 
 	if (dummy_win32.hglrc == NULL) {
-		log(LOG_IDENT_WGL, LOG_MINIMAL, "Failed to create dummy OpenGL context");
+		log(LOG_IDENT_WGL, LOG_ERROR, "Failed to create dummy OpenGL context");
 		return false;
 	}
 
@@ -185,7 +185,7 @@ bool init_render_backend(Window *w) {
 
 	const s32 pf = wgl_choose_pixel_format(&dummy_win32);
 	if (pf == 0) {
-		log(LOG_IDENT_WGL, LOG_MINIMAL, "Failed to choose pixel format");
+		log(LOG_IDENT_WGL, LOG_ERROR, "Failed to choose pixel format");
 		return false;
 	}
 
@@ -193,7 +193,7 @@ bool init_render_backend(Window *w) {
 
 	PIXELFORMATDESCRIPTOR pfd = {0};
 	if (SetPixelFormat(win32->hdc, pf, &pfd) == FALSE) {
-		log(LOG_IDENT_WGL, LOG_MINIMAL, "Failed to set pixel format");
+		log(LOG_IDENT_WGL, LOG_ERROR, "Failed to set pixel format");
 		return false;
 	}
 
@@ -207,19 +207,19 @@ bool init_render_backend(Window *w) {
 
 	win32->hglrc = wglCreateContextAttribsARB(win32->hdc, 0, context_attributes);
 	if (win32->hglrc == NULL) {
-		log(LOG_IDENT_WGL, LOG_MINIMAL, "Failed to create OpenGL context");
+		log(LOG_IDENT_WGL, LOG_ERROR, "Failed to create OpenGL context");
 		return false;
 	}
 
 	if (wglMakeCurrent(win32->hdc, win32->hglrc) == FALSE) {
-		log(LOG_IDENT_WGL, LOG_MINIMAL, "Failed to make context current");
+		log(LOG_IDENT_WGL, LOG_ERROR, "Failed to make context current");
 		return false;
 	}
 
 	// @Cleanup: too lazy to load GL pointers manually,
 	// maybe change and move glad source to own gl.h later.
 	if (!gladLoadGLLoader((GLADloadproc)wgl_get_proc_address)) {
-		log(LOG_IDENT_WGL, LOG_MINIMAL, "Failed to init GLAD");
+		log(LOG_IDENT_WGL, LOG_ERROR, "Failed to init GLAD");
 		return false;
 	}
 
@@ -237,8 +237,6 @@ bool init_render_backend(Window *w) {
     glEnable(GL_BLEND);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_STENCIL_TEST);
-
-    glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &CBUFFER_OFFSET_ALIGNMENT);
         
 	ShowWindow(win32->hwnd, SW_NORMAL);
 

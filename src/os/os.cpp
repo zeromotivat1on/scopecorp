@@ -4,7 +4,6 @@
 Buffer read_file(String path, Allocator alc) {
     auto file = open_file(path, FILE_READ_BIT);
 	if (file == FILE_NONE) return {};
-
 	defer { close_file(file); };
 
     const u64 size = get_file_size(file);
@@ -25,12 +24,31 @@ String read_text_file(String path, Allocator alc) {
     return {};
 }
 
+void write_file(String path, Buffer buffer) {
+    auto file = open_file(path, FILE_WRITE_BIT, false);
+	if (file == FILE_NONE) {
+        file = open_file(path, FILE_NEW_BIT | FILE_WRITE_BIT);
+        if (file == FILE_NONE) return;
+    }
+    
+	defer { close_file(file); };
+
+    const auto written = write_file(file, buffer.size, buffer.data);
+    if (written != buffer.size) {
+        log(LOG_WARNING, "Partially wrote %llu/%llu bytes to %S", written, buffer.size, path);
+    }
+}
+
+void write_text_file(String path, String source) {
+    write_file(path, Buffer { source.data, source.size });
+}
+
 String fix_directory_delimiters(String path) {
-    char *read  = path.data;
-    char *write = path.data;
+    auto read  = path.data;
+    auto write = path.data;
     bool last_was_slash = false;
     
-    while (read != path.data + path.count) {
+    while (read != path.data + path.size) {
         if (*read == '\\') *read = '/';
         if (*read == '/') {
             if (!last_was_slash) {
@@ -44,7 +62,7 @@ String fix_directory_delimiters(String path) {
         read++;
     }
 
-    path.count = write - path.data;
+    path.size = write - path.data;
     
     return path;
 }
@@ -52,7 +70,7 @@ String fix_directory_delimiters(String path) {
 String remove_extension(String path) {
     const s64 index = find(path, '.', S_SEARCH_REVERSE_BIT);
     if (index != INDEX_NONE) {
-        path.count = index;
+        path.size = index;
         return path;
     }
 

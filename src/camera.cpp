@@ -19,9 +19,9 @@ void update_matrices(Camera &c) {
 
 void on_viewport_resize(Camera &c, const Viewport &vp) {
 	c.aspect = (f32)vp.width / vp.height;
-	c.left   = vp.x;
+	c.left   = (f32)vp.x;
 	c.right  = (f32)vp.x + vp.width;
-	c.bottom = vp.y;
+	c.bottom = (f32)vp.y;
 	c.top    = (f32)vp.y + vp.height;
 }
 

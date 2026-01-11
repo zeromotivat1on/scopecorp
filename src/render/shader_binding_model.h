@@ -2,8 +2,6 @@
 
 #include "hash_table.h"
 
-inline s32 CBUFFER_OFFSET_ALIGNMENT = 0;
-
 // @Todo: handle more types.
 enum Constant_Type : u8 {
     CT_VOID,

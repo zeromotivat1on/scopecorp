@@ -17,34 +17,29 @@
 #error "Unsupported graphics api"
 #endif
 
-// inline constexpr sid SID_NONE = 0;
-// inline constexpr eid EID_NONE = 0;
-// inline constexpr eid EID_MAX  = U32_MAX;
-//inline constexpr rid RID_NONE = 0;
-
-#define INDEX_NONE -1
 #define MAX_PATH_LENGTH 256
 
-#define rgba_pack(r, g, b, a) (u32)((r) << 24  | (g) << 16  | (b) << 8 | (a) << 0)
+struct Color4f { f32 r, g, b, a; };
+union  Color32 { u32 hex; struct { u32 a : 8; u32 b : 8; u32 g : 8; u32 r : 8; }; };
 
-#define rgba_set_r(c, r) (((c) & 0x00FFFFFF) | ((u32)(r) << 24))
-#define rgba_set_g(c, g) (((c) & 0xFF00FFFF) | ((u32)(g) << 16))
-#define rgba_set_b(c, b) (((c) & 0xFFFF00FF) | ((u32)(b) << 8))
-#define rgba_set_a(c, a) (((c) & 0xFFFFFF00) | ((u32)(a) << 0))
+inline constexpr auto COLOR4F_BLACK  = Color4f { .r = 0, .g = 0, .b = 0, .a = 1 };
+inline constexpr auto COLOR4F_WHITE  = Color4f { .r = 1, .g = 1, .b = 1, .a = 1 };
+inline constexpr auto COLOR4F_RED    = Color4f { .r = 1, .g = 0, .b = 0, .a = 1 };
+inline constexpr auto COLOR4F_GREEN  = Color4f { .r = 0, .g = 1, .b = 0, .a = 1 };
+inline constexpr auto COLOR4F_BLUE   = Color4f { .r = 0, .g = 0, .b = 1, .a = 1 };
+inline constexpr auto COLOR4F_YELLOW = Color4f { .r = 1, .g = 1, .b = 0, .a = 1 };
+inline constexpr auto COLOR4F_PURPLE = Color4f { .r = 1, .g = 0, .b = 1, .a = 1 };
+inline constexpr auto COLOR4F_CYAN   = Color4f { .r = 0, .g = 1, .b = 1, .a = 1 };
 
-#define rgba_get_r(c) (((c) >> 24) & 0xFF)
-#define rgba_get_g(c) (((c) >> 16) & 0xFF)
-#define rgba_get_b(c) (((c) >> 8)  & 0xFF)
-#define rgba_get_a(c) (((c) >> 0)  & 0xFF)
-
-#define rgba_white  rgba_pack(255, 255, 255, 255)
-#define rgba_black  rgba_pack(  0,   0,   0, 255)
-#define rgba_red    rgba_pack(255,   0,   0, 255)
-#define rgba_green  rgba_pack(  0, 255,   0, 255)
-#define rgba_blue   rgba_pack(  0,   0, 255, 255)
-#define rgba_yellow rgba_pack(255, 255,   0, 255)
-#define rgba_purple rgba_pack(255,   0, 255, 255)
-#define rgba_cyan   rgba_pack(  0, 255, 255, 255)
+inline constexpr auto COLOR32_BLACK  = Color32 { .hex = 0x000000FF };
+inline constexpr auto COLOR32_WHITE  = Color32 { .hex = 0xFFFFFFFF };
+inline constexpr auto COLOR32_RED    = Color32 { .hex = 0xFF0000FF };
+inline constexpr auto COLOR32_GREEN  = Color32 { .hex = 0x00FF00FF };
+inline constexpr auto COLOR32_BLUE   = Color32 { .hex = 0x0000FFFF };
+inline constexpr auto COLOR32_YELLOW = Color32 { .hex = 0xFFFF00FF };
+inline constexpr auto COLOR32_PURPLE = Color32 { .hex = 0xFF00FFFF };
+inline constexpr auto COLOR32_CYAN   = Color32 { .hex = 0x00FFFFFF };
+inline constexpr auto COLOR32_GRAY   = Color32 { .hex = 0xAAAAAAFF };
 
 // Just some explicit ascii characters for clarity.
 #define C_BACKSPACE       8
@@ -57,16 +52,19 @@
 #define C_SPACE           32
 #define C_GRAVE_ACCENT    96
 
-#if DEBUG
-inline const char* Build_type_name = "DEBUG";
-#elif RELEASE
-inline const char* Build_type_name = "RELEASE";
-#else
-#error "Unknown build type"
-#endif
-
 #define _sizeref(x) sizeof(x), &x
 
+#define DIR_CODEGEN       S("../src/codegen/")
+#define DIR_SHADERS       S("data/shaders/")
+#define DIR_TEXTURES      S("data/textures/")
+#define DIR_MATERIALS     S("data/materials/")
+#define DIR_MESHES        S("data/meshes/")
+#define DIR_SOUNDS        S("data/sounds/")
+#define DIR_FONTS         S("data/fonts/")
+#define DIR_FLIP_BOOKS    S("data/flip_books/")
+#define DIR_LEVELS        S("data/levels/")
+
+#define PATH_CODEGEN(x)   S("../src/codegen/"  x)
 #define PATH_PAK(x)       S(""                 x)
 #define PATH_SHADER(x)    S("data/shaders/"    x)
 #define PATH_TEXTURE(x)   S("data/textures/"   x)
@@ -76,6 +74,8 @@ inline const char* Build_type_name = "RELEASE";
 #define PATH_FONT(x)      S("data/fonts/"      x)
 #define PATH_FLIP_BOOK(x) S("data/flip_books/" x)
 #define PATH_LEVEL(x)     S("data/levels/"     x)
+
+String get_build_type_name();
 
 String get_file_name_no_ext (String path);
 String get_extension        (String path);
@@ -123,6 +123,7 @@ struct Time_Info {
 
 inline Time_Info time_info;
 bool should_quit_game = false;
+bool in_main_loop = false;
 u64 frame_index = 0;
 u64 highest_water_mark = 0;
 
@@ -197,5 +198,4 @@ inline Window *get_window () { Assert(main_window); return main_window; }
 // @Cleanup
 struct Gpu_Picking_Data { f32 depth; Pid eid; };
 Gpu_Picking_Data *gpu_picking_data = null;
-
-#include "render_api.h"
+u64 gpu_picking_data_offset;

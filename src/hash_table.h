@@ -1,9 +1,8 @@
 #pragma once
 
-#include "hash.h"
-
 template <typename T> u64 table_hash_proc(const T &v)      { return *(u64 *)&v; }
 template <>           u64 table_hash_proc(const String &s) { return hash_fnv(s); }
+template <>           u64 table_hash_proc(const Atom &a)   { return a.hash; }
 
 template<typename K, typename V>
 struct Table {
@@ -27,8 +26,8 @@ struct Table {
     u32    count    = 0;
     u32    capacity = 0;
 
-    Hash    hash_function    = null;
-    Compare compare_function = null;
+    Hash    hash_proc    = null;
+    Compare compare_proc = null;
     
     struct Iterator;
     
@@ -41,12 +40,12 @@ struct Table {
     V &operator[](const K &key) { return table_add(*this, key); }
 
     u64 hash(const K &key) const {
-        if (hash_function) return hash_function(key);
+        if (hash_proc) return hash_proc(key);
         return table_hash_proc(key);
     }
 
     bool compare(const K &a, const K &b) const {
-        if (compare_function) return compare_function(a, b);
+        if (compare_proc) return compare_proc(a, b);
         return a == b;
     }
     
@@ -79,13 +78,13 @@ struct Table {
 };
 
 template<typename K, typename V>
-void table_set_hash(Table<K, V> &table, typename Table<K, V>::Hash hash) {
-    table.hash_function = hash;
+void table_set_hash(Table<K, V> &table, typename Table<K, V>::Hash proc) {
+    table.hash_proc = proc;
 }
 
 template<typename K, typename V>
-void table_set_compare(Table<K, V> &table, typename Table<K, V>::Compare compare) {
-    table.compare_function = compare;
+void table_set_compare(Table<K, V> &table, typename Table<K, V>::Compare proc) {
+    table.compare_proc = proc;
 }
 
 template<typename K, typename V>

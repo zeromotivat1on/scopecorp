@@ -54,7 +54,43 @@ static_assert(sizeof(f64) == 8);
 #define U32_PACK(a, b, c, d)             (u32)((a) << 0  | (b) << 8  | (c) << 16 | (d) << 24)
 #define U64_PACK(a, b, c, d, e, f, g, h) (u64)((a) << 0  | (b) << 8  | (c) << 16 | (d) << 24 | (e) << 32 | (f) << 40 | (g) << 48 | (h) << 56)
 
+#define INDEX_NONE -1
+
 typedef u32 Pid; // persistent identifier
+
+// Opaque type that represents a reference to system's underlying resource.
+union Handle {
+    u16   _u16;
+    u32   _u32;
+    u64   _u64;
+    void *_ptr;
+
+    explicit operator bool() const { return _ptr; }
+};
+
+inline bool operator==(Handle a, Handle b) { return a._u64 == b._u64; }
+inline bool operator!=(Handle a, Handle b) { return !(a == b); }
+inline bool is_valid  (Handle a)           { return a._ptr; }
+
+struct String {
+    u8 *data = null;
+    u64 size = 0;
+
+    explicit operator bool() const { return data && size; }
+};
+
+inline bool is_valid(String s) { return s.data && s.size; }
+
+struct Buffer {
+    u8 *data = null;
+    u64 size = 0;
+    
+    explicit operator bool() const { return data && size; }
+};
+
+inline bool   is_valid    (Buffer b)             { return b.data && b.size; }
+inline Buffer make_buffer (void *data, u64 size) { return { .data = (u8 *)data, .size = size }; }
+inline Buffer make_buffer (String s)             { return { .data = (u8 *)s.data, .size = s.size }; }
 
 union u128 {
     u8  _u8 [16];
@@ -201,12 +237,11 @@ inline thread_local Allocator __default_allocator = { .proc = __default_allocato
 #endif
 
 enum Log_Level : u8 {
-    LOG_MINIMAL,
-    LOG_DEFAULT,
     LOG_VERBOSE,
+    LOG_DEFAULT,
+    LOG_WARNING,
+    LOG_ERROR,
 };
-
-struct String;
 
 typedef void  (*Logger_Proc) (String message, String ident, Log_Level level, void *logger_data);
 void  __default_logger_proc  (String message, String ident, Log_Level level, void *logger_data);
@@ -246,12 +281,20 @@ u64   cstring_count   (const char *s);
 s64   cstring_compare (const char *a, const char *b);
 s64   cstring_compare (const char *a, const char *b, u64 n);
 
+f32 Floor (f32 f);
 f32 Ceil  (f32 f);
 f32 Sqrt  (f32 f);
 f32 Rsqrt (f32 f);
+f32 Log2  (f32 f);
 f32 Sin   (f32 r);
 f32 Cos   (f32 r);
 f32 Tan   (f32 r);
+
+inline bool equal      (const String a, const String &b) { return cstring_compare((char *)a.data, (char *)b.data, Max(a.size, b.size)) == 0; }
+inline bool operator== (const String a, const String &b) { return equal(a, b); }
+inline bool operator!= (const String a, const String &b) { return !(a == b); }
+inline s64  compare    (const String a, const String &b) { return cstring_compare((char *)a.data, (char *)b.data, Max(a.size, b.size)); }
+inline bool operator<  (const String a, const String &b) { return compare(a, b) < 0; }
 
 extern u64 get_current_thread_id ();
 
@@ -298,20 +341,61 @@ void reset_temporary_storage    ();
 
 void *talloc (u64 size);
 
+#ifndef ATOM_TABLE_DEFAULT_CAPACITY
+#define ATOM_TABLE_DEFAULT_CAPACITY 512u
+#endif
+
+#ifndef ATOM_TABLE_DEFAULT_BUFFER_SIZE
+#define ATOM_TABLE_DEFAULT_BUFFER_SIZE Kilobytes(128)
+#endif
+
+struct Atom {
+    u64 hash = 0;
+#if DEVELOPER
+    String string;
+#endif
+
+    explicit operator bool() const {
+#if DEVELOPER
+        return hash && is_valid(string);
+#else
+        return hash;
+#endif
+    }
+};
+    
+struct Atom_Table {
+    Atom   *atoms   = null;
+    String *strings = null;
+    
+    u32 count    = 0;
+    u32 capacity = 0;
+
+    Buffer buffer;
+    u64    used = 0;
+};
+
+Atom   make_atom  (String s);
+String get_string (Atom atom);
+
+#define ATOM(literal) make_atom(S(literal))
+
 inline Temporary_Storage __make_default_temporary_storage ();
 inline thread_local auto __default_temporary_storage = __make_default_temporary_storage();
+
+inline Atom_Table __make_default_atom_table ();
+inline thread_local auto __default_atom_table = __make_default_atom_table();
 
 struct Context {
     u64       thread_id = get_current_thread_id();
     Log_Level log_level = DEFAULT_LOG_LEVEL;
-    
-    Allocator  allocator = __default_allocator;
-    Logger     logger    = __default_logger;
 
-    // @Todo: add call stack info to print in case of assert failure.
+    Allocator   allocator   = __default_allocator;
+    Logger      logger      = __default_logger;
     Assert_Proc assert_proc = __default_assert_proc;
     
     Temporary_Storage *temporary_storage = &__default_temporary_storage;
+    Atom_Table        *atom_table        = &__default_atom_table;
 };
 
 inline thread_local Context context;
@@ -320,6 +404,20 @@ inline thread_local Allocator __temporary_allocator = {
     .proc = __default_temporary_storage_allocator_proc,
     .data = context.temporary_storage,
 };
+
+inline bool operator==(const Atom &a, const Atom &b) {
+#if DEVELOPER
+    if (a.hash == b.hash) {
+        Assert(a.string == b.string);
+        return true;
+    }
+    return false;
+#else
+    return a.hash == b.hash;
+#endif
+}
+
+inline bool operator!=(const Atom &a, const Atom &b) { return !(a == b); }
 
 template <typename T>
 struct Array {    
@@ -386,15 +484,6 @@ T &array_pop(Array<T> &array) {
     return item;
 }
 
-struct Buffer {
-    u8 *data = null;
-    u64 size = 0;
-    
-    explicit operator bool () const { return data && size > 0; }
-};
-
-inline bool is_valid (const Buffer &b) { return b.data && b.size > 0; }
-
 enum String_Op_Bits : u32 {
     S_SEARCH_REVERSE_BIT  = 0x1,
     S_INDEX_PLUS_ONE_BIT  = 0x2,
@@ -404,32 +493,28 @@ enum String_Op_Bits : u32 {
     S_LEFT_SLICE_BIT      = 0x20,
 };
 
-struct String {
-    char *data = null;
-    u64 count = 0;
+#define S(literal) String { .data = (u8 *)literal, .size = sizeof(literal) - 1 }
 
-    explicit operator bool () const { return data && count > 0; }
-};
-
-#define S(literal) String { .data = (char *)literal, .count = sizeof(literal) - 1 }
-
-inline Buffer make_buffer (String s) { return { .data = (u8 *)s.data, .size = s.count }; }
-
-inline bool is_valid   (const String &s)                  { return s.data && s.count > 0; }
-inline bool equal      (const String &a, const String &b) { return cstring_compare(a.data, b.data, Max(a.count, b.count)) == 0; }
-inline bool operator== (const String &a, const String &b) { return equal(a, b); }
-inline bool operator!= (const String &a, const String &b) { return !(a == b); }
-inline s64  compare    (const String &a, const String &b) { return cstring_compare(a.data, b.data, Max(a.count, b.count)); }
-inline bool operator<  (const String &a, const String &b) { return compare(a, b) < 0; }
-
-inline String make_string (char *s)            { return { s, cstring_count(s) }; }
-inline String make_string (char *s, u64 count) { return { s, count }; }
-inline String make_string (Buffer buffer)      { return { (char *)buffer.data, buffer.size }; }
+inline String make_string (u8 *s)              { return { s, cstring_count((char *)s) }; }
+inline String make_string (u8 *s, u64 count)   { return { s, count }; }
+inline String make_string (char *s)            { return { (u8 *)s, cstring_count(s) }; }
+inline String make_string (char *s, u64 count) { return { (u8 *)s, count }; }
+inline String make_string (String s)           { return { s.data, s.size }; }
+inline String make_string (Buffer b)           { return { b.data, b.size }; }
 
 String copy_string   (String s, Allocator alc = context.allocator);
-String copy_string   (const char *s, Allocator alc = context.allocator);
-String copy_string   (const char *data, u64 count, Allocator alc = context.allocator);
+String copy_string   (const u8 *s, Allocator alc = context.allocator);
+String copy_string   (const u8 *data, u64 count, Allocator alc = context.allocator);
+char  *to_c_string   (String s, Allocator alc);
 char  *temp_c_string (String s);
+
+inline String copy_string(const char *s, Allocator alc = context.allocator) {
+    return copy_string((u8 *)s, cstring_count(s), alc);
+}
+
+inline String copy_string(const char *data, u64 count, Allocator alc = context.allocator) {
+    return copy_string((u8 *)data, count, alc);
+}
 
 String trim  (String s);
 String slice (String s, s64 start);
@@ -444,6 +529,7 @@ s64 string_to_integer (String s);
 f64 string_to_float   (String s);
 
 Array <String> split (String s, String delims, Allocator alc = __temporary_allocator);
+Array <String> chop  (String s, u64 chop_size, Allocator alc = __temporary_allocator);
 
 inline constexpr String LOG_IDENT_NONE = {};
 
@@ -472,21 +558,18 @@ void  release (void *data,           Allocator alc = context.allocator);
 #define __delete2(P, A) release(P, A)
 #define Delete(...) __expand(__get_delete_macro(__VA_ARGS__, __delete2, __delete1)(__VA_ARGS__))
 
-u64 serialize   (void *handle, void *buffer, u64 size);
-u64 deserialize (void *handle, void *buffer, u64 size);
-
 #define push_va_args(format)                                                 \
     for (bool _va_scope = true; _va_scope; _va_scope = false)                \
         for (va_list va_args; _va_scope; _va_scope = false, va_end(va_args)) \
             for (va_start(va_args, format); _va_scope; _va_scope = false)
 
-void   print  (String message);
-void   print  (const char *format, ...);
-void   log    (const char *format, ...);
-void   log    (Log_Level level, const char *format, ...);
-void   log    (String    ident, const char *format, ...);
-void   log    (String    ident, Log_Level level, const char *format, ...);
-void   log    (String    ident, Log_Level level, const char *format, va_list args);
-String sprint (const char *format, ...);
-String tprint (const char *format, ...);
-String tprint (const char *format, va_list args);
+void   print     (String message);
+void   print     (const char *format, ...);
+void   log       (const char *format, ...);
+void   log       (Log_Level level, const char *format, ...);
+void   log       (String    ident, const char *format, ...);
+void   log       (String    ident, Log_Level level, const char *format, ...);
+void   log_va    (String    ident, Log_Level level, const char *format, va_list args);
+String sprint    (const char *format, ...);
+String tprint    (const char *format, ...);
+String tprint_va (const char *format, va_list args);

@@ -5,8 +5,10 @@
 
 #define DEBUG_SHADER_REFLECTION 0
 
-inline constexpr auto SHADER_SOURCE_EXT = S(".sl");
-inline constexpr auto SHADER_HEADER_EXT = S(".slh");
+inline const auto SHADER_SOURCE_EXT = S(".sl");
+inline const auto SHADER_HEADER_EXT = S(".slh");
+
+#pragma once
 
 #ifdef OPEN_GL
 #define SHADER_FILE_EXT S(".glsl")
@@ -61,7 +63,7 @@ struct Compiled_Shader {
 
 struct Shader {    
     const Shader_File *shader_file = null;
-    Gpu_Handle linked_program = GPU_HANDLE_NONE;
+    Handle linked_program = {};
     Table <String, Gpu_Resource> resource_table;    
 };
 
@@ -71,10 +73,15 @@ struct Shader_Platform {
 
     // For now all constant buffers live here, so it means each cbuffer name
     // should be unique across all shader codebase which seems kinda bad.
-    Table <String, Constant_Buffer> constant_buffer_table;
+    Table <String, struct Constant_Buffer> constant_buffer_table;
+};
+
+struct Global_Shaders {
+    Shader *missing = null;
 };
 
 inline Shader_Platform shader_platform;
+inline Global_Shaders  global_shaders;
 
 void init_shader_platform     ();
 // Can be called multiple times to destroy old and create new session, useful for hot reload.

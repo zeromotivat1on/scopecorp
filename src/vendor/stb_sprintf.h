@@ -600,14 +600,14 @@ STBSP__PUBLICDEF int STB_SPRINTF_DECORATE(vsprintfcb)(STBSP_SPRINTFCB *callback,
          // copy the string in
          goto scopy;
 
-#ifdef GAME_BUILD
+#ifdef SPRINTF_CUSTOM_STRING
       case 'S': { // custom string struct
           String _s = va_arg(va, String);
-          s = _s.data;
+          s = (char *)_s.data;
           if (s == 0)
               s = (char *)"null";
           // string length is stored as u64
-          l = (unsigned int)_s.count;
+          l = (unsigned int)_s.size;
           lead[0] = 0;
           tail[0] = 0;
           pr = 0;

@@ -9,37 +9,37 @@ void set_audio_listener_position (Vector3 position) { get_audio_player()->listen
 Parsed_Wav parse_wav(void *data) {
     auto header = *Eat(&data, Wav_Header);
     
-    if (String(header.riff_id, 4) != S("RIFF")) {
-		log(LOG_MINIMAL, "File is not a valid wav file, header does not begin with 'RIFF'");
+    if (make_string(header.riff_id, 4) != S("RIFF")) {
+		log(LOG_ERROR, "File is not a valid wav file, header does not begin with 'RIFF'");
 		return {};
 	}
 
-    if (String(header.wave_id, 4) != S("WAVE")) {
-		log(LOG_MINIMAL, "File is not a valid wav file, header does not begin with 'WAVE'");
+    if (make_string(header.wave_id, 4) != S("WAVE")) {
+		log(LOG_ERROR, "File is not a valid wav file, header does not begin with 'WAVE'");
 		return {};
 	}
      
-    if (String(header.fmt_id, 4) != S("fmt ")) {
-        log(LOG_MINIMAL, "File is not a valid wav file, header does not contain 'fmt '");
+    if (make_string(header.fmt_id, 4) != S("fmt ")) {
+        log(LOG_ERROR, "File is not a valid wav file, header does not contain 'fmt '");
         return {};
     }
 
-    if (String(header.data_id, 4) == S("data")) {
+    if (make_string(header.data_id, 4) == S("data")) {
         return { header, data };
     }
 
-    if (String(header.data_id, 4) == S("LIST")) {
+    if (make_string(header.data_id, 4) == S("LIST")) {
         const u32 list_size = header.sampled_data_size;
         eat(&data, list_size);
 
         char *data_id = Eat(&data, char, 4);
-        if (String(data_id, 4) == S("data")) {
+        if (make_string(data_id, 4) == S("data")) {
             copy(header.data_id, data_id, 4);
             header.sampled_data_size = *Eat(&data, u32);
             return { header, data };
         }
     }
         
-    log(LOG_MINIMAL, "File is not a valid wav file, header does not contain 'data'");
+    log(LOG_ERROR, "File is not a valid wav file, header does not contain 'data'");
     return {};
 }

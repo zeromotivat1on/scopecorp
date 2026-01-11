@@ -1,6 +1,6 @@
 #pragma once
 
-// Ensure convert tables in platform cpp files are update with this enum thanks
+// Ensure convert tables in platform cpp files are up to date with this enum thanks
 // to C++ being unable to support old ass feature from C!!! { [1] = 10, [4] = 20 }
 enum Key_Code : u8 {
     KEY_NONE,
@@ -190,20 +190,17 @@ struct Input_Table {
     u256 keys_down; // keys pressed this frame
     u256 keys_up;   // keys released this frame
         
-    s16 mouse_x;
-    s16 mouse_y;
-    s16 mouse_last_x;
-    s16 mouse_last_y;
-    s16 mouse_offset_x;
-    s16 mouse_offset_y;
+    s32 mouse_x;
+    s32 mouse_y;
+    s32 mouse_offset_x;
+    s32 mouse_offset_y;
 
     // @Todo: gamepads...
 };
 
 Input_Table *get_input_table ();
-
-Key_Code vkey_to_key_code (u32 vkey);
-u32      key_code_to_vkey (Key_Code key);
+Key_Code     vkey_to_key_code (u32 vkey);
+u32          key_code_to_vkey (Key_Code key);
 
 inline bool down     (Key_Code key) { return check_bit(&get_input_table()->keys, key); }
 inline bool up       (Key_Code key) { return !down(key); }

@@ -3,7 +3,7 @@
 #include "hash_table.h"
 #include "catalog.h"
 
-inline constexpr auto FLIP_BOOK_EXT = S("flip_book");
+inline const auto FLIP_BOOK_EXT = S("flip_book");
 
 struct Texture;
 
@@ -22,10 +22,7 @@ struct Flip_Book {
     Array <Flip_Book_Frame> frames;
 };
 
-inline Catalog flip_book_catalog;
 inline Table <String, Flip_Book> flip_book_table;
-
-void preload_all_flip_books();
 
 Flip_Book       *new_flip_book     (String path);
 Flip_Book       *new_flip_book     (String path, String contents);

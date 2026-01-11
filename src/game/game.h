@@ -1,10 +1,10 @@
 #pragma once
 
 #include "string_builder.h"
-#include "command_buffer.h"
 
 struct Game_Logger_Data {
-    String_Builder messages;
+    Allocator      allocator;
+    Array <String> messages;
 };
 
 inline Game_Logger_Data game_logger_data;
@@ -38,7 +38,7 @@ struct Game_State {
 	Camera_Behavior camera_behavior = STICK_TO_PLAYER;
 	Player_Movement_Behavior player_movement_behavior = MOVE_INDEPENDENT;
     Property_Change_Type selected_entity_property_to_change = PROPERTY_LOCATION;
-    Polygon_Mode polygon_mode = POLYGON_FILL;
+    enum Gpu_Polygon_Mode polygon_mode;
 };
 
 inline Game_State game_state;

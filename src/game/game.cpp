@@ -13,7 +13,6 @@
 #include "render.h"
 #include "shader_binding_model.h"
 #include "ui.h"
-#include "render_target.h"
 #include "viewport.h"
 #include "material.h"
 #include "texture.h"
@@ -21,8 +20,8 @@
 #include "audio_player.h"
 
 void game_logger_proc(String message, String ident, Log_Level level, void *logger_data) {
-    if (ident && ident == LOG_IDENT_GL) return;
-    
+    if (level < context.log_level) return;
+        
     Assert(logger_data);
     auto logger = (Game_Logger_Data *)logger_data;
 
@@ -33,13 +32,13 @@ void game_logger_proc(String message, String ident, Log_Level level, void *logge
         s = tprint("%S\n", message);
     }
 
-    append(logger->messages, s);
-    add_to_console_history(s);
+    array_add(logger->messages, copy_string(s, logger->allocator));
+    add_to_console_history(level, s);
 }
 
 void flush_game_logger() {
-    auto mega_message = builder_to_string(game_logger_data.messages);
-    print(mega_message);
+    For (game_logger_data.messages) print(it);
+    array_clear(game_logger_data.messages);
 }
 
 void on_window_resize(u16 width, u16 height) {
@@ -47,170 +46,63 @@ void on_window_resize(u16 width, u16 height) {
 
     auto manager = get_entity_manager();
     on_viewport_resize(manager->camera, screen_viewport);
-    
-    on_console_viewport_resize(screen_viewport.width, screen_viewport.height);
 }
 
 void init_asset_storages() {
-    add_directory_files(&texture_catalog,   PATH_TEXTURE(""),   true);
-    add_directory_files(&flip_book_catalog, PATH_FLIP_BOOK(""), true);
-    add_directory_files(&material_catalog,  PATH_MATERIAL(""),  true);
-    
-    table_realloc(texture_table,       texture_catalog.entries.count);
-    table_realloc(material_table,      64);
-    table_realloc(triangle_mesh_table, 64);
-    table_realloc(flip_book_table,     64);
-    table_realloc(font_atlas_table,    16);
+    table_realloc(texture_table,    64);
+    table_realloc(material_table,   64);
+    table_realloc(mesh_table,       64);
+    table_realloc(flip_book_table,  64);
+    table_realloc(font_atlas_table, 16);
 }
 
 void load_game_assets() {
-#if DEVELOPER
-    // Shaders.
     {
-        static auto load_shader = [](const File_Callback_Data *data) {
-            START_TIMER(0);
+        #include "missing_texture.h"
 
-            const auto path = data->path;
-            const auto load_header = *(bool *)data->user_data;
-    
-            if (load_header && is_shader_header_path(path)) {
-                if (!new_shader_file(path)) return;
-            } else if (!load_header && is_shader_source_path(path)) {
-                if (!new_shader(path)) return;
-            } else {
-                // Skip other file extensions.
-                return;
-            }
-
-            log("Created %S", path, CHECK_TIMER_MS(0));
-        };
+        const auto type   = GPU_IMAGE_TYPE_2D;
+        const auto format = gpu_image_format_from_channel_count(missing_texture_color_channel_count);
+        const auto mipmap_count = gpu_max_mipmap_count(missing_texture_width, missing_texture_height);
+        const auto buffer = make_buffer((void *)missing_texture_pixels, sizeof(missing_texture_pixels));
         
-        bool load_header = true;
-        visit_directory(PATH_SHADER(""), load_shader, true, &load_header);
-    
-        load_header = false;
-        visit_directory(PATH_SHADER(""), load_shader, true, &load_header);
-    }
-    
-    // Textures.
-    {
-        For (texture_catalog.entries) {
-            if (new_texture(it.path)) log("Created %S", it.path);
-        }
+        const auto image = gpu_new_image(type, format, mipmap_count, missing_texture_width, missing_texture_height, 1, buffer);
+        const auto image_view = gpu_new_image_view(image, type, format, 0, mipmap_count, 0, 1);
+        global_textures.missing = new_texture(ATOM("missing"), image_view, gpu.sampler_default_color);
     }
 
-    // Meshes.
     {
-        visit_directory(PATH_MESH(""), [] (const File_Callback_Data *data) {
-            if (new_mesh(data->path)) log("Created %S", data->path);
-        });
-    }
+        #include "missing_shader.h"
 
-    // Sounds.
-    {
-        auto &sound_catalog = get_audio_player()->sound_catalog;
-        For (sound_catalog.entries) {
-            if (new_sound(it.path)) log("Created %S", it.path);
-        }
+        global_shaders.missing = new_shader(S("missing.sl"), make_string((u8 *)missing_shader_source));
     }
+       
+    {
+        #include "missing_material.h"
 
-    // Flip books.
-    {
-        For (flip_book_catalog.entries) {
-            if (new_flip_book(it.path)) log("Created %S", it.path);
-        }
+        global_materials.missing = new_material(S("missing.material"), make_string((u8 *)missing_material_source));
     }
+     
+    {
+        #include "missing_mesh.h"
 
-    // Materials.
-    {
-        For (material_catalog.entries) {
-            if (new_material(it.path)) log("Created %S", it.path);
-        }
+        const auto buffer = make_buffer((void *)missing_mesh_obj, cstring_count(missing_mesh_obj));
+        global_meshes.missing = new_mesh(S("missing.obj"), buffer);
     }
-    
-    save_game_pak(GAME_PAK_PATH);  
-#endif
-    
+     
     load_game_pak(GAME_PAK_PATH);
-
-    // Materials.
-    // {
-    //     auto entity_shader = get_shader(S("entity"));
     
-    //     auto cube = new_material(S("cube"), entity_shader);
-    //     cube->diffuse_texture = get_texture(S("stone"));
-    
-    //     auto ground = new_material(S("ground"), entity_shader);
-    //     ground->diffuse_texture = get_texture(S("grass"));
-    
-    //     auto player = new_material(S("player"), entity_shader);
-    //     player->diffuse_texture = get_texture(S("player_idle_back"));
-    //     player->use_blending    = true;
-    
-    //     auto tower = new_material(S("tower"), entity_shader);
-    //     tower->diffuse_texture = get_texture(S("stone"));
-
-    //     auto skybox = new_material(S("skybox"), get_shader(S("skybox")));
-    //     skybox->diffuse_texture = get_texture(S("skybox"));
-
-    //     new_material(S("frame_buffer"), get_shader(S("frame_buffer")));
-    //     new_material(S("geometry"),     get_shader(S("geometry")));
-    //     new_material(S("outline"),      get_shader(S("outline")));
-    //     new_material(S("ui_element"),   get_shader(S("ui_element")));
-    //     new_material(S("ui_text"),      get_shader(S("ui_text")));
-    // }
-
-    // Font atlases.
     {
-        {
-            #include "better_vcr_16.h"
-            constexpr String name = S("better_vcr_16");
-
-            auto texture = get_texture(name);        
-            auto &atlas = font_atlas_table[name];
-            atlas.name           = name;
-            atlas.texture        = texture;
-            atlas.start_charcode = better_vcr_16_start_charcode;
-            atlas.end_charcode   = atlas.start_charcode + carray_count(better_vcr_16_cdata) - 1;
-            atlas.ascent         = better_vcr_16_ascent;
-            atlas.descent        = better_vcr_16_descent;
-            atlas.line_gap       = better_vcr_16_line_gap;
-            atlas.line_height    = better_vcr_16_line_height;
-            atlas.px_height      = 16;
-            atlas.px_h_scale     = better_vcr_16_px_h_scale;
-            atlas.space_xadvance = better_vcr_16_cdata[0].xadvance;
-            atlas.glyphs         = New(Glyph, carray_count(better_vcr_16_cdata));
-
-            copy(atlas.glyphs, better_vcr_16_cdata, sizeof(better_vcr_16_cdata));
-
-            global_font_atlases.main_small = &atlas;
-        }
-
-        {
-            #include "better_vcr_24.h"
-            constexpr String name = S("better_vcr_24");
-
-            auto texture = get_texture(name);        
-            auto &atlas = font_atlas_table[name];
-            atlas.name           = name;
-            atlas.texture        = texture;
-            atlas.start_charcode = better_vcr_24_start_charcode;
-            atlas.end_charcode   = atlas.start_charcode + carray_count(better_vcr_16_cdata) - 1;
-            atlas.ascent         = better_vcr_24_ascent;
-            atlas.descent        = better_vcr_24_descent;
-            atlas.line_gap       = better_vcr_24_line_gap;
-            atlas.line_height    = better_vcr_24_line_height;
-            atlas.px_height      = 24;
-            atlas.px_h_scale     = better_vcr_24_px_h_scale;
-            atlas.space_xadvance = better_vcr_24_cdata[0].xadvance;
-            atlas.glyphs         = New(Glyph, carray_count(better_vcr_24_cdata));
-
-            copy(atlas.glyphs, better_vcr_24_cdata, sizeof(better_vcr_24_cdata));
-        
-            global_font_atlases.main_medium = &atlas;
-        }
+        auto &atlas = global_font_atlases.main_small;
+        atlas = get_font_atlas(S("better_vcr_16"));
+        atlas->texture = get_texture(make_atom(atlas->texture_name));
     }
 
+    {
+        auto &atlas = global_font_atlases.main_medium;
+        atlas = get_font_atlas(S("better_vcr_24"));
+        atlas->texture = get_texture(make_atom(atlas->texture_name));
+    }
+    
     // Shader constants.
     {
         auto cb_global_parameters      = get_constant_buffer(S("Global_Parameters"));
@@ -287,18 +179,18 @@ void init_input() {
     }    
 }
 
-static constexpr String player_move_flip_book_lut[DIRECTION_COUNT] = {
+static const String player_move_flip_book_lut[DIRECTION_COUNT] = {
     S("player_move_back"),
     S("player_move_right"),
     S("player_move_left"),
     S("player_move_forward"),
 };
 
-static constexpr String player_idle_texture_lut[DIRECTION_COUNT] = {
-    S("player_idle_back"),
-    S("player_idle_right"),
-    S("player_idle_left"),
-    S("player_idle_forward"),
+static const Atom player_idle_texture_lut[DIRECTION_COUNT] = {
+    ATOM("player_idle_back"),
+    ATOM("player_idle_right"),
+    ATOM("player_idle_left"),
+    ATOM("player_idle_forward"),
 };
 
 void on_game_push() {
@@ -325,18 +217,20 @@ void on_game_input(const Window_Event *e) {
 
     switch (e->type) {
 	case WINDOW_EVENT_KEYBOARD: {
+        // @Todo: handle repeat?
+        
         const auto key   = e->key_code;
-        const auto press = e->input_bits & WINDOW_EVENT_PRESS_BIT;
+        const auto press = e->press;
         
         if (press && key == KEY_OPEN_CONSOLE) {
             open_console();
         } else if (press && key == KEY_OPEN_PROFILER) {
             open_profiler();
         } else if (press && key == KEY_SWITCH_POLYGON_MODE) {
-            if (game_state.polygon_mode == POLYGON_FILL) {
-                game_state.polygon_mode = POLYGON_LINE;
+            if (game_state.polygon_mode == GPU_POLYGON_FILL) {
+                game_state.polygon_mode = GPU_POLYGON_LINE;
             } else {
-                game_state.polygon_mode = POLYGON_FILL;
+                game_state.polygon_mode = GPU_POLYGON_FILL;
             }
         } else if (press && key == KEY_SWITCH_COLLISION_VIEW) {
             if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
@@ -764,7 +658,7 @@ Entity *get_entity(Entity_Manager *manager, Pid eid) {
         if (e.eid == eid && !(e.bits & E_DELETED_BIT)) return &e;
     }
 
-    log(LOG_MINIMAL, "Failed to get entity by eid %u (%u %u) from entity manager 0x%X", eid, index, generation, manager);
+    log(LOG_ERROR, "Failed to get entity by eid %u (%u %u) from entity manager 0x%X", eid, index, generation, manager);
       
     return &entities[0];
 }
@@ -793,124 +687,38 @@ void move_aabb_along_with_entity(Entity *e) {
 
 // game pak
 
-bool save_game_pak(String path) {
-    START_TIMER(0);
-
-    Create_Pak pak;
-    String_Builder builder = { .allocator = __temporary_allocator };
-
-    auto &sound_catalog = get_audio_player()->sound_catalog;
-    
-    {   // Add first entry with game pak metadata.
-        put(builder, (u32)GAME_PAK_MAGIC);
-        put(builder, (u32)GAME_PAK_VERSION);
-        put(builder, (u8 )4);
-
-        put(builder, (u8 )ASSET_SHADER);
-        put(builder, (u16)shader_platform.shader_file_table.count);
-
-        put(builder, (u8 )ASSET_TEXTURE);
-        put(builder, (u16)texture_catalog.entries.count);
-
-        put(builder, (u8 )ASSET_SOUND);
-        put(builder, (u16)sound_catalog.entries.count);
-
-        put(builder, (u8 )ASSET_FLIP_BOOK);
-        put(builder, (u16)flip_book_catalog.entries.count);
-
-        auto s = builder_to_string(builder);
-        add(pak, GAME_PAK_META_ENTRY_NAME, make_buffer(s));
-    }
-    
-    For (shader_platform.shader_file_table) {
-        const auto buffer = read_file(it.value.path, __temporary_allocator);
-        add(pak, it.value.path, buffer);
-    }
-
-    For (texture_catalog.entries) {
-        const auto buffer = read_file(it.path, __temporary_allocator);
-        add(pak, it.path, buffer);
-    }
-
-    For (sound_catalog.entries) {
-        const auto buffer = read_file(it.path, __temporary_allocator);
-        add(pak, it.path, buffer);
-    }
-
-    For (flip_book_catalog.entries) {
-        const auto buffer = read_file(it.path, __temporary_allocator);
-        add(pak, it.path, buffer);
-    }
-    
-    write(pak, path);
-    log("Saved %S in %.2fms", path, CHECK_TIMER_MS(0));
-    
-    return true;
-}
-
 bool load_game_pak(String path) {
     START_TIMER(0);
 
     Load_Pak pak;
     
     if (!load(pak, path)) {
-        log(LOG_MINIMAL, "Failed to load %S", path);
+        log(LOG_ERROR, "Failed to load %S", path);
         return false;
     }
 
-    const auto &meta_entry = pak.entries[0];
-    if (meta_entry.name != GAME_PAK_META_ENTRY_NAME) {
-        log(LOG_MINIMAL, "First entry is not meta entry in game pak %S, it's name is %S", path, meta_entry.name);
-        return false;
-    }
-
-    void *meta_data = meta_entry.buffer.data;
-
-    const u32 magic = *Eat(&meta_data, u32);
-    if (magic != GAME_PAK_MAGIC) {
-        log(LOG_MINIMAL, "Invalid magic %u in game pak %S, expected %u", magic, path, GAME_PAK_MAGIC);
-        return false;
-    }
-
-    const u32 version = *Eat(&meta_data, u32);
-    if (version != GAME_PAK_VERSION) {
-        log(LOG_MINIMAL, "Invalid version %u in game pak %S, expected %u", version, path, GAME_PAK_VERSION);
-        return false;
-    }
-
-    const u8 pair_count = *Eat(&meta_data, u8);
-    if (pair_count == 0) {
-        log(LOG_MINIMAL, "Zero pair count in meta entry in game pak %S, it makes no sense", path);
-        return false;
-    }
-
-    struct Pair { u8 asset_type = 0; u16 asset_count = 0; };
-    auto *pairs = New(Pair, pair_count, __temporary_allocator);
-    for (u8 i = 0; i < pair_count; ++i) {
-        pairs[i].asset_type  = *Eat(&meta_data, u8);
-        pairs[i].asset_count = *Eat(&meta_data, u16);
-    }
-    
-    u32 load_count = 1; // 1 as we've already got predefined entry with meta data above
-    for (u8 i = 0; i < pair_count; ++i) {
-        const auto &pair = pairs[i];
-
-        for (u16 j = 0; j < pair.asset_count; ++j) {
-            const auto &entry = pak.entries[load_count + j];
-
-            // @Cleanup: ideally make sort of lookup table for create functions to call,
-            // so you can use it something like lut[type](...) instead of switch.
-            switch (pair.asset_type) {
-            case ASSET_SHADER:    new_shader   (entry.name, make_string(entry.buffer)); break;
-            case ASSET_TEXTURE:   new_texture  (entry.name, entry.buffer);              break;
-            case ASSET_SOUND:     new_sound    (entry.name, entry.buffer);              break;
-            case ASSET_FLIP_BOOK: new_flip_book(entry.name, make_string(entry.buffer)); break;
-            }
+    For (pak.entries) {
+        START_TIMER(0);
+        
+        const auto &entry = it;
+        const auto name = get_file_name_no_ext(it.name);
+        const auto atom = make_atom(name);
+        
+        // @Cleanup: ideally make sort of lookup table for create functions to call,
+        // so you can use it something like lut[type](...) instead of switch.
+        switch (entry.user_value) {
+        case ASSET_SHADER:    new_shader    (entry.name, make_string(entry.buffer)); break;
+        case ASSET_TEXTURE:   new_texture   (atom, entry.buffer); break;
+        case ASSET_MATERIAL:  new_material  (entry.name, make_string(entry.buffer)); break;
+        case ASSET_SOUND:     new_sound     (entry.name, entry.buffer); break;
+        case ASSET_FLIP_BOOK: new_flip_book (entry.name, make_string(entry.buffer)); break;
+        case ASSET_MESH:      new_mesh      (entry.name, entry.buffer); break;
+        case ASSET_FONT:      new_font_atlas(entry.name, entry.buffer); break;
         }
 
-        load_count += pair.asset_count;
+        log(LOG_VERBOSE, "Loaded pak entry %S %.2fms", entry.name, CHECK_TIMER_MS(0));
     }
     
-    log("Loaded %S in %.2fms", path, CHECK_TIMER_MS(0));
+    log("Loaded %S %.2fms", path, CHECK_TIMER_MS(0));
     return true;
 }
