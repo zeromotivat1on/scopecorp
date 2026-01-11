@@ -853,7 +853,8 @@ void update_console() {
             const auto level   = console.log_levels[i];
             const auto color   = color_lut[level];
 
-            // @Todo: handle too long message that goes beyond console quad.
+            if (level < context.log_level) continue;
+            
             ui_text(message, p, color, z, atlas);
             p.y -= atlas->line_height;
         }        
@@ -896,6 +897,7 @@ void add_to_console_history(Log_Level level, String s) {
     }
 }
 
+// @Todo: scroll position is messed up after log level change.
 static void scroll_console(s32 delta) {
     console.scroll_pos -= delta;
     console.scroll_pos = Clamp(console.scroll_pos, 0, console.message_count);
@@ -921,6 +923,18 @@ void on_console_input(const Window_Event *e) {
             if (down(KEY_SHIFT)) delta *= 10;
 
             scroll_console(delta);
+        }
+
+        if (down(KEY_ALT)) {
+            if (press && key == KEY_1) {
+                context.log_level = LOG_VERBOSE;
+            } else if (press && key == KEY_2) {
+                context.log_level = LOG_DEFAULT;
+            } else if (press && key == KEY_3) {
+                context.log_level = LOG_WARNING;
+            } else if (press && key == KEY_4) {
+                context.log_level = LOG_ERROR;
+            }
         }
         
         break;
@@ -1587,7 +1601,7 @@ void draw_dev_stats() {
 	{   // Stats and states.
         pos.y = (f32)screen_viewport.height - atlas->line_height;
 
-        count = stbsp_snprintf(text, sizeof(text), "%s %s", GAME_VERSION, get_build_type_name());
+        count = stbsp_snprintf(text, sizeof(text), "%s %S", GAME_VERSION, get_build_type_name());
 		pos.x = screen_viewport.width - get_line_width_px(atlas, make_string(text, count)) - padding;
 		ui_text_with_shadow(make_string(text, count), pos, COLOR32_WHITE, shadow_offset, COLOR32_BLACK, Z);
 		pos.y -= atlas->line_height;

@@ -872,22 +872,6 @@ void draw_ray(const Ray &ray, f32 length, Color32 color) {
     draw_line(start, end, color);
 }
 
-static void preload_mesh(const File_Callback_Data *data) {
-    START_TIMER(0);
-
-    const auto path = data->path;
-    if (new_mesh(path)) {
-        log("Created %S in %.2fms", path, CHECK_TIMER_MS(0));
-    }
-}
-
-void preload_all_meshes() {
-    SCOPE_TIMER("Preloaded all meshes in");
-    
-    const auto path = PATH_MESH("");
-    visit_directory(path, preload_mesh);
-}
-
 Triangle_Mesh *new_mesh(String path) {
     auto contents = read_file(path, __temporary_allocator);
     if (!is_valid(contents)) return null;
@@ -921,9 +905,9 @@ Triangle_Mesh *new_mesh(String path, Buffer contents) {
         std::string warning;
         std::string err;
         tinyobj::MaterialFileReader mat_file_reader((char *)PATH_MATERIAL("").data);
-        
-        const bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warning, &err, &stream, &mat_file_reader);
 
+        const bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warning, &err, &stream, &mat_file_reader);
+        
         if (!warning.empty()) {
             log(LOG_IDENT_TINYOBJ, LOG_WARNING, "%s", warning.c_str());
         }

@@ -20,8 +20,6 @@
 #include "audio_player.h"
 
 void game_logger_proc(String message, String ident, Log_Level level, void *logger_data) {
-    if (level < context.log_level) return;
-        
     Assert(logger_data);
     auto logger = (Game_Logger_Data *)logger_data;
 
