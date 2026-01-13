@@ -17,7 +17,7 @@
 #include "font.h"
 #include "profile.h"
 #include "catalog.h"
-#include "game_pak.h"
+#include "asset.h"
 
 #include "stb_truetype.h"
 #include "stb_image_write.h"
@@ -39,13 +39,13 @@ s32 main() {
     set_process_cwd(get_process_directory());
 
     Asset_Set_Description sets[] = {
-        { ASSET_SHADER,    PATH_SHADER(""),    },
-        { ASSET_FONT,      PATH_FONT(""),      },
-        { ASSET_TEXTURE,   PATH_TEXTURE(""),   },
-        { ASSET_MATERIAL,  PATH_MATERIAL(""),  },
-        { ASSET_SOUND,     PATH_SOUND(""),     },
-        { ASSET_FLIP_BOOK, PATH_FLIP_BOOK(""), },
-        { ASSET_MESH,      PATH_MESH(""),      },
+        { ASSET_TYPE_SHADER,    PATH_SHADER(""),    },
+        { ASSET_TYPE_FONT,      PATH_FONT(""),      },
+        { ASSET_TYPE_TEXTURE,   PATH_TEXTURE(""),   },
+        { ASSET_TYPE_MATERIAL,  PATH_MATERIAL(""),  },
+        { ASSET_TYPE_SOUND,     PATH_SOUND(""),     },
+        { ASSET_TYPE_FLIP_BOOK, PATH_FLIP_BOOK(""), },
+        { ASSET_TYPE_MESH,      PATH_MESH(""),      },
     };
 
     START_TIMER(0);
@@ -63,7 +63,7 @@ s32 main() {
     for (u32 i = 0; i < carray_count(sets); ++i) {
         const auto &set = sets[i];
         switch (set.asset_type) {
-        case ASSET_TEXTURE: {
+        case ASSET_TYPE_TEXTURE: {
             constexpr auto w    = 64;
             constexpr auto h    = 64;
             constexpr auto cc   = 4;
@@ -97,7 +97,7 @@ s32 main() {
             generate_h(PATH_CODEGEN("missing_texture.h"), builder_to_string(sb));
             break;
         }
-        case ASSET_SHADER: {
+        case ASSET_TYPE_SHADER: {
             static const char *shader_source[] = {
                 ""
             };
@@ -114,7 +114,7 @@ s32 main() {
             
             break;
         };
-        case ASSET_MATERIAL: {
+        case ASSET_TYPE_MATERIAL: {
             static const char *material_source[] = {
                 "s  missing",
                 "ta missing",
@@ -133,7 +133,7 @@ s32 main() {
             generate_h(PATH_CODEGEN("missing_material.h"), builder_to_string(sb));
             break;
         }
-        case ASSET_MESH: {
+        case ASSET_TYPE_MESH: {
             static const char *cube_obj[] = {
                 "o cube",
                 "v -0.5 -0.5 -0.5",
@@ -211,7 +211,7 @@ s32 main() {
 
         switch (set.asset_type) {
             // Font bake produces atlas images, so it should run before texture bake.
-        case ASSET_FONT: {
+        case ASSET_TYPE_FONT: {
             static u8              pixels[1 << 22];
             static stbtt_bakedchar cdata [96]; // ASCII 32..126 is 95 glyphs
 
@@ -262,7 +262,7 @@ s32 main() {
                     // Find texture catalog and add baked font atlas image there.
                     for (s32 k = i; k < carray_count(sets); ++k) {
                         auto &set = sets[k];
-                        if (set.asset_type == ASSET_TEXTURE) {
+                        if (set.asset_type == ASSET_TYPE_TEXTURE) {
                             Catalog_Entry entry;
                             entry.path = atlas_path;
                             entry.name = atlas_name;
@@ -310,7 +310,7 @@ s32 main() {
                     const auto meta_path = tprint("%S%S_%d.%S", meta_dir, meta_name, pixel_height, meta_ext);
                     
                     const auto baked_font_meta = make_buffer(builder_to_string(sb));
-                    save_to_pak(meta_path, baked_font_meta, ASSET_FONT);
+                    save_to_pak(meta_path, baked_font_meta, ASSET_TYPE_FONT);
                 }
             }
             

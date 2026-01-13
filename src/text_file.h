@@ -12,7 +12,7 @@ struct Text_File_Handler {
 };
 
 inline void reset(Text_File_Handler *handler) {
-    if (handler->file) {
+    if (handler->file != FILE_NONE) {
         close_file(handler->file);
         release(handler->contents.data, handler->allocator);
     }
@@ -24,7 +24,7 @@ inline void reset(Text_File_Handler *handler) {
 
 inline bool read_entire_file(Text_File_Handler *handler, String path) {
     handler->file = open_file(path, FILE_READ_BIT);
-    if (!handler->file) return false;
+    if (handler->file == FILE_NONE) return false;
 
     const auto size = get_file_size(handler->file);
     handler->contents.data = (u8 *)alloc(size, handler->allocator);
@@ -40,9 +40,10 @@ inline bool read_entire_file(Text_File_Handler *handler, String path) {
     return true;
 }
 
-inline void init_from_memory(Text_File_Handler *handler, String contents) {
+inline bool init_from_memory(Text_File_Handler *handler, String contents) {
     handler->contents = contents;
     handler->pos      = 0;
+    return true;
 }
 
 inline String read_line(Text_File_Handler *handler) {

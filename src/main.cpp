@@ -34,6 +34,7 @@
 #include "os.cpp"
 #include "render.cpp"
 #include "ui.cpp"
+#include "asset.cpp"
 
 #ifdef WIN32
 #include "win32.cpp"
@@ -55,7 +56,8 @@ static void do_one_frame();
 static void update_time();
 static void handle_window_events();
 
-Virtual_Arena virtual_arena = { .reserve_size = Megabytes(2) };
+Virtual_Arena virtual_arena          = { .reserve_size = Megabytes(2)  };
+Virtual_Arena overflow_virtual_arena = { .reserve_size = Megabytes(64) };
 
 s32 main() {
     stbi_set_flip_vertically_on_load(true);
@@ -63,8 +65,9 @@ s32 main() {
     game_logger_data.allocator          = __temporary_allocator;
     game_logger_data.messages.allocator = __temporary_allocator;
 
-    context.logger    = { .proc = game_logger_proc,             .data = &game_logger_data };
-    context.allocator = { .proc = virtual_arena_allocator_proc, .data = &virtual_arena };
+    context.logger    = { game_logger_proc, &game_logger_data };
+    context.allocator = { virtual_arena_allocator_proc, &virtual_arena };
+    context.temporary_storage->overflow_allocator = { virtual_arena_allocator_proc, &overflow_virtual_arena };
     
     set_process_cwd(get_process_directory());
 

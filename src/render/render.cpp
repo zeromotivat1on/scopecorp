@@ -884,6 +884,8 @@ bool operator==(const Obj_Vertex_Key& a, const Obj_Vertex_Key& b) {
 }
 
 Triangle_Mesh *new_mesh(String path, Buffer contents) {
+#define USE_TINYOBJLOADER 1
+    
     const auto obj_ext = S("obj"); 
     
     path = copy_string(path);
@@ -895,6 +897,7 @@ Triangle_Mesh *new_mesh(String path, Buffer contents) {
     tri_mesh.name = name;
     
     if (ext == obj_ext) {
+#if USE_TINYOBJLOADER
         const auto LOG_IDENT_TINYOBJ = S("tinyobj");
         const auto obj_data = std::string((const char *)contents.data, contents.size);
 
@@ -930,6 +933,17 @@ Triangle_Mesh *new_mesh(String path, Buffer contents) {
                 tri_mesh.index_count += it;
             }
         }
+#else
+        const auto mark = get_temporary_storage_mark();
+        defer { set_temporary_storage_mark(mark); };
+        
+        const auto obj = parse_obj_file(path, make_string(contents), __temporary_allocator);
+
+        For (obj.faces) {
+            const auto face_index_count = get_obj_face_index_count(it);
+            tri_mesh.index_count += face_index_count;
+        }
+#endif
         
         auto positions = Array <Vector3> { .allocator = __temporary_allocator };
         auto normals   = Array <Vector3> { .allocator = __temporary_allocator };
@@ -947,7 +961,8 @@ Triangle_Mesh *new_mesh(String path, Buffer contents) {
             // Simple hash combine.
             return (k.pos * 73856093) ^ (k.uv * 19349663) ^ (k.norm * 83492791);
         });
-        
+
+#if USE_TINYOBJLOADER
         For (shapes) {
             const auto &mesh = it.mesh;
             
@@ -1008,7 +1023,40 @@ Triangle_Mesh *new_mesh(String path, Buffer contents) {
                 index_offset += it;
             }
         }
+#else
+        For (obj.faces) {
+            const auto face_index_count = get_obj_face_index_count(it);
 
+            for (u32 i = 0; i < face_index_count; ++i) {
+                const auto position_index = it.position_indices[i];
+                const auto texcoord_index = it.texcoord_indices[i];
+                const auto normal_index   = it.normal_indices[i];
+                
+                const auto key = Obj_Vertex_Key { (s32)position_index, (s32)normal_index, (s32)texcoord_index };
+
+                u32 unified_index = 0;
+                auto *found_index = table_find(vertex_table, key);
+                    
+                if (!found_index) {
+                    unified_index = positions.count;
+
+                    const auto position = obj.positions[position_index];
+                    const auto texcoord = obj.texcoords[texcoord_index];
+                    const auto normal   = obj.normals[normal_index];
+
+                    array_add(positions, position.xyz);
+                    array_add(uvs,       texcoord.xy);
+                    array_add(normals,   normal);
+                    
+                    vertex_table[key] = unified_index;
+                } else {
+                    unified_index = *found_index;
+                }
+
+                array_add(indices, unified_index);
+            }
+        }
+#endif
         // Submit collected obj mesh data to gpu.
 
         const u32 positions_size = positions.count * sizeof(positions[0]);

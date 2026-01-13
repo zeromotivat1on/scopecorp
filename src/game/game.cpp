@@ -5,7 +5,7 @@
 #include "profile.h"
 #include "input.h"
 #include "input_stack.h"
-#include "game_pak.h"
+#include "asset.h"
 #include "file_system.h"
 #include "window.h"
 #include "editor.h"
@@ -20,14 +20,17 @@
 #include "audio_player.h"
 
 void game_logger_proc(String message, String ident, Log_Level level, void *logger_data) {
+    thread_local char buffer[4096];
+
     Assert(logger_data);
     auto logger = (Game_Logger_Data *)logger_data;
 
     String s;
+    s.data = (u8 *)buffer;
     if (ident) {
-        s = tprint("[%S] %S\n", ident, message);
+        s.size = stbsp_snprintf(buffer, carray_count(buffer), "[%S] %S\n", ident, message);
     } else {
-        s = tprint("%S\n", message);
+        s.size = stbsp_snprintf(buffer, carray_count(buffer), "%S\n", message);
     }
 
     array_add(logger->messages, copy_string(s, logger->allocator));
@@ -52,6 +55,42 @@ void init_asset_storages() {
     table_realloc(mesh_table,       64);
     table_realloc(flip_book_table,  64);
     table_realloc(font_atlas_table, 16);
+}
+
+static bool load_game_pak(String path) {
+    START_TIMER(0);
+
+    Load_Pak pak;
+    
+    if (!load(pak, path)) {
+        log(LOG_ERROR, "Failed to load %S", path);
+        return false;
+    }
+
+    For (pak.entries) {
+        START_TIMER(0);
+        
+        const auto &entry = it;
+        const auto name = get_file_name_no_ext(it.name);
+        const auto atom = make_atom(name);
+        
+        // @Cleanup: ideally make sort of lookup table for create functions to call,
+        // so you can use it something like lut[type](...) instead of switch.
+        switch (entry.user_value) {
+        case ASSET_TYPE_SHADER:    new_shader    (entry.name, make_string(entry.buffer)); break;
+        case ASSET_TYPE_TEXTURE:   new_texture   (atom, entry.buffer); break;
+        case ASSET_TYPE_MATERIAL:  new_material  (entry.name, make_string(entry.buffer)); break;
+        case ASSET_TYPE_SOUND:     new_sound     (entry.name, entry.buffer); break;
+        case ASSET_TYPE_FLIP_BOOK: new_flip_book (entry.name, make_string(entry.buffer)); break;
+        case ASSET_TYPE_MESH:      new_mesh      (entry.name, entry.buffer); break;
+        case ASSET_TYPE_FONT:      new_font_atlas(entry.name, entry.buffer); break;
+        }
+
+        log(LOG_VERBOSE, "Loaded pak entry %S %.2fms", entry.name, CHECK_TIMER_MS(0));
+    }
+    
+    log("Loaded %S %.2fms", path, CHECK_TIMER_MS(0));
+    return true;
 }
 
 void load_game_assets() {
@@ -681,42 +720,4 @@ void move_aabb_along_with_entity(Entity *e) {
     
     const auto dt = get_delta_time();
     e->aabb.c += e->velocity * dt;
-}
-
-// game pak
-
-bool load_game_pak(String path) {
-    START_TIMER(0);
-
-    Load_Pak pak;
-    
-    if (!load(pak, path)) {
-        log(LOG_ERROR, "Failed to load %S", path);
-        return false;
-    }
-
-    For (pak.entries) {
-        START_TIMER(0);
-        
-        const auto &entry = it;
-        const auto name = get_file_name_no_ext(it.name);
-        const auto atom = make_atom(name);
-        
-        // @Cleanup: ideally make sort of lookup table for create functions to call,
-        // so you can use it something like lut[type](...) instead of switch.
-        switch (entry.user_value) {
-        case ASSET_SHADER:    new_shader    (entry.name, make_string(entry.buffer)); break;
-        case ASSET_TEXTURE:   new_texture   (atom, entry.buffer); break;
-        case ASSET_MATERIAL:  new_material  (entry.name, make_string(entry.buffer)); break;
-        case ASSET_SOUND:     new_sound     (entry.name, entry.buffer); break;
-        case ASSET_FLIP_BOOK: new_flip_book (entry.name, make_string(entry.buffer)); break;
-        case ASSET_MESH:      new_mesh      (entry.name, entry.buffer); break;
-        case ASSET_FONT:      new_font_atlas(entry.name, entry.buffer); break;
-        }
-
-        log(LOG_VERBOSE, "Loaded pak entry %S %.2fms", entry.name, CHECK_TIMER_MS(0));
-    }
-    
-    log("Loaded %S %.2fms", path, CHECK_TIMER_MS(0));
-    return true;
 }

@@ -16,10 +16,10 @@ struct Virtual_Arena {
     u64 commit_alignment  = get_page_size();
     u64 alignment         = VIRTUAL_ARENA_ALIGNMENT;
     
-    void *base = null;
-    u64 reserved = 0;
-    u64 commited = 0;
-    u64 used     = 0;
+    void *base     = null;
+    u64   reserved = 0;
+    u64   commited = 0;
+    u64   used     = 0;
 };
 
 inline bool reserve(Virtual_Arena *arena, u64 size) {

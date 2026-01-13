@@ -68,6 +68,8 @@ static s32 to_al_audio_format(s32 channel_count, s32 bit_rate) {
 }
 
 Sound *new_sound(String path) {
+    const auto mark = get_temporary_storage_mark();
+    defer { set_temporary_storage_mark(mark); };
     auto contents = read_file(path, __temporary_allocator);
     return new_sound(path, contents);
 }

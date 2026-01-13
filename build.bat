@@ -19,10 +19,13 @@ set COMPILER_FLAGS=-std:c++20 -Zc:__cplusplus -nologo -Zi -FC -W3 -WX -EHsc ^
                    -Fd%BIN_DIR% -Fo%BIN_DIR% ^
                    -D_CRT_SECURE_NO_WARNINGS -D%GFX_API%
 
+:: -MD(d) flags are used to link against dynamic crt library.
+:: This is for now primarily done to fix RenderDoc process attach
+:: crash described here (https://github.com/baldurk/renderdoc/issues/1700)
 if %RELEASE% == true (
-  set COMPILER_FLAGS=%COMPILER_FLAGS% -O2 -DRELEASE
+  set COMPILER_FLAGS=%COMPILER_FLAGS% -O2 -MD -DRELEASE
 ) else (
-  set COMPILER_FLAGS=%COMPILER_FLAGS% -Od -DDEBUG -DDEVELOPER
+  set COMPILER_FLAGS=%COMPILER_FLAGS% -Od -MDd -DDEBUG -DDEVELOPER
 )
 
 set LINKER_FLAGS=-incremental:no -opt:icf -opt:ref -DEBUG -NOLOGO

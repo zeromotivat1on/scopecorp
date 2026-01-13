@@ -75,6 +75,8 @@ inline constexpr auto COLOR32_GRAY   = Color32 { .hex = 0xAAAAAAFF };
 #define PATH_FLIP_BOOK(x) S("data/flip_books/" x)
 #define PATH_LEVEL(x)     S("data/levels/"     x)
 
+inline const auto GAME_PAK_PATH = PATH_PAK(GAME_NAME ".pak");
+
 String get_build_type_name();
 
 String get_file_name_no_ext (String path);

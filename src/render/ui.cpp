@@ -608,7 +608,7 @@ void ui_text(String text, Vector2 pos, Color32 color, f32 z, const Font_Atlas *a
 
         if (c < atlas->start_charcode || c > atlas->end_charcode) {
             constexpr char fallback = '?';
-            log(LOG_VERBOSE, "Got unsupported character %d for text render, using '%c' as fallback", c, fallback);
+            //log(LOG_VERBOSE, "Got unsupported character %d for text render, using '%c' as fallback", c, fallback);
             c = fallback;
         }
         

@@ -168,11 +168,11 @@ void __default_logger_proc(String message, String ident, Log_Level level, void *
     }
 }
 
-void *__default_temporary_storage_allocator_proc (Allocator_Mode mode, u64 size, u64 old_size, void *old_memory, void *allocator_data) {
+void *__temporary_storage_allocator_proc (Allocator_Mode mode, u64 size, u64 old_size, void *old_memory, void *allocator_data) {
     using Overflow_Page = Temporary_Storage::Overflow_Page;
     
-    constexpr u32 alignment          = TEMPORARY_STORAGE_ALIGNMENT;
-    constexpr u32 overflow_page_size = TEMPORARY_STORAGE_OVERFLOW_PAGE_SIZE;
+    constexpr auto alignment          = TEMPORARY_STORAGE_ALIGNMENT;
+    constexpr auto overflow_page_size = TEMPORARY_STORAGE_OVERFLOW_PAGE_SIZE;
     
     Assert(allocator_data);
 
@@ -190,7 +190,7 @@ void *__default_temporary_storage_allocator_proc (Allocator_Mode mode, u64 size,
         // allocates new page if current size is not big enough. But maybe thats fine
         // and reasonable tradeoff to skip search for free space in overflow page list.
         if (offset + size > storage.size) {
-            auto overflow_size = Max(overflow_page_size, size + sizeof(Overflow_Page));
+            auto overflow_size = Max(overflow_page_size + sizeof(Overflow_Page), size + sizeof(Overflow_Page));
                  overflow_size = Align(overflow_size, alignment);
             
             auto &allocator = storage.overflow_allocator;
@@ -269,6 +269,10 @@ Temporary_Storage __make_default_temporary_storage() {
     // @Todo: fix this, as we are using malloc here now.
     // Here we are using platform heap alloc instead of crt as using malloc causes crash
     // when attaching from RenderDoc, probably due to crt is not initialized at the moment.
+    //
+    // The assumption above was kinda on the right way, the problem was with static crt
+    // linking with an app that uses global thread_local variables that during initialization
+    // may involve calls to crt systems like malloc. Dynamic crt linking fixes the issue.
     ts.original_data = (u8 *)malloc(ts.original_size);
     ts.size = ts.original_size;
     ts.data = ts.original_data;
@@ -343,14 +347,21 @@ String get_string(Atom atom) {
 }
 
 void set_temporary_storage_mark(u64 mark, Source_Code_Location loc) {
-    const auto storage = context.temporary_storage;
-    Assert(mark >= 0);
-    Assert(mark <= storage->size);
+    auto storage = context.temporary_storage;
+    Assert(mark <= storage->total_occupied);
+
+    auto page = storage->overflow_page;
+    while (page) {
+        if (mark < page->size) break;
+        mark -= page->size;
+        page = page->next;
+    }
+    
     storage->occupied = mark;
     storage->last_set_mark_location = loc;
 }
 
-u64  get_temporary_storage_mark () { return context.temporary_storage->occupied; }
+u64  get_temporary_storage_mark () { return context.temporary_storage->total_occupied; }
 void reset_temporary_storage    () { __temporary_allocator.proc(FREE_ALL, 0, 0, null, __temporary_allocator.data); }
 void *talloc (u64 size) { return alloc(size, __temporary_allocator); }
 
@@ -420,9 +431,10 @@ void __pop_allocator() {
     context.allocator = __alc_stack[__alc_size];
 }
 
-void *alloc   (u64 size, Allocator alc)             { return alc.proc(ALLOCATE, size, 0, null, alc.data); }
-void *resize  (void *data, u64 size, Allocator alc) { return alc.proc(RESIZE, size, 0, data, alc.data); }
-void  release (void *data, Allocator alc)           { alc.proc(FREE, 0, 0, data, alc.data); }
+void *alloc   (u64 size, Allocator alc)                           { return alc.proc(ALLOCATE, size, 0, null, alc.data); }
+void *resize  (void *data, u64 size, Allocator alc)               { return alc.proc(RESIZE, size, 0, data, alc.data); }
+void *resize  (void *data, u64 size, u64 old_size, Allocator alc) { return alc.proc(RESIZE, size, old_size, data, alc.data); }
+void  release (void *data, Allocator alc)                         { alc.proc(FREE, 0, 0, data, alc.data); }
 
 String copy_string (String s, Allocator alc)    { return copy_string(s.data, s.size, alc); }
 String copy_string (const u8 *s, Allocator alc) { return copy_string(s, cstring_count((char *)s), alc); }
@@ -630,7 +642,12 @@ void log(String ident, Log_Level level, const char *format, ...) {
 }
 
 void log_va(String ident, Log_Level level, const char *format, va_list args) {
-    auto message = tprint_va(format, args);
+    thread_local char buffer[4096];
+
+    String message;
+    message.data = (u8 *)buffer;
+    message.size = stbsp_vsnprintf(buffer, carray_count(buffer), format, args);
+    
     context.logger.proc(message, ident, level, context.logger.data);
 }
 

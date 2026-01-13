@@ -1389,9 +1389,10 @@ void update_profiler() {
         const auto gpu_write_buffer = gpu_get_buffer(gpu_write_allocator.buffer);
         
         Array <Memory_Zone> zones = { .allocator = __temporary_allocator };
-        array_add(zones, { S("virtual_arena"),     va.used,      va.reserved    });
-        array_add(zones, { S("temporary_storage"), ts->occupied, ts->total_size });
-        array_add(zones, { S("gpu_read_memory"),   gpu_read_allocator.used,  gpu_read_buffer->size });
+        array_realloc(zones, 4);
+        array_add(zones, { S("virtual_arena"),     va.used, va.reserved });
+        array_add(zones, { S("temporary_storage"), ts->total_occupied, ts->total_size });
+        array_add(zones, { S("gpu_read_memory"),   gpu_read_allocator.used, gpu_read_buffer->size });
         array_add(zones, { S("gpu_write_memory"),  gpu_write_allocator.used, gpu_write_buffer->size });
         
         // Start actual draw.

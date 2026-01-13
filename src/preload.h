@@ -310,7 +310,7 @@ extern u64 get_current_thread_id ();
 #define TEMPORARY_STORAGE_OVERFLOW_PAGE_SIZE Kilobytes(64)
 #endif
 
-void *__default_temporary_storage_allocator_proc (Allocator_Mode mode, u64 size, u64 old_size, void *old_memory, void *allocator_data);
+void *__temporary_storage_allocator_proc (Allocator_Mode mode, u64 size, u64 old_size, void *old_memory, void *allocator_data);
 
 struct Temporary_Storage {
     struct Overflow_Page {
@@ -401,7 +401,7 @@ struct Context {
 inline thread_local Context context;
 
 inline thread_local Allocator __temporary_allocator = {
-    .proc = __default_temporary_storage_allocator_proc,
+    .proc = __temporary_storage_allocator_proc,
     .data = context.temporary_storage,
 };
 
@@ -543,9 +543,10 @@ void __pop_allocator  ();
 
 #define push_allocator(alc) for (s32 _flag = (__push_allocator(alc), 0); !_flag; __pop_allocator(), _flag = 1)
 
-void *alloc   (u64   size,           Allocator alc = context.allocator);
-void *resize  (void *data, u64 size, Allocator alc = context.allocator);
-void  release (void *data,           Allocator alc = context.allocator);
+void *alloc   (u64   size,                         Allocator alc = context.allocator);
+void *resize  (void *data, u64 size,               Allocator alc = context.allocator);
+void *resize  (void *data, u64 size, u64 old_size, Allocator alc = context.allocator);
+void  release (void *data,                         Allocator alc = context.allocator);
 
 #define __get_new_macro(_1, _2, _3, name, ...) name
 #define __new1(T)       new (alloc((1) * sizeof(T))) T
