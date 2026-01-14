@@ -4,7 +4,6 @@
 #include "world.h"
 #include "profile.h"
 #include "input.h"
-#include "input_stack.h"
 #include "asset.h"
 #include "file_system.h"
 #include "window.h"
@@ -42,7 +41,7 @@ void flush_game_logger() {
     array_clear(game_logger_data.messages);
 }
 
-void on_window_resize(u16 width, u16 height) {
+void on_window_resize(u32 width, u32 height) {
     resize(screen_viewport, width, height);
 
     auto manager = get_entity_manager();
@@ -184,38 +183,6 @@ void load_game_assets() {
     }
 }
 
-void init_input() {
-    {
-        auto &layer = input_layers[INPUT_LAYER_GAME];
-        layer.type = INPUT_LAYER_GAME;
-        layer.on_input = on_game_input;
-        layer.on_push  = on_game_push;
-        layer.on_pop   = on_game_pop;
-    }
-
-    {
-        auto &layer = input_layers[INPUT_LAYER_EDITOR];
-        layer.type = INPUT_LAYER_EDITOR;
-        layer.on_input = on_editor_input;
-        layer.on_push  = on_editor_push;
-        layer.on_pop   = on_editor_pop;
-
-        push_input_layer(layer);
-    }
-
-    {
-        auto &layer = input_layers[INPUT_LAYER_CONSOLE];
-        layer.type = INPUT_LAYER_CONSOLE;
-        layer.on_input = on_console_input;
-    }
-
-    {
-        auto &layer = input_layers[INPUT_LAYER_PROFILER];
-        layer.type = INPUT_LAYER_PROFILER;
-        layer.on_input = on_profiler_input;
-    }    
-}
-
 static const String player_move_flip_book_lut[DIRECTION_COUNT] = {
     S("player_move_back"),
     S("player_move_right"),
@@ -230,85 +197,364 @@ static const Atom player_idle_texture_lut[DIRECTION_COUNT] = {
     ATOM("player_idle_forward"),
 };
 
-void on_game_push() {
-    screen_report("Game");
+void on_push_base(Program_Layer *layer) {
+    Assert(layer->type == PROGRAM_LAYER_TYPE_BASE);
 }
 
-void on_game_pop() {
-    auto manager = get_entity_manager();
-
-    {
-        auto player = get_player(manager);
-        player->velocity = Vector3_zero;
-        // @Cleanup: it would be better to have an array of currently playing sounds.
-        stop_sound(player->move_sound);
-        get_material(player->material)->diffuse_texture = get_texture(player_idle_texture_lut[player->move_direction]);
-
-    }
-    
-    mouse_unpick_entity();
+void on_pop_base(Program_Layer *layer) {
+    Assert(layer->type == PROGRAM_LAYER_TYPE_BASE);    
 }
 
-void on_game_input(const Window_Event *e) {
-    auto window = get_window();
+bool on_event_base(Program_Layer *layer, const Window_Event *e) {
+    Assert(layer->type == PROGRAM_LAYER_TYPE_BASE);
 
+    auto input = get_input_table();
+    // Update input table and handle base common events like window resize/close/etc.
     switch (e->type) {
-	case WINDOW_EVENT_KEYBOARD: {
-        // @Todo: handle repeat?
+    case WINDOW_EVENT_RESIZE: {
+        on_window_resize(e->w, e->h);
+        break;
+    }
+    case WINDOW_EVENT_QUIT: {
+        should_quit_game = true;
+        break;
+    }
+    case WINDOW_EVENT_FOCUSED: {
+        break;
+    }
+    case WINDOW_EVENT_LOST_FOCUS: {
+        clear_bit(&input->keys, KEY_ALT);
+        break;
+    }
+    case WINDOW_EVENT_KEYBOARD:
+    case WINDOW_EVENT_MOUSE_BUTTON: {
+        const auto key = e->key_code;
+        auto keys = &input->keys;
+
+        if (e->press) set_bit  (keys, key);
+        else          clear_bit(keys, key);
         
-        const auto key   = e->key_code;
-        const auto press = e->press;
-        
-        if (press && key == KEY_OPEN_CONSOLE) {
-            open_console();
-        } else if (press && key == KEY_OPEN_PROFILER) {
-            open_profiler();
-        } else if (press && key == KEY_SWITCH_POLYGON_MODE) {
+        break;
+    }
+    case WINDOW_EVENT_MOUSE_MOVE: {
+        input->mouse_offset_x =  e->x;
+        input->mouse_offset_y = -e->y;
+
+        auto window = get_window();
+        if (window->cursor_locked) {
+            const auto x = input->mouse_x = window->width  / 2;
+            const auto y = input->mouse_y = window->height / 2;
+            set_cursor(window, x, y);
+        } else {
+            get_cursor(window, &input->mouse_x, &input->mouse_y);
+        }
+            
+        break;
+    }
+    }
+
+    auto handled = on_event_input_mapping(layer, e);
+    if (handled) return handled;
+    
+    return handled;
+}
+
+bool on_event_input_mapping(Program_Layer *layer, const Window_Event *e) {
+    Assert(layer->type != PROGRAM_LAYER_TYPE_NONE);
+
+    auto handled = true;
+    switch (e->type) {
+    case WINDOW_EVENT_KEYBOARD:
+    case WINDOW_EVENT_MOUSE_BUTTON: {
+        // Ignore mouse clicks on title bar.
+        const auto input = get_input_table();
+        if (e->type == WINDOW_EVENT_MOUSE_BUTTON && input->mouse_y < 0) break;
+
+        const auto mapping = table_find(layer->input_mapping_table, e->key_code);
+        if (mapping) {
+            if      (e->repeat && mapping->on_repeat) mapping->on_repeat();
+            else if (e->press  && mapping->on_press)  mapping->on_press();
+            else if (mapping->on_release)             mapping->on_release();
+        }
+            
+        break;
+    }
+    default: { handled = false; break; }
+    }
+
+    return handled;
+}
+
+void init_program_layers() {
+    {
+        auto &layer = program_layer_base;
+        layer.type = PROGRAM_LAYER_TYPE_BASE;
+        layer.on_push  = on_push_base;
+        layer.on_pop   = on_pop_base;
+        layer.on_event = on_event_base;
+
+        Input_Mapping im;
+
+        im = {};
+        im.on_press = []() { close(get_window()); };
+        table_add(layer.input_mapping_table, KEY_CLOSE_WINDOW, im);
+
+        im = {};
+        im.on_press = []() { auto w = get_window(); lock_cursor(w, !w->cursor_locked); };
+        table_add(layer.input_mapping_table, KEY_TOGGLE_CURSOR, im);
+
+        im = {};
+        im.on_press = []() {
+            const auto layer = get_program_layer();
+            if (layer->type == PROGRAM_LAYER_TYPE_CONSOLE) return;
+
+            if (layer->type == PROGRAM_LAYER_TYPE_PROFILER) {
+                pop_program_layer();
+            }
+
+            push_program_layer(&program_layer_console); 
+        };
+        table_add(layer.input_mapping_table, KEY_OPEN_CONSOLE, im);
+
+        im = {};
+        im.on_press = []() {
+            const auto layer = get_program_layer();
+            if (layer->type == PROGRAM_LAYER_TYPE_PROFILER) return;
+
+            if (layer->type == PROGRAM_LAYER_TYPE_CONSOLE) {
+                pop_program_layer();
+            }
+
+            push_program_layer(&program_layer_profiler); 
+        };
+        table_add(layer.input_mapping_table, KEY_OPEN_PROFILER, im);
+
+        im = {};
+        im.on_press = []() {
             if (game_state.polygon_mode == GPU_POLYGON_FILL) {
                 game_state.polygon_mode = GPU_POLYGON_LINE;
             } else {
                 game_state.polygon_mode = GPU_POLYGON_FILL;
             }
-        } else if (press && key == KEY_SWITCH_COLLISION_VIEW) {
+        };
+        table_add(layer.input_mapping_table, KEY_SWITCH_POLYGON_MODE, im);
+
+        im = {};
+        im.on_press = []() {
             if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
                 game_state.view_mode_flags &= ~VIEW_MODE_FLAG_COLLISION;
             } else {
                 game_state.view_mode_flags |= VIEW_MODE_FLAG_COLLISION;
             }
-        } else if (press && key == KEY_1) {
-            game_state.camera_behavior = (Camera_Behavior)(((s32)game_state.camera_behavior + 1) % 3);
-        } else if (press && key == KEY_2) {
-            game_state.player_movement_behavior = (Player_Movement_Behavior)(((s32)game_state.player_movement_behavior + 1) % 2);
-        }
+        };
+        table_add(layer.input_mapping_table, KEY_SWITCH_COLLISION_VIEW, im);
 
-        break;
-	}
+        im = {};
+        im.on_press = []() {
+            const auto layer = get_program_layer();
+            if (layer->type == PROGRAM_LAYER_TYPE_EDITOR) {
+                pop_program_layer();
+                push_program_layer(&program_layer_game);
+            } else if (layer->type == PROGRAM_LAYER_TYPE_GAME) {
+                pop_program_layer();
+                push_program_layer(&program_layer_editor);
+            }
+        };
+        table_add(layer.input_mapping_table, KEY_SWITCH_EDITOR_MODE, im);
+        
+        im = {};
+        im.on_press = []() {
+            if (down(KEY_ALT)) {
+                auto window = get_window();
+                set_vsync(window, !window->vsync);
+            }
+        };
+        table_add(layer.input_mapping_table, KEY_SWITCH_VSYNC, im);
+    }
+
+    {
+        auto &layer = program_layer_game;
+        layer.type = PROGRAM_LAYER_TYPE_GAME;
+        layer.on_push  = on_push_game;
+        layer.on_pop   = on_pop_game;
+        layer.on_event = on_event_game;
+
+        // Input_Mapping im;
+
+        // im = {};
+        // im.on_press = []() { };
+        // table_add(layer.input_mapping_table, KEY_, im);
+    }
+
+    {
+        auto &layer = program_layer_editor;
+        layer.type = PROGRAM_LAYER_TYPE_EDITOR;
+        layer.on_push  = on_push_editor;
+        layer.on_pop   = on_pop_editor;
+        layer.on_event = on_event_editor;
+
+        Input_Mapping im;
+
+        // im = {};
+        // im.on_press = []() { if (down(KEY_CTRL)) save_current_level(); };
+        // table_add(layer.input_mapping_table, KEY_SAVE_LEVEL, im);
+
+        // im = {};
+        // im.on_press = []() { if (down(KEY_CTRL)) load_level(); };
+        // table_add(layer.input_mapping_table, KEY_RELOAD_LEVEL, im);
+
+        im = {};
+        im.on_press = []() {
+            auto window = get_window();
+            if (!window->cursor_locked && ui.id_hot == UIID_NONE) {
+                // @Cleanup: specify memory barrier target.
+                gpu_memory_barrier();
+
+                auto manager = get_entity_manager();
+                auto e = get_entity(manager, gpu_picking_data->eid);
+                if (e) mouse_pick_entity(e);
+            }
+        };
+        table_add(layer.input_mapping_table, KEY_SELECT_ENTITY, im);
+
+        im = {};
+        im.on_press = mouse_unpick_entity;
+        table_add(layer.input_mapping_table, KEY_UNSELECT_ENTITY, im);
+    }
+
+    {
+        auto &layer = program_layer_console;
+        layer.type = PROGRAM_LAYER_TYPE_CONSOLE;
+        layer.on_push  = on_push_console;
+        layer.on_pop   = on_pop_console;
+        layer.on_event = on_event_console;
+
+        Input_Mapping im;
+
+        im = {};
+        im.on_press = []() {
+            auto layer = pop_program_layer();
+            Assert(layer->type == PROGRAM_LAYER_TYPE_CONSOLE);
+        };
+        table_add(layer.input_mapping_table, KEY_OPEN_CONSOLE, im);
+
+        im = {};
+        im.on_press = []() {
+            s32 delta = 1;
+
+            if (down(KEY_CTRL))  delta *= get_console()->message_count;
+            if (down(KEY_SHIFT)) delta *= 10;
+
+            scroll_console(delta);
+        };
+        table_add(layer.input_mapping_table, KEY_UP, im);
+
+        im = {};
+        im.on_press = []() {
+            s32 delta = -1;
+
+            if (down(KEY_CTRL))  delta *= get_console()->message_count;
+            if (down(KEY_SHIFT)) delta *= 10;
+
+            scroll_console(delta);
+        };
+        table_add(layer.input_mapping_table, KEY_DOWN, im);
+
+        im = {};
+        im.on_press = []() { if (down(KEY_ALT)) context.log_level = LOG_VERBOSE; };
+        table_add(layer.input_mapping_table, KEY_1, im);
+
+        im = {};
+        im.on_press = []() { if (down(KEY_ALT)) context.log_level = LOG_DEFAULT; };
+        table_add(layer.input_mapping_table, KEY_2, im);
+
+        im = {};
+        im.on_press = []() { if (down(KEY_ALT)) context.log_level = LOG_WARNING; };
+        table_add(layer.input_mapping_table, KEY_3, im);
+
+        im = {};
+        im.on_press = []() { if (down(KEY_ALT)) context.log_level = LOG_ERROR; };
+        table_add(layer.input_mapping_table, KEY_4, im);
+    }
+
+    {
+        
+        auto &layer = program_layer_profiler;
+        layer.type = PROGRAM_LAYER_TYPE_PROFILER;
+        layer.on_push  = on_push_profiler;
+        layer.on_pop   = on_pop_profiler;
+        layer.on_event = on_event_profiler;
+        
+        Input_Mapping im;
+
+        im = {};
+        im.on_press = []() {
+            auto layer = pop_program_layer();
+            Assert(layer->type == PROGRAM_LAYER_TYPE_PROFILER);
+        };
+        table_add(layer.input_mapping_table, KEY_OPEN_PROFILER, im);
+        
+        im = {};
+        im.on_press = switch_profiler_view;
+        table_add(layer.input_mapping_table, KEY_SWITCH_PROFILER_VIEW, im);
+
+        im = {};
+        im.on_press = []() {
+            auto profiler = get_profiler();
+            if (profiler->view_mode == PROFILER_VIEW_RUNTIME) {
+                profiler->time_sort = 0;
+            }
+        };
+        table_add(layer.input_mapping_table, KEY_1, im);
+
+        im = {};
+        im.on_press = []() {
+            auto profiler = get_profiler();
+            if (profiler->view_mode == PROFILER_VIEW_RUNTIME) {
+                profiler->time_sort = 1;
+            }
+        };
+        table_add(layer.input_mapping_table, KEY_2, im);
+
+        im = {};
+        im.on_press = []() {
+            auto profiler = get_profiler();
+            if (profiler->view_mode == PROFILER_VIEW_RUNTIME) {
+                profiler->time_sort = 2;
+            }
+        };
+        table_add(layer.input_mapping_table, KEY_3, im);
+
+        im = {};
+        im.on_press = []() {
+            auto profiler = get_profiler();
+            if (profiler->view_mode == PROFILER_VIEW_RUNTIME) {
+                profiler->time_sort = 3;
+            }
+        };
+        table_add(layer.input_mapping_table, KEY_4, im);
+
+        im = {};
+        im.on_press = []() {
+            auto profiler = get_profiler();
+            if (profiler->view_mode == PROFILER_VIEW_RUNTIME) {
+                const auto delta = -1;
+                profiler->selected_zone_index += delta;
+            }
+        };
+        table_add(layer.input_mapping_table, KEY_UP, im);
+
+        im = {};
+        im.on_press = []() {
+            auto profiler = get_profiler();
+            if (profiler->view_mode == PROFILER_VIEW_RUNTIME) {
+                const auto delta = 1;
+                profiler->selected_zone_index += delta;
+            }
+        };
+        table_add(layer.input_mapping_table, KEY_DOWN, im);
     }
 }
-
-// template <typename T>
-// static void read_sparse_array(File file, Sparse<T> *array) {
-//     // @Cleanup: read sparse array directly with replace or add read data to existing one?
-
-//     read_file(file, _sizeref(array->count));
-
-//     s32 capacity = 0;
-//     read_file(file, _sizeref(capacity));
-//     Assert(capacity <= array->capacity);
-
-//     read_file(file, capacity * sizeof(T),   array->items);
-//     read_file(file, capacity * sizeof(s32), array->dense);
-//     read_file(file, capacity * sizeof(s32), array->sparse);
-// }
-
-// template <typename T>
-// static void write_sparse_array(File file, Sparse<T> *array) {
-//     write_file(file, _sizeref(array->count));
-//     write_file(file, _sizeref(array->capacity));
-//     write_file(file, array->capacity * sizeof(T),   array->items);
-//     write_file(file, array->capacity * sizeof(s32), array->dense);
-//     write_file(file, array->capacity * sizeof(s32), array->sparse);
-// }
 
 // void save_level(Game_World &world) {
 //     START_TIMER(save);
@@ -393,18 +639,48 @@ void on_game_input(const Window_Event *e) {
 //     screen_report("Loaded level %S", path);
 // }
 
+void on_push_game(Program_Layer *layer) {
+    Assert(layer->type == PROGRAM_LAYER_TYPE_GAME);
+    screen_report("Game");
+}
+
+void on_pop_game(Program_Layer *layer) {
+    Assert(layer->type == PROGRAM_LAYER_TYPE_GAME);
+
+    auto manager = get_entity_manager();
+
+    auto player = get_player(manager);
+    player->velocity = Vector3_zero;
+    // @Cleanup: it would be better to have an array of currently playing sounds.
+    stop_sound(player->move_sound);
+    get_material(player->material)->diffuse_texture = get_texture(player_idle_texture_lut[player->move_direction]);
+}
+
+bool on_event_game(Program_Layer *layer, const Window_Event *e) {
+    Assert(layer->type == PROGRAM_LAYER_TYPE_GAME);
+    
+    auto handled = on_event_input_mapping(layer, e);
+    if (handled) return handled;
+    
+    return handled;
+}
+
 void simulate_game() {
     Profile_Zone(__func__);
 
+    For (program_layer_stack) {
+        if (it->type == PROGRAM_LAYER_TYPE_EDITOR) return;
+    }
+    
     const f32 dt = get_delta_time();
     
-    auto window      = get_window();
-    auto input       = get_input_table();
-    auto input_layer = get_current_input_layer();
-    auto manager     = get_entity_manager();
-    auto player      = get_player(manager);
-    auto &camera     = manager->camera;
-    auto &skybox     = manager->skybox;
+    auto window  = get_window();
+    auto input   = get_input_table();
+    auto layer   = get_program_layer();
+    auto manager = get_entity_manager();
+    auto player  = get_player(manager);
+    auto &camera = manager->camera;
+    auto &skybox = manager->skybox;
 
     // Update camera.
     {
@@ -412,30 +688,30 @@ void simulate_game() {
             camera.position = player->position + player->camera_offset;
             camera.look_at_position = camera.position + forward(camera.yaw, camera.pitch);
         } else if (game_state.camera_behavior == FOLLOW_PLAYER) {
-            const Vector3 camera_dead_zone = player->camera_dead_zone;
-            const Vector3 dead_zone_min = camera.position - camera_dead_zone * 0.5f;
-            const Vector3 dead_zone_max = camera.position + camera_dead_zone * 0.5f;
-            const Vector3 desired_camera_eye = player->position + player->camera_offset;
+            const auto dead_zone     = player->camera_dead_zone;
+            const auto dead_zone_min = camera.position - dead_zone * 0.5f;
+            const auto dead_zone_max = camera.position + dead_zone * 0.5f;
+            const auto desired_eye   = player->position + player->camera_offset;
 
             Vector3 target_eye;
-            if (desired_camera_eye.x < dead_zone_min.x)
-                target_eye.x = desired_camera_eye.x + camera_dead_zone.x * 0.5f;
-            else if (desired_camera_eye.x > dead_zone_max.x)
-                target_eye.x = desired_camera_eye.x - camera_dead_zone.x * 0.5f;
+            if (desired_eye.x < dead_zone_min.x)
+                target_eye.x = desired_eye.x + dead_zone.x * 0.5f;
+            else if (desired_eye.x > dead_zone_max.x)
+                target_eye.x = desired_eye.x - dead_zone.x * 0.5f;
             else
                 target_eye.x = camera.position.x;
 
-            if (desired_camera_eye.y < dead_zone_min.y)
-                target_eye.y = desired_camera_eye.y + camera_dead_zone.y * 0.5f;
-            else if (desired_camera_eye.y > dead_zone_max.y)
-                target_eye.y = desired_camera_eye.y - camera_dead_zone.y * 0.5f;
+            if (desired_eye.y < dead_zone_min.y)
+                target_eye.y = desired_eye.y + dead_zone.y * 0.5f;
+            else if (desired_eye.y > dead_zone_max.y)
+                target_eye.y = desired_eye.y - dead_zone.y * 0.5f;
             else
                 target_eye.y = camera.position.y;
 
-            if (desired_camera_eye.z < dead_zone_min.z)
-                target_eye.z = desired_camera_eye.z + camera_dead_zone.z * 0.5f;
-            else if (desired_camera_eye.z > dead_zone_max.z)
-                target_eye.z = desired_camera_eye.z - camera_dead_zone.z * 0.5f;
+            if (desired_eye.z < dead_zone_min.z)
+                target_eye.z = desired_eye.z + dead_zone.z * 0.5f;
+            else if (desired_eye.z > dead_zone_max.z)
+                target_eye.z = desired_eye.z - dead_zone.z * 0.5f;
             else
                 target_eye.z = camera.position.z;
 
@@ -447,15 +723,14 @@ void simulate_game() {
     // This can be used to force camera to look at specific position.
     // camera.look_at_position = direction(camera.position, fixed_position);
 
-    //camera.look_at_position = camera.position + direction(camera.position, player->position);
     update_matrices(camera);
     
-    // Update player->
+    // Update player.
     {
-        const f32 speed = player->move_speed * dt;
-        Vector3 velocity = Vector3_zero;;
+        const auto speed = player->move_speed * dt;
+        auto velocity = Vector3_zero;
 
-        if (input_layer->type == INPUT_LAYER_GAME) {
+        if (layer->type == PROGRAM_LAYER_TYPE_GAME) {
             if (game_state.player_movement_behavior == MOVE_INDEPENDENT) {
                 if (down(KEY_D)) {
                     velocity.x = speed;
@@ -529,10 +804,8 @@ void simulate_game() {
         set_audio_listener_position(player->position);
     }
 
-    // @Cleanup @Speed: aabb collision resolve.
     For (manager->entities) {
         auto ea = &it;
-        //auto ea = player;
         
         For (manager->entities) {
             auto eb = &it;
@@ -552,19 +825,10 @@ void simulate_game() {
         }
     }
 
-    // @Speed: slow entity position update.
     For (manager->entities) {
         it.position += it.velocity * dt;
-    }
-    
-    // @Speed: slow entity aabb move and transform update.
-    For (manager->entities) {
-        move_aabb_along_with_entity(&it);            
-    }
-
-    // @Speed: slow entity transform update, final pass.
-    For (manager->entities) {
         it.object_to_world = make_transform(it.position, it.orientation, it.scale);
+        move_aabb_along_with_entity(&it);
     }
     
     For_Entities (manager->entities, E_SOUND_EMITTER) {

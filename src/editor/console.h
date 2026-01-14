@@ -9,8 +9,6 @@ inline const auto CONSOLE_CMD_LEVEL       = S("level");
 inline const auto CONSOLE_CMD_USAGE_CLEAR = S("usage: clear");
 inline const auto CONSOLE_CMD_USAGE_LEVEL = S("usage: level name_with_extension");
 
-inline constexpr auto KEY_OPEN_CONSOLE = KEY_GRAVE_ACCENT;
-
 struct Window_Event;
 
 struct Console {

@@ -484,6 +484,12 @@ T &array_pop(Array<T> &array) {
     return item;
 }
 
+template <typename T>
+T &array_last(Array<T> &array) {
+    Assert(array.count > 0);
+    return array[array.count - 1];
+}
+
 enum String_Op_Bits : u32 {
     S_SEARCH_REVERSE_BIT  = 0x1,
     S_INDEX_PLUS_ONE_BIT  = 0x2,

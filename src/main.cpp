@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "virtual_arena.h"
+#include "program_layer.h"
 
 // @Todo: define stb related macros that allow to override usage of std.
 
@@ -74,6 +75,8 @@ s32 main() {
     const auto cwd = get_process_directory();
     log("Current working directory %S", cwd);
 
+    init_program_layers();
+    
     auto window = main_window = new_window(1920, 1080, GAME_NAME);
 	if (!window) {
 		log(LOG_ERROR, "Failed to create window");
@@ -92,7 +95,6 @@ s32 main() {
 
     if (!init_audio_player()) return 1;
     
-    init_input();
     init_asset_storages();
     init_profiler();
     init_render_frame();
@@ -122,10 +124,16 @@ s32 main() {
     switch_campaign(set);
     init_level_editor_hub();
 
+    game_state.polygon_mode = GPU_POLYGON_FILL;
+
+#if DEVELOPER
+    push_program_layer(&program_layer_editor);
+#else
+    push_program_layer(&program_layer_game);
+#endif
+
     handle_window_events(); // handle events that were sent during init phase
 
-    game_state.polygon_mode = GPU_POLYGON_FILL;
-    
     log("Startup time %.2fs", (get_perf_counter() - __preload_counter) / (f32)get_perf_hz());
     log("sizeof(Entity) %d", sizeof(Entity));
     log("sizeof(Gpu_Command) %d", sizeof(Gpu_Command));
@@ -161,11 +169,7 @@ static void do_one_frame() {
     handle_window_events();    // and handle all of them at once
 
     update_hot_reload();
-    
-    if (program_mode == MODE_GAME) {
-        simulate_game();
-    }
-    
+    simulate_game();
     update_editor();
     render_one_frame();
     update_audio();
@@ -192,135 +196,29 @@ static void update_time() {
 #endif
 }
 
-inline constexpr auto KEY_CLOSE_WINDOW        = KEY_ESCAPE;
-inline constexpr auto KEY_SWITCH_PROGRAM_MODE = KEY_F11;
-
 static void handle_window_events() {
+    process_program_layer_stack();
+    
     auto window = get_window();
     auto input  = get_input_table();
-    auto layer  = get_current_input_layer();
-
+    
     input->mouse_offset_x = 0;
     input->mouse_offset_y = 0;
-            
-    // Populate input table with event data and handle non-input events.
-    For (window->events) {
-        switch (it.type) {
-        case WINDOW_EVENT_FOCUSED: {
-            break;
-        }
-        case WINDOW_EVENT_LOST_FOCUS: {
-            clear_bit(&input->keys, KEY_ALT);
-            break;
-        }
-        case WINDOW_EVENT_RESIZE: {
-            on_window_resize(window->width, window->height);
-            break;
-        }
-        case WINDOW_EVENT_KEYBOARD:
-        case WINDOW_EVENT_MOUSE_BUTTON: {
-            const auto key = it.key_code;
-            auto keys = &input->keys;
 
-            if (it.press) set_bit(keys, key); else clear_bit(keys, key);
-            
-            break;
-        }
-        case WINDOW_EVENT_MOUSE_MOVE: {
-            input->mouse_offset_x =  it.x;
-            input->mouse_offset_y = -it.y;
+    auto base_layer = &program_layer_base;
+    For (window->events) send_event(base_layer, &it);
 
-            if (window->cursor_locked) {
-                const auto x = input->mouse_x = window->width  / 2;
-                const auto y = input->mouse_y = window->height / 2;
-                set_cursor(window, x, y);
-            } else {
-                get_cursor(window, &input->mouse_x, &input->mouse_y);
-            }
-            
-            break;
-        }
-        case WINDOW_EVENT_QUIT: {
-            should_quit_game = true;
-            return;
-        }
-        }
-    }
+    const u256 changes = input->keys ^ input->keys_last;
+    input->keys_down = changes &  input->keys;
+    input->keys_up   = changes & ~input->keys;
+    copy(&input->keys_last, &input->keys, sizeof(input->keys));
 
-    // Update key states.
-    {
-        const u256 changes = input->keys ^ input->keys_last;
-        input->keys_down = changes &  input->keys;
-        input->keys_up   = changes & ~input->keys;
-        copy(&input->keys_last, &input->keys, sizeof(input->keys));
-    }
-
-    // Update mouse position in screen viewport.
-    {
-        auto &v = screen_viewport;
-        // @Cleanup: this is actually valid only for current 4x3 viewport.
-        v.mouse_pos = Vector2(Clamp((f32)input->mouse_x - v.x, 0.0f, v.width),
-                              Clamp((f32)input->mouse_y - v.y, 0.0f, v.height));
-    }
-    
-    // Handle and propagate input events.
-    For (window->events) {
-        switch (it.type) {
-        case WINDOW_EVENT_KEYBOARD:
-        case WINDOW_EVENT_TEXT_INPUT:
-        case WINDOW_EVENT_MOUSE_BUTTON:
-        case WINDOW_EVENT_MOUSE_WHEEL: {
-            if (it.type == WINDOW_EVENT_MOUSE_BUTTON) {
-                if (input->mouse_y < 0) {
-                    // Cursor is on title bar, so we should ignore clicks there.
-                    break;
-                }
-
-                const auto key   = it.key_code;
-                const auto press = it.press;
-
-                // Handle general inputs.
-                if (press && key == MOUSE_MIDDLE) {
-                    lock_cursor(window, !window->cursor_locked);
-                    break;
-                }
-            }
-            
-            if (it.type == WINDOW_EVENT_KEYBOARD) {
-                const auto key   = it.key_code;
-                const auto press = it.press;
-
-                // Handle general inputs.
-                if (press && key == KEY_CLOSE_WINDOW) {
-                    close(window);
-                    break;
-                } else if (press && key == KEY_SWITCH_PROGRAM_MODE) {
-                    program_mode = (Program_Mode)((program_mode + 1) % PROGRAM_MODE_COUNT);
-
-                    // @Cleanup @Hack: replace game/editor input layers.
-                    for (u32 i = 0; i < input_stack.layer_count; ++i) {
-                        auto &layer = input_stack.layers[i];
-
-                        if (layer.type == INPUT_LAYER_EDITOR) {
-                            if (layer.on_pop) layer.on_pop();
-                            layer = input_layers[INPUT_LAYER_GAME];
-                            if (layer.on_push) layer.on_push();
-                            break;
-                        }
-
-                        if (layer.type == INPUT_LAYER_GAME) {
-                            if (layer.on_pop) layer.on_pop();
-                            layer = input_layers[INPUT_LAYER_EDITOR];
-                            if (layer.on_push) layer.on_push();
-                            break;
-                        }
-                    }
-                }
-            }
-
-            layer->on_input(&it);
-            break;
-        }
-        }
-    }
+    // @Cleanup: this is actually valid only for current 4x3 viewport.
+    auto &viewport = screen_viewport;
+    const auto mouse_x = Clamp((f32)input->mouse_x - viewport.x, 0.0f, viewport.width);
+    const auto mouse_y = Clamp((f32)input->mouse_y - viewport.y, 0.0f, viewport.height);
+    viewport.mouse_pos = Vector2(mouse_x, mouse_y);
+        
+    auto current_layer = get_program_layer();
+    For (window->events) send_event(current_layer, &it); 
 }

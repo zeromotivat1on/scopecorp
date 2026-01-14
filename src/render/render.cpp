@@ -900,14 +900,15 @@ Triangle_Mesh *new_mesh(String path, Buffer contents) {
 #if USE_TINYOBJLOADER
         const auto LOG_IDENT_TINYOBJ = S("tinyobj");
         const auto obj_data = std::string((const char *)contents.data, contents.size);
-
+        const auto materials_cpath = temp_c_string(PATH_MATERIAL(""));
+        
         std::istringstream stream(obj_data);
         tinyobj::attrib_t attrib;
         std::vector<tinyobj::shape_t> shapes;
         std::vector<tinyobj::material_t> materials;
         std::string warning;
         std::string err;
-        tinyobj::MaterialFileReader mat_file_reader((char *)PATH_MATERIAL("").data);
+        tinyobj::MaterialFileReader mat_file_reader(materials_cpath);
 
         const bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warning, &err, &stream, &mat_file_reader);
         
@@ -934,9 +935,6 @@ Triangle_Mesh *new_mesh(String path, Buffer contents) {
             }
         }
 #else
-        const auto mark = get_temporary_storage_mark();
-        defer { set_temporary_storage_mark(mark); };
-        
         const auto obj = parse_obj_file(path, make_string(contents), __temporary_allocator);
 
         For (obj.faces) {

@@ -17,9 +17,6 @@ struct Scope_Timer {
 	~Scope_Timer() { log("%s %.2fms", info, (f32)(get_perf_counter() - start) / get_perf_hz_ms()); }
 };
 
-inline constexpr auto KEY_OPEN_PROFILER        = KEY_F5;
-inline constexpr auto KEY_SWITCH_PROFILER_VIEW = KEY_V;
-
 enum Profiler_View_Mode : u8 {
     PROFILER_VIEW_RUNTIME,
     PROFILER_VIEW_MEMORY,

@@ -1,11 +1,5 @@
 #pragma once
 
-#include "input.h"
-
-inline constexpr auto KEY_SWITCH_EDITOR_MODE     = KEY_F11;
-inline constexpr auto KEY_SWITCH_POLYGON_MODE    = KEY_F1;
-inline constexpr auto KEY_SWITCH_COLLISION_VIEW  = KEY_F2;
-
 inline constexpr f32 EDITOR_REPORT_SHOW_TIME = 2.0f;
 inline constexpr f32 EDITOR_REPORT_FADE_TIME = 0.5f;
 

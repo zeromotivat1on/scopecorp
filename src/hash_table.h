@@ -1,5 +1,7 @@
 #pragma once
 
+#include "hash.h"
+
 template <typename T> u64 table_hash_proc(const T &v)      { return *(u64 *)&v; }
 template <>           u64 table_hash_proc(const String &s) { return hash_fnv(s); }
 template <>           u64 table_hash_proc(const Atom &a)   { return a.hash; }

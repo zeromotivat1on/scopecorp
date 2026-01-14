@@ -21,7 +21,6 @@
 #include "matrix.h"
 #include "profile.h"
 #include "font.h"
-#include "input_stack.h"
 #include "reflection.h"
 #include "collision.h"
 #include "stb_image.h"
@@ -226,371 +225,344 @@ void mouse_unpick_entity() {
     }
 }
 
-void on_editor_push() {
+void on_push_editor(Program_Layer *layer) {
+    Assert(layer->type == PROGRAM_LAYER_TYPE_EDITOR);
     screen_report("Editor");
 }
 
-void on_editor_pop() {
+void on_pop_editor(Program_Layer *layer) {
+    Assert(layer->type == PROGRAM_LAYER_TYPE_EDITOR);
     mouse_unpick_entity();
 }
 
-void on_editor_input(const Window_Event *e) {
-    auto window = get_window();
+bool on_event_editor(Program_Layer *layer, const Window_Event *e) {
+    Assert(layer->type == PROGRAM_LAYER_TYPE_EDITOR);
 
-    const auto ctrl = down(KEY_CTRL);
-    const auto alt  = down(KEY_ALT);
+    auto handled = on_event_input_mapping(layer, e);
+    if (handled) return handled;
     
-    switch (e->type) {
-    case WINDOW_EVENT_KEYBOARD: {
-        // @Todo: handle repeat?
-        
-        const auto key   = e->key_code;
-        const auto press = e->press;
-
-        if (press && key == KEY_OPEN_CONSOLE) {
-            open_console();
-        } else if (press && key == KEY_OPEN_PROFILER) {
-            open_profiler();
-        } else if (press && key == KEY_SWITCH_POLYGON_MODE) {
-            if (game_state.polygon_mode == GPU_POLYGON_FILL) {
-                game_state.polygon_mode = GPU_POLYGON_LINE;
-            } else {
-                game_state.polygon_mode = GPU_POLYGON_FILL;
-            }
-        } else if (press && key == KEY_SWITCH_COLLISION_VIEW) {
-            if (game_state.view_mode_flags & VIEW_MODE_FLAG_COLLISION) {
-                game_state.view_mode_flags &= ~VIEW_MODE_FLAG_COLLISION;
-            } else {
-                game_state.view_mode_flags |= VIEW_MODE_FLAG_COLLISION;
-            }
-        } else if (press && ctrl && key == KEY_S) {
-            //save_level(World);
-        } else if (press && ctrl && key == KEY_R) {         
-            //auto path = tprint("%S%S", PATH_LEVEL(""), World.name);
-            //load_level(World, path);
-            
-        } else if (press && alt && key == KEY_V) {
-            set_vsync(window, !window->vsync);
-        }
-
-        if (editor.mouse_picked_entity) {
-            if (press && key == KEY_Z) {
-                game_state.selected_entity_property_to_change = PROPERTY_LOCATION;
-            } else if (press && key == KEY_X) {
-                game_state.selected_entity_property_to_change = PROPERTY_ROTATION;
-            } else if (press && key == KEY_C) {
-                game_state.selected_entity_property_to_change = PROPERTY_SCALE;
-            }
-        }
-            
-        break;
-    }
-    case WINDOW_EVENT_MOUSE_BUTTON: {
-        const auto key   = e->key_code;
-        const auto press = e->press;
-
-        if (press && key == MOUSE_RIGHT && !window->cursor_locked) {
-            mouse_unpick_entity();
-        } else if (press && key == MOUSE_LEFT && !window->cursor_locked && ui.id_hot == UIID_NONE) {
-            // @Cleanup: specify memory barrier target.
-            gpu_memory_barrier();
-
-            auto manager = get_entity_manager();
-            auto e = get_entity(manager, gpu_picking_data->eid);
-            if (e) mouse_pick_entity(e);
-        }
-        
-        break;
-    }
-    }
+    return handled;
 }
 
 void update_editor() {
     Profile_Zone(__func__);
 
     const f32 dt = get_delta_time();
+
+    // Screen report.
+    {
+        editor.report_time += dt;
+
+        f32 fade_time = 0.0f;
+        if (editor.report_time > EDITOR_REPORT_SHOW_TIME) {
+            fade_time = editor.report_time - EDITOR_REPORT_SHOW_TIME;
+            
+            if (fade_time > EDITOR_REPORT_FADE_TIME) {
+                editor.report_time = 0.0f;
+                editor.report_string.size = 0;
+            }
+        }
+
+        if (editor.report_string.size > 0) {
+            constexpr auto Z = UI_MAX_Z;
+            
+            const auto atlas    = global_font_atlases.main_medium;
+            const auto width_px = get_line_width_px(atlas, editor.report_string);
+            const auto pos      = Vector2(screen_viewport.width * 0.5f - width_px * 0.5f,
+                                          screen_viewport.height * 0.7f);
+
+            const auto lerp_alpha    = Clamp(fade_time / EDITOR_REPORT_FADE_TIME, 0.0f, 1.0f);
+            const auto alpha         = (u32)Lerp(255, 0, lerp_alpha);
+            const auto color         = Color32 { .a = alpha, .b = 255, .g = 255, .r = 255 };
+            const auto shadow_color  = Color32 { .a = alpha, .b = 0,   .g = 0,   .r = 0   };
+            const auto shadow_offset = Vector2(atlas->px_height * 0.1f, -atlas->px_height * 0.1f);
+            
+            ui_text_with_shadow(editor.report_string, pos, color, shadow_offset, shadow_color, Z, atlas);
+        }
+    }
     
-    auto window      = get_window();
-    auto input       = get_input_table();
-    auto input_layer = get_current_input_layer();
-    auto manager     = get_entity_manager();
-    auto player      = get_player(manager);
-    auto &camera     = manager->camera;
+    For (program_layer_stack) {
+        if (it->type == PROGRAM_LAYER_TYPE_GAME) return;
+    }
+        
+    auto window  = get_window();
+    auto input   = get_input_table();
+    auto layer   = get_program_layer();
+    auto manager = get_entity_manager();
+    auto player  = get_player(manager);
+    auto &camera = manager->camera;
     
     const bool ctrl  = down(KEY_CTRL);
     const bool shift = down(KEY_SHIFT);
     
-    // Update editor specific stuff.
-    if (program_mode == MODE_EDITOR) {
-        // Update camera.
-        if (input_layer->type == INPUT_LAYER_EDITOR) {
-            const f32 mouse_sensitivity = 32.0f;
+    // Update camera.
+    if (layer->type == PROGRAM_LAYER_TYPE_EDITOR) {
+        const f32 mouse_sensitivity = 32.0f;
 
-            if (window->cursor_locked) {   
-                camera.yaw   -= input->mouse_offset_x * mouse_sensitivity * dt;
-                camera.pitch += input->mouse_offset_y * mouse_sensitivity * dt;
-                camera.pitch  = Clamp(camera.pitch, -89.0f, 89.0f);
-            }
+        if (window->cursor_locked) {   
+            camera.yaw   -= input->mouse_offset_x * mouse_sensitivity * dt;
+            camera.pitch += input->mouse_offset_y * mouse_sensitivity * dt;
+            camera.pitch  = Clamp(camera.pitch, -89.0f, 89.0f);
+        }
                     
-            const f32 speed = editor.camera_speed * dt;
-            const Vector3 camera_forward = forward(camera.yaw, camera.pitch);
-            const Vector3 camera_right = normalize(cross(camera.up_vector, camera_forward));
+        const f32 speed = editor.camera_speed * dt;
+        const Vector3 camera_forward = forward(camera.yaw, camera.pitch);
+        const Vector3 camera_right = normalize(cross(camera.up_vector, camera_forward));
 
-            Vector3 velocity;
-            if (down(KEY_D)) velocity += speed * camera_right;
-            if (down(KEY_A)) velocity -= speed * camera_right;
-            if (down(KEY_W)) velocity += speed * camera_forward;
-            if (down(KEY_S)) velocity -= speed * camera_forward;
-            if (down(KEY_E)) velocity += speed * camera.up_vector;
-            if (down(KEY_Q)) velocity -= speed * camera.up_vector;
+        Vector3 velocity;
+        if (down(KEY_D)) velocity += speed * camera_right;
+        if (down(KEY_A)) velocity -= speed * camera_right;
+        if (down(KEY_W)) velocity += speed * camera_forward;
+        if (down(KEY_S)) velocity -= speed * camera_forward;
+        if (down(KEY_E)) velocity += speed * camera.up_vector;
+        if (down(KEY_Q)) velocity -= speed * camera.up_vector;
 
-            camera.position += truncate(velocity, speed);
-            camera.look_at_position = camera.position + camera_forward;
-        }
+        camera.position += truncate(velocity, speed);
+        camera.look_at_position = camera.position + camera_forward;
+    }
 
-        update_matrices(camera);
+    update_matrices(camera);
 
-        // @Speed: entity aabb move and transform update.
-        For (manager->entities) {
-            move_aabb_along_with_entity(&it);
-            it.object_to_world = make_transform(it.position, it.orientation, it.scale);
-        }
+    For (manager->entities) {
+        move_aabb_along_with_entity(&it);
+        it.object_to_world = make_transform(it.position, it.orientation, it.scale);
+    }
     
-        // Update mouse picked entity editor.
-        if (input_layer->type == INPUT_LAYER_EDITOR && editor.mouse_picked_entity) {
-            // auto e = editor.mouse_picked_entity;
+    // Update mouse picked entity editor.
+    if (layer->type == PROGRAM_LAYER_TYPE_EDITOR && editor.mouse_picked_entity) {
+        // auto e = editor.mouse_picked_entity;
 
-            // {   // Draw entity fields.
-            //     constexpr f32 MARGIN  = 100.0f;
-            //     constexpr f32 PADDING = 16.0f;
-            //     constexpr f32 QUAD_Z = 0.0f;
+        // {   // Draw entity fields.
+        //     constexpr f32 MARGIN  = 100.0f;
+        //     constexpr f32 PADDING = 16.0f;
+        //     constexpr f32 QUAD_Z = 0.0f;
             
-            //     const auto &atlas = *global_font_atlases.main_small;
-            //     const f32 ascent  = atlas.ascent  * atlas.px_h_scale;
-            //     const f32 descent = atlas.descent * atlas.px_h_scale;
+        //     const auto &atlas = *global_font_atlases.main_small;
+        //     const f32 ascent  = atlas.ascent  * atlas.px_h_scale;
+        //     const f32 descent = atlas.descent * atlas.px_h_scale;
 
-            //     const u32 field_count = entity_type_field_counts[(u8)e->entity_type];
-            //     const f32 height = (f32)field_count * atlas.line_height;
+        //     const u32 field_count = entity_type_field_counts[(u8)e->entity_type];
+        //     const f32 height = (f32)field_count * atlas.line_height;
             
-            //     const Vector2 p0 = Vector2(MARGIN, screen_viewport.height - MARGIN);
-            //     const Vector2 p1 = Vector2(screen_viewport.width - MARGIN, p0.y - height - 2 * PADDING);
-            //     const u32 qc = rgba_pack(0, 0, 0, 200);
+        //     const Vector2 p0 = Vector2(MARGIN, screen_viewport.height - MARGIN);
+        //     const Vector2 p1 = Vector2(screen_viewport.width - MARGIN, p0.y - height - 2 * PADDING);
+        //     const u32 qc = rgba_pack(0, 0, 0, 200);
 
-            //     ui_quad(p0, p1, qc, QUAD_Z);
+        //     ui_quad(p0, p1, qc, QUAD_Z);
 
-            //     // @Todo: correct uiid generation.
-            //     uiid id = { 0, (u16)e->entity_id, 0 };
-            //     Vector2 pos = Vector2(p0.x + PADDING, p0.y - PADDING - ascent);
+        //     // @Todo: correct uiid generation.
+        //     uiid id = { 0, (u16)e->entity_id, 0 };
+        //     Vector2 pos = Vector2(p0.x + PADDING, p0.y - PADDING - ascent);
             
-            //     for (u32 i = 0; i < field_count; ++i) {
-            //         const auto &field = get_entity_field(e->entity_type, i);
-            //         const f32 field_name_width = (f32)get_line_width_px(atlas, field.name);
-            //         const f32 max_width_f32 = UI_INPUT_BUFFER_SIZE_F32 * atlas.space_xadvance;
+        //     for (u32 i = 0; i < field_count; ++i) {
+        //         const auto &field = get_entity_field(e->entity_type, i);
+        //         const f32 field_name_width = (f32)get_line_width_px(atlas, field.name);
+        //         const f32 max_width_f32 = UI_INPUT_BUFFER_SIZE_F32 * atlas.space_xadvance;
                 
-            //         constexpr u32 tcc = rgba_white;
-            //         constexpr u32 tch = rgba_white;
-            //         constexpr u32 tca = rgba_white;
-            //         constexpr u32 qcc = rgba_pack(32, 32, 32, 200);
-            //         constexpr u32 qch = rgba_pack(48, 48, 48, 200);
-            //         constexpr u32 qca = rgba_pack(64, 64, 64, 200);
-            //         constexpr u32 ccc = rgba_white;
-            //         constexpr u32 cch = rgba_white;
-            //         constexpr u32 cca = rgba_white;
+        //         constexpr u32 tcc = rgba_white;
+        //         constexpr u32 tch = rgba_white;
+        //         constexpr u32 tca = rgba_white;
+        //         constexpr u32 qcc = rgba_pack(32, 32, 32, 200);
+        //         constexpr u32 qch = rgba_pack(48, 48, 48, 200);
+        //         constexpr u32 qca = rgba_pack(64, 64, 64, 200);
+        //         constexpr u32 ccc = rgba_white;
+        //         constexpr u32 cch = rgba_white;
+        //         constexpr u32 cca = rgba_white;
 
-            //         const f32 offset = atlas.space_xadvance * 40;
-            //         UI_Input_Style style = {
-            //             global_font_atlases.main_small,
-            //             QUAD_Z,
-            //             Vector2(pos.x + offset, pos.y),
-            //             Vector2_zero,
-            //             Vector2_zero,
-            //             { tcc, tch, tca },
-            //             { qcc, qch, qca },
-            //             { ccc, cch, cca },
-            //         };
+        //         const f32 offset = atlas.space_xadvance * 40;
+        //         UI_Input_Style style = {
+        //             global_font_atlases.main_small,
+        //             QUAD_Z,
+        //             Vector2(pos.x + offset, pos.y),
+        //             Vector2_zero,
+        //             Vector2_zero,
+        //             { tcc, tch, tca },
+        //             { qcc, qch, qca },
+        //             { ccc, cch, cca },
+        //         };
 
-            //         ui_text(field.name, pos, rgba_white, QUAD_Z + F32_EPSILON);
+        //         ui_text(field.name, pos, rgba_white, QUAD_Z + F32_EPSILON);
 
-            //         switch (field.type) {
-            //         case FIELD_S8: {
-            //             auto &v = reflect_field_cast<s8>(*e, field);
-            //             ui_input_s8(id, &v, style);
-            //             id.index += 1;
-            //             break;
-            //         }
-            //         case FIELD_S16: {
-            //             auto &v = reflect_field_cast<s16>(*e, field);
-            //             ui_input_s16(id, &v, style);
-            //             id.index += 1;
-            //             break;
-            //         }
-            //         case FIELD_S32: {
-            //             auto &v = reflect_field_cast<s32>(*e, field);
-            //             ui_input_s32(id, &v, style);
-            //             id.index += 1;
-            //             break;
-            //         }
-            //         case FIELD_S64: {
-            //             auto &v = reflect_field_cast<s64>(*e, field);
-            //             ui_input_s64(id, &v, style);
-            //             id.index += 1;
-            //             break;
-            //         }
-            //         case FIELD_U8: {
-            //             auto &v = reflect_field_cast<u8>(*e, field);
-            //             ui_input_u8(id, &v, style);
-            //             id.index += 1;
-            //             break;
-            //         }
-            //         case FIELD_U16: {
-            //             auto &v = reflect_field_cast<u16>(*e, field);
-            //             ui_input_u16(id, &v, style);
-            //             id.index += 1;
-            //             break;
-            //         }
-            //         case FIELD_U32: {
-            //             auto &v = reflect_field_cast<u32>(*e, field);
-            //             ui_input_u32(id, &v, style);
-            //             id.index += 1;
-            //             break;
-            //         }
-            //         case FIELD_U64: {
-            //             auto &v = reflect_field_cast<u64>(*e, field);
-            //             ui_input_u64(id, &v, style);
-            //             id.index += 1;
-            //             break;
-            //         }
-            //         case FIELD_F32: {
-            //             auto &v = reflect_field_cast<f32>(*e, field);
-            //             ui_input_f32(id, &v, style);
-            //             id.index += 1;
-            //             break;
-            //         }
-            //         case FIELD_VECTOR2: {
-            //             auto &v = reflect_field_cast<Vector2>(*e, field);
+        //         switch (field.type) {
+        //         case FIELD_S8: {
+        //             auto &v = reflect_field_cast<s8>(*e, field);
+        //             ui_input_s8(id, &v, style);
+        //             id.index += 1;
+        //             break;
+        //         }
+        //         case FIELD_S16: {
+        //             auto &v = reflect_field_cast<s16>(*e, field);
+        //             ui_input_s16(id, &v, style);
+        //             id.index += 1;
+        //             break;
+        //         }
+        //         case FIELD_S32: {
+        //             auto &v = reflect_field_cast<s32>(*e, field);
+        //             ui_input_s32(id, &v, style);
+        //             id.index += 1;
+        //             break;
+        //         }
+        //         case FIELD_S64: {
+        //             auto &v = reflect_field_cast<s64>(*e, field);
+        //             ui_input_s64(id, &v, style);
+        //             id.index += 1;
+        //             break;
+        //         }
+        //         case FIELD_U8: {
+        //             auto &v = reflect_field_cast<u8>(*e, field);
+        //             ui_input_u8(id, &v, style);
+        //             id.index += 1;
+        //             break;
+        //         }
+        //         case FIELD_U16: {
+        //             auto &v = reflect_field_cast<u16>(*e, field);
+        //             ui_input_u16(id, &v, style);
+        //             id.index += 1;
+        //             break;
+        //         }
+        //         case FIELD_U32: {
+        //             auto &v = reflect_field_cast<u32>(*e, field);
+        //             ui_input_u32(id, &v, style);
+        //             id.index += 1;
+        //             break;
+        //         }
+        //         case FIELD_U64: {
+        //             auto &v = reflect_field_cast<u64>(*e, field);
+        //             ui_input_u64(id, &v, style);
+        //             id.index += 1;
+        //             break;
+        //         }
+        //         case FIELD_F32: {
+        //             auto &v = reflect_field_cast<f32>(*e, field);
+        //             ui_input_f32(id, &v, style);
+        //             id.index += 1;
+        //             break;
+        //         }
+        //         case FIELD_VECTOR2: {
+        //             auto &v = reflect_field_cast<Vector2>(*e, field);
 
-            //             ui_input_f32(id, &v.x, style);
-            //             id.index += 1;
-            //             style.pos.x += max_width_f32 + atlas.space_xadvance;
+        //             ui_input_f32(id, &v.x, style);
+        //             id.index += 1;
+        //             style.pos.x += max_width_f32 + atlas.space_xadvance;
 
-            //             ui_input_f32(id, &v.y, style);
-            //             id.index += 1;
-            //             style.pos.x += max_width_f32 + atlas.space_xadvance;
+        //             ui_input_f32(id, &v.y, style);
+        //             id.index += 1;
+        //             style.pos.x += max_width_f32 + atlas.space_xadvance;
 
-            //             break;
-            //         }
-            //         case FIELD_VECTOR3: {
-            //             auto &v = reflect_field_cast<Vector3>(*e, field);
+        //             break;
+        //         }
+        //         case FIELD_VECTOR3: {
+        //             auto &v = reflect_field_cast<Vector3>(*e, field);
                     
-            //             ui_input_f32(id, &v.x, style);
-            //             id.index += 1;
-            //             style.pos.x += max_width_f32 + atlas.space_xadvance;
+        //             ui_input_f32(id, &v.x, style);
+        //             id.index += 1;
+        //             style.pos.x += max_width_f32 + atlas.space_xadvance;
 
-            //             ui_input_f32(id, &v.y, style);
-            //             id.index += 1;
-            //             style.pos.x += max_width_f32 + atlas.space_xadvance;
+        //             ui_input_f32(id, &v.y, style);
+        //             id.index += 1;
+        //             style.pos.x += max_width_f32 + atlas.space_xadvance;
 
-            //             ui_input_f32(id, &v.z, style);
-            //             id.index += 1;
-            //             style.pos.x += max_width_f32 + atlas.space_xadvance;
+        //             ui_input_f32(id, &v.z, style);
+        //             id.index += 1;
+        //             style.pos.x += max_width_f32 + atlas.space_xadvance;
                     
-            //             break;
-            //         }
-            //         case FIELD_QUATERNION: {
-            //             auto &v = reflect_field_cast<Quaternion>(*e, field);
+        //             break;
+        //         }
+        //         case FIELD_QUATERNION: {
+        //             auto &v = reflect_field_cast<Quaternion>(*e, field);
 
-            //             ui_input_f32(id, &v.x, style);
-            //             id.index += 1;
-            //             style.pos.x += max_width_f32 + atlas.space_xadvance;
+        //             ui_input_f32(id, &v.x, style);
+        //             id.index += 1;
+        //             style.pos.x += max_width_f32 + atlas.space_xadvance;
 
-            //             ui_input_f32(id, &v.y, style);
-            //             id.index += 1;
-            //             style.pos.x += max_width_f32 + atlas.space_xadvance;
+        //             ui_input_f32(id, &v.y, style);
+        //             id.index += 1;
+        //             style.pos.x += max_width_f32 + atlas.space_xadvance;
 
-            //             ui_input_f32(id, &v.z, style);
-            //             id.index += 1;
-            //             style.pos.x += max_width_f32 + atlas.space_xadvance;
+        //             ui_input_f32(id, &v.z, style);
+        //             id.index += 1;
+        //             style.pos.x += max_width_f32 + atlas.space_xadvance;
 
-            //             ui_input_f32(id, &v.w, style);
-            //             id.index += 1;
-            //             style.pos.x += max_width_f32 + atlas.space_xadvance;
+        //             ui_input_f32(id, &v.w, style);
+        //             id.index += 1;
+        //             style.pos.x += max_width_f32 + atlas.space_xadvance;
                     
-            //             break;
-            //         }
-            //         }
+        //             break;
+        //         }
+        //         }
 
-            //         pos.y -= atlas.line_height;
-            //     }
-            // }
+        //         pos.y -= atlas.line_height;
+        //     }
+        // }
         
-            // if (game_state.selected_entity_property_to_change == PROPERTY_ROTATION) {
-            //     const f32 rotate_speed = shift ? 0.04f : 0.01f;
+        // if (game_state.selected_entity_property_to_change == PROPERTY_ROTATION) {
+        //     const f32 rotate_speed = shift ? 0.04f : 0.01f;
 
-            //     if (down(KEY_LEFT)) {
-            //         e->rotation *= make_quaternion_from_axis_angle(Vector3_left, rotate_speed);
-            //     }
+        //     if (down(KEY_LEFT)) {
+        //         e->rotation *= make_quaternion_from_axis_angle(Vector3_left, rotate_speed);
+        //     }
 
-            //     if (down(KEY_RIGHT)) {
-            //         e->rotation *= make_quaternion_from_axis_angle(Vector3_right, rotate_speed);
-            //     }
+        //     if (down(KEY_RIGHT)) {
+        //         e->rotation *= make_quaternion_from_axis_angle(Vector3_right, rotate_speed);
+        //     }
 
-            //     if (down(KEY_UP)) {
-            //         const Vector3 direction = ctrl ? Vector3_up : Vector3_forward;
-            //         e->rotation *= make_quaternion_from_axis_angle(direction, rotate_speed);
-            //     }
+        //     if (down(KEY_UP)) {
+        //         const Vector3 direction = ctrl ? Vector3_up : Vector3_forward;
+        //         e->rotation *= make_quaternion_from_axis_angle(direction, rotate_speed);
+        //     }
 
-            //     if (down(KEY_DOWN)) {
-            //         const Vector3 direction = ctrl ? Vector3_down : Vector3_back;
-            //         e->rotation *= make_quaternion_from_axis_angle(direction, rotate_speed);
-            //     }
-            // } else if (game_state.selected_entity_property_to_change == PROPERTY_SCALE) {
-            //     const f32 scale_speed = shift ? 4.0f : 1.0f;
+        //     if (down(KEY_DOWN)) {
+        //         const Vector3 direction = ctrl ? Vector3_down : Vector3_back;
+        //         e->rotation *= make_quaternion_from_axis_angle(direction, rotate_speed);
+        //     }
+        // } else if (game_state.selected_entity_property_to_change == PROPERTY_SCALE) {
+        //     const f32 scale_speed = shift ? 4.0f : 1.0f;
                 
-            //     if (down(KEY_LEFT)) {
-            //         e->scale += scale_speed * dt * Vector3_left;
-            //     }
+        //     if (down(KEY_LEFT)) {
+        //         e->scale += scale_speed * dt * Vector3_left;
+        //     }
 
-            //     if (down(KEY_RIGHT)) {
-            //         e->scale += scale_speed * dt * Vector3_right;
-            //     }
+        //     if (down(KEY_RIGHT)) {
+        //         e->scale += scale_speed * dt * Vector3_right;
+        //     }
 
-            //     if (down(KEY_UP)) {
-            //         const Vector3 direction = ctrl ? Vector3_up : Vector3_forward;
-            //         e->scale += scale_speed * dt * direction;
-            //     }
+        //     if (down(KEY_UP)) {
+        //         const Vector3 direction = ctrl ? Vector3_up : Vector3_forward;
+        //         e->scale += scale_speed * dt * direction;
+        //     }
 
-            //     if (down(KEY_DOWN)) {
-            //         const Vector3 direction = ctrl ? Vector3_down : Vector3_back;
-            //         e->scale += scale_speed * dt * direction;
-            //     }
-            // } else if (game_state.selected_entity_property_to_change == PROPERTY_LOCATION) {
-            //     const f32 move_speed = shift ? 4.0f : 1.0f;
+        //     if (down(KEY_DOWN)) {
+        //         const Vector3 direction = ctrl ? Vector3_down : Vector3_back;
+        //         e->scale += scale_speed * dt * direction;
+        //     }
+        // } else if (game_state.selected_entity_property_to_change == PROPERTY_LOCATION) {
+        //     const f32 move_speed = shift ? 4.0f : 1.0f;
 
-            //     if (down(KEY_LEFT)) {
-            //         e->position += move_speed * dt * Vector3_left;
-            //     }
+        //     if (down(KEY_LEFT)) {
+        //         e->position += move_speed * dt * Vector3_left;
+        //     }
 
-            //     if (down(KEY_RIGHT)) {
-            //         e->position += move_speed * dt * Vector3_right;
-            //     }
+        //     if (down(KEY_RIGHT)) {
+        //         e->position += move_speed * dt * Vector3_right;
+        //     }
 
-            //     if (down(KEY_UP)) {
-            //         const Vector3 direction = ctrl ? Vector3_up : Vector3_forward;
-            //         e->position += move_speed * dt * direction;
-            //     }
+        //     if (down(KEY_UP)) {
+        //         const Vector3 direction = ctrl ? Vector3_up : Vector3_forward;
+        //         e->position += move_speed * dt * direction;
+        //     }
 
-            //     if (down(KEY_DOWN)) {
-            //         const Vector3 direction = ctrl ? Vector3_down : Vector3_back;
-            //         e->position += move_speed * dt * direction;
-            //     }
-            // }
-        } else {
-            // @Cleanup: more like a temp hack, clear ui hot id if we are not in editor.
-            ui.id_hot = UIID_NONE;
-        }
+        //     if (down(KEY_DOWN)) {
+        //         const Vector3 direction = ctrl ? Vector3_down : Vector3_back;
+        //         e->position += move_speed * dt * direction;
+        //     }
+        // }
+    } else {
+        // @Cleanup: more like a temp hack, clear ui hot id if we are not in editor.
+        ui.id_hot = UIID_NONE;
+    }
 
-        // Create specific entity.
-        if (program_mode != MODE_GAME && window->focused && !window->cursor_locked) {
+    // Create specific entity.
+    if (window->focused && !window->cursor_locked) {
         //     constexpr f32 Z = 0.0f;
         
         //     constexpr String button_text = S("Add");
@@ -634,39 +606,6 @@ void update_editor() {
         //         selected_entity_type += selection_offset;
         //         new_entity(manager, (Entity_Type)(selected_entity_type));
         //     }
-        }
-    }
-
-    // Screen report.
-    {
-        editor.report_time += dt;
-
-        f32 fade_time = 0.0f;
-        if (editor.report_time > EDITOR_REPORT_SHOW_TIME) {
-            fade_time = editor.report_time - EDITOR_REPORT_SHOW_TIME;
-            
-            if (fade_time > EDITOR_REPORT_FADE_TIME) {
-                editor.report_time = 0.0f;
-                editor.report_string.size = 0;
-            }
-        }
-
-        if (editor.report_string.size > 0) {
-            constexpr auto Z = UI_MAX_Z;
-            
-            const auto atlas    = global_font_atlases.main_medium;
-            const auto width_px = get_line_width_px(atlas, editor.report_string);
-            const auto pos      = Vector2(screen_viewport.width * 0.5f - width_px * 0.5f,
-                                          screen_viewport.height * 0.7f);
-
-            const auto lerp_alpha    = Clamp(fade_time / EDITOR_REPORT_FADE_TIME, 0.0f, 1.0f);
-            const auto alpha         = (u32)Lerp(255, 0, lerp_alpha);
-            const auto color         = Color32 { .a = alpha, .b = 255, .g = 255, .r = 255 };
-            const auto shadow_color  = Color32 { .a = alpha, .b = 0,   .g = 0,   .r = 0   };
-            const auto shadow_offset = Vector2(atlas->px_height * 0.1f, -atlas->px_height * 0.1f);
-            
-            ui_text_with_shadow(editor.report_string, pos, color, shadow_offset, shadow_color, Z, atlas);
-        }
     }
 }
 
@@ -760,18 +699,114 @@ static Console console;
 
 Console *get_console() { return &console; }
 
-void open_console() {
+void on_push_console(Program_Layer *layer) {
+    Assert(layer->type == PROGRAM_LAYER_TYPE_CONSOLE);
     Assert(!console.opened);
     console.opened = true;
-    push_input_layer(input_layers[INPUT_LAYER_CONSOLE]);
 }
 
-void close_console() {
+void on_pop_console(Program_Layer *layer) {
+    Assert(layer->type == PROGRAM_LAYER_TYPE_CONSOLE);
     Assert(console.opened);
     console.opened = false;
     console.cursor_blink_dt = 0.0f;
-    auto layer = pop_input_layer();
-    Assert(layer->type == INPUT_LAYER_CONSOLE);
+}
+
+void scroll_console(s32 delta) {
+    console.scroll_pos -= delta;
+    console.scroll_pos = Clamp(console.scroll_pos, 0, console.message_count);
+}
+
+bool on_event_console(Program_Layer *layer, const Window_Event *e) {
+    Assert(layer->type == PROGRAM_LAYER_TYPE_CONSOLE);
+    Assert(console.opened);
+
+    auto handled = on_event_input_mapping(layer, e);
+    if (handled) return handled;
+
+    handled = true;
+    switch (e->type) {
+    case WINDOW_EVENT_TEXT_INPUT: {
+        const auto character = e->character;
+        
+        if (!console.opened) break;
+
+        if (character == C_GRAVE_ACCENT) {
+            break;
+        }
+
+        auto &history = console.history;
+        auto &input = console.input;
+        auto &cursor_blink_dt = console.cursor_blink_dt;
+
+        const auto &atlas = *global_font_atlases.main_small;
+
+        cursor_blink_dt = 0.0f;
+    
+        if (character == C_NEW_LINE || character == C_CARRIAGE_RETURN) {
+            if (input.size > 0) {
+                const auto delims = S(" ");
+                const auto tokens = split(input, delims);
+                if (!tokens.count) break;
+                                
+                if (tokens[0]) {
+                    if (tokens[0] == CONSOLE_CMD_CLEAR) {
+                        if (tokens.count == 1) {
+                            history.size = 0;
+                            console.message_count = 0;
+                        } else {
+                            add_to_console_history(CONSOLE_CMD_USAGE_CLEAR);
+                        }
+                    } else if (tokens[0] == CONSOLE_CMD_LEVEL) {
+                        if (tokens.count > 1) {   
+                            //auto path = tprint("%S%S", PATH_LEVEL(""), tokens[1]);
+                            //load_level(World, path);
+                        } else {
+                            add_to_console_history(CONSOLE_CMD_USAGE_LEVEL);
+                        }
+                    } else {
+                        String_Builder builder;
+                        builder.allocator = __temporary_allocator;
+                        
+                        append(builder, CONSOLE_CMD_UNKNOWN_WARNING);
+                        append(builder, input);
+                        
+                        add_to_console_history(builder_to_string(builder));
+                    }
+                }
+                
+                input.size = 0;
+            }
+        
+            break;
+        }
+
+        if (character == C_BACKSPACE) {
+            if (input.size > 0) {
+                input.size -= 1;
+            }
+        }
+
+        if (Is_Printable(character)) {
+            if (input.size >= console.MAX_INPUT_SIZE) {
+                break;
+            }
+        
+            input.data[input.size] = (char)character;
+            input.size += 1;
+        }
+        
+        break;
+    }
+    case WINDOW_EVENT_MOUSE_WHEEL: {
+        const s32 delta = Sign(e->scroll_delta);
+        scroll_console(delta);
+        break;
+    }
+    default:  { handled = false; break; }
+    }
+
+    return handled;
 }
 
 void update_console() {
@@ -897,128 +932,6 @@ void add_to_console_history(Log_Level level, String s) {
     }
 }
 
-// @Todo: scroll position is messed up after log level change.
-static void scroll_console(s32 delta) {
-    console.scroll_pos -= delta;
-    console.scroll_pos = Clamp(console.scroll_pos, 0, console.message_count);
-}
-
-void on_console_input(const Window_Event *e) {
-    auto window = get_window();
-
-    switch (e->type) {
-    case WINDOW_EVENT_KEYBOARD: {
-        // @Todo: handle repeat?
-        
-        const auto key    = e->key_code;
-        const auto press  = e->press;
-        const auto repeat = e->repeat;
-
-        if (press && key == KEY_OPEN_CONSOLE) {
-            close_console();
-        } else if (press && (key == KEY_UP || key == KEY_DOWN)) {
-            s32 delta = 1 - 2 * (key == KEY_DOWN);
-
-            if (down(KEY_CTRL))  delta *= console.message_count;
-            if (down(KEY_SHIFT)) delta *= 10;
-
-            scroll_console(delta);
-        }
-
-        if (down(KEY_ALT)) {
-            if (press && key == KEY_1) {
-                context.log_level = LOG_VERBOSE;
-            } else if (press && key == KEY_2) {
-                context.log_level = LOG_DEFAULT;
-            } else if (press && key == KEY_3) {
-                context.log_level = LOG_WARNING;
-            } else if (press && key == KEY_4) {
-                context.log_level = LOG_ERROR;
-            }
-        }
-        
-        break;
-    }
-    case WINDOW_EVENT_TEXT_INPUT: {
-        const auto character = e->character;
-        
-        if (!console.opened) break;
-
-        if (character == C_GRAVE_ACCENT) {
-            break;
-        }
-
-        auto &history = console.history;
-        auto &input = console.input;
-        auto &cursor_blink_dt = console.cursor_blink_dt;
-
-        const auto &atlas = *global_font_atlases.main_small;
-
-        cursor_blink_dt = 0.0f;
-    
-        if (character == C_NEW_LINE || character == C_CARRIAGE_RETURN) {
-            if (input.size > 0) {
-                const auto delims = S(" ");
-                const auto tokens = split(input, delims);
-                if (!tokens.count) break;
-                                
-                if (tokens[0]) {
-                    if (tokens[0] == CONSOLE_CMD_CLEAR) {
-                        if (tokens.count == 1) {
-                            history.size = 0;
-                            console.message_count = 0;
-                        } else {
-                            add_to_console_history(CONSOLE_CMD_USAGE_CLEAR);
-                        }
-                    } else if (tokens[0] == CONSOLE_CMD_LEVEL) {
-                        if (tokens.count > 1) {   
-                            //auto path = tprint("%S%S", PATH_LEVEL(""), tokens[1]);
-                            //load_level(World, path);
-                        } else {
-                            add_to_console_history(CONSOLE_CMD_USAGE_LEVEL);
-                        }
-                    } else {
-                        String_Builder builder;
-                        builder.allocator = __temporary_allocator;
-                        
-                        append(builder, CONSOLE_CMD_UNKNOWN_WARNING);
-                        append(builder, input);
-                        
-                        add_to_console_history(builder_to_string(builder));
-                    }
-                }
-                
-                input.size = 0;
-            }
-        
-            break;
-        }
-
-        if (character == C_BACKSPACE) {
-            if (input.size > 0) {
-                input.size -= 1;
-            }
-        }
-
-        if (Is_Printable(character)) {
-            if (input.size >= console.MAX_INPUT_SIZE) {
-                break;
-            }
-        
-            input.data[input.size] = (char)character;
-            input.size += 1;
-        }
-        
-        break;
-    }
-    case WINDOW_EVENT_MOUSE_WHEEL: {
-        const s32 delta = Sign(e->scroll_delta);
-        scroll_console(delta);
-        break;
-    }
-    }
-}
-
 void screen_report(const char *cs, ...) {
     static char buffer[256];
 
@@ -1057,17 +970,48 @@ void init_profiler() {
     table_realloc(profiler.zone_lookup,  MAX_PROFILE_ZONES);
 }
 
-void open_profiler() {
+void on_push_profiler(Program_Layer *layer) {
+    Assert(layer->type == PROGRAM_LAYER_TYPE_PROFILER);
     Assert(!profiler.opened);
     profiler.opened = true;
-    push_input_layer(input_layers[INPUT_LAYER_PROFILER]);
 }
 
-void close_profiler() {
+void on_pop_profiler(Program_Layer *layer) {
+    Assert(layer->type == PROGRAM_LAYER_TYPE_PROFILER);
     Assert(profiler.opened);
     profiler.opened = false;
-    auto layer = pop_input_layer();
-    Assert(layer->type == INPUT_LAYER_PROFILER);
+}
+
+void switch_profiler_view() {
+    profiler.view_mode = (Profiler_View_Mode)((profiler.view_mode + 1) % PROFILER_VIEW_COUNT);
+}
+
+bool on_event_profiler(Program_Layer *layer, const Window_Event *e) {
+    Assert(layer->type == PROGRAM_LAYER_TYPE_PROFILER);
+    Assert(profiler.opened);
+
+    auto handled = on_event_input_mapping(layer, e);
+    if (handled) return handled;
+
+    handled = true;
+    switch (e->type) {
+    case WINDOW_EVENT_MOUSE_WHEEL: {
+        switch (profiler.view_mode) {
+        case PROFILER_VIEW_RUNTIME: {
+            auto delta = Sign(e->scroll_delta);
+            if (down(KEY_SHIFT)) delta *= 8;
+            if (down(KEY_CTRL))  delta *= 64;
+            profiler.max_graph_zone_time -= 0.002f * delta;
+            profiler.max_graph_zone_time = Clamp(profiler.max_graph_zone_time, 0.01f, 8.0f);
+            break;
+        }
+        }
+        break;
+    }
+    default: { handled = false; break; }
+    }
+
+    return handled;
 }
 
 void update_profiler() {
@@ -1447,66 +1391,6 @@ void update_profiler() {
     }
 }
 
-void switch_profiler_view() {
-    profiler.view_mode = (Profiler_View_Mode)((profiler.view_mode + 1) % PROFILER_VIEW_COUNT);
-}
-
-void on_profiler_input(const Window_Event *e) {
-    switch (e->type) {
-    case WINDOW_EVENT_KEYBOARD: {
-        const auto key   = e->key_code;
-        const auto press = e->press;
-    
-        if (!press) break; // do not handle keyboard release events at all
-
-        if (key == KEY_OPEN_PROFILER)        { close_profiler(); break; }
-        if (key == KEY_SWITCH_PROFILER_VIEW) { switch_profiler_view(); break; }
-        
-        switch (profiler.view_mode) {
-        case PROFILER_VIEW_RUNTIME: {
-            switch (key) {
-            case KEY_P: { profiler.paused = !profiler.paused; break; }
-                
-            case KEY_1: { profiler.time_sort = 0; break; }
-            case KEY_2: { profiler.time_sort = 1; break; }
-            case KEY_3: { profiler.time_sort = 2; break; }
-            case KEY_4: { profiler.time_sort = 3; break; }
-
-            case KEY_UP:
-            case KEY_DOWN: {
-                auto &index = profiler.selected_zone_index;
-                const auto delta = 1 - 2 * (key == KEY_UP);
-                index += delta; // updated and used later in update_profiler
-                break;
-            }
-            }
-            
-            break;
-        }
-        case PROFILER_VIEW_MEMORY: {
-            // @Todo: no memory profiler specific keys for now.
-            break;
-        }
-        }
-        
-        break;
-    }
-    case WINDOW_EVENT_MOUSE_WHEEL: {
-        switch (profiler.view_mode) {
-        case PROFILER_VIEW_RUNTIME: {
-            auto delta = Sign(e->scroll_delta);
-            if (down(KEY_SHIFT)) delta *= 8;
-            if (down(KEY_CTRL))  delta *= 64;
-            profiler.max_graph_zone_time -= 0.002f * delta;
-            profiler.max_graph_zone_time = Clamp(profiler.max_graph_zone_time, 0.01f, 8.0f);
-            break;
-        }
-        }
-        break;
-    }
-    }
-}
-
 void push_profile_time_zone(const char *name) { push_profile_time_zone(make_string((char *)name)); }
     
 void push_profile_time_zone(String name) {
@@ -1613,14 +1497,12 @@ void draw_dev_stats() {
         ui_text_with_shadow(make_string(text, count), pos, COLOR32_WHITE, shadow_offset, COLOR32_BLACK, Z);
 		pos.y -= atlas->line_height;
         
-        count = stbsp_snprintf(text, sizeof(text), "window %dx%d",
-                               window->width, window->height);
+        count = stbsp_snprintf(text, sizeof(text), "window %dx%d", window->width, window->height);
         pos.x = screen_viewport.width - get_line_width_px(atlas, make_string(text, count)) - padding;
         ui_text_with_shadow(make_string(text, count), pos, COLOR32_WHITE, shadow_offset, COLOR32_BLACK, Z);
 		pos.y -= atlas->line_height;
 
-        count = stbsp_snprintf(text, sizeof(text), "viewport %dx%d",
-                               screen_viewport.width, screen_viewport.height);
+        count = stbsp_snprintf(text, sizeof(text), "viewport %dx%d", screen_viewport.width, screen_viewport.height);
         pos.x = screen_viewport.width - get_line_width_px(atlas, make_string(text, count)) - padding;
         ui_text_with_shadow(make_string(text, count), pos, COLOR32_WHITE, shadow_offset, COLOR32_BLACK, Z);
         pos.y -= atlas->line_height;
@@ -1632,6 +1514,12 @@ void draw_dev_stats() {
 
         const auto input = get_input_table();
         count = stbsp_snprintf(text, sizeof(text), "cursor %d %d", input->mouse_x, input->mouse_y);
+        pos.x = screen_viewport.width - get_line_width_px(atlas, make_string(text, count)) - padding;
+        ui_text_with_shadow(make_string(text, count), pos, COLOR32_WHITE, shadow_offset, COLOR32_BLACK, Z);
+		pos.y -= atlas->line_height;
+
+        const auto layer = get_program_layer();
+        count = stbsp_snprintf(text, sizeof(text), "layer %S", to_string(layer->type));
         pos.x = screen_viewport.width - get_line_width_px(atlas, make_string(text, count)) - padding;
         ui_text_with_shadow(make_string(text, count), pos, COLOR32_WHITE, shadow_offset, COLOR32_BLACK, Z);
 		pos.y -= atlas->line_height;

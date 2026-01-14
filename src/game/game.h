@@ -45,16 +45,10 @@ inline Game_State game_state;
 
 struct Window_Event;
 
-void on_window_resize(u16 width, u16 height);
-
-void init_asset_storages ();
+void init_program_layers ();
 void load_game_assets    ();
+void simulate_game       ();
+void on_window_resize    (u32 width, u32 height);
 
-void simulate_game ();
-void on_game_input (const Window_Event *e);
-void on_game_push  ();
-void on_game_pop   ();
-
-const char *to_string(Program_Mode mode);
 const char *to_string(Camera_Behavior behavior);
 const char *to_string(Player_Movement_Behavior behavior);

@@ -4,6 +4,7 @@
 #include "vector.h"
 #include "matrix.h"
 #include "quaternion.h"
+#include "controls.h"
 
 #define GAME_NAME    "scopecorp"
 #define GAME_VERSION "0.4.0"
@@ -106,15 +107,6 @@ void sort (void *data, u32 count, u32 size, s32 (*compare)(const void *, const v
 
 inline constexpr u32 MAX_DIRECT_LIGHTS = 4;
 inline constexpr u32 MAX_POINT_LIGHTS  = 32;
-
-enum Program_Mode : u8 {
-    MODE_GAME,
-    MODE_EDITOR,
-
-    PROGRAM_MODE_COUNT
-};
-
-inline Program_Mode program_mode = MODE_EDITOR;
 
 struct Time_Info {
     u64 frame_start_counter = 0;
