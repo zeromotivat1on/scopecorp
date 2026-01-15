@@ -35,7 +35,6 @@ struct Font_Bake_Data {
 };
 
 s32 main() {
-    
     set_process_cwd(get_process_directory());
 
     Asset_Set_Description sets[] = {

@@ -824,7 +824,7 @@ bool write(Create_Pak &pak, String path) {
     Archive archive;
     defer { reset(archive); };
     
-    if (!start_write(archive, path)) return false;
+    if (!start_write(archive, path, true)) return false;
     
     u64 offset_from_file_start = sizeof(Pak_Header);
     
@@ -987,29 +987,29 @@ Pak_Entry *find_entry(Load_Pak &pak, String name) {
 // archive
 
 bool start_read(Archive &archive, String path) {
-    File file = open_file(path, FILE_READ_BIT);
-    if (file == FILE_NONE) {
+    auto file = open_file(path, FILE_READ_BIT);
+    if (file) {
         log(LOG_ERROR, "Failed to start archive 0x%X read from %S", &archive, path);
         return false;
     }
 
-    archive.mode = ARCHIVE_READ;
+    archive.mode = ARCHIVE_MODE_READ;
     archive.file = file;
 
     return true;
 }
 
-bool start_write(Archive &archive, String path) {
-    File file = open_file(path, FILE_WRITE_BIT, false);
+bool start_write(Archive &archive, String path, bool truncate) {
+    auto file = truncate ?
+        open_file(path, FILE_WRITE_BIT | FILE_TRUNCATE_BIT) :
+        open_file(path, FILE_WRITE_BIT | FILE_NEW_BIT);
+
     if (file == FILE_NONE) {
-        file = open_file(path, FILE_NEW_BIT | FILE_WRITE_BIT);
-        if (file == FILE_NONE) {
-            log(LOG_ERROR, "Failed to start archive 0x%X write to %S", &archive, path);
-            return false;
-        }
+        log(LOG_ERROR, "Failed to start archive 0x%X write to %S", &archive, path);
+        return false;
     }
 
-    archive.mode = ARCHIVE_WRITE;
+    archive.mode = ARCHIVE_MODE_WRITE;
     archive.file = file;
 
     return true;
@@ -1024,13 +1024,13 @@ u64 get_current_size(Archive &archive) {
 }
 
 u64 serialize(Archive &archive, void *data, u64 size) {
-    if (archive.mode == ARCHIVE_READ) {
+    if (archive.mode == ARCHIVE_MODE_READ) {
         return read_file(archive.file, size, data);
-    } else if (archive.mode == ARCHIVE_WRITE) {
-        return write_file(archive.file, size, data);        
+    } else if (archive.mode == ARCHIVE_MODE_WRITE) {
+        return write_file(archive.file, size, data);
     }
 
-    log(LOG_ERROR, "Unknown mode %u in archive 0x%X", archive.mode, &archive);
+    log(LOG_ERROR, "Unknown archive 0x%X mode %u", &archive, archive.mode);
     return 0;
 }
 

@@ -5,9 +5,12 @@ typedef void *File;
 extern const File FILE_NONE;
 
 enum File_Bits : u32 {
-    FILE_READ_BIT  = 0x1,
-    FILE_WRITE_BIT = 0x2,
-    FILE_NEW_BIT   = 0x4, // create new file instead of trying to open existing
+    // Access options.
+    FILE_READ_BIT     = 0x1,
+    FILE_WRITE_BIT    = 0x2,
+    // Open options.
+    FILE_NEW_BIT      = 0x4, // create new file if it does not exist
+    FILE_TRUNCATE_BIT = 0x8, // same as FILE_NEW_BIT, but also truncates an existing writable file
 };
 
 struct File_Callback_Data {

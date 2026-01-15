@@ -25,11 +25,8 @@ String read_text_file(String path, Allocator alc) {
 }
 
 void write_file(String path, Buffer buffer) {
-    auto file = open_file(path, FILE_WRITE_BIT, false);
-	if (file == FILE_NONE) {
-        file = open_file(path, FILE_NEW_BIT | FILE_WRITE_BIT);
-        if (file == FILE_NONE) return;
-    }
+    auto file = open_file(path, FILE_WRITE_BIT | FILE_TRUNCATE_BIT, false);
+    if (file == FILE_NONE) return;
     
 	defer { close_file(file); };
 
@@ -40,7 +37,7 @@ void write_file(String path, Buffer buffer) {
 }
 
 void write_text_file(String path, String source) {
-    write_file(path, Buffer { source.data, source.size });
+    write_file(path, make_buffer(source));
 }
 
 String fix_directory_delimiters(String path) {

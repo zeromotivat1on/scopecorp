@@ -127,7 +127,7 @@ Array <Source_Code_Location> get_current_callstack() {
     return callstack;
 }
 
-static u32 win32_access_bits(u32 bits) {
+static u32 to_win32_access_bits(u32 bits) {
     u32 out = 0;
 
     if (bits & FILE_READ_BIT)  out |= GENERIC_READ;
@@ -136,7 +136,7 @@ static u32 win32_access_bits(u32 bits) {
     return out;
 }
 
-static u32 win32_share_bits(u32 bits) {
+static u32 to_win32_share_bits(u32 bits) {
     u32 out = 0;
 
     if (bits & FILE_READ_BIT)  out |= FILE_SHARE_READ;
@@ -145,16 +145,20 @@ static u32 win32_share_bits(u32 bits) {
     return out;
 }
 
-static u32 win32_open_type(u32 bits) {
-    if (bits & FILE_NEW_BIT) return CREATE_NEW;    
+static u32 to_win32_open_type(u32 bits) {
+    if (bits & FILE_TRUNCATE_BIT) return CREATE_ALWAYS;
+    if (bits & FILE_NEW_BIT)      return CREATE_NEW;    
     return OPEN_EXISTING;
 }
 
 File open_file(String path, u32 bits, bool log_error) {
-    const char *cpath = temp_c_string(path);
-	HANDLE handle = CreateFile(cpath, win32_access_bits(bits), win32_share_bits(bits),
-                               NULL, win32_open_type(bits), FILE_ATTRIBUTE_NORMAL, NULL);
+    const auto cpath       = temp_c_string(path);
+    const auto access_bits = to_win32_access_bits(bits);
+    const auto share_bits  = to_win32_share_bits(bits);
+    const auto open_type   = to_win32_open_type(bits);
 
+	const auto handle = CreateFile(cpath, access_bits, share_bits, NULL, open_type, FILE_ATTRIBUTE_NORMAL, NULL);
+    
     if (log_error && handle == INVALID_HANDLE_VALUE) {
         log(LOG_IDENT_WIN32, LOG_ERROR, "[0x%X] Failed to open file %s", GetLastError(), cpath);
     }
