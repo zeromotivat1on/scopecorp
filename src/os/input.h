@@ -190,10 +190,10 @@ struct Input_Table {
     u256 keys_down; // keys pressed this frame
     u256 keys_up;   // keys released this frame
         
-    s32 mouse_x;
-    s32 mouse_y;
-    s32 mouse_offset_x;
-    s32 mouse_offset_y;
+    s32 cursor_x;
+    s32 cursor_y;
+    s32 cursor_offset_x;
+    s32 cursor_offset_y;
 
     // @Todo: gamepads...
 };

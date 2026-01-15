@@ -191,5 +191,6 @@ inline Window *get_window () { Assert(main_window); return main_window; }
 
 // @Cleanup
 struct Gpu_Picking_Data { f32 depth; Pid eid; };
-Gpu_Picking_Data *gpu_picking_data = null;
-u64 gpu_picking_data_offset;
+inline Gpu_Picking_Data *gpu_picking_data = null;
+inline u64 gpu_picking_data_offset;
+inline u32 gpu_picking_buffer_binding = 5;

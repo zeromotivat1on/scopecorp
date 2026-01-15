@@ -202,8 +202,8 @@ static void handle_window_events() {
     auto window = get_window();
     auto input  = get_input_table();
     
-    input->mouse_offset_x = 0;
-    input->mouse_offset_y = 0;
+    input->cursor_offset_x = 0;
+    input->cursor_offset_y = 0;
 
     auto base_layer = &program_layer_base;
     For (window->events) send_event(base_layer, &it);
@@ -215,9 +215,9 @@ static void handle_window_events() {
 
     // @Cleanup: this is actually valid only for current 4x3 viewport.
     auto &viewport = screen_viewport;
-    const auto mouse_x = Clamp((f32)input->mouse_x - viewport.x, 0.0f, viewport.width);
-    const auto mouse_y = Clamp((f32)input->mouse_y - viewport.y, 0.0f, viewport.height);
-    viewport.mouse_pos = Vector2(mouse_x, mouse_y);
+    const auto cursor_x = Clamp((f32)input->cursor_x - viewport.x, 0.0f, viewport.width);
+    const auto cursor_y = Clamp((f32)input->cursor_y - viewport.y, 0.0f, viewport.height);
+    viewport.cursor_pos = Vector2(cursor_x, cursor_y);
         
     auto current_layer = get_program_layer();
     For (window->events) send_event(current_layer, &it); 

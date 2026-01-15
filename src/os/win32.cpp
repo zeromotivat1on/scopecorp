@@ -428,8 +428,8 @@ static LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam, L
     case WM_SYSKEYDOWN:
 	case WM_KEYDOWN: {
         event.type = WINDOW_EVENT_KEYBOARD;
-        event.press  = true;
         event.repeat = lparam & 0x40000000;
+        event.press  = !event.repeat;
         event.key_code = vkey_to_key_code((u32)wparam);
         Assert(event.key_code > 0);
         array_add(w->events, event);
@@ -695,14 +695,14 @@ void lock_cursor(Window *w, bool lock) {
 		ShowCursor(false);
 
         POINT point;
-		point.x = input->mouse_x = w->width / 2;
-		point.y = input->mouse_y = w->height / 2;
+		point.x = input->cursor_x = w->width / 2;
+		point.y = input->cursor_y = w->height / 2;
 
 		ClientToScreen(win32->hwnd, &point);
 		SetCursorPos(point.x, point.y);
 
-        input->mouse_offset_x = 0;
-        input->mouse_offset_y = 0;
+        input->cursor_offset_x = 0;
+        input->cursor_offset_y = 0;
 	} else {
 		ClipCursor(NULL);
 		ShowCursor(true);

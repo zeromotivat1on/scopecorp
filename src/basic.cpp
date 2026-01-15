@@ -336,14 +336,14 @@ String get_string(Atom atom) {
     auto table = context.atom_table;
     auto index = atom.hash % table->capacity;
 
-    auto string = table->strings + index;
-    Assert(*string);
+    auto string = table->strings[index];
+    Assert(string);
 
 #if DEVELOPER
-    Assert(*string == atom.string);
+    Assert(string == atom.string);
 #endif
     
-    return *string;
+    return string;
 }
 
 void set_temporary_storage_mark(u64 mark, Source_Code_Location loc) {

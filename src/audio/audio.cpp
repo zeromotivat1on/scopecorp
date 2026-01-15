@@ -2,9 +2,11 @@
 #include "audio_player.h"
 #include "wav.h"
 
-Audio_Player *get_audio_player   () { Assert(audio_player); return audio_player; }
-Vector3 get_audio_listener_position () { return get_audio_player()->listener_position; }
-void set_audio_listener_position (Vector3 position) { get_audio_player()->listener_position = position; }
+static Audio_Player audio_player;
+
+Audio_Player *get_audio_player      () { return &audio_player; }
+Vector3 get_audio_listener_position () { return audio_player.listener_position; }
+void set_audio_listener_position    (Vector3 position) { audio_player.listener_position = position; }
 
 Parsed_Wav parse_wav(void *data) {
     auto header = *Eat(&data, Wav_Header);

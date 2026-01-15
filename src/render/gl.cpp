@@ -67,8 +67,9 @@ bool post_init_render_backend() {
     // @Cleanup: make it less hardcoded
     auto gpu_allocation = gpu_alloc(sizeof(Gpu_Picking_Data), &gpu_read_allocator);
     gpu_picking_data = (Gpu_Picking_Data *)gpu_allocation.mapped_data;
+    *(f32 *)gpu_picking_data = F32_MAX;
     gpu_picking_data_offset = gpu_allocation.offset;
-    glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 8, read_buffer->handle._u32, gpu_picking_data_offset, sizeof(*gpu_picking_data));
+    glBindBufferRange(GL_SHADER_STORAGE_BUFFER, gpu_picking_buffer_binding, read_buffer->handle._u32, gpu_picking_data_offset, sizeof(*gpu_picking_data));
     
     return true;
 }

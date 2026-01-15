@@ -52,8 +52,8 @@ void init_level_editor_hub() {
     manager->player = player->eid;
     
 	{
-        auto material = get_material(S("player"));
-        auto texture = material->diffuse_texture;
+        auto material = get_material(ATOM("player"));
+        auto texture = get_texture(material->diffuse_texture);
 
         if (texture) {
             const auto view  = gpu_get_image_view(texture->image_view);
@@ -72,12 +72,12 @@ void init_level_editor_hub() {
         player->aabb.c = player->position + Vector3(0.0f, player->scale.y * 0.5f, 0.0f);
         player->aabb.r = player->scale * 0.5f;
 
-        player->mesh     = S("player");
-        player->material = S("player");
+        player->mesh     = ATOM("player");
+        player->material = ATOM("player");
 
         player->move_speed     = 500.0f;
         player->move_direction = SOUTH;
-        player->move_sound     = S("player_steps");
+        player->move_sound     = ATOM("player_steps");
 
         player->camera_offset = Vector3(0.0f, 1.0f, -3.0f);
 	}
@@ -95,8 +95,8 @@ void init_level_editor_hub() {
         aabb.c = ground->position;
 		aabb.r = Vector3(ground->scale.x, 0.0f, ground->scale.y);
 
-        ground->mesh     = S("quad");
-        ground->material = S("ground");
+        ground->mesh     = ATOM("quad");
+        ground->material = ATOM("ground");
 	}
 
 	{
@@ -109,8 +109,8 @@ void init_level_editor_hub() {
         aabb.c = cube->position;
 		aabb.r = cube->scale * 0.5f;
         
-        cube->mesh     = S("cube");
-        cube->material = S("cube");
+        cube->mesh     = ATOM("cube");
+        cube->material = ATOM("cube");
 	}
 
 	{
@@ -120,8 +120,8 @@ void init_level_editor_hub() {
         skybox->position = Vector3(0.0f, -2.0f, 0.0f);
         skybox->uv_scale = Vector2(8.0f, 4.0f);
         
-        skybox->mesh     = S("skybox");
-        skybox->material = S("skybox");
+        skybox->mesh     = ATOM("skybox");
+        skybox->material = ATOM("skybox");
 	}
     
 	{
@@ -133,8 +133,8 @@ void init_level_editor_hub() {
         aabb.c = model->position;
 		aabb.r = model->scale * 0.5f;
 
-        model->mesh     = S("tower");
-        model->material = S("tower");
+        model->mesh     = ATOM("tower");
+        model->material = ATOM("tower");
 	}
 
     {
@@ -142,7 +142,7 @@ void init_level_editor_hub() {
         emitter->sound_play_spatial = false;
         emitter->scale = Vector3(0.1f);
         emitter->position = Vector3(0.0f, 1.0f, 0.0f);
-        emitter->sound = S("wind_ambience");
+        emitter->sound = ATOM("wind_ambience");
         set_sound_looping(emitter->sound, true);
 
         auto &aabb = emitter->aabb;
@@ -300,8 +300,8 @@ void update_editor() {
         const f32 mouse_sensitivity = 32.0f;
 
         if (window->cursor_locked) {   
-            camera.yaw   -= input->mouse_offset_x * mouse_sensitivity * dt;
-            camera.pitch += input->mouse_offset_y * mouse_sensitivity * dt;
+            camera.yaw   -= input->cursor_offset_x * mouse_sensitivity * dt;
+            camera.pitch += input->cursor_offset_y * mouse_sensitivity * dt;
             camera.pitch  = Clamp(camera.pitch, -89.0f, 89.0f);
         }
                     
@@ -1513,13 +1513,20 @@ void draw_dev_stats() {
 		pos.y -= atlas->line_height;
 
         const auto input = get_input_table();
-        count = stbsp_snprintf(text, sizeof(text), "cursor %d %d", input->mouse_x, input->mouse_y);
+        count = stbsp_snprintf(text, sizeof(text), "cursor %d %d (viewport %.0f %.0f)", input->cursor_x, input->cursor_y, screen_viewport.cursor_pos.x, screen_viewport.cursor_pos.y);
         pos.x = screen_viewport.width - get_line_width_px(atlas, make_string(text, count)) - padding;
         ui_text_with_shadow(make_string(text, count), pos, COLOR32_WHITE, shadow_offset, COLOR32_BLACK, Z);
 		pos.y -= atlas->line_height;
 
         const auto layer = get_program_layer();
         count = stbsp_snprintf(text, sizeof(text), "layer %S", to_string(layer->type));
+        pos.x = screen_viewport.width - get_line_width_px(atlas, make_string(text, count)) - padding;
+        ui_text_with_shadow(make_string(text, count), pos, COLOR32_WHITE, shadow_offset, COLOR32_BLACK, Z);
+		pos.y -= atlas->line_height;
+
+        // @Cleanup: specify memory barrier target.
+        gpu_memory_barrier();
+        count = stbsp_snprintf(text, sizeof(text), "gpu pick data %.2f %u", gpu_picking_data->depth, gpu_picking_data->eid);
         pos.x = screen_viewport.width - get_line_width_px(atlas, make_string(text, count)) - padding;
         ui_text_with_shadow(make_string(text, count), pos, COLOR32_WHITE, shadow_offset, COLOR32_BLACK, Z);
 		pos.y -= atlas->line_height;

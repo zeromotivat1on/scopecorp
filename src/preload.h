@@ -477,6 +477,20 @@ T &array_add(Array<T> &array, const T &item) {
 }
 
 template <typename T>
+s32 array_remove_swap(Array<T> &array, const T &item) {
+    s32 index = INDEX_NONE;
+    for (s32 i = 0; i < (s32)array.count; ++i) {
+        auto &current = array[i];
+        if (current == item) {
+            current = array_pop(array);
+            index = i;
+        }
+    }
+    
+    return index;
+}
+
+template <typename T>
 T &array_pop(Array<T> &array) {
     Assert(array.count > 0);
     auto &item = array[array.count - 1];

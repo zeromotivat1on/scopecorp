@@ -78,10 +78,11 @@ static bool load_game_pak(String path) {
         switch (entry.user_value) {
         case ASSET_TYPE_SHADER:    new_shader    (entry.name, make_string(entry.buffer)); break;
         case ASSET_TYPE_TEXTURE:   new_texture   (atom, entry.buffer); break;
-        case ASSET_TYPE_MATERIAL:  new_material  (entry.name, make_string(entry.buffer)); break;
-        case ASSET_TYPE_SOUND:     new_sound     (entry.name, entry.buffer); break;
-        case ASSET_TYPE_FLIP_BOOK: new_flip_book (entry.name, make_string(entry.buffer)); break;
-        case ASSET_TYPE_MESH:      new_mesh      (entry.name, entry.buffer); break;
+        case ASSET_TYPE_MATERIAL:  new_material  (atom, make_string(entry.buffer)); break;
+        case ASSET_TYPE_SOUND:     new_sound     (atom, entry.buffer); break;
+        case ASSET_TYPE_FLIP_BOOK: new_flip_book (atom, make_string(entry.buffer)); break;
+            // @Todo: determine mesh file format instead of hardcode.
+        case ASSET_TYPE_MESH:      new_mesh      (atom, entry.buffer, MESH_FILE_FORMAT_OBJ); break;
         case ASSET_TYPE_FONT:      new_font_atlas(entry.name, entry.buffer); break;
         }
 
@@ -115,14 +116,14 @@ void load_game_assets() {
     {
         #include "missing_material.h"
 
-        global_materials.missing = new_material(S("missing.material"), make_string((u8 *)missing_material_source));
+        global_materials.missing = new_material(ATOM("missing"), make_string((u8 *)missing_material_source));
     }
      
     {
         #include "missing_mesh.h"
 
         const auto buffer = make_buffer((void *)missing_mesh_obj, cstring_count(missing_mesh_obj));
-        global_meshes.missing = new_mesh(S("missing.obj"), buffer);
+        global_meshes.missing = new_mesh(ATOM("missing"), buffer, MESH_FILE_FORMAT_OBJ);
     }
      
     load_game_pak(GAME_PAK_PATH);
@@ -183,20 +184,6 @@ void load_game_assets() {
     }
 }
 
-static const String player_move_flip_book_lut[DIRECTION_COUNT] = {
-    S("player_move_back"),
-    S("player_move_right"),
-    S("player_move_left"),
-    S("player_move_forward"),
-};
-
-static const Atom player_idle_texture_lut[DIRECTION_COUNT] = {
-    ATOM("player_idle_back"),
-    ATOM("player_idle_right"),
-    ATOM("player_idle_left"),
-    ATOM("player_idle_forward"),
-};
-
 void on_push_base(Program_Layer *layer) {
     Assert(layer->type == PROGRAM_LAYER_TYPE_BASE);
 }
@@ -231,22 +218,22 @@ bool on_event_base(Program_Layer *layer, const Window_Event *e) {
         const auto key = e->key_code;
         auto keys = &input->keys;
 
-        if (e->press) set_bit  (keys, key);
-        else          clear_bit(keys, key);
+        if (e->press || e->repeat) set_bit(keys, key);
+        else clear_bit(keys, key);
         
         break;
     }
     case WINDOW_EVENT_MOUSE_MOVE: {
-        input->mouse_offset_x =  e->x;
-        input->mouse_offset_y = -e->y;
+        input->cursor_offset_x =  e->x;
+        input->cursor_offset_y = -e->y;
 
         auto window = get_window();
         if (window->cursor_locked) {
-            const auto x = input->mouse_x = window->width  / 2;
-            const auto y = input->mouse_y = window->height / 2;
+            const auto x = input->cursor_x = window->width  / 2;
+            const auto y = input->cursor_y = window->height / 2;
             set_cursor(window, x, y);
         } else {
-            get_cursor(window, &input->mouse_x, &input->mouse_y);
+            get_cursor(window, &input->cursor_x, &input->cursor_y);
         }
             
         break;
@@ -268,7 +255,7 @@ bool on_event_input_mapping(Program_Layer *layer, const Window_Event *e) {
     case WINDOW_EVENT_MOUSE_BUTTON: {
         // Ignore mouse clicks on title bar.
         const auto input = get_input_table();
-        if (e->type == WINDOW_EVENT_MOUSE_BUTTON && input->mouse_y < 0) break;
+        if (e->type == WINDOW_EVENT_MOUSE_BUTTON && input->cursor_y < 0) break;
 
         const auto mapping = table_find(layer->input_mapping_table, e->key_code);
         if (mapping) {
@@ -639,6 +626,20 @@ void init_program_layers() {
 //     screen_report("Loaded level %S", path);
 // }
 
+static const Atom player_move_flip_book_lut[DIRECTION_COUNT] = {
+    ATOM("player_move_back"),
+    ATOM("player_move_right"),
+    ATOM("player_move_left"),
+    ATOM("player_move_forward"),
+};
+
+static const Atom player_idle_texture_lut[DIRECTION_COUNT] = {
+    ATOM("player_idle_back"),
+    ATOM("player_idle_right"),
+    ATOM("player_idle_left"),
+    ATOM("player_idle_forward"),
+};
+
 void on_push_game(Program_Layer *layer) {
     Assert(layer->type == PROGRAM_LAYER_TYPE_GAME);
     screen_report("Game");
@@ -647,13 +648,15 @@ void on_push_game(Program_Layer *layer) {
 void on_pop_game(Program_Layer *layer) {
     Assert(layer->type == PROGRAM_LAYER_TYPE_GAME);
 
-    auto manager = get_entity_manager();
+    const auto audio_player = get_audio_player();
+    For (audio_player->playing_sounds) stop_sound(it);
 
+    // @Todo: make separate entity managers for game and editor.
+    auto manager = get_entity_manager();
     auto player = get_player(manager);
     player->velocity = Vector3_zero;
-    // @Cleanup: it would be better to have an array of currently playing sounds.
-    stop_sound(player->move_sound);
-    get_material(player->material)->diffuse_texture = get_texture(player_idle_texture_lut[player->move_direction]);
+
+    get_material(player->material)->diffuse_texture = player_idle_texture_lut[player->move_direction];
 }
 
 bool on_event_game(Program_Layer *layer, const Window_Event *e) {
@@ -784,7 +787,7 @@ void simulate_game() {
 
         auto material = get_material(player->material);
         if (player->velocity == Vector3_zero) {
-            material->diffuse_texture = get_texture(player_idle_texture_lut[player->move_direction]);
+            material->diffuse_texture = player_idle_texture_lut[player->move_direction];
         } else {
             player->move_flip_book = player_move_flip_book_lut[player->move_direction];
 

@@ -7,8 +7,7 @@
 
 inline const auto SHADER_SOURCE_EXT = S(".sl");
 inline const auto SHADER_HEADER_EXT = S(".slh");
-
-#pragma once
+inline const auto LOG_IDENT_SLANG   = S("slang");
 
 #ifdef OPEN_GL
 #define SHADER_FILE_EXT S(".glsl")
@@ -68,8 +67,8 @@ struct Shader {
 };
 
 struct Shader_Platform {
-    Table <String, Shader_File>   shader_file_table;
-    Table <String, struct Shader> shader_table;
+    Table <String, Shader_File> shader_file_table;
+    Table <String, Shader>      shader_table;
 
     // For now all constant buffers live here, so it means each cbuffer name
     // should be unique across all shader codebase which seems kinda bad.

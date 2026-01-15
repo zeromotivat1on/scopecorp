@@ -88,8 +88,7 @@ void init_ui() {
         attributes[1].binding = 1;
         attributes[1].offset  = 0;
 
-        render.material_name = S("ui_element");
-        render.material = get_material(render.material_name);
+        render.material = ATOM("ui_element");
         render.vertex_input = gpu_new_vertex_input(bindings, carray_count(bindings), attributes, carray_count(attributes));
     }
         
@@ -124,8 +123,7 @@ void init_ui() {
         attributes[1].binding = 1;
         attributes[1].offset  = 0;
         
-        render.material_name = S("ui_element");
-        render.material = get_material(render.material_name);
+        render.material = ATOM("ui_element");
         render.vertex_input = gpu_new_vertex_input(bindings, carray_count(bindings), attributes, carray_count(attributes));
     }
 
@@ -211,8 +209,7 @@ void init_ui() {
         attributes[7].binding = 4;
         attributes[7].offset  = 48;
         
-        render.material_name = S("ui_text");
-        render.material = get_material(render.material_name);
+        render.material = ATOM("ui_text");
         render.vertex_input = gpu_new_vertex_input(bindings, carray_count(bindings), attributes, carray_count(attributes));
     }
 }
@@ -228,7 +225,7 @@ u16 ui_button(uiid id, String text, UI_Button_Style style) {
     auto text_color = style.front_color.cold;
     auto quad_color = style.back_color.cold;
 
-    if (inside(screen_viewport.mouse_pos, p0, p1)) {
+    if (inside(screen_viewport.cursor_pos, p0, p1)) {
         if (id != ui.id_hot) {
             bits |= UI_HOT_BIT;
         }
@@ -286,7 +283,7 @@ u16 ui_input_text(uiid id, char *text, u32 size, UI_Input_Style style) {
 
     auto count = cstring_count(text);
 
-    if (inside(screen_viewport.mouse_pos, p0, p1)) {
+    if (inside(screen_viewport.cursor_pos, p0, p1)) {
         if (id != ui.id_hot) {
             bits |= UI_HOT_BIT;
         }
@@ -552,12 +549,11 @@ void ui_text(String text, Vector2 pos, Color32 color, f32 z, const Font_Atlas *a
     const auto image_view = gpu_get_image_view(atlas->texture->image_view);
     const auto image      = gpu_get_image(image_view->image);
     
-    auto material = render.material;
-    if (!material) material = render.material = get_material(render.material_name);
+    const auto material = get_material(render.material);
     
     Render_Primitive prim;
     prim.topology = GPU_TOPOLOGY_TRIANGLE_STRIP;
-    prim.shader = material->shader;
+    prim.shader = get_shader(material->shader);
     prim.texture = atlas->texture;
     prim.vertex_input = render.vertex_input;
     prim.vertex_offsets = New(u64, 5, __temporary_allocator);
@@ -655,12 +651,11 @@ void ui_quad(Vector2 p0, Vector2 p1, Color32 color, f32 z) {
     auto &render = ui.quad_render;
     Assert(render.quad_count < render.MAX_QUADS);
 
-    auto material = render.material;
-    if (!material) material = render.material = get_material(render.material_name);
+    const auto material = get_material(render.material);
         
     Render_Primitive prim;
     prim.topology = GPU_TOPOLOGY_TRIANGLE_STRIP;
-    prim.shader = material->shader;
+    prim.shader = get_shader(material->shader);
     prim.vertex_input = render.vertex_input;
     prim.vertex_offsets = New(u64, 2, __temporary_allocator);
     prim.vertex_offsets[0] = render.positions_offset;
@@ -701,12 +696,11 @@ void ui_line(Vector2 start, Vector2 end, Color32 color, f32 z) {
     auto &render = ui.line_render;
     Assert(render.line_count < render.MAX_LINES);
 
-    auto material = render.material;
-    if (!material) material = render.material = get_material(render.material_name);
+    const auto material = get_material(render.material);
     
     Render_Primitive prim;
     prim.topology = GPU_TOPOLOGY_LINES;
-    prim.shader = material->shader;
+    prim.shader = get_shader(material->shader);
     prim.vertex_input = render.vertex_input;
     prim.vertex_offsets = New(u64, 2, __temporary_allocator);
     prim.vertex_offsets[0] = render.positions_offset;

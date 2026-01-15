@@ -97,7 +97,7 @@ void gpu_init_frontend() {
     gpu_read_allocator.buffer  = gpu_new_buffer(GPU_BUFFER_TYPE_STAGING_CACHED,   Megabytes(1));
 
     {
-        Gpu_Vertex_Binding bindings[3];
+        Gpu_Vertex_Binding bindings[4];
         bindings[0].input_rate = GPU_VERTEX_INPUT_RATE_VERTEX;
         bindings[0].index      = 0;
         bindings[0].stride     = 12;
@@ -107,8 +107,11 @@ void gpu_init_frontend() {
         bindings[2].input_rate = GPU_VERTEX_INPUT_RATE_VERTEX;
         bindings[2].index      = 2;
         bindings[2].stride     = 8;
+        bindings[3].input_rate = GPU_VERTEX_INPUT_RATE_INSTANCE;
+        bindings[3].index      = 3;
+        bindings[3].stride     = 4;
 
-        Gpu_Vertex_Attribute attributes[3];
+        Gpu_Vertex_Attribute attributes[4];
         attributes[0].type    = GPU_VERTEX_ATTRIBUTE_TYPE_V3;
         attributes[0].index   = 0;
         attributes[0].binding = 0;
@@ -121,6 +124,10 @@ void gpu_init_frontend() {
         attributes[2].index   = 2;
         attributes[2].binding = 2;
         attributes[2].offset  = 0;
+        attributes[3].type    = GPU_VERTEX_ATTRIBUTE_TYPE_U32;
+        attributes[3].index   = 3;
+        attributes[3].binding = 3;
+        attributes[3].offset  = 0;
         
         gpu.vertex_input_entity = gpu_new_vertex_input(bindings, carray_count(bindings), attributes, carray_count(attributes));
     }
@@ -291,9 +298,12 @@ void render_one_frame() {
     {
         const auto &res    = Vector2((f32)screen_viewport.width, (f32)screen_viewport.height);
         const auto &ortho  = screen_viewport.orthographic_projection;
+        //const auto &cpos   = screen_viewport.cursor_pos;
+        const auto input   = get_input_table();
+        const auto &cpos   = Vector2((f32)input->cursor_x, (f32)input->cursor_y);
         const auto &camera = manager->camera;
         
-        set_constant_value(cv_viewport_cursor_pos, screen_viewport.mouse_pos);
+        set_constant_value(cv_viewport_cursor_pos, cpos);
         set_constant_value(cv_viewport_resolution, res);
         set_constant_value(cv_viewport_ortho,      ortho);
         set_constant_value(cv_camera_position,     camera.position);
@@ -454,7 +464,7 @@ void render_one_frame() {
 
     {
         static auto shader = get_shader(S("frame_buffer"));
-        static auto quad   = get_mesh(S("quad"));
+        static auto quad   = get_mesh(ATOM("quad"));
 
         const auto framebuffer = gpu_get_framebuffer(viewport.framebuffer);
         
@@ -592,7 +602,7 @@ void resize(Viewport &viewport, u32 width, u32 height) {
                                                GPU_IMAGE_FORMAT_DEPTH_24_STENCIL_8,
                                                internal_width, internal_height);
     
-    log("Resized viewport 0x%X to %dx%d", &viewport, internal_width, internal_height);
+    log("Resized viewport 0x%X to %dx%d", &viewport, viewport.width, viewport.height);
 }
 
 static Render_Key get_entity_render_key(Entity *e) {
@@ -643,7 +653,7 @@ void render_entity(Entity *e) {
     // @Todo: outline mouse picked entity as before.
     auto mouse_picked = e->bits & E_MOUSE_PICKED_BIT;
 
-    auto shader     = material->shader;
+    auto shader     = get_shader(material->shader);
     auto &cbi_table = material->cbi_table;
     
     Render_Primitive prim;
@@ -653,7 +663,7 @@ void render_entity(Entity *e) {
     prim.shader = shader;
 
     if (material->diffuse_texture) {
-        prim.texture = material->diffuse_texture;
+        prim.texture = get_texture(material->diffuse_texture);
     }
 
     prim.cbis.allocator = __temporary_allocator;
@@ -875,7 +885,10 @@ void draw_ray(const Ray &ray, f32 length, Color32 color) {
 Triangle_Mesh *new_mesh(String path) {
     auto contents = read_file(path, __temporary_allocator);
     if (!is_valid(contents)) return null;
-    return new_mesh(path, contents);
+    const auto name   = get_file_name_no_ext(path);
+    const auto atom   = make_atom(name);
+    const auto format = get_mesh_file_format(path);
+    return new_mesh(atom, contents, format);
 }
 
 struct Obj_Vertex_Key { s32 pos; s32 norm; s32 uv; };
@@ -883,20 +896,12 @@ bool operator==(const Obj_Vertex_Key& a, const Obj_Vertex_Key& b) {
     return a.pos == b.pos && a.norm == b.norm && a.uv == b.uv;
 }
 
-Triangle_Mesh *new_mesh(String path, Buffer contents) {
+Triangle_Mesh *new_mesh(Atom name, Buffer contents, Mesh_File_Format format) {
 #define USE_TINYOBJLOADER 1
     
-    const auto obj_ext = S("obj"); 
-    
-    path = copy_string(path);
-    auto name = get_file_name_no_ext(path);
-    auto ext  = get_extension(path);
-
     auto &tri_mesh = mesh_table[name];
-    tri_mesh.path = path;
-    tri_mesh.name = name;
     
-    if (ext == obj_ext) {
+    if (format == MESH_FILE_FORMAT_OBJ) {
 #if USE_TINYOBJLOADER
         const auto LOG_IDENT_TINYOBJ = S("tinyobj");
         const auto obj_data = std::string((const char *)contents.data, contents.size);
@@ -922,7 +927,7 @@ Triangle_Mesh *new_mesh(String path, Buffer contents) {
         }
 
         if (!ret) {
-            log(LOG_ERROR, "Failed to load %S", path);
+            log(LOG_ERROR, "Failed to load obj mesh %S", get_string(name));
             return &tri_mesh;
         }
 
@@ -1078,10 +1083,11 @@ Triangle_Mesh *new_mesh(String path, Buffer contents) {
         copy(gpu_uvs, uvs.items, uvs_size);
 
         tri_mesh.vertex_input = gpu.vertex_input_entity;
-        tri_mesh.vertex_offsets    = New(u64, 3);
+        tri_mesh.vertex_offsets    = New(u64, 4);
         tri_mesh.vertex_offsets[0] = positions_offset;
         tri_mesh.vertex_offsets[1] = normals_offset;
         tri_mesh.vertex_offsets[2] = uvs_offset;
+        tri_mesh.vertex_offsets[3] = 0;
         
         tri_mesh.vertex_count = positions.count;
 
@@ -1095,17 +1101,17 @@ Triangle_Mesh *new_mesh(String path, Buffer contents) {
         tri_mesh.index_offset = index_offset;
         tri_mesh.first_index  = (u32)(index_offset) / sizeof(u32);
     } else {
-        log(LOG_ERROR, "Unsupported mesh extension in %S", path);
+        log(LOG_ERROR, "Unsupported mesh file format %d in %S", format, get_string(name));
     }
 
     return &tri_mesh;
 }
 
-Triangle_Mesh *get_mesh(String name) {
+Triangle_Mesh *get_mesh(Atom name) {
     auto mesh = table_find(mesh_table, name);
     if (mesh) return mesh;
 
-    log(LOG_ERROR, "Failed to find mesh %S", name);
+    log(LOG_ERROR, "Failed to find mesh %S", get_string(name));
     return global_meshes.missing;
 }
 
@@ -1177,9 +1183,15 @@ void flush(Render_Batch *batch) {
 
         gpu_cmd_shader      (buf, prim->shader);
         gpu_cmd_vertex_input(buf, prim->vertex_input);
-        
+                
         // @Cleanup
         const auto vertex_input = gpu_get_vertex_input(prim->vertex_input);
+
+        if (prim->is_entity) {
+            // If its entity, then the last binding is eid.
+            prim->vertex_offsets[vertex_input->binding_count - 1] = prim->eid_offset;
+        }
+
         for (u32 j = 0; j < vertex_input->binding_count; ++j) {
             const auto &binding = vertex_input->bindings[j];
             const auto offset = prim->vertex_offsets[j];
@@ -1188,19 +1200,6 @@ void flush(Render_Batch *batch) {
             gpu_cmd_index_buffer (buf, gpu_write_allocator.buffer);
         }
         
-        if (prim->is_entity) {
-            // @Todo
-            // For entity render we need extra vertex binding for eid.
-            // auto binding = New(Vertex_Binding, 1, __temporary_allocator);
-
-            // binding->binding_index = prim->vertex_descriptor->binding_count;
-            // binding->offset = prim->eid_offset;
-            // binding->component_count = 1;
-            // binding->components[0] = { .type = VC_U32, .advance_rate = 1 };
-            
-            // gpu_cmd_vertex_binding(buf, binding, prim->vertex_descriptor->handle);
-        }
-
         For (prim->cbis) {
             gpu_cmd_cbuffer_instance(buf, it);
         }
@@ -1573,22 +1572,19 @@ u32 gpu_vertex_attribute_dimension(Gpu_Vertex_Attribute_Type type) {
 Flip_Book *new_flip_book(String path) {
     auto contents = read_text_file(path, __temporary_allocator);
     if (!contents) return null;
-    return new_flip_book(path, contents);
+    auto name = get_file_name_no_ext(path);
+    auto atom = make_atom(name);
+    return new_flip_book(atom, contents);
 }
 
-Flip_Book *new_flip_book(String path, String contents) {
+Flip_Book *new_flip_book(Atom name, String contents) {
     Text_File_Handler text;
     text.allocator = __temporary_allocator;
     
     defer { reset(&text); };
     init_from_memory(&text, contents);
 
-    path = copy_string(path);
-    auto name = get_file_name_no_ext(path);
-
     auto &book = flip_book_table[name];
-    book.name = name;
-    book.path = path;
     array_clear(book.frames);
     
     while (1) {
@@ -1606,19 +1602,19 @@ Flip_Book *new_flip_book(String path, String contents) {
             auto texture_name = get_file_name_no_ext(tokens[2]);
 
             Flip_Book_Frame frame;
-            frame.texture    = get_texture(make_atom(texture_name));
+            frame.texture    = make_atom(texture_name);
             frame.frame_time = (f32)frame_time;
 
             array_add(book.frames, frame);
         } else {
-            log(LOG_ERROR, "First token is not known flip book token in %S", path);
+            log(LOG_ERROR, "First token is not known flip book token in %S", get_string(name));
         }
     }
 
     return &book;
 }
 
-Flip_Book *get_flip_book(String name) {
+Flip_Book *get_flip_book(Atom name) {
     return table_find(flip_book_table, name);
 }
 
@@ -1627,12 +1623,12 @@ Flip_Book_Frame *get_current_frame(Flip_Book *flip_book) {
 }
 
 void update(Flip_Book *flip_book, f32 dt) {
-    flip_book->frame_time += dt;
+    flip_book->update_time += dt;
 
     auto frame = get_current_frame(flip_book);
-    if (flip_book->frame_time >= frame->frame_time) {
+    if (flip_book->update_time >= frame->frame_time) {
         flip_book->current_frame = (flip_book->current_frame + 1) % flip_book->frames.count;
-        flip_book->frame_time = 0.0f;
+        flip_book->update_time = 0.0f;
     }
 }
 
@@ -1748,11 +1744,7 @@ static Shader_Type get_shader_type(SlangStage stage) {
 
 Shader_File *new_shader_file(String path) {
     const auto source = read_text_file(path);
-    if (!is_valid(source)) {
-        log(LOG_ERROR, "Failed to read shader file %S", path);
-        return null;
-    }
-
+    if (!source) return null;    
     return new_shader_file(path, source);
 }
 
@@ -1780,12 +1772,12 @@ Shader_File *new_shader_file(String path, String source) {
     auto *module = slang_loadModuleFromSource(slang_local_session, cpath, cpath, (char *)source.data, source.size, diagnostics.writeRef());
 
     if (diagnostics) {
-        log(LOG_ERROR, "Slang: %s", (const char *)diagnostics->getBufferPointer());
+        log(LOG_IDENT_SLANG, LOG_ERROR, "%s", (const char *)diagnostics->getBufferPointer());
     }
 
     if (!module) {
         table_remove(platform.shader_file_table, path);
-        log(LOG_ERROR, "Failed to load slang shader module from %S", path);
+        log(LOG_IDENT_SLANG, LOG_ERROR, "Failed to load shader module for %S", path);
         return null;
     }
     
@@ -1838,7 +1830,7 @@ static Constant_Type infer_constant_type(slang::TypeLayoutReflection *layout) {
         CT_ERROR, // UInt16
     };
 
-    constexpr Constant_Type Vectortor_lut[] = {
+    constexpr Constant_Type vector_lut[] = {
         CT_ERROR, CT_ERROR, CT_VECTOR2, CT_VECTOR3, CT_VECTOR4
     };
 
@@ -1848,7 +1840,7 @@ static Constant_Type infer_constant_type(slang::TypeLayoutReflection *layout) {
         const auto scalar = layout->getElementTypeLayout()->getScalarType();
         const auto type   = scalar_lut[scalar];
         if (type == CT_ERROR) return CT_ERROR;
-        return Vectortor_lut[layout->getElementCount()];
+        return vector_lut[layout->getElementCount()];
     }
     case slang::TypeReflection::Kind::Matrix: {
         const auto scalar = layout->getElementTypeLayout()->getScalarType();
@@ -1899,7 +1891,7 @@ Compiled_Shader compile_shader_file(Shader_File &shader_file) {
         slang_local_session->createCompositeComponentType(components, carray_count(components), program.writeRef());
 
         if (!program) {
-            log(LOG_ERROR, "Failed to create shader program %s from %S", cname, path);
+            log(LOG_IDENT_SLANG, LOG_ERROR, "Failed to create shader program %s from %S", cname, path);
             return {};
         }
 
@@ -1908,11 +1900,11 @@ Compiled_Shader compile_shader_file(Shader_File &shader_file) {
         program->link(linked_program.writeRef(), diagnostics.writeRef());
 
         if (diagnostics) {
-            log(LOG_ERROR, "Slang: %s", (const char *)diagnostics->getBufferPointer());
+            log(LOG_IDENT_SLANG, LOG_ERROR, "%s", (const char *)diagnostics->getBufferPointer());
         }
 
         if (!linked_program) {
-            log(LOG_ERROR, "Failed to link shader program %s for %S", cname, path);
+            log(LOG_IDENT_SLANG, LOG_ERROR, "Failed to link shader program %s for %S", cname, path);
             return {};
         }
         
@@ -2024,11 +2016,11 @@ Compiled_Shader compile_shader_file(Shader_File &shader_file) {
                                           kernel_blob.writeRef(), diagnostics.writeRef());
     
         if (diagnostics) {
-            log(LOG_ERROR, "Slang: %s", (const char *)diagnostics->getBufferPointer());
+            log(LOG_IDENT_SLANG, LOG_ERROR, "%s", (const char *)diagnostics->getBufferPointer());
         }
 
         if (!kernel_blob) {
-            log(LOG_ERROR, "Failed to get compiled shader code from %S", path);
+            log(LOG_IDENT_SLANG, LOG_ERROR, "Failed to compile shader code for %s from %S", cname, path);
             return {};
         }
     
@@ -2193,6 +2185,7 @@ Gpu_Image_Format gpu_image_format_from_channel_count(u32 channel_count) {
 
 Texture *new_texture(String path) {
     auto contents = read_file(path, __temporary_allocator);
+    if (!contents) return null;
     auto name = get_file_name_no_ext(path);
     auto atom = make_atom(name);
     return new_texture(atom, contents);
@@ -2258,10 +2251,12 @@ bool is_texture_path(String path) {
 Material *new_material(String path) {
     auto contents = read_text_file(path, __temporary_allocator);
     if (!contents) return null;
-    return new_material(path, contents);
+    auto name = get_file_name_no_ext(path);
+    auto atom = make_atom(name);
+    return new_material(atom, contents);
 }
 
-Material *new_material(String path, String contents) {
+Material *new_material(Atom name, String contents) {
     const auto shader_token           = S("s");
     const auto color_token            = S("c");
     const auto ambient_texture_token  = S("ta");
@@ -2278,19 +2273,8 @@ Material *new_material(String path, String contents) {
     
     defer { reset(&text); };
     init_from_memory(&text, contents);
-
-    if (get_extension(path) != MATERIAL_EXT) {
-        log(LOG_ERROR, "Failed to create new material with unsupported extension %S", path);
-        return null;
-    }
     
-    path = copy_string(path);
-    auto name = get_file_name_no_ext(path);
-
     auto &material = material_table[name];
-    material.name = name;
-    material.path = path;
-
     table_clear  (material.cbi_table);
     table_realloc(material.cbi_table, 8);
 
@@ -2306,12 +2290,13 @@ Material *new_material(String path, String contents) {
             // when returned token contains part of new line character '\' due to not
             // fully correct *split* function implementation.
             auto shader_name = trim(get_file_name_no_ext(tokens[1]));
-            material.shader = get_shader(shader_name);
+            material.shader = shader_name;
 
             // @Cleanup: not sure whether its a good idea to create cbuffer instance for
             // each cbuffer in a shader, maybe we should add a lazy version that will create
             // instances when needed or something.
-            For (material.shader->resource_table) {
+            auto shader = get_shader(material.shader);
+            For (shader->resource_table) {
                 if (it.value.type == GPU_CONSTANT_BUFFER) {
                     auto cb = get_constant_buffer(it.key);
                     if (!cb) {
@@ -2331,15 +2316,15 @@ Material *new_material(String path, String contents) {
         } else if (tokens[0] == ambient_texture_token) {
             // @Cleanup @Hack
             auto texture_name = trim(get_file_name_no_ext(tokens[1]));
-            material.ambient_texture = get_texture(make_atom(texture_name));
+            material.ambient_texture = make_atom(texture_name);
         } else if (tokens[0] == diffuse_texture_token) {
             // @Cleanup @Hack
             auto texture_name = trim(get_file_name_no_ext(tokens[1]));
-            material.diffuse_texture = get_texture(make_atom(texture_name));
+            material.diffuse_texture = make_atom(texture_name);
         } else if (tokens[0] == specular_texture_token) {
             // @Cleanup @Hack
             auto texture_name = trim(get_file_name_no_ext(tokens[1]));
-            material.specular_texture = get_texture(make_atom(texture_name));
+            material.specular_texture = make_atom(texture_name);
         } else if (tokens[0] == ambient_light_token) {
             auto x = (f32)string_to_float(tokens[1]);
             auto y = (f32)string_to_float(tokens[2]);
@@ -2364,7 +2349,7 @@ Material *new_material(String path, String contents) {
         } else {
             // @Hack: skip extra empty lines logging.
             if (tokens[0].data[0] != '\n' && tokens[0].data[0] != '\r') {
-                log(LOG_ERROR, "First token %S is not known material token in %S", tokens[0], path);
+                log(LOG_ERROR, "First token %S is not known material token in %S", tokens[0], get_string(name));
             }
         }
     }
@@ -2372,15 +2357,14 @@ Material *new_material(String path, String contents) {
     return &material;
 }
 
-Material *get_material(String name) {
+Material *get_material(Atom name) {
     auto mat = table_find(material_table, name);
     if (mat) return mat;
 
-    log(LOG_ERROR, "Failed to find material %S", name);
+    log(LOG_ERROR, "Failed to find material %S", get_string(name));
     return global_materials.missing;
 }
 
 bool has_transparency(const Material *material) {
-    return material->use_blending
-        || material->base_color.w < 1.0f;
+    return material->use_blending || material->base_color.w < 1.0f;
 }

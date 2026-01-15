@@ -47,37 +47,39 @@ struct Entity {
     Pid         first_child;
     Pid         next_sibling;
     Pid         prev_sibling;
+    
+    Atom        mesh;
+    Atom        material;
+    Vector3     position;
+    Vector3     scale;
+    Quaternion  orientation;
+    Matrix4     object_to_world;
+    Vector2     uv_scale;
+    Vector3     uv_offset;
+    Vector3     velocity;
+    AABB        aabb;
 
-    String     mesh;
-    String     material;
-    Vector3    position;
-    Vector3    scale;
-    Quaternion orientation;
-    Matrix4    object_to_world;
-    Vector2    uv_scale;
-    Vector3    uv_offset;
-    Vector3    velocity;
-    AABB       aabb;
+    // @Todo: use union for those?
 
-    f32       move_speed;
-    Direction move_direction;
-    String    move_flip_book;
-    String    move_sound;
-    Vector3   camera_offset;
-    Vector3   camera_dead_zone;
-    f32       camera_follow_speed;
+    f32         move_speed;
+    Direction   move_direction;
+    Atom        move_flip_book;
+    Atom        move_sound;
+    Vector3     camera_offset;
+    Vector3     camera_dead_zone;
+    f32         camera_follow_speed;
 
-    Vector3 ambient_factor;
-    Vector3 diffuse_factor;
-    Vector3 specular_factor;
-    f32     attenuation_constant;
-    f32     attenuation_linear;
-    f32     attenuation_quadratic;
+    Vector3     ambient_factor;
+    Vector3     diffuse_factor;
+    Vector3     specular_factor;
+    f32         attenuation_constant;
+    f32         attenuation_linear;
+    f32         attenuation_quadratic;
 
-    String sound;
-    bool   sound_play_spatial;
+    Atom        sound;
+    bool        sound_play_spatial;
 
-    Vector3 portal_destination;
+    Vector3     portal_destination;
 
     explicit operator bool() const { return type != E_NONE; }
 };

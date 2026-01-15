@@ -21,12 +21,8 @@ static void al_check_error(Source_Code_Location loc = __location) {
     }
 }
 
-static Audio_Player *audio_player = null;
-
 bool init_audio_player() {
-    Assert(!audio_player);
-
-    auto player = audio_player = New(Audio_Player);
+    auto player = get_audio_player();
     
     auto device = alcOpenDevice(null);
 	if (!device) {
@@ -34,7 +30,7 @@ bool init_audio_player() {
         return false;
 	}
 
-    player->audio_device._p = device;
+    player->audio_device._ptr = device;
     
     auto context = alcCreateContext(device, null);
 	if (!context) {
@@ -42,7 +38,7 @@ bool init_audio_player() {
         return false;
 	}
 
-    player->audio_context._p = context;
+    player->audio_context._ptr = context;
     
 	if (!alcMakeContextCurrent(context)) {
 		log(LOG_ERROR, "Failed to make alc context current");
@@ -50,8 +46,6 @@ bool init_audio_player() {
 	}
 
     table_realloc(player->sound_table, 64);
-
-    add_directory_files(&player->sound_catalog, PATH_SOUND(""), true);
     
     return true;
 }
@@ -67,26 +61,15 @@ static s32 to_al_audio_format(s32 channel_count, s32 bit_rate) {
 	}
 }
 
-Sound *new_sound(String path) {
-    const auto mark = get_temporary_storage_mark();
-    defer { set_temporary_storage_mark(mark); };
-    auto contents = read_file(path, __temporary_allocator);
-    return new_sound(path, contents);
-}
-
-Sound *new_sound(String path, Buffer contents) {
+Sound *new_sound(Atom name, Buffer contents) {
     if (!is_valid(contents)) return null;
 
     auto wav = parse_wav(contents.data);
     if (!wav.sampled_data) return null;
 
-    path = copy_string(path);
-    auto name = get_file_name_no_ext(path);
-
     auto player = get_audio_player();
     auto &sound = player->sound_table[name];
 
-    sound.path          = path;
     sound.name          = name;
     sound.bits          = 0;
     sound.channel_count = wav.header.channel_count;
@@ -112,7 +95,7 @@ Sound *new_sound(String path, Buffer contents) {
     return &sound;
 }
 
-Sound *get_sound(String name) {
+Sound *get_sound(Atom name) {
     return table_find(get_audio_player()->sound_table, name);
 }
 
@@ -132,11 +115,14 @@ void play_sound(const Sound *sound, Vector3 position) {
         alSourcePlay(sound->source._u32);
     }
 
+    array_add(get_audio_player()->playing_sounds, sound->name);
+
     al_check_error();
 }
 
 void stop_sound(const Sound *sound) {
     alSourceStop(sound->source._u32);
+    array_remove_swap(get_audio_player()->playing_sounds, sound->name);
     al_check_error();
 }
 
@@ -150,7 +136,7 @@ void set_looping(Sound *sound, bool loop) {
     alSourcei(sound->source._u32, AL_LOOPING, loop);
 }
 
-void play_sound        (String name)            { play_sound(get_sound(name)); }
-void play_sound        (String name, Vector3 p) { play_sound(get_sound(name), p); }
-void stop_sound        (String name)            { stop_sound(get_sound(name)); }
-void set_sound_looping (String name, bool loop) { set_looping(get_sound(name), loop); }
+void play_sound        (Atom name)            { play_sound(get_sound(name)); }
+void play_sound        (Atom name, Vector3 p) { play_sound(get_sound(name), p); }
+void stop_sound        (Atom name)            { stop_sound(get_sound(name)); }
+void set_sound_looping (Atom name, bool loop) { set_looping(get_sound(name), loop); }

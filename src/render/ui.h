@@ -82,8 +82,7 @@ struct UI_Context {
         u64       colors_offset;
         u32       line_count;
         u32       vertex_input;
-        Material *material;
-        String    material_name;
+        Atom      material;
     };
 
     struct Quad_Render {
@@ -95,8 +94,7 @@ struct UI_Context {
         u64       colors_offset;
         u32       quad_count;
         u32       vertex_input;
-        Material *material;
-        String    material_name;
+        Atom      material;
     };
 
     struct Text_Render {
@@ -114,8 +112,7 @@ struct UI_Context {
         u64       transforms_offset;
         u32       char_count;
         u32       vertex_input;
-        Material *material;
-        String    material_name;
+        Atom      material;
     };
     
     uiid                 id_hot;

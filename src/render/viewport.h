@@ -16,7 +16,7 @@ struct Viewport {
     u32 height = 0;
     f32 resolution_scale = 1.0f;
 
-    Vector2 mouse_pos = Vector2_zero;
+    Vector2 cursor_pos = Vector2_zero;
     
     Matrix4 orthographic_projection;
 
