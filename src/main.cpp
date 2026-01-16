@@ -116,7 +116,6 @@ s32 main() {
     add_hot_reload_directory(DIR_FLIP_BOOKS);
     add_hot_reload_directory(DIR_MATERIALS);
     add_hot_reload_directory(DIR_MESHES);
-    add_hot_reload_directory(DIR_LEVELS);
 
     const auto hot_reload_thread = start_hot_reload_thread();
     defer { terminate_thread(hot_reload_thread); };

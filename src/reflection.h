@@ -31,10 +31,11 @@ struct Reflection_Field {
     Reflection_Field_Type type;
     String                name;
     u32                   offset;
+    bool                  serializable;
 };
 
 #define Begin_Reflection(t) inline const Reflection_Field t##_fields[] = {
-#define Add_Reflection_Field(t, fn, ft) { ft, S(#fn), offset_of(t, fn), },
+#define Add_Reflection_Field(t, fn, ft, ser) { ft, S(#fn), offset_of(t, fn), ser },
 #define End_Reflection(t) };
 #define Reflection_Field_Count(t) carray_count(t##_fields)
 #define Reflection_Field_At(t, i) &t##_fields[i]

@@ -678,8 +678,6 @@ void update_hot_reload() {
             new_flip_book(it);
         } else if (ext == MATERIAL_EXT) {
             new_material(it);
-        } else if (ext == LEVEL_EXT) {
-            new_level(it);
         } else {
             success = false;
         }

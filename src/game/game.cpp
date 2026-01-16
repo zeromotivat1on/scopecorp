@@ -546,6 +546,9 @@ void init_program_layers() {
 
 // level
 
+static const auto level_header_token_camera = S("[camera]");
+static const auto level_header_token_entity = S("[entity]");
+
 // Format of serialized text is reflection field name and its data, all separated by space.
 // e.g: position 0.00 1.00 -2.50
 // Serialized text allocated in temporary storage.
@@ -555,10 +558,6 @@ void init_program_layers() {
 // reflection field data which consists of field name and its tokens and their count
 // depends on field type.
 // e.g: u32, f32, bool etc. -> 1 | Vector4, Matrix2, etc. -> 4
-
-static const auto level_header_token_camera = S("[CAMERA]");
-static const auto level_header_token_entity = S("[ENTITY]");
-
 template <typename T>
 inline bool serialize_as_text(T *obj, const Reflection_Field *field, String *s, Serialize_Mode mode) {
     if (!obj) {
@@ -568,6 +567,11 @@ inline bool serialize_as_text(T *obj, const Reflection_Field *field, String *s, 
 
     if (!field) {
         log(LOG_ERROR, "Failed to serialze object as text with null reflection field");
+        return false;
+    }
+
+    if (!field->serializable) {
+        log(LOG_ERROR, "Failed to serialze object as text with not serializable field");
         return false;
     }
 
@@ -981,10 +985,14 @@ Level *new_level(Atom name, String contents) {
 
         if (parse_entity) {
             const auto field = get_entity_reflection_field(tokens[0]);
-            serialize_as_text(e, field, tokens.items, SERIALIZE_MODE_READ);
+            if (field->serializable) {
+                serialize_as_text(e, field, tokens.items, SERIALIZE_MODE_READ);
+            }
         } else {
             const auto field = get_camera_reflection_field(tokens[0]);
-            serialize_as_text(camera, field, tokens.items, SERIALIZE_MODE_READ);
+            if (field->serializable) {
+                serialize_as_text(camera, field, tokens.items, SERIALIZE_MODE_READ);
+            }
         }
     }
 
@@ -1063,11 +1071,12 @@ void save_current_level() {
     const auto camera = &level->entity_manager->camera;
     for (u32 i = 0; i < Reflection_Field_Count(Camera); ++i) {
         const auto field = Reflection_Field_At(Camera, i);
-
-        String text;
-        if (serialize_as_text(camera, field, &text, SERIALIZE_MODE_WRITE)) {  
-            append(sb, text);
-            append(sb, "\n");
+        if (field->serializable) {
+            String text;
+            if (serialize_as_text(camera, field, &text, SERIALIZE_MODE_WRITE)) {  
+                append(sb, text);
+                append(sb, "\n");
+            }
         }
     }
         
@@ -1081,11 +1090,12 @@ void save_current_level() {
         
         for (u32 i = 0; i < Reflection_Field_Count(Entity); ++i) {
             const auto field = Reflection_Field_At(Entity, i);
-
-            String text;
-            if (serialize_as_text(&it, field, &text, SERIALIZE_MODE_WRITE)) {
-                append(sb, text);
-                append(sb, "\n");
+            if (field->serializable) {
+                String text;
+                if (serialize_as_text(&it, field, &text, SERIALIZE_MODE_WRITE)) {
+                    append(sb, text);
+                    append(sb, "\n");
+                }
             }
         }
         
