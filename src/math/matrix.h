@@ -14,7 +14,7 @@ inline constexpr f32 MATRIX_INV_EPSILON	= 1e-14f;
 struct Matrix2 {
     union {
         Vector2 v[2];
-        f32  e[4];
+        f32     e[4];
     };
 
     Matrix2()                             { set(e, 0, 4 * sizeof(f32)); }
@@ -30,7 +30,7 @@ struct Matrix2 {
 struct Matrix3 {
     union {
         Vector3 v[3];
-        f32  e[9];
+        f32     e[9];
     };
 
     Matrix3()                                            { set(e, 0, 9 * sizeof(f32)); }
@@ -51,12 +51,12 @@ struct Matrix3 {
 struct Matrix4 {
     union {
         Vector4 v[4];
-        f32  e[16];
+        f32     e[16];
     };
         
     Matrix4() { set(e, 0, 16 * sizeof(f32)); }
     Matrix4(const Vector4 &a, const Vector4 &b,
-         const Vector4 &c, const Vector4 &d) { v[0] = a; v[1] = b; v[2] = c; v[3] = d; }
+            const Vector4 &c, const Vector4 &d) { v[0] = a; v[1] = b; v[2] = c; v[3] = d; }
     Matrix4(const f32 a[16])   { copy(e, a, 16 * sizeof(f32)); }
     Matrix4(const f32 a[4][4]) { copy(e, a, 16 * sizeof(f32)); }
     Matrix4(const Matrix3 &a) {
@@ -69,7 +69,7 @@ struct Matrix4 {
         *this = Matrix4(Matrix3(a));
     }
     Matrix4(f32  a, f32 b, f32 c, f32 d, f32 _e, f32 f, f32 g, f32 h,
-         f32  i, f32 j, f32 k, f32 l, f32  m, f32 n, f32 o, f32 p) {
+            f32  i, f32 j, f32 k, f32 l, f32  m, f32 n, f32 o, f32 p) {
         e[0]  =  a; e[1]  = b; e[2]  = c; e[3]  = d;
         e[4]  = _e; e[5]  = f; e[6]  = g; e[7]  = h;
         e[8]  =  i; e[9]  = j; e[10] = k; e[11] = l;

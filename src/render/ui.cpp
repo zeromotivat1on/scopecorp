@@ -4,7 +4,6 @@
 #include "material.h"
 #include "input.h"
 #include "window.h"
-#include "world.h"
 #include "vector.h"
 #include "matrix.h"
 #include "hash.h"

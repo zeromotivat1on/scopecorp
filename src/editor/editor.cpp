@@ -3,6 +3,7 @@
 #include "hot_reload.h"
 #include "console.h"
 #include "game.h"
+#include "level.h"
 #include "entity_manager.h"
 #include "cpu_time.h"
 #include "file_system.h"
@@ -17,36 +18,24 @@
 #include "texture.h"
 #include "material.h"
 #include "flip_book.h"
-#include "vector.h"
-#include "matrix.h"
 #include "profile.h"
 #include "font.h"
-#include "reflection.h"
 #include "collision.h"
 #include "stb_image.h"
 #include "stb_sprintf.h"
 #include <algorithm>
 #include <functional>
 
-Level_Set *init_editor_level_set() {
-    auto cs = New(Campaign_State);
-    auto manager = cs->entity_manager = new_entity_manager();
-
-    // Reserve some reasonable amount of entities.
-    array_realloc(manager->entities,           256);
-    array_realloc(manager->entities_to_delete, 256);
-    array_realloc(manager->free_entities,      256);
-
-    auto set = New(Level_Set);
-    set->name = copy_string("editor");
-    set->campaign_state = cs;
-    
-    editor_level_set = set;
-    return set;
-}
-
 void init_level_editor_hub() {
-    auto manager = get_entity_manager();
+    const auto level_name = ATOM("editor_hub");
+
+    auto &level = level_table[level_name];
+    level.name = level_name;
+    
+    if (level.entity_manager) reset(level.entity_manager);
+    else level.entity_manager = new_entity_manager();
+    
+    auto manager = level.entity_manager;
     
 	auto player = New_Entity(manager, E_PLAYER);
     manager->player = player->eid;
@@ -79,7 +68,9 @@ void init_level_editor_hub() {
         player->move_direction = SOUTH;
         player->move_sound     = ATOM("player_steps");
 
-        player->camera_offset = Vector3(0.0f, 1.0f, -3.0f);
+        player->camera_offset    = Vector3(0.0f, 1.0f, -3.0f);
+        player->camera_dead_zone = Vector3(1.0f, 1.0f, 1.0f);
+        player->camera_follow_speed = 16.0f;
 	}
 
 	{
@@ -200,6 +191,8 @@ void init_level_editor_hub() {
 	camera.right = (f32)window->width;
 	camera.bottom = 0.0f;
 	camera.top = (f32)window->height;
+
+    set_current_level(level_name);
 }
 
 struct Find_Entity_By_AABB_Data {
@@ -659,7 +652,7 @@ Thread start_hot_reload_thread() {
 void add_hot_reload_directory(String path) {
     array_add(hot_reload->directories, path);
     add_directory_files(&hot_reload->catalog, path);
-	log("New hot reload directory %S", path);
+	log("Hot reload directory %S", path);
 }
 
 void update_hot_reload() {
@@ -670,6 +663,8 @@ void update_hot_reload() {
     wait_semaphore(hot_reload->semaphore, WAIT_INFINITE);
 
     For (hot_reload->paths_to_hot_reload) {
+        START_TIMER(0);
+        
         const auto ext = get_extension(it);
 
         bool success = true;
@@ -683,11 +678,13 @@ void update_hot_reload() {
             new_flip_book(it);
         } else if (ext == MATERIAL_EXT) {
             new_material(it);
+        } else if (ext == LEVEL_EXT) {
+            new_level(it);
         } else {
             success = false;
         }
 
-        if (success) log("Hot reloaded %S", it);
+        if (success) log("Hot reloaded %S %.2fms", it, CHECK_TIMER_MS(0));
     }
     
     array_clear(hot_reload->paths_to_hot_reload);

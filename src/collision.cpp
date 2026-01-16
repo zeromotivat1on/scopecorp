@@ -2,7 +2,6 @@
 #include "collision.h"
 #include "profile.h"
 #include "viewport.h"
-#include "world.h"
 
 bool overlap(AABB a, AABB b) {
     if (Abs(a.c.x - b.c.x) >= (a.r.x + b.r.x)) return false;

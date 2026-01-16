@@ -333,6 +333,8 @@ Atom make_atom(String s) {
 }
 
 String get_string(Atom atom) {
+    if (!atom) return {};
+    
     auto table = context.atom_table;
     auto index = atom.hash % table->capacity;
 
@@ -457,8 +459,8 @@ char *to_c_string(String s, Allocator alc) {
 char *temp_c_string(String s) { return to_c_string(s, __temporary_allocator); }
 
 String trim(String s) {
-    while (Is_Space(*(s.data)))               { s.data  += 1; }
-    while (Is_Space(*(s.data + s.size - 1))) { s.size -= 1; }
+    while (Is_Space(*(s.data))) { s.data += 1; s.size -= 1; }
+    while (s.size > 0 && Is_Space(*(s.data + s.size - 1))) { s.size -= 1; }
     return s;
 }
 
@@ -988,7 +990,7 @@ Pak_Entry *find_entry(Load_Pak &pak, String name) {
 
 bool start_read(Archive &archive, String path) {
     auto file = open_file(path, FILE_READ_BIT);
-    if (file) {
+    if (file == FILE_NONE) {
         log(LOG_ERROR, "Failed to start archive 0x%X read from %S", &archive, path);
         return false;
     }
@@ -1035,6 +1037,8 @@ u64 serialize(Archive &archive, void *data, u64 size) {
 }
 
 void reset(Archive &archive) {
-    close_file(archive.file);
-    archive.file = FILE_NONE;
+    if (archive.file != FILE_NONE) {
+        close_file(archive.file);
+        archive.file = FILE_NONE;
+    }
 }

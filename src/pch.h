@@ -5,6 +5,7 @@
 #include "matrix.h"
 #include "quaternion.h"
 #include "controls.h"
+#include "reflection.h"
 
 #define GAME_NAME    "scopecorp"
 #define GAME_VERSION "0.4.0"
@@ -96,6 +97,12 @@ enum Direction : u8 {
     DIRECTION_COUNT
 };
 
+enum Serialize_Mode : u8 {
+    SERIALIZE_MODE_NONE,
+    SERIALIZE_MODE_READ,
+    SERIALIZE_MODE_WRITE,
+};
+
 struct Rect {
     f32 x = 0.0f;
     f32 y = 0.0f;
@@ -130,30 +137,48 @@ enum Camera_Mode : u8 {
 
 struct Camera {
 	Camera_Mode mode;
-
-    Vector3 position;
-	Vector3 look_at_position;
-	Vector3 up_vector;
-
-	f32 yaw; // horizontal rotation around y-axis
-	f32 pitch; // vertical rotation around x-axis
-
-	f32	fov;
-	f32	aspect;
-
-	f32	near_plane;
-	f32	far_plane;
-	f32	left;
-	f32	right;
-	f32	bottom;
-	f32	top;
-
-    Matrix4 view;
-    Matrix4 proj;
-    Matrix4 view_proj;
-    Matrix4 inv_view;
-    Matrix4 inv_proj;
+    Vector3     position;
+	Vector3     look_at_position;
+	Vector3     up_vector;
+	f32         yaw; // horizontal rotation around y-axis
+	f32         pitch; // vertical rotation around x-axis
+	f32	        fov;
+	f32	        aspect;
+	f32	        near_plane;
+	f32	        far_plane;
+	f32	        left;
+	f32	        right;
+	f32	        bottom;
+	f32	        top;
+    Matrix4     view;
+    Matrix4     proj;
+    Matrix4     view_proj;
+    Matrix4     inv_view;
+    Matrix4     inv_proj;
 };
+
+Begin_Reflection(Camera)
+Add_Reflection_Field(Camera, mode,             REFLECTION_FIELD_TYPE_U8)
+Add_Reflection_Field(Camera, position,         REFLECTION_FIELD_TYPE_VECTOR3)
+Add_Reflection_Field(Camera, look_at_position, REFLECTION_FIELD_TYPE_VECTOR3)
+Add_Reflection_Field(Camera, up_vector,        REFLECTION_FIELD_TYPE_VECTOR3)
+Add_Reflection_Field(Camera, yaw,              REFLECTION_FIELD_TYPE_F32)
+Add_Reflection_Field(Camera, pitch,            REFLECTION_FIELD_TYPE_F32)
+Add_Reflection_Field(Camera, fov,              REFLECTION_FIELD_TYPE_F32)
+Add_Reflection_Field(Camera, aspect,           REFLECTION_FIELD_TYPE_F32)
+Add_Reflection_Field(Camera, near_plane,       REFLECTION_FIELD_TYPE_F32)
+Add_Reflection_Field(Camera, far_plane,        REFLECTION_FIELD_TYPE_F32)
+Add_Reflection_Field(Camera, left,             REFLECTION_FIELD_TYPE_F32)
+Add_Reflection_Field(Camera, right,         REFLECTION_FIELD_TYPE_F32)
+Add_Reflection_Field(Camera, bottom,           REFLECTION_FIELD_TYPE_F32)
+Add_Reflection_Field(Camera, top,           REFLECTION_FIELD_TYPE_F32)
+// These are constructed from values above.
+// Add_Reflection_Field(Camera, view,          REFLECTION_FIELD_TYPE_MATRIX4)
+// Add_Reflection_Field(Camera, proj,          REFLECTION_FIELD_TYPE_MATRIX4)
+// Add_Reflection_Field(Camera, view_proj,     REFLECTION_FIELD_TYPE_MATRIX4)
+// Add_Reflection_Field(Camera, inv_view,      REFLECTION_FIELD_TYPE_MATRIX4)
+// Add_Reflection_Field(Camera, inv_proj,      REFLECTION_FIELD_TYPE_MATRIX4)
+End_Reflection(Camera)
 
 struct Viewport;
 
@@ -162,28 +187,6 @@ void on_viewport_resize (Camera &c, const Viewport &vp);
 
 Vector2 world_to_screen (Vector3 position, const Camera &camera, const Rect &rect);
 Vector3 screen_to_world (Vector2 position, const Camera &camera, const Rect &rect);
-
-struct Entity_Manager;
-
-struct Campaign_State {
-    String campaign_name;
-    Entity_Manager *entity_manager = null;
-};
-
-Campaign_State *get_campaign_state ();
-
-struct Level_Set {
-    String name;
-    Campaign_State *campaign_state = null;
-};
-
-inline Level_Set *current_level_set = null;
-
-Level_Set *get_level_set ();
-void switch_campaign (Level_Set *set);
-
-void init_level_general    (bool reset);
-void init_level_editor_hub ();
 
 struct Window;
 inline Window *main_window = null;

@@ -40,6 +40,7 @@ enum Entity_Bits : u32 {
 };
 
 struct Entity {
+    // Meta.
     Entity_Type type;
     u32         bits;
     Pid         eid;
@@ -47,7 +48,7 @@ struct Entity {
     Pid         first_child;
     Pid         next_sibling;
     Pid         prev_sibling;
-    
+    // Common.
     Atom        mesh;
     Atom        material;
     Vector3     position;
@@ -58,9 +59,7 @@ struct Entity {
     Vector3     uv_offset;
     Vector3     velocity;
     AABB        aabb;
-
-    // @Todo: use union for those?
-
+    // Player.
     f32         move_speed;
     Direction   move_direction;
     Atom        move_flip_book;
@@ -68,29 +67,26 @@ struct Entity {
     Vector3     camera_offset;
     Vector3     camera_dead_zone;
     f32         camera_follow_speed;
-
+    // Light.
     Vector3     ambient_factor;
     Vector3     diffuse_factor;
     Vector3     specular_factor;
     f32         attenuation_constant;
     f32         attenuation_linear;
     f32         attenuation_quadratic;
-
+    // Sound emitter.
     Atom        sound;
     bool        sound_play_spatial;
-
+    // Portal
     Vector3     portal_destination;
 
     explicit operator bool() const { return type != E_NONE; }
 };
 
-struct Entity_Manager {
-    String world_name;
-    
-    Camera camera;
-    Pid    player;
-    Pid    skybox;
-    
+struct Entity_Manager {    
+    Camera         camera;
+    Pid            player;
+    Pid            skybox;
     Array <Entity> entities;
     Array <Pid>    entities_to_delete;
     Array <Pid>    free_entities;
@@ -115,5 +111,41 @@ void move_aabb_along_with_entity (Entity *e);
 #define New_Entity(M, E) get_entity(M, new_entity(M, E))
 #define For_Entities(A, E) For (A) if (it.type == E)
 
-f32 get_max_movement_over_time (Entity *a, f32 t0, f32 t1);
-f32 get_min_distance_at_time   (Entity *a, Entity *b, f32 t);
+// @Todo: create separate tool to generate such reflection data.
+Begin_Reflection(Entity)
+Add_Reflection_Field(Entity, type,                  REFLECTION_FIELD_TYPE_U8)
+Add_Reflection_Field(Entity, bits,                  REFLECTION_FIELD_TYPE_U32)
+// No need to serialze eid as new entities are created during load.
+// Add_Reflection_Field(Entity, eid,                   REFLECTION_FIELD_TYPE_PID)
+Add_Reflection_Field(Entity, parent,                REFLECTION_FIELD_TYPE_PID)
+Add_Reflection_Field(Entity, first_child,           REFLECTION_FIELD_TYPE_PID)
+Add_Reflection_Field(Entity, next_sibling,          REFLECTION_FIELD_TYPE_PID)
+Add_Reflection_Field(Entity, prev_sibling,          REFLECTION_FIELD_TYPE_PID)
+Add_Reflection_Field(Entity, mesh,                  REFLECTION_FIELD_TYPE_ATOM)
+Add_Reflection_Field(Entity, material,              REFLECTION_FIELD_TYPE_ATOM)
+Add_Reflection_Field(Entity, position,              REFLECTION_FIELD_TYPE_VECTOR3)
+Add_Reflection_Field(Entity, scale,                 REFLECTION_FIELD_TYPE_VECTOR3)
+Add_Reflection_Field(Entity, orientation,           REFLECTION_FIELD_TYPE_QUATERNION)
+// Object to world transform matrix is inferred from position, scale and orientation.
+// Add_Reflection_Field(Entity, object_to_world,       REFLECTION_FIELD_TYPE_MATRIX4)
+Add_Reflection_Field(Entity, uv_scale,              REFLECTION_FIELD_TYPE_VECTOR2)
+Add_Reflection_Field(Entity, uv_offset,             REFLECTION_FIELD_TYPE_VECTOR3)
+Add_Reflection_Field(Entity, velocity,              REFLECTION_FIELD_TYPE_VECTOR3)
+Add_Reflection_Field(Entity, aabb,                  REFLECTION_FIELD_TYPE_AABB)
+Add_Reflection_Field(Entity, move_speed,            REFLECTION_FIELD_TYPE_F32)
+Add_Reflection_Field(Entity, move_direction,        REFLECTION_FIELD_TYPE_U8)
+Add_Reflection_Field(Entity, move_flip_book,        REFLECTION_FIELD_TYPE_ATOM)
+Add_Reflection_Field(Entity, move_sound,            REFLECTION_FIELD_TYPE_ATOM)
+Add_Reflection_Field(Entity, camera_offset,         REFLECTION_FIELD_TYPE_VECTOR3)
+Add_Reflection_Field(Entity, camera_dead_zone,      REFLECTION_FIELD_TYPE_VECTOR3)
+Add_Reflection_Field(Entity, camera_follow_speed,   REFLECTION_FIELD_TYPE_F32)
+Add_Reflection_Field(Entity, ambient_factor,        REFLECTION_FIELD_TYPE_VECTOR3)
+Add_Reflection_Field(Entity, diffuse_factor,        REFLECTION_FIELD_TYPE_VECTOR3)
+Add_Reflection_Field(Entity, specular_factor,       REFLECTION_FIELD_TYPE_VECTOR3)
+Add_Reflection_Field(Entity, attenuation_constant,  REFLECTION_FIELD_TYPE_F32)
+Add_Reflection_Field(Entity, attenuation_linear,    REFLECTION_FIELD_TYPE_F32)
+Add_Reflection_Field(Entity, attenuation_quadratic, REFLECTION_FIELD_TYPE_F32)
+Add_Reflection_Field(Entity, sound,                 REFLECTION_FIELD_TYPE_ATOM)
+Add_Reflection_Field(Entity, sound_play_spatial,    REFLECTION_FIELD_TYPE_BOOL)
+Add_Reflection_Field(Entity, portal_destination,    REFLECTION_FIELD_TYPE_VECTOR3)
+End_Reflection(Entity)

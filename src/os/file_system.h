@@ -33,13 +33,13 @@ u64    write_file       (File handle, u64 size, const void *buffer);
 s64    get_file_ptr     (File handle);
 bool   set_file_ptr     (File handle, s64 position);
 bool   path_file_exists (String path);
-Buffer read_file        (String path, Allocator alc = context.allocator);
-String read_text_file   (String path, Allocator alc = context.allocator);
+Buffer read_file        (String path, Allocator alc);
+String read_text_file   (String path, Allocator alc);
 void   write_file       (String path, Buffer buffer);
 void   write_text_file  (String path, String source);
 void   visit_directory  (String path, void (*callback) (const File_Callback_Data *),
                          bool recursive = true, void *user_data = null);
 
-String extract_file_from_path   (String path, Allocator alc = __temporary_allocator);
+String extract_file_from_path   (String path, Allocator alc);
 String fix_directory_delimiters (String path);
 String remove_extension         (String path);

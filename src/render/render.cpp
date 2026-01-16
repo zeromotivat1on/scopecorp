@@ -16,7 +16,6 @@
 #include "flip_book.h"
 #include "editor.h"
 #include "game.h"
-#include "world.h"
 #include "file_system.h"
 #include "input.h"
 #include "atomic.h"
@@ -1743,7 +1742,7 @@ static Shader_Type get_shader_type(SlangStage stage) {
 }
 
 Shader_File *new_shader_file(String path) {
-    const auto source = read_text_file(path);
+    const auto source = read_text_file(path, __temporary_allocator);
     if (!source) return null;    
     return new_shader_file(path, source);
 }

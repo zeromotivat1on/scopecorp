@@ -9,22 +9,16 @@ struct Level_Set;
 
 struct Editor {
     Entity *mouse_picked_entity = null;
-
-    String report_string;
-    f32    report_time = 0.0f;
-
-    f32 camera_speed = 4.0f;
+    String  report_string;
+    f32     report_time = 0.0f;
+    f32     camera_speed = 4.0f;
 };
 
 inline Editor editor;
 
-inline Level_Set *editor_level_set = null;
-
-Level_Set *init_editor_level_set ();
-
-void update_editor   ();
-void on_editor_input (const Window_Event *e);
-void on_editor_push  ();
-void on_editor_pop   ();
-
-void screen_report   (const char *cs, ...);
+void init_level_editor_hub ();
+void update_editor         ();
+void on_push_editor        ();
+void on_pop_editor         ();
+void on_event_editor       (const Window_Event *e);
+void screen_report         (const char *cs, ...);

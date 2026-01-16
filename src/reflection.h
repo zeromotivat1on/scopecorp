@@ -1,48 +1,81 @@
 #pragma once
 
-enum Reflect_Field_Type : u8 {
-    FIELD_NONE,
-    
-    FIELD_S8,
-    FIELD_S16,
-    FIELD_S32,
-    FIELD_S64,
-    FIELD_U8,
-    FIELD_U16,
-    FIELD_U32,
-    FIELD_U64,
-    FIELD_F32,
-    FIELD_F64,
-    FIELD_BOOL,
-    FIELD_CHAR,
-
-    FIELD_SID,
-    
-    FIELD_VECTOR2,
-    FIELD_VECTOR3,
-    FIELD_VECTOR4,
-    FIELD_MATRIX2,
-    FIELD_MATRIX3,
-    FIELD_MATRIX4,
-    FIELD_QUATERNION,
-    
-    //FIELD_STRUCT,
+enum Reflection_Field_Type : u8 {
+    REFLECTION_FIELD_TYPE_NONE,
+    REFLECTION_FIELD_TYPE_S8,
+    REFLECTION_FIELD_TYPE_S16,
+    REFLECTION_FIELD_TYPE_S32,
+    REFLECTION_FIELD_TYPE_S64,
+    REFLECTION_FIELD_TYPE_U8,
+    REFLECTION_FIELD_TYPE_U16,
+    REFLECTION_FIELD_TYPE_U32,
+    REFLECTION_FIELD_TYPE_U64,
+    REFLECTION_FIELD_TYPE_F32,
+    REFLECTION_FIELD_TYPE_F64,
+    REFLECTION_FIELD_TYPE_BOOL,
+    REFLECTION_FIELD_TYPE_CHAR,
+    REFLECTION_FIELD_TYPE_VECTOR2,
+    REFLECTION_FIELD_TYPE_VECTOR3,
+    REFLECTION_FIELD_TYPE_VECTOR4,
+    REFLECTION_FIELD_TYPE_MATRIX2,
+    REFLECTION_FIELD_TYPE_MATRIX3,
+    REFLECTION_FIELD_TYPE_MATRIX4,
+    REFLECTION_FIELD_TYPE_QUATERNION,
+    REFLECTION_FIELD_TYPE_STRING,
+    REFLECTION_FIELD_TYPE_ATOM,
+    REFLECTION_FIELD_TYPE_PID,
+    REFLECTION_FIELD_TYPE_AABB,
 };
 
-struct Reflect_Field {
-    String name;
-    u32 offset = 0;
-    Reflect_Field_Type type = FIELD_NONE;
+struct Reflection_Field {
+    Reflection_Field_Type type;
+    String                name;
+    u32                   offset;
 };
 
-#define REFLECT_BEGIN(t) inline const Reflect_Field t##_fields[] = {
-#define REFLECT_FIELD(t, fn, ft) { S(#fn), offset_of(t, fn), ft },
-#define REFLECT_END(t) }; inline constexpr u32 t##_field_count = carray_count(t##_fields);
+#define Begin_Reflection(t) inline const Reflection_Field t##_fields[] = {
+#define Add_Reflection_Field(t, fn, ft) { ft, S(#fn), offset_of(t, fn), },
+#define End_Reflection(t) };
+#define Reflection_Field_Count(t) carray_count(t##_fields)
+#define Reflection_Field_At(t, i) &t##_fields[i]
 
-#define REFLECT_FIELD_COUNT(t) t##_field_count
-#define REFLECT_FIELD_AT(t, i) t##_fields[i]
+inline const String reflection_field_type_names[] = {
+    S(""),
+    S("s8"),
+    S("s16"),
+    S("s32"),
+    S("s64"),
+    S("u8"),
+    S("u16"),
+    S("u32"),
+    S("u64"),
+    S("f32"),
+    S("f64"),
+    S("bool"),
+    S("char"),
+    S("Vector2"),
+    S("Vector3"),
+    S("Vector4"),
+    S("Matrix2"),
+    S("Matrix3"),
+    S("Matrix4"),
+    S("Quaternion"),
+    S("String"),
+    S("Atom"),
+    S("Pid"),
+    S("AABB"),
+};
 
-template <typename R, typename T>
-R &reflect_field_cast(const T &object, const Reflect_Field &field) {
-    return *(R *)((u8 *)&object + field.offset);
+inline String to_string(Reflection_Field_Type type) {
+    return reflection_field_type_names[type];
+}
+
+inline Reflection_Field_Type get_reflection_type(String name) {
+    for (u32 i = 1; i < carray_count(reflection_field_type_names); ++i) {
+        const auto type_name = reflection_field_type_names[i];
+        if (name == type_name) return (Reflection_Field_Type)i;
+    }
+
+    log(LOG_ERROR, "Failed to get reflection type from %S", name);
+    return REFLECTION_FIELD_TYPE_NONE;
 }

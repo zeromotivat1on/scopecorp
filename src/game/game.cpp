@@ -1,7 +1,8 @@
 #include "pch.h"
 #include "game.h"
 #include "entity_manager.h"
-#include "world.h"
+#include "level.h"
+#include "text_file.h"
 #include "profile.h"
 #include "input.h"
 #include "asset.h"
@@ -382,13 +383,13 @@ void init_program_layers() {
 
         Input_Mapping im;
 
-        // im = {};
-        // im.on_press = []() { if (down(KEY_CTRL)) save_current_level(); };
-        // table_add(layer.input_mapping_table, KEY_SAVE_LEVEL, im);
+        im = {};
+        im.on_press = []() { if (down(KEY_CTRL)) save_current_level(); };
+        table_add(layer.input_mapping_table, KEY_SAVE_LEVEL, im);
 
-        // im = {};
-        // im.on_press = []() { if (down(KEY_CTRL)) load_level(); };
-        // table_add(layer.input_mapping_table, KEY_RELOAD_LEVEL, im);
+        im = {};
+        im.on_press = []() { if (down(KEY_CTRL)) reload_current_level(); };
+        table_add(layer.input_mapping_table, KEY_RELOAD_LEVEL, im);
 
         im = {};
         im.on_press = []() {
@@ -543,88 +544,560 @@ void init_program_layers() {
     }
 }
 
-// void save_level(Game_World &world) {
-//     START_TIMER(save);
+// level
+
+// Format of serialized text is reflection field name and its data, all separated by space.
+// e.g: position 0.00 1.00 -2.50
+// Serialized text allocated in temporary storage.
+// In case of write given string parameter is a pointer to string to which serialzed text
+// will be written.
+// If serialize mode is read, string parameter is an array of string tokens that represent
+// reflection field data which consists of field name and its tokens and their count
+// depends on field type.
+// e.g: u32, f32, bool etc. -> 1 | Vector4, Matrix2, etc. -> 4
+
+static const auto level_header_token_camera = S("[CAMERA]");
+static const auto level_header_token_entity = S("[ENTITY]");
+
+template <typename T>
+inline bool serialize_as_text(T *obj, const Reflection_Field *field, String *s, Serialize_Mode mode) {
+    if (!obj) {
+        log(LOG_ERROR, "Failed to serialze null object as text");
+        return false;
+    }
+
+    if (!field) {
+        log(LOG_ERROR, "Failed to serialze object as text with null reflection field");
+        return false;
+    }
+
+    if (!s) {
+        log(LOG_ERROR, "Failed to serialze object as text with null text data");
+        return false;
+    }
+
+    if (mode == SERIALIZE_MODE_NONE) {
+        log(LOG_ERROR, "Failed to serialze object as text with unknown serialize mode %d", mode);
+        return false;
+    }
     
-//     auto path = tprint("%S%S", PATH_LEVEL(""), world.name);
+    Assert(field->offset < sizeof(T));
+    auto field_data = (u8 *)obj + field->offset;
     
-//     File file = open_file(path, FILE_WRITE_BIT);
-//     defer { close_file(file); };
+    switch (field->type) {
+    case REFLECTION_FIELD_TYPE_S8: {
+        if (mode == SERIALIZE_MODE_WRITE) {
+            *s = tprint("%S %d", field->name, *(s8 *)field_data);
+            return true;
+        } else if (mode == SERIALIZE_MODE_READ) {
+            Assert(field->name == s[0]);
+            const auto v = (u8)string_to_integer(s[1]);
+            copy(field_data, &v, sizeof(v));
+            return true;
+        }
+    }
+    case REFLECTION_FIELD_TYPE_S16: {
+        if (mode == SERIALIZE_MODE_WRITE) {
+            *s = tprint("%S %d", field->name, *(s16 *)field_data);
+            return true;
+        } else if (mode == SERIALIZE_MODE_READ) {
+            Assert(field->name == s[0]);
+            const auto v = (s16)string_to_integer(s[1]);
+            copy(field_data, &v, sizeof(v));
+            return true;
+        }
+    }
+    case REFLECTION_FIELD_TYPE_S32: {
+        if (mode == SERIALIZE_MODE_WRITE) {
+            *s = tprint("%S %d", field->name, *(s32 *)field_data);
+            return true;
+        } else if (mode == SERIALIZE_MODE_READ) {
+            Assert(field->name == s[0]);
+            const auto v = (s32)string_to_integer(s[1]);
+            copy(field_data, &v, sizeof(v));
+            return true;
+        }
+    }
+    case REFLECTION_FIELD_TYPE_S64: {
+        if (mode == SERIALIZE_MODE_WRITE) {
+            *s = tprint("%S %lld", field->name, *(s64 *)field_data);
+            return true;
+        } else if (mode == SERIALIZE_MODE_READ) {
+            Assert(field->name == s[0]);
+            const auto v = (s64)string_to_integer(s[1]);
+            copy(field_data, &v, sizeof(v));
+            return true;
+        }
+    }
+    case REFLECTION_FIELD_TYPE_U8: {
+        if (mode == SERIALIZE_MODE_WRITE) {
+            *s = tprint("%S %u", field->name, *(u8 *)field_data);
+            return true;
+        } else if (mode == SERIALIZE_MODE_READ) {
+            Assert(field->name == s[0]);
+            const auto v = (u8)string_to_integer(s[1]);
+            copy(field_data, &v, sizeof(v));
+            return true;
+        }
+    }
+    case REFLECTION_FIELD_TYPE_U16: {
+        if (mode == SERIALIZE_MODE_WRITE) {
+            *s = tprint("%S %u", field->name, *(u16 *)field_data);
+            return true;
+        } else if (mode == SERIALIZE_MODE_READ) {
+            Assert(field->name == s[0]);
+            const auto v = (u16)string_to_integer(s[1]);
+            copy(field_data, &v, sizeof(v));
+            return true;
+        }
+    }
+    case REFLECTION_FIELD_TYPE_U32: {
+        if (mode == SERIALIZE_MODE_WRITE) {
+            *s = tprint("%S %u", field->name, *(u32 *)field_data);
+            return true;
+        } else if (mode == SERIALIZE_MODE_READ) {
+            Assert(field->name == s[0]);
+            const auto v = (u32)string_to_integer(s[1]);
+            copy(field_data, &v, sizeof(v));
+            return true;
+        }
+    }
+    case REFLECTION_FIELD_TYPE_U64: {
+        if (mode == SERIALIZE_MODE_WRITE) {
+            *s = tprint("%S %llu", field->name, *(u32 *)field_data);
+            return true;
+        } else if (mode == SERIALIZE_MODE_READ) {
+            Assert(field->name == s[0]);
+            const auto v = (u64)string_to_integer(s[1]);
+            copy(field_data, &v, sizeof(v));
+            return true;
+        }
+    }
+    case REFLECTION_FIELD_TYPE_F32: {
+        if (mode == SERIALIZE_MODE_WRITE) {
+            *s = tprint("%S %f", field->name, *(f32 *)field_data);
+            return true;
+        } else if (mode == SERIALIZE_MODE_READ) {
+            Assert(field->name == s[0]);
+            const auto v = (f32)string_to_float(s[1]);
+            copy(field_data, &v, sizeof(v));
+            return true;
+        }
+    }
+    case REFLECTION_FIELD_TYPE_F64: {
+        if (mode == SERIALIZE_MODE_WRITE) {
+            *s = tprint("%S %f", field->name, *(f64 *)field_data);
+            return true;
+        } else if (mode == SERIALIZE_MODE_READ) {
+            Assert(field->name == s[0]);
+            const auto v = (f64)string_to_float(s[1]);
+            copy(field_data, &v, sizeof(v));
+            return true;
+        }
+    }
+    case REFLECTION_FIELD_TYPE_BOOL: {
+        if (mode == SERIALIZE_MODE_WRITE) {
+            *s = tprint("%S %d", field->name, *(bool *)field_data);
+            return true;
+        } else if (mode == SERIALIZE_MODE_READ) {
+            Assert(field->name == s[0]);
+            const auto v = (bool)string_to_integer(s[1]);
+            copy(field_data, &v, sizeof(v));
+            return true;
+        }
+    }
+    case REFLECTION_FIELD_TYPE_CHAR: {
+        if (mode == SERIALIZE_MODE_WRITE) {
+            *s = tprint("%S %c", field->name, *(char *)field_data);
+            return true;
+        } else if (mode == SERIALIZE_MODE_READ) {
+            Assert(field->name == s[0]);
+            const auto v = s->data[0];
+            copy(field_data, &v, sizeof(v));
+            return true;
+        }
+    }
+    case REFLECTION_FIELD_TYPE_VECTOR2: {
+        if (mode == SERIALIZE_MODE_WRITE) {
+            const auto v = *(Vector2 *)field_data;
+            *s = tprint("%S %f %f", field->name, v.x, v.y);
+            return true;
+        } else if (mode == SERIALIZE_MODE_READ) {
+            Assert(field->name == s[0]);
+            const auto x = (f32)string_to_float(s[1]);
+            const auto y = (f32)string_to_float(s[2]);
+            const auto v = Vector2(x, y);
+            copy(field_data, &v, sizeof(v));
+            return true;
+        }
+    }
+    case REFLECTION_FIELD_TYPE_VECTOR3: {
+        if (mode == SERIALIZE_MODE_WRITE) {
+            const auto v = *(Vector3 *)field_data;
+            *s = tprint("%S %f %f %f", field->name, v.x, v.y, v.z);
+            return true;
+        } else if (mode == SERIALIZE_MODE_READ) {
+            Assert(field->name == s[0]);
+            const auto x = (f32)string_to_float(s[1]);
+            const auto y = (f32)string_to_float(s[2]);
+            const auto z = (f32)string_to_float(s[3]);
+            const auto v = Vector3(x, y, z);
+            copy(field_data, &v, sizeof(v));
+            return true;
+        }
+    }
+    case REFLECTION_FIELD_TYPE_VECTOR4: {
+        if (mode == SERIALIZE_MODE_WRITE) {
+            const auto v = *(Vector4 *)field_data;
+            *s = tprint("%S %f %f %f", field->name, v.x, v.y, v.z);
+            return true;
+        } else if (mode == SERIALIZE_MODE_READ) {
+            Assert(field->name == s[0]);
+            const auto x = (f32)string_to_float(s[1]);
+            const auto y = (f32)string_to_float(s[2]);
+            const auto z = (f32)string_to_float(s[3]);
+            const auto w = (f32)string_to_float(s[4]);
+            const auto v = Vector4(x, y, z, w);
+            copy(field_data, &v, sizeof(v));
+            return true;
+        }
+    }
+    case REFLECTION_FIELD_TYPE_MATRIX2: {
+        if (mode == SERIALIZE_MODE_WRITE) {
+            const auto v = *(Matrix2 *)field_data;
+            *s = tprint("%S %f %f %f %f", field->name, v[0], v[1], v[2], v[3]);
+            return true;
+        } else if (mode == SERIALIZE_MODE_READ) {
+            Assert(field->name == s[0]);
+            const auto a = (f32)string_to_float(s[1]);
+            const auto b = (f32)string_to_float(s[2]);
+            const auto c = (f32)string_to_float(s[3]);
+            const auto d = (f32)string_to_float(s[4]);
+            const auto v = Matrix2(a, b, c, d);
+            copy(field_data, &v, sizeof(v));
+            return true;
+        }
+    }
+    case REFLECTION_FIELD_TYPE_MATRIX3: {
+        if (mode == SERIALIZE_MODE_WRITE) {
+            const auto v = *(Matrix3 *)field_data;
+            *s = tprint("%S %f %f %f %f %f %f %f %f %f", field->name,
+                        v[0], v[1], v[2],
+                        v[3], v[4], v[5],
+                        v[6], v[7], v[8]);
+            return true;
+        } else if (mode == SERIALIZE_MODE_READ) {
+            Assert(field->name == s[0]);
+            const auto a = (f32)string_to_float(s[1]);
+            const auto b = (f32)string_to_float(s[2]);
+            const auto c = (f32)string_to_float(s[3]);
+            const auto d = (f32)string_to_float(s[4]);
+            const auto e = (f32)string_to_float(s[5]);
+            const auto f = (f32)string_to_float(s[6]);
+            const auto g = (f32)string_to_float(s[7]);
+            const auto h = (f32)string_to_float(s[8]);
+            const auto i = (f32)string_to_float(s[9]);
+            const auto v = Matrix3(a, b, c, d, e, f, g, h, i);
+            copy(field_data, &v, sizeof(v));
+            return true;
+        }
+    }
+    case REFLECTION_FIELD_TYPE_MATRIX4: {
+        if (mode == SERIALIZE_MODE_WRITE) {
+            const auto v = *(Matrix4 *)field_data;
+            *s = tprint("%S %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f", field->name,
+                        v[0],  v[1],  v[2],  v[3],
+                        v[4],  v[5],  v[6],  v[7],
+                        v[8],  v[9],  v[10], v[11],
+                        v[12], v[13], v[14], v[15]);
+            return true;
+        } else if (mode == SERIALIZE_MODE_READ) {
+            Assert(field->name == s[0]);
+            const auto a = (f32)string_to_float(s[1]);
+            const auto b = (f32)string_to_float(s[2]);
+            const auto c = (f32)string_to_float(s[3]);
+            const auto d = (f32)string_to_float(s[4]);
+            const auto e = (f32)string_to_float(s[5]);
+            const auto f = (f32)string_to_float(s[6]);
+            const auto g = (f32)string_to_float(s[7]);
+            const auto h = (f32)string_to_float(s[8]);
+            const auto i = (f32)string_to_float(s[9]);
+            const auto j = (f32)string_to_float(s[10]);
+            const auto k = (f32)string_to_float(s[11]);
+            const auto l = (f32)string_to_float(s[12]);
+            const auto m = (f32)string_to_float(s[13]);
+            const auto n = (f32)string_to_float(s[14]);
+            const auto o = (f32)string_to_float(s[15]);
+            const auto p = (f32)string_to_float(s[16]);
+            const auto v = Matrix4(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p);
+            copy(field_data, &v, sizeof(v));
+            return true;
+        }
+    }
+    case REFLECTION_FIELD_TYPE_QUATERNION: {
+        if (mode == SERIALIZE_MODE_WRITE) {
+            const auto v = *(Quaternion *)field_data;
+            *s = tprint("%S %f %f %f %f", field->name, v.x, v.y, v.z, v.w);
+            return true;
+        } else if (mode == SERIALIZE_MODE_READ) {
+            Assert(field->name == s[0]);
+            const auto x = (f32)string_to_float(s[1]);
+            const auto y = (f32)string_to_float(s[2]);
+            const auto z = (f32)string_to_float(s[3]);
+            const auto w = (f32)string_to_float(s[4]);
+            const auto v = Vector4(x, y, z, w);
+            copy(field_data, &v, sizeof(v));
+            return true;
+        }
+    }
+    case REFLECTION_FIELD_TYPE_STRING: {
+        if (mode == SERIALIZE_MODE_WRITE) {
+            const auto v = *(String *)field_data;
+            *s = tprint("%S %S", field->name, v);
+            return true;
+        } else if (mode == SERIALIZE_MODE_READ) {
+            Assert(field->name == s[0]);
+            const auto v = copy_string(trim(s[1]));
+            copy(field_data, &v, sizeof(v));
+            return true;
+        }
+    }
+    case REFLECTION_FIELD_TYPE_ATOM: {
+        if (mode == SERIALIZE_MODE_WRITE) {
+            const auto v = *(Atom *)field_data;
+            *s = tprint("%S %S", field->name, get_string(v));
+            return true;
+        } else if (mode == SERIALIZE_MODE_READ) {
+            Assert(field->name == s[0]);
+            const auto v = make_atom(trim(s[1]));
+            copy(field_data, &v, sizeof(v));
+            return true;
+        }
+    }
+    case REFLECTION_FIELD_TYPE_PID: {
+        if (mode == SERIALIZE_MODE_WRITE) {
+            const auto v = *(Pid *)field_data;
+            *s = tprint("%S %u", field->name, v);
+            return true;
+        } else if (mode == SERIALIZE_MODE_READ) {
+            Assert(field->name == s[0]);
+            const auto v = (u32)string_to_integer(s[1]);
+            copy(field_data, &v, sizeof(v));
+            return true;
+        }
+    }
+    case REFLECTION_FIELD_TYPE_AABB: {
+        if (mode == SERIALIZE_MODE_WRITE) {
+            const auto v = *(AABB *)field_data;
+            *s = tprint("%S %f %f %f  %f %f %f",
+                        field->name, v.c.x, v.c.y, v.c.z, v.r.x, v.r.y, v.r.z);
+            return true;
+        } else if (mode == SERIALIZE_MODE_READ) {
+            Assert(field->name == s[0]);
+            const auto cx = (f32)string_to_float(s[1]);
+            const auto cy = (f32)string_to_float(s[2]);
+            const auto cz = (f32)string_to_float(s[3]);
+            const auto rx = (f32)string_to_float(s[4]);
+            const auto ry = (f32)string_to_float(s[5]);
+            const auto rz = (f32)string_to_float(s[6]);
+            const auto v = make_aabb(cx, cy, cz, rx, ry, rz);
+            copy(field_data, &v, sizeof(v));
+            return true;
+        }
+    }
+    }
+
+    log(LOG_ERROR, "Failed to serialze (mode %d) reflection field 0x%X for object 0x%X", mode, field, obj);
+    return false;
+}
+
+static Level *current_level;
+
+Level *new_level(String path) {
+    auto contents = read_text_file(path, __temporary_allocator);
+    if (!contents) return null;
+    const auto name = get_file_name_no_ext(path);
+    const auto atom = make_atom(name);
+    return new_level(atom, contents);
+}
+
+Level *new_level(Atom name, String contents) {
+    auto &level = level_table[name];
+    level.name = name;
+
+    if (level.entity_manager) reset(level.entity_manager);
+    else level.entity_manager = new_entity_manager();
+
+    Text_File_Handler text;
+    text.allocator = __temporary_allocator;
     
-//     if (file == FILE_NONE) {
-//         log("Level %S does not exist, creating new one", path);
-//         file = open_file(path, FILE_NEW_BIT | FILE_WRITE_BIT);
-//         if (file == FILE_NONE) {
-//             log(LOG_MINIMAL, "Failed to create new level %S", path);
-//             return;
-//         }
-//     }
+    defer { reset(&text); };
+    init_from_memory(&text, contents);
 
-//     write_file(file, world.MAX_NAME_SIZE, &world.name);
+    static const auto get_entity_reflection_field = [](String name) -> const Reflection_Field * {
+        for (u32 i = 0; i < Reflection_Field_Count(Entity); ++i) {
+            const auto field = Reflection_Field_At(Entity, i);
+            if (field->name == name) return field;
+        }
+        return null;
+    };
+
+    static const auto get_camera_reflection_field = [](String name) -> const Reflection_Field * {
+        for (u32 i = 0; i < Reflection_Field_Count(Camera); ++i) {
+            const auto field = Reflection_Field_At(Camera, i);
+            if (field->name == name) return field;
+        }
+        return null;
+    };
+      
+    Entity *e = null;
+    auto camera = &level.entity_manager->camera;
+    bool parse_entity = false;
     
-//     write_file(file, _sizeref(world.player));
-//     write_file(file, _sizeref(world.camera));
-//     write_file(file, _sizeref(world.ed_camera));
-//     write_file(file, _sizeref(world.skybox));
+    while (1) {
+        auto line = read_line(&text);        
+        if (!line) break;
+        
+        const auto delims = S(" ");
+        auto tokens = split(line, delims);
+        if (!tokens.count) continue;
 
-//     // write_sparse_array(file, &world.static_meshes);
-//     // write_sparse_array(file, &world.point_lights);
-//     // write_sparse_array(file, &world.direct_lights);
-//     // write_sparse_array(file, &world.sound_emitters_2d);
-//     // write_sparse_array(file, &world.sound_emitters_3d);
-//     // write_sparse_array(file, &world.portals);
-//     // write_sparse_array(file, &world.aabbs);
+        const auto header = trim(tokens[0]);
+        if (header == level_header_token_entity) {
+            if (e && e->type == E_PLAYER) level.entity_manager->player = e->eid; 
+            if (e && e->type == E_SKYBOX) level.entity_manager->skybox = e->eid;
+            
+            e = New_Entity(level.entity_manager, E_NONE);
+            parse_entity = true;
+            continue;
+        } else if (header == level_header_token_camera) {
+            parse_entity = false;
+            continue;
+        }
+
+        // Field parsing.
+        
+        if (tokens.count == 1) continue; // empty field data
+
+        if (parse_entity) {
+            const auto field = get_entity_reflection_field(tokens[0]);
+            serialize_as_text(e, field, tokens.items, SERIALIZE_MODE_READ);
+        } else {
+            const auto field = get_camera_reflection_field(tokens[0]);
+            serialize_as_text(camera, field, tokens.items, SERIALIZE_MODE_READ);
+        }
+    }
+
+    on_viewport_resize(*camera, screen_viewport);
+    update_matrices(*camera);
+
+    return &level;
+}
+
+Level *get_level(Atom name) {
+    return table_find(level_table, name);
+}
+
+Level *get_current_level() {
+    return current_level;
+}
+
+void set_current_level(Atom name) {
+    auto level = get_level(name);
+    if (!level) {
+        log(LOG_ERROR, "Failed to set current level to unknown level %S", get_string(name));
+        return;
+    }
+
+    current_level = level;
+}
+
+static inline String make_level_path(Atom name) {
+    const auto level_name = get_string(name);
+    const auto level_path = tprint("%S%S.%S", DIR_LEVELS, level_name, LEVEL_EXT);
+    return level_path;
+}
+
+void reload_current_level() {
+    START_TIMER(0);
+
+    const auto level = get_current_level();
+    if (!level) {
+        log(LOG_ERROR, "Failed to reload current level as it does not exist");
+        return;
+    }
+
+    const auto level_path = make_level_path(level->name);
+    auto new_lvl = new_level(level_path);
+    Assert(new_lvl->name == level->name);
     
-//     log("Saved level %S in %.2fms", path, CHECK_TIMER_MS(save));
-//     screen_report("Saved level %S", path);
-// }
+    log("Reloaded %S %.2fms", level_path, CHECK_TIMER_MS(0));
+    screen_report("Reloaded current level");
+}
 
-// static For_Result cb_init_entity_after_level_load(Entity *e, void *user_data) {
-//     auto *world = (Game_World *)user_data;
-
-//     if (e->eid != EID_NONE) {        
-//         // e->draw_data.eid_offset = get_head_position(R_eid_alloc_range);
-//         // *(eid *)r_alloc(R_eid_alloc_range, sizeof(eid)) = e->eid;
-//     }
-
-//     if (e->eid > eid_global_counter) {
-//         eid_global_counter = e->eid + 1;
-//     }
+void save_current_level() {
+    START_TIMER(0);
     
-//     return CONTINUE;
-// }
+    const auto level = get_current_level();
+    if (!level) {
+        log(LOG_ERROR, "Failed to save current level as it does not exist");
+        return;
+    }
 
-// void load_level(Game_World &world, String path) {
-//     START_TIMER(0);
-
-//     File file = open_file(path, FILE_READ_BIT);
-//     defer { close_file(file); };
+    const auto level_path = make_level_path(level->name);
     
-//     if (file == FILE_NONE) {
-//         log(LOG_MINIMAL, "Failed to open level %S", path);
-//         return;
-//     }
+    Archive archive;
+    defer { reset(archive); };
 
-//     read_file(file, world.MAX_NAME_SIZE, &world.name);
+    if (!start_write(archive, level_path, true)) return;
+
+    const auto mark = get_temporary_storage_mark();
+    defer { set_temporary_storage_mark(mark); };
     
-//     read_file(file, _sizeref(world.player));
-//     read_file(file, _sizeref(world.camera));
-//     read_file(file, _sizeref(world.ed_camera));
-//     read_file(file, _sizeref(world.skybox));
+    String_Builder sb;
+    sb.allocator = __temporary_allocator;
 
-//     // read_sparse_array(file, &world.static_meshes);
-//     // read_sparse_array(file, &world.point_lights);
-//     // read_sparse_array(file, &world.direct_lights);
-//     // read_sparse_array(file, &world.sound_emitters_2d);
-//     // read_sparse_array(file, &world.sound_emitters_3d);
-//     // read_sparse_array(file, &world.portals);
-//     // read_sparse_array(file, &world.aabbs);
+    append(sb, level_header_token_camera);
+    append(sb, "\n");
 
-//     for_each_entity(world, cb_init_entity_after_level_load, &world);
-    
-//     log("Loaded level %S in %.2fms", path, CHECK_TIMER_MS(0));
-//     screen_report("Loaded level %S", path);
-// }
+    const auto camera = &level->entity_manager->camera;
+    for (u32 i = 0; i < Reflection_Field_Count(Camera); ++i) {
+        const auto field = Reflection_Field_At(Camera, i);
+
+        String text;
+        if (serialize_as_text(camera, field, &text, SERIALIZE_MODE_WRITE)) {  
+            append(sb, text);
+            append(sb, "\n");
+        }
+    }
+        
+    append(sb, "\n");
+        
+    For (level->entity_manager->entities) {
+        if (it.type == E_NONE) continue;
+        
+        append(sb, level_header_token_entity);
+        append(sb, "\n");
+        
+        for (u32 i = 0; i < Reflection_Field_Count(Entity); ++i) {
+            const auto field = Reflection_Field_At(Entity, i);
+
+            String text;
+            if (serialize_as_text(&it, field, &text, SERIALIZE_MODE_WRITE)) {
+                append(sb, text);
+                append(sb, "\n");
+            }
+        }
+        
+        append(sb, "\n");
+    }
+
+    const auto s = builder_to_string(sb);
+    serialize(archive, s.data, s.size);
+
+    log("Saved %S %.2fms", level_path, CHECK_TIMER_MS(0));
+    screen_report("Saved current level");
+}
 
 static const Atom player_move_flip_book_lut[DIRECTION_COUNT] = {
     ATOM("player_move_back"),
@@ -689,7 +1162,6 @@ void simulate_game() {
     {
         if (game_state.camera_behavior == STICK_TO_PLAYER) {
             camera.position = player->position + player->camera_offset;
-            camera.look_at_position = camera.position + forward(camera.yaw, camera.pitch);
         } else if (game_state.camera_behavior == FOLLOW_PLAYER) {
             const auto dead_zone     = player->camera_dead_zone;
             const auto dead_zone_min = camera.position - dead_zone * 0.5f;
@@ -719,12 +1191,11 @@ void simulate_game() {
                 target_eye.z = camera.position.z;
 
             camera.position = Lerp(camera.position, target_eye, player->camera_follow_speed * dt);
-            camera.look_at_position = camera.position + forward(camera.yaw, camera.pitch);
         }
+
+        const auto look_at = Vector3(camera.position.x, camera.position.y, camera.position.z + 1.0f);
+        camera.look_at_position = look_at;
     }
-    
-    // This can be used to force camera to look at specific position.
-    // camera.look_at_position = direction(camera.position, fixed_position);
 
     update_matrices(camera);
     
@@ -843,57 +1314,15 @@ void simulate_game() {
     }
 }
 
-void switch_campaign(Level_Set *set) {
-    current_level_set = set;
-
-    if (!set->campaign_state) {
-        auto cs = New(Campaign_State);
-        cs->campaign_name = copy_string(set->name);
-        set->campaign_state = cs;
-    }
-
-    init_level_general(false);
-}
-
-void init_level_general(bool reset) {
-    auto cs = get_campaign_state();
-    if (cs->entity_manager) {
-        if (reset) ::reset(cs->entity_manager);
-    } else {
-        cs->entity_manager = new_entity_manager();
-        reset = true;
-    }
-
-    auto manager = cs->entity_manager;
-    // @Todo
-}
-
-Level_Set *get_level_set() {
-    auto set = current_level_set;
-    Assert(set);
-    return set;
-}
-
-Campaign_State *get_campaign_state() {
-    auto set = get_level_set();
-    Assert(set->campaign_state)
-    return set->campaign_state;
-}
-
 Entity_Manager *get_entity_manager() {
-    auto cs = get_campaign_state();
-    Assert(cs->entity_manager);
-    return cs->entity_manager;
+    auto level = get_current_level();
+    Assert(level->entity_manager);
+    return level->entity_manager;
 }
 
 Entity_Manager *new_entity_manager() {
-    auto &manager = array_add(entity_managers);
-    new (&manager) Entity_Manager;
-
-    // @Cleanup: reallocate some entity count here?
-    // Add default nil entity.
-    array_add(manager.entities, {});
-    
+    auto &manager = array_add(entity_managers) = {};
+    reset(&manager);
     return &manager;
 }
 
@@ -902,7 +1331,12 @@ void reset(Entity_Manager *manager) {
     array_clear(manager->entities_to_delete);
     array_clear(manager->free_entities);
 
-    *manager = {};
+    manager->camera = {};
+    manager->player = 0;
+    manager->skybox = 0;
+
+    // Add default nil entity.
+    array_add(manager->entities, {});
 }
 
 void post_frame_cleanup(Entity_Manager *manager) {
@@ -937,9 +1371,8 @@ Pid new_entity(Entity_Manager *manager, Entity_Type type) {
         array_add(entities);
     }
 
-    auto &e = entities[index];
+    auto &e = entities[index] = {};
     e.type     = type;
-    e.bits    &= ~E_DELETED_BIT;
     e.eid      = make_eid(index, generation);
     e.scale    = Vector3(1.0f);
     e.uv_scale = Vector2(1.0f);

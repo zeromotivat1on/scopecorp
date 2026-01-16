@@ -504,7 +504,7 @@ Matrix4 inverse(const Matrix4 &m) {
 	const f32 det = ( - det3_201_123 * minv[3][0] + det3_201_023 * minv[3][1] - det3_201_013 * minv[3][2] + det3_201_012 * minv[3][3] );
 
 	if (Abs(det) < MATRIX_INV_EPSILON) {
-        log(LOG_ERROR, "Failed to inverse Matrix4");
+        // log(LOG_ERROR, "Failed to inverse Matrix4");
 		return Matrix4_identity();
 	}
 

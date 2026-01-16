@@ -111,22 +111,20 @@ s32 main() {
         
     init_hot_reload();
     // @Note: shader includes does not count in shader hot reload.
-	add_hot_reload_directory(PATH_SHADER(""));
-    add_hot_reload_directory(PATH_TEXTURE(""));
-    add_hot_reload_directory(PATH_FLIP_BOOK(""));
-    add_hot_reload_directory(PATH_MATERIAL(""));
-    add_hot_reload_directory(PATH_MESH(""));
+	add_hot_reload_directory(DIR_SHADERS);
+    add_hot_reload_directory(DIR_TEXTURES);
+    add_hot_reload_directory(DIR_FLIP_BOOKS);
+    add_hot_reload_directory(DIR_MATERIALS);
+    add_hot_reload_directory(DIR_MESHES);
+    add_hot_reload_directory(DIR_LEVELS);
 
     const auto hot_reload_thread = start_hot_reload_thread();
     defer { terminate_thread(hot_reload_thread); };
-
-    auto set = init_editor_level_set();
-    switch_campaign(set);
-    init_level_editor_hub();
-
+    
     game_state.polygon_mode = GPU_POLYGON_FILL;
 
 #if DEVELOPER
+    init_level_editor_hub();
     push_program_layer(&program_layer_editor);
 #else
     push_program_layer(&program_layer_game);

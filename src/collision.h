@@ -35,9 +35,12 @@ bool inside  (Vector2 p, Vector2 p0, Vector2 p1);
 
 Ray ray_from_mouse (const Camera &camera, const Viewport &viewport, s16 x, s16 y);
 
-auto get_direction     (Vector3 t) -> Direction;
-auto get_closest_point (Vector3 p, AABB b) -> Vector3;
-auto distance_sqr      (Vector3 p, AABB b) -> f32;
+Direction get_direction     (Vector3 t);
+Vector3   get_closest_point (Vector3 p, AABB b);
+f32       distance_sqr      (Vector3 p, AABB b);
+
+inline AABB make_aabb (Vector3 c, Vector3 r)                           { return AABB { c, r }; };
+inline AABB make_aabb (f32 cx, f32 cy, f32 cz, f32 rx, f32 ry, f32 rz) { return AABB { Vector3(cx, cy, cz), Vector3(rx, ry, rz) }; };
 
 //template <typename T> f32 get_max_movement_over_time (T *a, f32 t0, f32 t1);
 //template <typename T> f32 get_min_distance_at_time   (T *a, T *b, f32 t);
