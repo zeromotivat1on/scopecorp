@@ -2,6 +2,7 @@
 
 set RELEASE=false
 set BUILD_TOOLS=true
+set PREPROCESS_CODE=true
 set BAKE_ASSETS=true
 
 :: Possible graphics apis: OPEN_GL, DX12(Todo)
@@ -34,15 +35,24 @@ set LINK_LIBS=kernel32.lib user32.lib dbghelp.lib shlwapi.lib shell32.lib gdi32.
 
 if %BUILD_TOOLS% == true (
    echo.
-   echo Building tools
+   echo [Building tools]
 
-   cl %COMPILER_FLAGS% -DTOOL_BUILD src/tools/asset_baker.cpp ^
+   cl %COMPILER_FLAGS% src/tools/preprocessor.cpp ^
+      -link %LINKER_FLAGS% -SUBSYSTEM:Console -Out:run_tree/preprocessor.exe
+      
+   cl %COMPILER_FLAGS% src/tools/asset_baker.cpp ^
       -link %LINKER_FLAGS% -SUBSYSTEM:Console -Out:run_tree/asset_baker.exe
+)
+
+if %PREPROCESS_CODE% == true (
+   echo.
+   echo [Preprocessor]
+   "run_tree/preprocessor.exe"
 )
 
 if %BAKE_ASSETS% == true (
    echo.
-   echo Baking assets
+   echo [Asset Baker]
    "run_tree/asset_baker.exe"
 )
 

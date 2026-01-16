@@ -178,7 +178,7 @@ void init_level_editor_hub() {
 
     auto window = get_window();
     auto &camera = manager->camera;
-	camera.mode = PERSPECTIVE;
+	camera.mode = CAMERA_MODE_PERSPECTIVE;
 	camera.yaw = 90.0f;
 	camera.pitch = 0.0f;
 	camera.position = player->position + player->camera_offset;

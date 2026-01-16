@@ -1,3 +1,7 @@
+- Fix entity mouse pick
+
+- Add support for enums in reflection system.
+
 - Change render target to be a gpu writable texture and current render target to swapchain.
 
 - Add sampled profiling zones for runtime stats.

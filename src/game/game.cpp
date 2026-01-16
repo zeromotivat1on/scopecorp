@@ -18,6 +18,7 @@
 #include "texture.h"
 #include "flip_book.h"
 #include "audio_player.h"
+#include "reflection_meta.h"
 
 void game_logger_proc(String message, String ident, Log_Level level, void *logger_data) {
     thread_local char buffer[4096];

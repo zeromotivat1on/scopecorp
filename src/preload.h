@@ -192,7 +192,7 @@ inline const auto __preload_counter = get_perf_counter();
 #define Is_Ascii(c)     ((c) >=  0 && (c) <= 127)
 #define Is_Ascii_Ex(c)  ((c) >=  0 && (c) <= 255)
 #define Is_Printable(c) ((c) >= 32 && (c) <= 126)
-#define Is_Space(c)     ((c) >=  9 && (c) <=  13)
+#define Is_Space(c)     ((c) == 32 || ((c) >=  9 && (c) <=  13))
 
 void *eat (void **data, u64 n);
 #define __get_eat_macro(_1, _2, _3, name, ...) name
@@ -456,6 +456,16 @@ void array_realloc(Array<T> &array, u32 new_capacity) {
     auto old_items = array.items;
     array.items = (T *)array.allocator.proc(RESIZE, new_capacity * sizeof(T), array.capacity * sizeof(T), old_items, array.allocator.data);
     array.capacity = new_capacity;
+}
+
+template <typename T>
+T *array_find(Array<T> &array, const T &item) {
+    for (s32 i = 0; i < (s32)array.count; ++i) {
+        auto &current = array[i];
+        if (current == item) return &current;
+    }
+    
+    return null;
 }
 
 template <typename T>

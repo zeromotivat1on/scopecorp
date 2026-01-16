@@ -5,9 +5,9 @@
 void update_matrices(Camera &c) {
     c.view = make_view(c.position, c.look_at_position, c.up_vector);
 
-    if (c.mode == PERSPECTIVE) {
+    if (c.mode == CAMERA_MODE_PERSPECTIVE) {
 		c.proj = make_perspective(To_Radians(c.fov), c.aspect, c.near_plane, c.far_plane);
-    } else if (c.mode == ORTHOGRAPHIC) {
+    } else if (c.mode == CAMERA_MODE_ORTHOGRAPHIC) {
 		c.proj = make_orthographic(c.left, c.right, c.bottom, c.top, c.near_plane, c.far_plane);
     }
     

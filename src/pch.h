@@ -56,6 +56,7 @@ inline constexpr auto COLOR32_GRAY   = Color32 { .hex = 0xAAAAAAFF };
 
 #define _sizeref(x) sizeof(x), &x
 
+#define DIR_SRC           S("../src/")
 #define DIR_CODEGEN       S("../src/codegen/")
 #define DIR_SHADERS       S("data/shaders/")
 #define DIR_TEXTURES      S("data/textures/")
@@ -66,6 +67,7 @@ inline constexpr auto COLOR32_GRAY   = Color32 { .hex = 0xAAAAAAFF };
 #define DIR_FLIP_BOOKS    S("data/flip_books/")
 #define DIR_LEVELS        S("data/levels/")
 
+#define PATH_SRC(x)       S("../src/"          x)
 #define PATH_CODEGEN(x)   S("../src/codegen/"  x)
 #define PATH_PAK(x)       S(""                 x)
 #define PATH_SHADER(x)    S("data/shaders/"    x)
@@ -131,54 +133,33 @@ u64 highest_water_mark = 0;
 inline f32 get_delta_time () { return time_info.delta_time; }
 
 enum Camera_Mode : u8 {
-	PERSPECTIVE,
-	ORTHOGRAPHIC
+	CAMERA_MODE_NONE,
+	CAMERA_MODE_PERSPECTIVE,
+	CAMERA_MODE_ORTHOGRAPHIC,
 };
 
+// Reflection does not support enums, so their underlying types are used instead.
 struct Camera {
-	Camera_Mode mode;
-    Vector3     position;
-	Vector3     look_at_position;
-	Vector3     up_vector;
-	f32         yaw; // horizontal rotation around y-axis
-	f32         pitch; // vertical rotation around x-axis
-	f32	        fov;
-	f32	        aspect;
-	f32	        near_plane;
-	f32	        far_plane;
-	f32	        left;
-	f32	        right;
-	f32	        bottom;
-	f32	        top;
-    Matrix4     view;
-    Matrix4     proj;
-    Matrix4     view_proj;
-    Matrix4     inv_view;
-    Matrix4     inv_proj;
+	u8      mode;
+    Vector3 position;
+	Vector3 look_at_position;
+	Vector3 up_vector;
+	f32     yaw;   // horizontal rotation around y-axis
+	f32     pitch; // vertical rotation around x-axis
+	f32	    fov;
+	f32	    aspect;
+	f32	    near_plane;
+	f32	    far_plane;
+	f32	    left;
+	f32	    right;
+	f32	    bottom;
+	f32	    top;
+    Matrix4 view;      // @no_serialize
+    Matrix4 proj;      // @no_serialize
+    Matrix4 view_proj; // @no_serialize
+    Matrix4 inv_view;  // @no_serialize
+    Matrix4 inv_proj;  // @no_serialize
 };
-
-Begin_Reflection(Camera)
-Add_Reflection_Field(Camera, mode,             REFLECTION_FIELD_TYPE_U8,      1)
-Add_Reflection_Field(Camera, position,         REFLECTION_FIELD_TYPE_VECTOR3, 1)
-Add_Reflection_Field(Camera, look_at_position, REFLECTION_FIELD_TYPE_VECTOR3, 1)
-Add_Reflection_Field(Camera, up_vector,        REFLECTION_FIELD_TYPE_VECTOR3, 1)
-Add_Reflection_Field(Camera, yaw,              REFLECTION_FIELD_TYPE_F32,     1)
-Add_Reflection_Field(Camera, pitch,            REFLECTION_FIELD_TYPE_F32,     1)
-Add_Reflection_Field(Camera, fov,              REFLECTION_FIELD_TYPE_F32,     1)
-Add_Reflection_Field(Camera, aspect,           REFLECTION_FIELD_TYPE_F32,     1)
-Add_Reflection_Field(Camera, near_plane,       REFLECTION_FIELD_TYPE_F32,     1)
-Add_Reflection_Field(Camera, far_plane,        REFLECTION_FIELD_TYPE_F32,     1)
-Add_Reflection_Field(Camera, left,             REFLECTION_FIELD_TYPE_F32,     1)
-Add_Reflection_Field(Camera, right,            REFLECTION_FIELD_TYPE_F32,     1)
-Add_Reflection_Field(Camera, bottom,           REFLECTION_FIELD_TYPE_F32,     1)
-Add_Reflection_Field(Camera, top,              REFLECTION_FIELD_TYPE_F32,     1)
-// These are constructed from values above.
-Add_Reflection_Field(Camera, view,             REFLECTION_FIELD_TYPE_MATRIX4, 0)
-Add_Reflection_Field(Camera, proj,             REFLECTION_FIELD_TYPE_MATRIX4, 0)
-Add_Reflection_Field(Camera, view_proj,        REFLECTION_FIELD_TYPE_MATRIX4, 0)
-Add_Reflection_Field(Camera, inv_view,         REFLECTION_FIELD_TYPE_MATRIX4, 0)
-Add_Reflection_Field(Camera, inv_proj,         REFLECTION_FIELD_TYPE_MATRIX4, 0)
-End_Reflection(Camera)
 
 struct Viewport;
 

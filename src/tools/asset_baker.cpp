@@ -47,7 +47,7 @@ s32 main() {
         { ASSET_TYPE_MESH,      PATH_MESH(""),      },
     };
 
-    START_TIMER(0);
+    START_TIMER(gen);
 
     Array <String> generated_assets;
     generated_assets.allocator = __temporary_allocator;
@@ -181,12 +181,12 @@ s32 main() {
         }
     }
 
-    const auto generate_ms = CHECK_TIMER_MS(0);
-
     For (generated_assets) print("%S, ", it);
     print("\n\n");
+
+    print("Generated missing assets %.2fms\n\n", CHECK_TIMER_MS(gen));
     
-    START_TIMER(1);
+    START_TIMER(bake);
         
     for (u32 i = 0; i < carray_count(sets); ++i) {
         auto &set = sets[i];
@@ -328,13 +328,10 @@ s32 main() {
 
     write(pak, GAME_PAK_PATH);
 
-    const auto bake_ms = CHECK_TIMER_MS(1);
-    
     For (baked_assets) print("%S, ", it);
     print("\n\n");
 
-    print("Generated missing assets %.2fms\n", generate_ms);
-    print("Baked %S %.2fms\n", GAME_PAK_PATH, bake_ms);
+    print("Baked %S %.2fms\n", GAME_PAK_PATH, CHECK_TIMER_MS(bake));
 
     return 0;
 }

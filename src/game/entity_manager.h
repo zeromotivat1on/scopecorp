@@ -39,11 +39,12 @@ enum Entity_Bits : u32 {
     E_OVERLAP_BIT      = 0x8,
 };
 
+// Reflection does not support enums for now, so their underlying types are used instead.
 struct Entity {
     // Meta.
-    Entity_Type type;
+    u8          type;
     u32         bits;
-    Pid         eid;
+    Pid         eid; // @no_serialize
     Pid         parent;
     Pid         first_child;
     Pid         next_sibling;
@@ -54,14 +55,14 @@ struct Entity {
     Vector3     position;
     Vector3     scale;
     Quaternion  orientation;
-    Matrix4     object_to_world;
+    Matrix4     object_to_world; // @no_serialize
     Vector2     uv_scale;
     Vector3     uv_offset;
     Vector3     velocity;
     AABB        aabb;
     // Player.
     f32         move_speed;
-    Direction   move_direction;
+    u8          move_direction;
     Atom        move_flip_book;
     Atom        move_sound;
     Vector3     camera_offset;
@@ -77,7 +78,7 @@ struct Entity {
     // Sound emitter.
     Atom        sound;
     bool        sound_play_spatial;
-    // Portal
+    // Portal.
     Vector3     portal_destination;
 
     explicit operator bool() const { return type != E_NONE; }
@@ -110,42 +111,3 @@ void move_aabb_along_with_entity (Entity *e);
 
 #define New_Entity(M, E) get_entity(M, new_entity(M, E))
 #define For_Entities(A, E) For (A) if (it.type == E)
-
-// @Todo: create separate tool to generate such reflection data.
-Begin_Reflection(Entity)
-Add_Reflection_Field(Entity, type,                  REFLECTION_FIELD_TYPE_U8,         1)
-Add_Reflection_Field(Entity, bits,                  REFLECTION_FIELD_TYPE_U32,        1)
-// No need to serialze eid as new entities are created during load.
-Add_Reflection_Field(Entity, eid,                   REFLECTION_FIELD_TYPE_PID,        0)
-Add_Reflection_Field(Entity, parent,                REFLECTION_FIELD_TYPE_PID,        1)
-Add_Reflection_Field(Entity, first_child,           REFLECTION_FIELD_TYPE_PID,        1)
-Add_Reflection_Field(Entity, next_sibling,          REFLECTION_FIELD_TYPE_PID,        1)
-Add_Reflection_Field(Entity, prev_sibling,          REFLECTION_FIELD_TYPE_PID,        1)
-Add_Reflection_Field(Entity, mesh,                  REFLECTION_FIELD_TYPE_ATOM,       1)
-Add_Reflection_Field(Entity, material,              REFLECTION_FIELD_TYPE_ATOM,       1)
-Add_Reflection_Field(Entity, position,              REFLECTION_FIELD_TYPE_VECTOR3,    1)
-Add_Reflection_Field(Entity, scale,                 REFLECTION_FIELD_TYPE_VECTOR3,    1)
-Add_Reflection_Field(Entity, orientation,           REFLECTION_FIELD_TYPE_QUATERNION, 1)
-// Object to world transform matrix is inferred from position, scale and orientation.
-Add_Reflection_Field(Entity, object_to_world,       REFLECTION_FIELD_TYPE_MATRIX4,    0)
-Add_Reflection_Field(Entity, uv_scale,              REFLECTION_FIELD_TYPE_VECTOR2,    1)
-Add_Reflection_Field(Entity, uv_offset,             REFLECTION_FIELD_TYPE_VECTOR3,    1)
-Add_Reflection_Field(Entity, velocity,              REFLECTION_FIELD_TYPE_VECTOR3,    1)
-Add_Reflection_Field(Entity, aabb,                  REFLECTION_FIELD_TYPE_AABB,       1)
-Add_Reflection_Field(Entity, move_speed,            REFLECTION_FIELD_TYPE_F32,        1)
-Add_Reflection_Field(Entity, move_direction,        REFLECTION_FIELD_TYPE_U8,         1)
-Add_Reflection_Field(Entity, move_flip_book,        REFLECTION_FIELD_TYPE_ATOM,       1)
-Add_Reflection_Field(Entity, move_sound,            REFLECTION_FIELD_TYPE_ATOM,       1)
-Add_Reflection_Field(Entity, camera_offset,         REFLECTION_FIELD_TYPE_VECTOR3,    1)
-Add_Reflection_Field(Entity, camera_dead_zone,      REFLECTION_FIELD_TYPE_VECTOR3,    1)
-Add_Reflection_Field(Entity, camera_follow_speed,   REFLECTION_FIELD_TYPE_F32,        1)
-Add_Reflection_Field(Entity, ambient_factor,        REFLECTION_FIELD_TYPE_VECTOR3,    1)
-Add_Reflection_Field(Entity, diffuse_factor,        REFLECTION_FIELD_TYPE_VECTOR3,    1)
-Add_Reflection_Field(Entity, specular_factor,       REFLECTION_FIELD_TYPE_VECTOR3,    1)
-Add_Reflection_Field(Entity, attenuation_constant,  REFLECTION_FIELD_TYPE_F32,        1)
-Add_Reflection_Field(Entity, attenuation_linear,    REFLECTION_FIELD_TYPE_F32,        1)
-Add_Reflection_Field(Entity, attenuation_quadratic, REFLECTION_FIELD_TYPE_F32,        1)
-Add_Reflection_Field(Entity, sound,                 REFLECTION_FIELD_TYPE_ATOM,       1)
-Add_Reflection_Field(Entity, sound_play_spatial,    REFLECTION_FIELD_TYPE_BOOL,       1)
-Add_Reflection_Field(Entity, portal_destination,    REFLECTION_FIELD_TYPE_VECTOR3,    1)
-End_Reflection(Entity)

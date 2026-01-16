@@ -27,18 +27,32 @@ enum Reflection_Field_Type : u8 {
     REFLECTION_FIELD_TYPE_AABB,
 };
 
-struct Reflection_Field {
-    Reflection_Field_Type type;
-    String                name;
-    u32                   offset;
-    bool                  serializable;
+inline const String reflection_field_type_enum_names[] = {
+    S("REFLECTION_FIELD_TYPE_NONE"),
+    S("REFLECTION_FIELD_TYPE_S8"),
+    S("REFLECTION_FIELD_TYPE_S16"),
+    S("REFLECTION_FIELD_TYPE_S32"),
+    S("REFLECTION_FIELD_TYPE_S64"),
+    S("REFLECTION_FIELD_TYPE_U8"),
+    S("REFLECTION_FIELD_TYPE_U16"),
+    S("REFLECTION_FIELD_TYPE_U32"),
+    S("REFLECTION_FIELD_TYPE_U64"),
+    S("REFLECTION_FIELD_TYPE_F32"),
+    S("REFLECTION_FIELD_TYPE_F64"),
+    S("REFLECTION_FIELD_TYPE_BOOL"),
+    S("REFLECTION_FIELD_TYPE_CHAR"),
+    S("REFLECTION_FIELD_TYPE_VECTOR2"),
+    S("REFLECTION_FIELD_TYPE_VECTOR3"),
+    S("REFLECTION_FIELD_TYPE_VECTOR4"),
+    S("REFLECTION_FIELD_TYPE_MATRIX2"),
+    S("REFLECTION_FIELD_TYPE_MATRIX3"),
+    S("REFLECTION_FIELD_TYPE_MATRIX4"),
+    S("REFLECTION_FIELD_TYPE_QUATERNION"),
+    S("REFLECTION_FIELD_TYPE_STRING"),
+    S("REFLECTION_FIELD_TYPE_ATOM"),
+    S("REFLECTION_FIELD_TYPE_PID"),
+    S("REFLECTION_FIELD_TYPE_AABB"),
 };
-
-#define Begin_Reflection(t) inline const Reflection_Field t##_fields[] = {
-#define Add_Reflection_Field(t, fn, ft, ser) { ft, S(#fn), offset_of(t, fn), ser },
-#define End_Reflection(t) };
-#define Reflection_Field_Count(t) carray_count(t##_fields)
-#define Reflection_Field_At(t, i) &t##_fields[i]
 
 inline const String reflection_field_type_names[] = {
     S(""),
@@ -67,7 +81,24 @@ inline const String reflection_field_type_names[] = {
     S("AABB"),
 };
 
+struct Reflection_Field {
+    Reflection_Field_Type type;
+    String                name;
+    u32                   offset;
+    bool                  serializable;
+};
+
+#define Begin_Reflection(t) inline const Reflection_Field t##_fields[] = {
+#define Add_Reflection_Field(t, fn, ft, ser) { ft, S(#fn), offset_of(t, fn), ser },
+#define End_Reflection(t) };
+#define Reflection_Field_Count(t) carray_count(t##_fields)
+#define Reflection_Field_At(t, i) &t##_fields[i]
+
 inline String to_string(Reflection_Field_Type type) {
+    return reflection_field_type_enum_names[type];
+}
+
+inline String to_type_string(Reflection_Field_Type type) {
     return reflection_field_type_names[type];
 }
 
