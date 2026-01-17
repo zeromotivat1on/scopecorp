@@ -436,6 +436,7 @@ void init_program_layers() {
 
             scroll_console(delta);
         };
+        im.on_repeat = im.on_press;
         table_add(layer.input_mapping_table, KEY_UP, im);
 
         im = {};
@@ -447,6 +448,7 @@ void init_program_layers() {
 
             scroll_console(delta);
         };
+        im.on_repeat = im.on_press;
         table_add(layer.input_mapping_table, KEY_DOWN, im);
 
         im = {};
@@ -531,6 +533,7 @@ void init_program_layers() {
                 profiler->selected_zone_index += delta;
             }
         };
+        im.on_repeat = im.on_press;
         table_add(layer.input_mapping_table, KEY_UP, im);
 
         im = {};
@@ -541,6 +544,7 @@ void init_program_layers() {
                 profiler->selected_zone_index += delta;
             }
         };
+        im.on_repeat = im.on_press;
         table_add(layer.input_mapping_table, KEY_DOWN, im);
     }
 }
