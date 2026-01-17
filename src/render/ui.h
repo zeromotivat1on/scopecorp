@@ -22,8 +22,8 @@ inline constexpr u32 UI_INPUT_BUFFER_SIZE_SID = 64;
 
 // Bits that are returned from immediate ui elements.
 enum UI_Immediate_Bits : u16 {
-    UI_HOT_BIT       = 0x1,
-    UI_UNHOT_BIT     = 0x2,
+    UI_HOT_BIT       = 0x1,  // cursor hover
+    UI_UNHOT_BIT     = 0x2,  // cursor unhover
     UI_ACTIVATED_BIT = 0x4,  // received focus (button click or input select)
     UI_LOST_BIT      = 0x8,  // action was completed as NOT planned
     UI_FINISHED_BIT  = 0x10, // action was completed as planned

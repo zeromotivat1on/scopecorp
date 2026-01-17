@@ -104,10 +104,10 @@ s32 main() {
     auto &viewport = screen_viewport;
     viewport.aspect_type = VIEWPORT_4X3;
     init(viewport, window->width, window->height);
-
+    init_ui();
+    
     load_game_assets();
 
-    init_ui();
         
     init_hot_reload();
     // @Note: shader includes does not count in shader hot reload.
