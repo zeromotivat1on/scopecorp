@@ -69,20 +69,14 @@ void gpu_init_frontend() {
     array_add(gpu.descriptors,   {});
     array_add(gpu.pipelines,     {});
     
-    u8 pixels[] = { 0,0,0,       205,117,132, 0,0,
-                    205,117,132, 0,0,0,       0,0,};
-    const auto default_image_contents = make_buffer(pixels, sizeof(pixels));
-
-    gpu.default_image      = gpu_new_image(GPU_IMAGE_TYPE_2D, GPU_IMAGE_FORMAT_RGB_8, 1, 2, 2, 1, default_image_contents);
-    gpu.default_image_view = gpu_new_image_view(gpu.default_image, GPU_IMAGE_TYPE_2D, GPU_IMAGE_FORMAT_RGB_8, 0, 1, 0, 1);
-     gpu.sampler_default_color = gpu_new_sampler(GPU_SAMPLER_FILTER_NEAREST_MIPMAP_LINEAR,
-                                                 GPU_SAMPLER_FILTER_NEAREST,
-                                                 GPU_SAMPLER_WRAP_REPEAT,
-                                                 GPU_SAMPLER_WRAP_REPEAT,
-                                                 GPU_SAMPLER_WRAP_REPEAT,
-                                                 GPU_SAMPLER_COMPARE_MODE_NONE,
-                                                 GPU_SAMPLER_COMPARE_FUNCTION_NONE,
-                                                 -1000.0f, 1000.0f, COLOR4F_BLACK);
+    gpu.sampler_default_color = gpu_new_sampler(GPU_SAMPLER_FILTER_NEAREST_MIPMAP_LINEAR,
+                                                GPU_SAMPLER_FILTER_NEAREST,
+                                                GPU_SAMPLER_WRAP_REPEAT,
+                                                GPU_SAMPLER_WRAP_REPEAT,
+                                                GPU_SAMPLER_WRAP_REPEAT,
+                                                GPU_SAMPLER_COMPARE_MODE_NONE,
+                                                GPU_SAMPLER_COMPARE_FUNCTION_NONE,
+                                                -1000.0f, 1000.0f, COLOR4F_BLACK);
     gpu.sampler_default_depth_stencil = gpu_new_sampler(GPU_SAMPLER_FILTER_NEAREST_MIPMAP_LINEAR,
                                                         GPU_SAMPLER_FILTER_NEAREST,
                                                         GPU_SAMPLER_WRAP_REPEAT,
@@ -297,9 +291,9 @@ void render_one_frame() {
     {
         const auto &res    = Vector2((f32)screen_viewport.width, (f32)screen_viewport.height);
         const auto &ortho  = screen_viewport.orthographic_projection;
-        //const auto &cpos   = screen_viewport.cursor_pos;
-        const auto input   = get_input_table();
-        const auto &cpos   = Vector2((f32)input->cursor_x, (f32)input->cursor_y);
+        const auto &cpos   = screen_viewport.cursor_pos;
+        //const auto input   = get_input_table();
+        //const auto &cpos   = Vector2((f32)input->cursor_x, (f32)input->cursor_y);
         const auto &camera = manager->camera;
         
         set_constant_value(cv_viewport_cursor_pos, cpos);
@@ -465,7 +459,8 @@ void render_one_frame() {
         static auto shader = get_shader(S("frame_buffer"));
         static auto quad   = get_mesh(ATOM("quad"));
 
-        const auto framebuffer = gpu_get_framebuffer(viewport.framebuffer);
+        const auto framebuffer       = gpu_get_framebuffer(viewport.framebuffer);
+        const auto screen_image_view = framebuffer->color_attachments[0];
         
         gpu_cmd_framebuffer      (buf, gpu.default_framebuffer);
         gpu_cmd_polygon          (buf, GPU_POLYGON_FILL);
@@ -492,7 +487,7 @@ void render_one_frame() {
         gpu_cmd_cbuffer_instance (buf, &cbi_frame_buffer_constants);
         // @Cleanup: 1 because cbuffer before sampler takes 0 in shader right now,
         // its hardcoded which is kinda bad.
-        gpu_cmd_image_view       (buf, 1, framebuffer->color_attachments[0]);
+        gpu_cmd_image_view       (buf, 1, screen_image_view);
         gpu_cmd_sampler          (buf, 1, gpu.sampler_default_color);
         gpu_cmd_draw_indexed     (buf, GPU_TOPOLOGY_TRIANGLES, quad->index_count, 1, quad->first_index, 0);
 
@@ -596,10 +591,9 @@ void resize(Viewport &viewport, u32 width, u32 height) {
     if (viewport.framebuffer) gpu_delete_framebuffer(viewport.framebuffer);
     
     const Gpu_Image_Format color_formats[] = { GPU_IMAGE_FORMAT_RGB_8 };
-    viewport.framebuffer = gpu_new_framebuffer(color_formats, carray_count(color_formats),
-                                               internal_width, internal_height,
-                                               GPU_IMAGE_FORMAT_DEPTH_24_STENCIL_8,
-                                               internal_width, internal_height);
+    viewport.framebuffer = gpu_new_framebuffer(internal_width, internal_height,
+                                               color_formats, carray_count(color_formats),
+                                               GPU_IMAGE_FORMAT_DEPTH_24_STENCIL_8);
     
     log("Resized viewport 0x%X to %dx%d", &viewport, viewport.width, viewport.height);
 }
@@ -2206,8 +2200,7 @@ Texture *new_texture(Atom name, Buffer file_contents) {
     const auto format = gpu_image_format_from_channel_count(channel_count);
     const auto mipmap_count = gpu_max_mipmap_count(width, height);
 
-    const auto contents = make_buffer(data, width * height * depth * channel_count);
-    const auto image = gpu_new_image(type, format, mipmap_count, width, height, depth, contents);
+    const auto image = gpu_new_image(type, format, mipmap_count, width, height, depth, data);
     texture.image_view = gpu_new_image_view(image, type, format, 0, mipmap_count, 0, depth);
 
     texture.sampler = gpu.sampler_default_color;

@@ -50,14 +50,6 @@ void on_window_resize(u32 width, u32 height) {
     on_viewport_resize(manager->camera, screen_viewport);
 }
 
-void init_asset_storages() {
-    table_realloc(texture_table,    64);
-    table_realloc(material_table,   64);
-    table_realloc(mesh_table,       64);
-    table_realloc(flip_book_table,  64);
-    table_realloc(font_atlas_table, 16);
-}
-
 static bool load_game_pak(String path) {
     START_TIMER(0);
 
@@ -95,39 +87,43 @@ static bool load_game_pak(String path) {
     return true;
 }
 
-void load_game_assets() {
+void init_missing_assets() {
     {
-        #include "missing_texture.h"
+#include "missing_texture.h"
 
         const auto type   = GPU_IMAGE_TYPE_2D;
         const auto format = gpu_image_format_from_channel_count(missing_texture_color_channel_count);
         const auto mipmap_count = gpu_max_mipmap_count(missing_texture_width, missing_texture_height);
-        const auto buffer = make_buffer((void *)missing_texture_pixels, sizeof(missing_texture_pixels));
         
-        const auto image = gpu_new_image(type, format, mipmap_count, missing_texture_width, missing_texture_height, 1, buffer);
+        const auto image = gpu_new_image(type, format, mipmap_count, missing_texture_width, missing_texture_height, 1, missing_texture_pixels);
         const auto image_view = gpu_new_image_view(image, type, format, 0, mipmap_count, 0, 1);
+        Assert(image      == 0);
+        Assert(image_view == 0);
+        
         global_textures.missing = new_texture(ATOM("missing"), image_view, gpu.sampler_default_color);
     }
 
     {
-        #include "missing_shader.h"
+#include "missing_shader.h"
 
         global_shaders.missing = new_shader(S("missing.sl"), make_string((u8 *)missing_shader_source));
     }
        
     {
-        #include "missing_material.h"
+#include "missing_material.h"
 
         global_materials.missing = new_material(ATOM("missing"), make_string((u8 *)missing_material_source));
     }
      
     {
-        #include "missing_mesh.h"
+#include "missing_mesh.h"
 
         const auto buffer = make_buffer((void *)missing_mesh_obj, cstring_count(missing_mesh_obj));
         global_meshes.missing = new_mesh(ATOM("missing"), buffer, MESH_FILE_FORMAT_OBJ);
     }
-     
+}
+
+void load_game_assets() {
     load_game_pak(GAME_PAK_PATH);
     
     {

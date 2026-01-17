@@ -460,7 +460,8 @@ static inline u32 to_gl_texture_type(Gpu_Image_Type type) {
 
 static inline u32 to_gl_internal_format(Gpu_Image_Format format) {
     constexpr u32 lut[] = {
-        GL_NONE, GL_R8, GL_R32I, GL_R32UI, GL_RGB8, GL_RGBA8, GL_DEPTH24_STENCIL8,
+        GL_NONE, GL_R8, GL_R32I, GL_R32UI,
+        GL_RGB8, GL_RGBA8, GL_DEPTH_COMPONENT24, GL_DEPTH24_STENCIL8,
     };
 
     return lut[format];
@@ -468,7 +469,8 @@ static inline u32 to_gl_internal_format(Gpu_Image_Format format) {
 
 static inline u32 to_gl_format(Gpu_Image_Format format) {
     constexpr u32 lut[] = {
-        GL_NONE, GL_RED, GL_RED_INTEGER, GL_RED_INTEGER, GL_RGB, GL_RGBA, GL_DEPTH_STENCIL,
+        GL_NONE, GL_RED, GL_RED_INTEGER, GL_RED_INTEGER,
+        GL_RGB, GL_RGBA, GL_DEPTH_COMPONENT, GL_DEPTH_STENCIL,
     };
 
     return lut[format];
@@ -477,18 +479,18 @@ static inline u32 to_gl_format(Gpu_Image_Format format) {
 static inline u32 to_gl_data_type(Gpu_Image_Format format) {
     constexpr u32 lut[] = {
         GL_NONE, GL_UNSIGNED_BYTE, GL_INT, GL_UNSIGNED_INT,
-        GL_UNSIGNED_BYTE, GL_UNSIGNED_BYTE, GL_UNSIGNED_INT_24_8,
+        GL_UNSIGNED_BYTE, GL_UNSIGNED_BYTE, GL_UNSIGNED_INT, GL_UNSIGNED_INT_24_8,
     };
 
     return lut[format];
 }
 
 static inline u32 to_gl_unpack_alignment(Gpu_Image_Format format) {
-    constexpr u32 lut[] = { 0, 1, 4, 4, 4, 4, 4, };
+    constexpr u32 lut[] = { 0, 1, 4, 4, 4, 4, 4, 4, };
     return lut[format];
 }
 
-u32 gpu_new_image(Gpu_Image_Type type, Gpu_Image_Format format, u32 mipmap_count, u32 width, u32 height, u32 depth, Buffer base_mipmap_contents) {
+u32 gpu_new_image(Gpu_Image_Type type, Gpu_Image_Format format, u32 mipmap_count, u32 width, u32 height, u32 depth, const void *base_data) {
     Assert(mipmap_count);
     Assert(mipmap_count <= gpu_max_mipmap_count(width, height));
 
@@ -524,16 +526,16 @@ u32 gpu_new_image(Gpu_Image_Type type, Gpu_Image_Format format, u32 mipmap_count
     switch (gl_type) {
     case GL_TEXTURE_1D:
         glTextureStorage1D(gl_id, mipmap_count, gl_internal_format, width);
-        if (base_mipmap_contents) {
-            glTextureSubImage1D(gl_id, 0, 0, width, gl_format, gl_data_type, base_mipmap_contents.data);
+        if (base_data) {
+            glTextureSubImage1D(gl_id, 0, 0, width, gl_format, gl_data_type, base_data);
         }
         break;
 
     case GL_TEXTURE_1D_ARRAY:
     case GL_TEXTURE_2D:
         glTextureStorage2D(gl_id, mipmap_count, gl_internal_format, width, height);
-        if (base_mipmap_contents) {
-            glTextureSubImage2D(gl_id, 0, 0, 0, width, height, gl_format, gl_data_type, base_mipmap_contents.data);
+        if (base_data) {
+            glTextureSubImage2D(gl_id, 0, 0, 0, width, height, gl_format, gl_data_type, base_data);
         }
         break;
 
@@ -542,8 +544,8 @@ u32 gpu_new_image(Gpu_Image_Type type, Gpu_Image_Format format, u32 mipmap_count
     case GL_TEXTURE_CUBE_MAP:
     case GL_TEXTURE_CUBE_MAP_ARRAY:
         glTextureStorage3D(gl_id, mipmap_count, gl_internal_format, width, height, depth);
-        if (base_mipmap_contents) {
-            glTextureSubImage3D(gl_id, 0, 0, 0, 0, width, height, depth, gl_format, gl_data_type, base_mipmap_contents.data);
+        if (base_data) {
+            glTextureSubImage3D(gl_id, 0, 0, 0, 0, width, height, depth, gl_format, gl_data_type, base_data);
         }
         break;
 
@@ -704,20 +706,22 @@ u32 gpu_new_shader(Gpu_Shader_Stage_Type stage, Buffer source) {
     return index;
 }
 
-u32 gpu_new_framebuffer(const Gpu_Image_Format *color_formats, u32 color_format_count, u32 color_width, u32 color_height,
-                        Gpu_Image_Format depth_format, u32 depth_width, u32 depth_height) {
+u32 gpu_new_framebuffer(u32 width, u32 height, const Gpu_Image_Format *color_formats, u32 color_format_count, Gpu_Image_Format depth_format) {
     const auto index = gpu_next_index(gpu.framebuffers, gpu.free_framebuffers);
 
     auto &framebuffer = gpu.framebuffers[index];
     auto &gl_id       = framebuffer.handle._u32; Assert(!gl_id);
 
     framebuffer.color_attachments = New(u32, color_format_count);
-    
+    framebuffer.color_attachment_count = color_format_count;
+
     glCreateFramebuffers(1, &gl_id);
-    
+
+    auto gl_attachments = New(u32, color_format_count, __temporary_allocator);
+
     for (u32 i = 0; i < color_format_count; ++i) {
         const auto format = color_formats[i];
-        const auto image = gpu_new_image(GPU_IMAGE_TYPE_2D, format, 1, color_width, color_height, 1, {});
+        const auto image = gpu_new_image(GPU_IMAGE_TYPE_2D, format, 1, width, height, 1, {});
         const auto image_view = gpu_new_image_view(image, GPU_IMAGE_TYPE_2D, format, 0, 1, 0, 1);
         const auto gpu_image_view = gpu_get_image_view(image_view);
         const auto gl_view_id = gpu_image_view->handle._u32;
@@ -725,14 +729,15 @@ u32 gpu_new_framebuffer(const Gpu_Image_Format *color_formats, u32 color_format_
         glNamedFramebufferTexture(gl_id, GL_COLOR_ATTACHMENT0 + i, gl_view_id, 0);
         
         framebuffer.color_attachments[i] = image_view;
+        gl_attachments[i] = GL_COLOR_ATTACHMENT0 + i;
     }
-
+            
+    glNamedFramebufferDrawBuffers(gl_id, color_format_count, gl_attachments);
+            
     {
         const auto format = depth_format;
-        const auto image = gpu_new_image(GPU_IMAGE_TYPE_2D, format, 1,
-                                         depth_width, depth_height, 1, {});
-        const auto image_view = gpu_new_image_view(image, GPU_IMAGE_TYPE_2D,
-                                                   format, 0, 1, 0, 1);
+        const auto image = gpu_new_image(GPU_IMAGE_TYPE_2D, format, 1, width, height, 1, {});
+        const auto image_view = gpu_new_image_view(image, GPU_IMAGE_TYPE_2D, format, 0, 1, 0, 1);
         const auto gpu_image_view = gpu_get_image_view(image_view);
         const auto gl_view_id = gpu_image_view->handle._u32;
         
@@ -745,7 +750,7 @@ u32 gpu_new_framebuffer(const Gpu_Image_Format *color_formats, u32 color_format_
     if (status != GL_FRAMEBUFFER_COMPLETE) {
         log(LOG_IDENT_GL, LOG_ERROR, "[0x%X] Framebuffer %u is not complete", status, gl_id);
     }
-
+    
     return index;
 }
 

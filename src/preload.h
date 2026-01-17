@@ -146,13 +146,13 @@ inline constexpr auto PI = 3.14159265358979323846f;
 #endif
 
 #ifndef DEFAULT_PAGE_SIZE
-extern u64 get_page_size ();
+extern u64 get_page_size();
 inline const auto __page_size = get_page_size();
 #define DEFAULT_PAGE_SIZE __page_size
 #endif
 
-extern u64 get_perf_counter ();
-inline const auto __preload_counter = get_perf_counter();
+extern u64 get_perf_counter();
+inline const auto __preload_hpc = get_perf_counter();
 
 #define unreachable_code_path() Assert(0, "Unreachable code path")
 

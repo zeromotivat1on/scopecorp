@@ -47,16 +47,17 @@ void update_picking_buffer(uint2 pos, uint eid, float z, float opacity)  {
     uint2 cursor_pos = (uint2)viewport_cursor_pos;
     if (pos.x != cursor_pos.x || pos.y != cursor_pos.y) return;
 
+    // @Todo: does not work :( Probably due to usage of backend internal depth buffer.
     // Compare pixel z against the currently stored z-value in the
     // picking_buffer. If it's greater or equal (behind) -- return.
-    uint d = asuint(z);
-    //if (d > picking_buffer.Load(0)) return;
+    uint d = (uint)z;
+    if (d > picking_buffer.Load(0)) return;
     
     picking_buffer.Store2(0, uint2(d, eid));
 }
 
 [shader("pixel")]
-Out_Pixel main_pixel(Out_Vertex in, float4 pixel_position : SV_Position) {
+Out_Pixel main_pixel(Out_Vertex in) {
     Out_Pixel out;
 
     const float3 normal = in.normal;
@@ -75,11 +76,11 @@ Out_Pixel main_pixel(Out_Vertex in, float4 pixel_position : SV_Position) {
     }
 
     const float4 color = S2D.Sample(in.uv) * float4(phong, 1.0f);
-    //color = float4(1, 0, 0, 0.5) * float4(phong, 1.0f);
+    //out.color = float4(1, 0, 0, 0.5) * float4(phong, 1.0f);
     out.color = color;
-
+    
     // @Cleanup: its kinda bad to do it every pixel shader call.
-    update_picking_buffer((uint2)pixel_position.xy, in.eid, pixel_position.z, color.w);
+    update_picking_buffer((uint2)in.position.xy, in.eid, in.position.z, color.w);
 
     return out;
 }

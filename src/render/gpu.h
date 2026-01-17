@@ -92,6 +92,7 @@ enum Gpu_Image_Format : u8 {
     GPU_IMAGE_FORMAT_RED_32U,
     GPU_IMAGE_FORMAT_RGB_8,
     GPU_IMAGE_FORMAT_RGBA_8,
+    GPU_IMAGE_FORMAT_DEPTH_24,
     GPU_IMAGE_FORMAT_DEPTH_24_STENCIL_8,
 };
 
@@ -446,7 +447,7 @@ u32                 gpu_image_max_size                  ();
 u32                 gpu_vertex_attribute_max_count      ();
 u32                 gpu_new_buffer                      (Gpu_Buffer_Type type, u64 size);
 u32                 gpu_new_image                       (Gpu_Image_Type type, Gpu_Image_Format format, u32 mipmap_count, 
-                                                         u32 width, u32 height, u32 depth, Buffer base_mipmap_contents);
+                                                         u32 width, u32 height, u32 depth, const void *base_data);
 u32                 gpu_new_image_view                  (u32 image, Gpu_Image_Type type, Gpu_Image_Format format,
                                                          u32 mipmap_min, u32 mipmap_count, u32 depth_min, u32 depth_size);
 u32                 gpu_new_sampler                     (Gpu_Sampler_Filter filter_min, Gpu_Sampler_Filter filter_mag,
@@ -454,8 +455,7 @@ u32                 gpu_new_sampler                     (Gpu_Sampler_Filter filt
                                                          Gpu_Sampler_Compare_Mode compare_mode, Gpu_Sampler_Compare_Function compare_function,
                                                          f32 lod_min, f32 lod_max, Color4f color_border);
 u32                 gpu_new_shader                      (Gpu_Shader_Stage_Type stage, Buffer source);
-u32                 gpu_new_framebuffer                 (const Gpu_Image_Format *color_formats, u32 color_format_count, u32 color_width, u32 color_height,
-                                                         Gpu_Image_Format depth_format, u32 depth_width, u32 depth_height);
+u32                 gpu_new_framebuffer                 (u32 width, u32 height, const Gpu_Image_Format *color_formats, u32 color_format_count, Gpu_Image_Format depth_format);
 u32                 gpu_new_command_buffer              (u32 capacity);
 u32                 gpu_new_vertex_input                (const Gpu_Vertex_Binding *bindings, u32 count, const Gpu_Vertex_Attribute *attributes, u32 attribute_count);
 u32                 gpu_new_descriptor                  (const Gpu_Descriptor_Binding *bindings, u32 count);

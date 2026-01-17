@@ -43,7 +43,7 @@
 #ifdef OPEN_GL
 #include "gl.cpp"
 #include "glad.cpp"
-#include "win32_gl.cpp"
+#include "wgl.cpp"
 #else
 #error "Unsupported rendering backend"
 #endif
@@ -94,20 +94,19 @@ s32 main() {
     set_vsync  (window, true);
 
     if (!init_audio_player()) return 1;
-    
-    init_asset_storages();
-    init_profiler();
-    init_render_frame();
-    init_shader_platform();
-    init_line_geometry();
 
+    init_shader_platform();
+    init_render_frame();
+    init_missing_assets();
+    init_line_geometry();
+    init_profiler();
+        
     auto &viewport = screen_viewport;
     viewport.aspect_type = VIEWPORT_4X3;
     init(viewport, window->width, window->height);
     init_ui();
     
     load_game_assets();
-
         
     init_hot_reload();
     // @Note: shader includes does not count in shader hot reload.
@@ -131,7 +130,7 @@ s32 main() {
 
     handle_window_events(); // handle events that were sent during init phase
 
-    log("Startup time %.2fs", (get_perf_counter() - __preload_counter) / (f32)get_perf_hz());
+    log("Startup time %.2fs", (get_perf_counter() - __preload_hpc) / (f32)get_perf_hz());
     log("sizeof(Entity) %d", sizeof(Entity));
     log("sizeof(Gpu_Command) %d", sizeof(Gpu_Command));
     

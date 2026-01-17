@@ -46,6 +46,7 @@ inline Game_State game_state;
 struct Window_Event;
 
 void init_program_layers ();
+void init_missing_assets ();
 void load_game_assets    ();
 void simulate_game       ();
 void on_window_resize    (u32 width, u32 height);
